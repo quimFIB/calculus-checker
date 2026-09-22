@@ -1,0 +1,10 @@
+# Virtualenvs and bytecode are regenerable and stay unversioned — a venv
+# hardcodes absolute paths and breaks when moved.
+.venv/
+__pycache__/
+*.py[cod]
+
+# If this project ever symlinks to the private notes in _docs/, the rule must
+# name the LINK and carry no trailing slash: `/dev-docs/` matches directories
+# only, a symlink is not one, and the rule silently stops matching.
+/dev-docs
