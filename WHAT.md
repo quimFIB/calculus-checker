@@ -206,11 +206,37 @@ A script with no UI, which stays as the regression suite, does all of this:
   `from-scratch`, `rewrite-from-spike`, `promote` or `design-fix`.
 - Compare hours and lines per component against each row. Extrapolate only
   from `from-scratch` rows, and report `design-fix` separately.
-- **Whoever wrote it**, measure review cost on `STAGE0.md`'s S1–S3: time
-  fixing each encoding until the kernel accepts it with a correct obligation
-  list. Only S3 has a written encoding (restated for revision 9). S1 and S2
-  are table rows, so draft them first, and don't count that time as review.
-  S3 integrates over [1, e], so it needs `e_gt_one` in the §6.8 entries.
+- **Whoever wrote it**, measure review cost: time fixing each encoding until
+  the kernel accepts it with a correct obligation list. Drafting time is not
+  review time; log it separately. The goals come from the course, as the
+  kernel's first problem files (§16.4). Seed them with `STAGE0.md`'s S1–S3:
+  - S1 is ∫₀¹ 3x²+2x;
+  - S2 is ∫₀¹ x·exp(x²);
+  - S3's current encoding is below.
+
+  `STAGE0.md` is a frozen record, and its S3 is the revision-5 version.
+
+  ```
+  problem stage0.S3                         -- nontrivial domain obligation
+    answer schema  closed
+    goal  Int[x = 1 .. e_const] (ln x)/x  ≐  ?A
+  proof
+    step ftc  F := (ln x)^2 / 2
+         obl  F ∈ C⁰([1,e_const]) ∧ F ∈ C¹((1,e_const))   by reg
+              ⤷ obl  x > 0      @ [1,e_const]  by range, e_gt_one; linear
+         obl  D[x] F ≐ (ln x)/x    @ (1,e_const)  by deriv; field
+              ⤷ obl  x > 0      @ (1,e_const)  (d_ln)    by range, e_gt_one; linear
+              ⤷ obl  x # 0      @ (1,e_const)  (field)   by range, e_gt_one; linear
+         obl  (ln x)/x ∈ C⁰([1,e_const])                  by reg
+              ⤷ obl  x > 0      @ [1,e_const]  by range, e_gt_one; linear
+    step rewrite [ln_e, ln_one]
+    step close  ?A := 1/2                     by norm_num
+  qed
+  ```
+
+  Restated for revision 9, and checked against `spike/ring/`: `field` closes
+  the derivative owing `x # 0`, and the close needs `ln_e` and `ln_one`. It
+  needs `e_gt_one` (§6.8), so add that to the §6.8 entries when S3 is used.
   That is the review cost per encoding that §17 has been waiting on.
 
 **After it:** the rest of stage 1 (real discharge, `int_subst`, regularity),
