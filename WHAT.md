@@ -5,15 +5,17 @@ one way, course to tool (§18 Q6, settled revision 6). The course problems are a
 separable package `./calc` loads, not part of the tool, which is §1's
 replaceability test made operational.
 
-Design only. Nothing is built. Design 2026-09-20, stage 0b first pass
-2026-09-21, decoupling pass and stage 0 first pass 2026-09-22.
+Design, plus one spike: the tool itself is not built. Design 2026-09-20,
+stage 0b first pass 2026-09-21, decoupling pass and stage 0 first pass
+2026-09-22, the stage 0c `ring`/`field` spike (`spike/ring/`) and a recognizer
+spike (`spike/recognizer/`) 2026-09-23.
 
 `DESIGN.md` is the design; `STAGE0.md` is the first attempt to *use* it —
 forty-one goals and two table sweeps, fourteen gaps, all folded back in.
 
-`DESIGN.md` is **revision 6** (2026-09-22), and is **the whole record** — the adversarial review
+`DESIGN.md` is **revision 8** (2026-09-23), and is **the whole record** — the adversarial review
 that produced revision 2 and the revision-1 draft were folded into it and
-deleted, and nothing here is under version control yet. Its closing sections
+deleted before the project was under version control. Its closing sections
 carry what the review established, what was attacked and held, and how much to
 trust what the document states.
 
@@ -88,8 +90,23 @@ Next, in order:
    `field`'s nonvanishing obligations, in Python, against §11.2's flagship
    residual. A few days; it is the widest single range in §17 and the one
    component whose bug is a false `Proved`.
+   **Closed 2026-09-23** — `spike/ring/`, folded into `DESIGN.md` as
+   revision 7. It closes §11.2 with 28 tests passing, including property
+   tests against exact evaluation. The finding that mattered: §11.2's
+   `rewrite sqrt_sq_val` could never fire, so `field` now takes proven facts.
+   Timings settle §18 Q18: §11.2 runs in ~1 ms, and every corpus-shaped case
+   is ≥10× inside the 100 ms budget. It does *not* price writing `ring`/`field`
+   by hand, since Claude wrote it.
 3. Then the recognizer table, which is content rather than code and is where
    hours buy the most.
+   **Spiked 2026-09-23** (`spike/recognizer/README.md`, folded into
+   `DESIGN.md` as revision 8). §8.5's table as written names the course's technique for 15
+   of 22 target integrals, and 3 of 9 held out from units 01–10. Five rows
+   fitted to the misses took the first set to 22/22 and the held-out set
+   nowhere. So the cost is not writing rows. It is matchers that see through
+   algebra (normal forms, `trig_norm`) and a chain-rule row §8.5 lacks. Both
+   want stage 1's kernel first, so revision 8 puts **stage 1's headless
+   kernel next**, and this table after it.
 
 **Stage 0b is closed** (2026-09-21 and 2026-09-22; setup and notes in
 `_scratch/holpy-trial/` — outside this tool, and a dangling pointer if it is ever published; findings in §4.2). Its verdict: reimplement the core

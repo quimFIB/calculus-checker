@@ -1,6 +1,8 @@
 # A calculus proof checker
 
-**Status: design, revision 6, 2026-09-22. Nothing is built.** This proposes a
+**Status: design, revision 8, 2026-09-23. The tool is not built; two spikes
+are** — stage 0c's `ring`/`field` in `spike/ring/`, and the recognizer in
+`spike/recognizer/` (§8.5, §17). This proposes a
 system, states exactly what it would and would not guarantee, tests the design
 against real problems from the course, and ends with what it would cost and
 what would show it was the wrong idea.
@@ -67,6 +69,32 @@ grammar questions that were blocking the parser — **`abs` is admitted to
 goals**, the **`diverges` judgement** is in, and limsup is deferred with a
 trigger (§18 Q9–Q11). Nothing entered the trusted base and no part of §15's
 claim moved.
+
+**Revision 7 is the first one written against code.** Stage 0c built `ring`
+and `field` (§17) and ran §11.2 through them, and the result corrects the
+worked example this document calls its flagship. §11.2's script said
+`deriv; rewrite sqrt_sq_val; field`, and **no such rewrite can fire**: the √3
+that has to be squared is inside `((2x − 1)/sqrt 3)^2`, and *s*² only appears
+once `field` has normalised the term. So **`field` now takes proven facts**
+(§6.2) — a parameter on a trusted rule, stated with its soundness argument.
+Smaller corrections: what `field` owes is specified as *every divisor in its
+input* (§6.2); `ring`'s treatment of division is stated; `d_const` covers any
+term free of x (§6.3); and §5.3's sign certificate tries the goal as written
+first. **§18 Q18 is answered**: every case the corpus is shaped like runs at
+least 10× inside §8.6's 100 ms, and §11.2 itself in about a millisecond, so
+none of §16.2's mitigations is needed yet.
+
+**Revision 8 measures the product half.** A recognizer spike ran §8.5's table
+against the technique the course's own solutions use (§17's recognizer
+corpus). **As written, it names the right technique for 15 of 22 target
+integrals and for 3 of 9 held out from units 01–10.** Five rows fitted to the
+first set's misses took it to 22/22 and moved the held-out score not at all.
+The table's problem is not missing rows. It is that rows match the written form
+rather than the mathematics, and that §8.5 has no row for the chain rule. So
+§8.5 now matches on normalised goals, gains the chain-rule row and four
+others, and states row 5 as ln|f| (§8.5). §17 now requires a held-out score,
+and puts stage 1's kernel before the table. Nothing in §15 moved, and no rule
+or trusted component changed.
 
 Scope agreed at the outset, and revised since: it targets **scalar real
 analysis** as §13 now bounds it; it is a design document, not a prototype; and
@@ -826,7 +854,14 @@ A goal may first be `field`-normalised. Then, **in the order tried**:
    witness is sought: a sum of even powers plus a positive rational; for a
    quadratic, positive leading coefficient and negative discriminant
    (`x² − x + 1 = (x − ½)² + ¾` is decided here). **The decomposition is
-   emitted** and re-checked by `ring`.
+   emitted** and re-checked by `ring`. **The goal as written is tried as its
+   own witness first**, before anything is normalised: `1 + u^2` is a positive
+   rational plus an even power whatever u is, and normalising first loses
+   that when u holds an opaque divisor. That is not hypothetical. It is
+   `d_atan`'s own denominator in §11.2, `1 + ((2x − 1)/sqrt 3)^2 # 0`, which
+   ring-normalises to a quadratic in x with coefficients in the atom
+   `1/sqrt 3`, where the discriminant test no longer applies. *(Stage 0c,
+   revision 7.)*
 5. **by sign product** — the goal is ring-normalised, a factorisation into
    strictly lower-degree factors is supplied, and the sign of the whole follows
    from the signs of the parts. **The factorisation is emitted and re-checked
@@ -965,12 +1000,48 @@ structure, and both sides are compared. Non-polynomial subterms (`sin x`,
 never claims to know anything about `sin`.
 
 - **`ring`** — equality in the commutative ring ℚ[atoms]. Sparse multivariate
-  polynomials, exact rational coefficients. Decides its fragment.
-- **`field`** — equality in the field of fractions. Normalises to a
-  numerator/denominator pair and **emits a nonvanishing obligation for every
-  denominator it cancels**. This is the rule where a careless implementation
-  becomes unsound, and it is the one to review hardest.
+  polynomials, exact rational coefficients. Decides its fragment. Division
+  by a nonzero literal is a coefficient. **Division by anything else is itself
+  an opaque atom**, so `m * (1/m) ≐ 1` is not a `ring` fact, and neither is
+  `1/x^2 ≐ (1/x)^2`. Relating them is `field`'s job, and `ring` emits no
+  obligations because it cancels nothing.
+- **`field`** — equality in the field of fractions. Normalises lhs − rhs to a
+  numerator over a product of denominator factors and holds when the
+  numerator is the zero polynomial. It **emits `d # 0` for every divisor `d`
+  in its input**: every `e / d`, every `d ^ n` with n < 0, and those inside
+  an atom's arguments. A literal divisor is discharged at once by `norm_num`.
+  A divisor that normalises to zero is refused. This is the rule where a
+  careless implementation becomes unsound, and it is the one to review
+  hardest.
 - **`norm_num`** — closes goals over rational literals exactly.
+
+**Why "every divisor" and not "every denominator it cancels".** Revisions
+1–6 said the latter, and stage 0c found it cannot be implemented as a
+specification: a normaliser has no well-defined record of which denominators
+it cancelled. Every divisor is the conservative reading. It also coincides
+exactly with what §5.1's `/` former already charges, so `field` never
+introduces an obligation the term did not already owe, and reviewing it
+reduces to checking that nothing is dropped.
+
+**Facts.** `field [h₁, …]` takes proven equations of the shape `a^k ≐ r`, a
+power of one opaque atom on the left and a right side mentioning no fact's
+atom. Each is an instance of a §6.8 rule, usually `sqrt_sq_val`. The
+numerator is reduced modulo them before the zero test: each `a^k` is replaced
+by `r = P/Q`, and the result is multiplied through by the highest power of Q
+used. Q ≠ 0 is among the fact's own obligations, so the reduced numerator is
+zero exactly when the original is. **Soundness needs only that each fact is a
+theorem**, and in the kernel it is one, passed as a handle (§15.3). This is
+the step §11.2 needs and a rewrite cannot give it (see there). It is *not*
+the extension of the coefficient field declined below: no algebraic number is
+built in, and each fact is named, cited and visible in the proof. The
+reduction is complete for the case that matters, `(sqrt c)^2 ≐ c` with c not
+a rational square; it is not claimed complete in general.
+
+**Atoms are identified up to their arguments' normal forms.** `sin(x + 1)`
+and `sin(1 + x)` are one atom. That is congruence and nothing more.
+Arguments that are equal only as rational functions *with different
+representations* give two atoms, `sin(x/x)` and `sin 1` for instance. That
+makes the procedure incomplete, not unsound.
 
 `sin x + cos x ≐ cos x + sin x` is `ring`. `sin²x + cos²x ≐ 1` is **not** — it
 needs the named identity `pyth`. That asymmetry is not a restriction on anyone;
@@ -983,7 +1054,8 @@ normalizer that guessed would be the unsound kind.
 **The same property is what makes surds awkward, and §11.2 is where it bites.**
 `sqrt 3` is an opaque atom, so `field` sees a free atom *s* unrelated to 3.
 That is handled by naming the missing facts as rules (§6.8's `sqrt_sq_val` and
-`sqrt_pos`), not by teaching `field` about radicals. Extending the coefficient
+`sqrt_pos`) and handing them to `field` as facts (above), not by teaching
+`field` about radicals. Extending the coefficient
 field to ℚ(√d₁,…,√dₖ) is explicitly declined until someone sizes it against
 §15's budget.
 
@@ -994,7 +1066,7 @@ The chain factor is carried in the entry rather than by a separate rule, so
 `d_chain` is left for declared function symbols.
 
 ```
-  d_const     D[x] q         ≐  0
+  d_const     D[x] e         ≐  0                                @ x not free in e
   d_var       D[x] x         ≐  1
   d_add       D[x](u + v)    ≐  D[x]u + D[x]v
   d_mul       D[x](u * v)    ≐  D[x]u * v + u * D[x]v
@@ -1024,6 +1096,16 @@ The chain factor is carried in the entry rather than by a separate rule, so
 `sign` former: `u / abs u` *is* the sign, written in the grammar, and the
 obligation `abs u # 0` follows from `u # 0` by §6.8's `abs_pos`. Twenty-four
 entries.
+
+**`d_const` covers any term free of x**, not only a rational literal
+(revision 7). As first stated it left `D[x] pi`, `D[x] sqrt 3` and `D[x] y` for
+another variable y without a rule, and §11.2's F has `1/sqrt 3` as a factor. Stage
+0c's `deriv` also met two formers that have no entry, and they are
+deliberately left without one: **`-u` and `u / v` are routed through the
+algebra, not given rules**. `-u ≐ (-1) * u` is `ring`, and
+`u / v ≐ u * (1/v)` is `field`, owing `v # 0`, which the term already owed.
+After that, `d_mul` and `d_inv` apply. That keeps the table at twenty-four
+entries and puts no new theorem in the trusted base.
 
 Every entry carries its condition inline; revision 1 listed `d_pow_int` bare
 and had no rule for `tanh`, which unit 00 P4's answer v(t) = v∞ tanh(gt/v∞)
@@ -1134,7 +1216,10 @@ adds nothing to the trusted base.
 
 What remains a scheduling problem is the **algebraic-constant** case: `auto` is
 stage 3, `ftc` and `subst` are stage 1, so between those stages a close needing
-`sqrt_sq_val` or a similar fact about an opaque atom is a manual rewrite.
+`sqrt_sq_val` or a similar fact about an opaque atom is a manual step: the
+learner names the fact and it is passed to `field` (§6.2). It is not a
+rewrite, because the square it needs usually exists only after
+normalisation (§11.2).
 
 The payoff of the asymmetry is unchanged and is the reason the project exists:
 the kernel needs **no integration algorithm at all**. No Risch, no table of
@@ -1437,7 +1522,8 @@ because the corpus raises them; they are stated by the mathematics:
 
 - `sqrt_sq_val : (sqrt a)^2 ≐ a @ a ≥ 0` — without it §11.2's flagship
   obligation is **false as annotated**, since `field` over ℚ(x, s) with *s*
-  opaque gives residual (3/2 − s²/2)/(…), zero iff s² = 3.
+  opaque gives residual (3/2 − s²/2)/(…), zero iff s² = 3. It enters as a
+  **fact passed to `field`** (§6.2), never as a rewrite before it.
 - `sqrt_pos : a > 0 ⊢ sqrt a > 0` — `close … by ring` in §11.2 divides by the
   atom `sqrt 3`, which is not a ring operation; the step is `by field` with
   `sqrt 3 # 0` discharged here.
@@ -1759,22 +1845,60 @@ recognition being learned.
 with what each move will demand in return:
 
 ```
-  ∫ R(sin θ, cos θ) dθ      →  Weierstrass, t = tan(θ/2)     [emits cos θ # 0]
-  √(a² − x²)                →  x = a sin θ                   [close needs pyth]
-  √(x² + a²)                →  x = a sinh u                  [inverse: asinh]
-  √(u) inside f(·)          →  u = t², kill the root         [emits u ≥ 0]
-  f′(x)/f(x)                →  ln f,  with f > 0             [see below]
-  P(x)·e^{ax}, P(x)·sin ax  →  parts, reducing deg P each time
-  rational function          →  factor, then partial fractions
+  ∫ R(sin θ, cos θ) dθ           →  Weierstrass, t = tan(θ/2)   [emits cos θ # 0]
+  √(a² − x²)                     →  x = a sin θ                 [close needs pyth]
+  √(x² + a²)                     →  x = a sinh u                [inverse: asinh]
+  √(x² − a²)                     →  x = a cosh u                [x ≥ a; inverse: acosh]
+  √(u) inside f(·)               →  u = t², kill the root       [emits u ≥ 0]
+  f′(x)·g(f(x))                  →  u = f(x)                    [see below]
+  f′(x)/f(x)                     →  ln|f|                       [emits f # 0]
+  tan u,  tanh u                 →  −ln|cos u|,  ln cosh u      [f′/f after tan_def]
+  P(x)·e^{ax}, P(x)·sin ax       →  parts, reducing deg P each time
+  e^{ax}·sin bx, e^{ax}·cos bx   →  parts twice, solve for the integral (the cycle)
+  (linear)/(irreducible quadratic) → c·f′/f plus an arctan
+  rational function              →  factor, then partial fractions
 ```
 
-**Row five is stated as ln f with f > 0, not ln|f| with f # 0.** Revision 1
-wrote the second, and the only rule that could check it — `d_ln` — requires
-u > 0, while nothing in §6 differentiates `abs`. As written, a row rated
-*trivial* proposed antiderivatives the kernel could not verify wherever *f*'s
-sign was not pinned down. Where the sign genuinely varies, the route is `cases`
-on the sign of *f* and two applications, which is what the paper solution does
-implicitly anyway.
+**Row seven is ln|f| with f # 0 (revision 8).** Revisions 1–7 stated it as
+ln f with f > 0, because the only rule that could check it, `d_ln`, requires
+u > 0, and nothing in §6 differentiated `abs`. Revision 6 added `d_abs`, which
+removed the reason, and the recognizer spike found the row still stated the
+old way. `D[x] ln(abs f)` now checks through `d_ln`, `d_abs` and `abs_pos`,
+and the `cases` split on f's sign is no longer needed.
+
+**Revision 8 changed five rows, and all five come from the recognizer spike**
+(`spike/recognizer/`, §17):
+- `√(x² − a²)` and `tan u, tanh u` fill two misses in unit 00.
+- `(linear)/(irreducible quadratic)` is the step readiness P1 and P5 both
+  take after partial fractions, and "partial fractions" named it wrongly.
+- `e^{ax}·sin bx` is the cycle case the progress signal below says the parts
+  row "knows about". The `P(x)·e^{ax}` pattern never matched it, because there
+  is no polynomial factor.
+- **`f′(x)·g(f(x))` is the chain rule**, the commonest substitution there is,
+  and §8.5 had no row for it: `x·e^{x²}` matched nothing, and `sin x·cos² x`
+  was offered Weierstrass. It is the one row that is a search rather than a
+  pattern: is some factor a constant multiple of the derivative of a subterm of
+  another factor? `field`'s constant-ratio test (D[x] of the ratio ≐ 0) is
+  what answers it.
+
+**The rows match the normalised goal, not the written one** (revision 8).
+Three of the spike's six held-out misses were rows reading the raw term:
+- `sin t·(−sin t) − cos t·cos t` is −1, and was offered Weierstrass.
+- `1/(u·ln(1/u))` is f′/f with f = ln(1/u), but the row took the whole
+  denominator as f.
+- `√(2ε + 2GM/r − h²/r²)` is a quadratic under the root once r² is cleared.
+
+So the recognizer runs on the goal after `ring`/`field` normalisation and
+§8.9's `trig_norm`, and f′/f tries each factor of a denominator. This is
+untrusted tier-2 work, so normalising here emits nothing. §8.9's rule that
+`trig_norm` is a fallback, not a preprocessor, is about the kernel's
+discharge, where it would add obligations, and it still stands there.
+
+**Two further techniques are recorded rather than given rows**, because each
+appeared once and a row fitted to one example is what the spike showed does
+not generalise. They are differentiating a parameter of ∫ 1/D to reach
+∫ 1/D² (readiness P2), and the Beta substitution for √(1 − xⁿ) with symbolic
+n (unit 00 P7).
 
 The recognizer is the integration-techniques chapter, indexed by syntax. In
 `assisted` mode it proposes; when `solve` eventually exists (§2) it is the same
@@ -1808,8 +1932,10 @@ nothing here can enter the kernel, and a move the signal calls `worse` may be
 the right one. The canonical counterexample is already in this document:
 **parts with a cycle** (∫e^x sin x, §8.2) deliberately goes around twice and
 gets worse each time before the two halves are solved against each other. The
-recognizer's `P(x)·e^{ax}` row knows about that case and suppresses the
-warning; nothing guarantees the list of such cases is complete. Second, "more
+recognizer's `e^{ax}·sin bx` row knows about that case and suppresses the
+warning. *(Revisions 3–7 credited the `P(x)·e^{ax}` row with this; its pattern
+never matched, and revision 8 gave the cycle its own row.)* Nothing guarantees
+the list of such cases is complete. Second, "more
 atoms" is a crude proxy, and the signal says which measure fired rather than
 pronouncing a verdict.
 
@@ -1945,7 +2071,8 @@ F" would diagnose a right answer as an error. The residual is matched against
 identity. The same applies to surds: a learner who writes π√3/9 — SymPy's
 normal form and most textbooks' — is compared against π/(3√3), and with
 `sqrt 3` opaque the difference is (3π − s²π)/(9s) ≠ 0. Every surd answer on
-this syllabus is affected, and `sqrt_sq_val` is what closes it.
+this syllabus is affected, and `sqrt_sq_val`, passed to `field` as a fact
+(§6.2), is what closes it.
 
 For long chains this is the highest-value feature in the application after the
 recognizer, and it is a few dozen lines on top of machinery §6.2 already needs.
@@ -2306,8 +2433,9 @@ proof
        obl  1 + x > 0            @ [0,1]     by domain (linear)             ✓
        obl  x^2 - x + 1 > 0                  by sign ((x-1/2)² + 3/4)       ✓
        obl  sqrt 3 # 0                       by sqrt_pos                    ✓
-       obl  D[x] F ≐ 1/(1 + x^3) @ [0,1]     by deriv; rewrite sqrt_sq_val;
-                                                field                       ✓
+       obl  D[x] F ≐ 1/(1 + x^3) @ [0,1]     by deriv;
+                                                field [sqrt_sq_val 3]       ✓
+       obl  1 + ((2*x - 1)/sqrt 3)^2 # 0     by sign (as written)           ✓
        obl  1 + x^3 # 0          @ [0,1]     by product (lines 1–2; ring)   ✓
        obl  F ∈ C¹([0,1]) ∧ 1/(1+x^3) ∈ C⁰([0,1])   by reg                  ✓
   step rewrite [ln_one, atan_one_sqrt3, atan_odd]
@@ -2327,8 +2455,9 @@ learner's *A*, *B*, *C* are wrong it fails with the residual named.
 loose.** The `deriv; field` step was **false as annotated**: `sqrt 3` is an
 opaque atom (§6.2), so `field` sees a free atom *s* unrelated to 3, and the
 residual in ℚ(x, s) is (3/2 − s²/2)/(s²x² − s²x + s² + 4x⁴ − 8x³ + 9x² − 5x + 1),
-which is identically zero iff s² = 3. `rewrite sqrt_sq_val` supplies exactly
-that. The `close` step was `by ring`, which divides by `sqrt 3` — not a ring
+which is identically zero iff s² = 3. `sqrt_sq_val` supplies exactly
+that — *(stage 0c confirmed this residual in code, and corrected how the fact
+gets in)*. The `close` step was `by ring`, which divides by `sqrt 3` — not a ring
 operation; it is `by field`, and the `sqrt 3 # 0` it emits arrives from
 `sqrt_pos` (that obligation is emitted earlier anyway, since §5.1's `/` former
 carries it, so writing *F* at all requires it). And `1 + x^3 # 0` was labelled
@@ -2344,6 +2473,24 @@ involved: the factorisation comes from the learner's own *F*.
 Note `x² − x + 1 > 0` discharged by the sum-of-squares certificate of §5.3 —
 a domain condition the paper solution passes over in silence, and the one the
 obligation pane is for.
+
+**Revision 7: the fact goes into `field`, not in front of it.** Revisions 2–6
+wrote this step as `deriv; rewrite sqrt_sq_val; field`. Stage 0c ran it, and
+the rewrite has nothing to act on. `d_atan` produces
+`D[x]u / (1 + u^2)` with `u = (2x − 1)/sqrt 3`, and the output of `deriv`
+contains no `(sqrt 3)^2` anywhere. The square exists only inside `u^2`, and
+*s*² appears only once `field` has expanded it. No rewrite on terms can reach
+it, so the fact is passed to `field` itself (§6.2, *facts*), which reduces the
+normalised numerator modulo s² = 3. That is a parameter on a trusted rule, and
+it is sound for the reason stated there.
+
+Running it also produced **one obligation this example had never listed**:
+`1 + ((2x − 1)/sqrt 3)^2 # 0`, which is `d_atan`'s denominator. It is true for
+the obvious reason, but only if §5.3's sign certificate reads it *as written*.
+After ring-normalisation it is a quadratic in x whose coefficients involve the
+atom `1/sqrt 3`, and the discriminant test no longer applies. §5.3 now tries
+the written form first. The spike runs this whole obligation, `deriv`
+included, in about a millisecond.
 
 ---
 
@@ -2767,7 +2914,8 @@ whether or not it looks like a kernel.
    schema's `u` to a bound `t`; "capture-avoidance is a solved problem" is a
    claim about the term language, not about the implementation.
 4. **`ring`, `field` and `norm_num`** — the three reflective procedures, with
-   `field`'s cancellation obligation the soundness-bearing behaviour.
+   `field`'s divisor obligations and its reduction modulo facts (§6.2) the
+   soundness-bearing behaviour.
 5. **The obligation tracker**, and those parts of §5.3's discharge that are not
    certificate-emitting: method 1's reflexive-transitive closure over the
    ordering hypotheses, method 2's by-range extension, and the satisfiability
@@ -3050,6 +3198,20 @@ requires; and a per-step timeout in the server, which §16.4 makes a first-class
 without touching the algorithm. Measure before optimising, and note that the
 sizes here are undergraduate integrands, not computer algebra benchmarks.
 
+**Measured, stage 0c (2026-09-23): not a risk at the corpus's sizes.** With
+stdlib `Fraction` and dict-of-monomials polynomials, and nothing optimised:
+§11.1's check takes 0.1 ms, §11.2's flagship (`deriv` plus `field` with a fact)
+1.2 ms, unit 00 P4's quadratic drag 0.7 ms, a 16-factor partial-fraction check
+8.6 ms, and a 32-deep continued fraction 4.4 ms. Only synthetic stress breaks
+§8.6's 100 ms: a telescoping sum over 64 distinct factors (0.7 s, growing
+roughly with the cube of the factor count) and (x + y + z + 1)^16 by `ring`
+(144 ms for 969 terms, roughly quadratic in the term count). Those are the two
+shapes to watch. Nothing in §11–§12 comes near either, so `gmpy2` and a
+compiled normaliser both stay unneeded. The per-step timeout of §16.4 remains
+the backstop. *(Load 2.4 on 8 cores during the run: one core was free for the
+single-threaded bench, but it was not idle. None of these conclusions moves at
+a factor of 2.)*
+
 **Standard library only, for v1.** This is how the house rule survives — *a
 thing untouched for six months must still open* — and it is the precedent
 `./mr` set in this workspace (stdlib Python, no venv, because a virtualenv
@@ -3276,6 +3438,30 @@ a one-line reach for SymPy would end the project's claim. It is also where
 §16.2's performance risk lives. Three days here converts the largest estimate
 in this document from a guess into a measurement.
 
+**Stage 0c closed on 2026-09-23** (`spike/ring/`, with its own README).
+`ring` and `field` come to ~370 lines of code, against the effort table's 600
+for `ring`/`field`/`norm_num`. There are 28 tests, including property tests
+that check every verdict against exact rational evaluation, and they catch
+each of four planted false-`Proved` bugs. It answered two of its three
+questions:
+
+- **Does the design work?** Mostly. It also corrected the flagship: §11.2's
+  `rewrite sqrt_sq_val` cannot fire, so `field` takes facts (§6.2, §11.2).
+  Five smaller corrections went to §5.3, §6.2 and §6.3.
+- **Is it fast enough?** Yes, by at least an order of magnitude on every
+  corpus-shaped case (§16.2, §18 Q18).
+- **What does it cost to write?** *Not answered.* The spike was written by
+  Claude in one session, so it prices nothing about writing it by hand, for
+  the same reason stage 0 stopped measuring an authoring rate. The 60–110
+  hours stand as an estimate.
+
+**The recognizer table follows the headless kernel, not the other way round**
+(revision 8). The table had been listed as the next thing after 0c because it
+is content and can be written without code. The recognizer spike showed that
+writing the rows is the cheap part, and that what makes them work is matching
+on normal forms, which needs the kernel. A table written first could be scored
+only by eye. One written second is scored mechanically on the held-out corpus.
+
 **Stage 1 runs headless first, then grows a client.** Terms, `ring`, `field`,
 `deriv`, `ftc`, domains and obligations, driven over the §16.3 API against
 §11.1 and §11.2 before the panes exist. That is where the central bet either
@@ -3310,7 +3496,7 @@ worked in the loop, plus unit 00's quadrature cases, which need no numerics.
 | **Kernel** — `abs` in goals: `d_abs`, the two rewrites, the C⁰/C¹ entry (§5.1) | 60 | 6–12 |
 | **Kernel** — `diverges`: the judgement, `div_limit`/`compare`/`power`/`pole` (§5.2) | 140 | 15–25 |
 | **Kernel** — parser + KaTeX printer + round-trip property test | 300 | 25–40 |
-| **Assistance** — palette, antiderivative card, recognizer, progress signal (§8.5) | 400 | 40–65 |
+| **Assistance** — palette, antiderivative card, recognizer, progress signal (§8.5) | 400 † | 40–65 |
 | **Assistance** — residual reporting and the three kinds of stuck (§8.7) | 200 | 20–35 |
 | **Assistance** — speculative probe, floating-point quadrature (§8.6) | 120 | 10–18 |
 | **Assistance** — factoriser and partial-fraction solver, `ring`-verified | 200 | 20–35 |
@@ -3321,6 +3507,12 @@ worked in the loop, plus unit 00's quadrature cases, which need no numerics.
 | Symbolic falsifier bank + the recognizer corpus (below) | — | 25–40 |
 | Authoring: readiness P1–P5 and unit 00's quadrature cases (**upper bound** — see below) | — | 20–60 |
 | **Total** | **~4,300** | **436–767** |
+
+† *Probably low.* The recognizer spike's shape analysis and rows alone came to
+~560 lines, without the palette, the card or the progress signal, and without
+the chain-rule row or normalised matching (§8.5). The hours are not re-estimated,
+since a spike Claude wrote measures nothing about writing it by hand. The line
+count says the 400 undercounts, likely by half or more.
 
 **6–11 months at 15 hours a week; 4–7 at 25; 2½–4½ full-time.** The first
 useful landing is much earlier: the headless kernel proving §11.1 and §11.2 is
@@ -3495,6 +3687,23 @@ the fraction. That number is the honest measure of whether §8.5 is doing its
 job, and it should be published beside the soundness bank rather than folded
 into it.
 
+**Measured, 2026-09-23 (`spike/recognizer/`).** Twenty-two integrals from
+readiness P1/P2/P5 and unit 00 were each labelled with the technique the
+course's hint or solution names, with the line quoted. §8.5's table as it
+then stood scored **15/22**. Five rows fitted to the misses scored 22/22. On
+**nine integrals held out from units 01–10**, both scored **3/9**. The fitted
+rows fixed their own examples and nothing else, which is what a long tail
+looks like, and it changes what the test must be:
+
+- **Score on a held-out set, and never tune on it.** A table scored only on
+  the corpus it was written against measures its author's reading. Hold back
+  units the rows were not written from, and publish that score as the number.
+- **The cost is matchers, not rows.** Each row is a few lines. The held-out
+  misses came from matching the written form and from the missing chain-rule
+  row (§8.5). Both need `ring`/`field` normal forms and the constant-ratio
+  test, which is why the table follows stage 1's kernel (below) rather than
+  preceding it.
+
 ### The gate: does the loop actually teach?
 
 Revision 1's behavioural falsifier asked whether `solve` gets pressed on
@@ -3526,6 +3735,12 @@ used most.** If it is rung 0 — the palette alone — the recognizer is carryin
 the project and the ladder was over-engineered. If it is rung 3 throughout, the
 recognizer's rows are too coarse to be actionable and want splitting.
 
+**Both readings assume the recognizer fires.** Where no row matches, rungs 1–3
+show nothing, and the reading measures coverage instead of learning. The
+recognizer spike had no row firing on four of nine held-out integrals. So **the
+recognizer's held-out score on the gate's own corpus is measured before the
+gate is read**, and problems where no row fired are reported separately
+rather than averaged in.
 ### The risk that is not technical
 
 **Building the checker is more interesting than unit 00, and will stay that way
@@ -3625,7 +3840,7 @@ the change of language and deployment, and reopen Q7.
    `liminf`, `inf` or `sup` as a value. Neither is in stage 1 or stage 2. If
    the trigger fires, generalise then, with two instances to design against
    instead of one.
-10. **What is `abs` for?** It currently appears only in side conditions
+10. ~~**What is `abs` for?**~~ It currently appears only in side conditions
     (§5.1), which costs unit 00 P7 and forces §8.5's `f′/f` row through
     `cases`. The alternative is `d_abs (u # 0)` plus a C⁰-only regularity
     entry and a `cases` discipline. Cheap either way; not free.
@@ -3668,6 +3883,11 @@ the change of language and deployment, and reopen Q7.
     and want splitting; rung 0 throughout means the palette alone was carrying
     the project and the ladder was over-engineered. Both are cheap to fix and
     neither is decidable in advance.
+    **Partly answered, revision 8:** the first problem is not granularity but
+    reach. The spike's rows were fine-grained enough wherever they fired, and
+    rung 3 was specific enough to act on. What failed was firing at all
+    (3/9 held out), for reasons more rows do not fix (§8.5, §17). Granularity
+    stays open until coverage is good enough to measure it.
 16. **Local-only, or hosted?** §16 decides local for v1 — `./calc` on
     localhost, single user, no accounts, no network — on the grounds that
     hosting adds auth, multi-user persistence and a service to maintain, for a
@@ -3678,12 +3898,15 @@ the change of language and deployment, and reopen Q7.
     the probe into the step response, so the arithmetic says yes. The
     arithmetic said yes about a lot of things. §17 stage 0b is there partly to
     find out by feel rather than by calculation.
-18. **Is `ring`/`field` fast enough in Python, and if not, where does it
-    go?** §16.2 names this as the one real performance risk and lists the
-    mitigations in order. The question behind it is what happens if they run
-    out: `gmpy2` for the arithmetic is the easy answer, a rewrite of the
-    normaliser in C or Rust behind the same interface is the hard one, and the
-    interface is what makes the hard one possible.
+18. ~~**Is `ring`/`field` fast enough in Python, and if not, where does it
+    go?**~~ **Settled, revision 7: yes, with room to spare.** Stage 0c
+    measured every corpus-shaped case at least 10× inside §8.6's 100 ms,
+    §11.2 in about a millisecond (§16.2). The budget breaks only on 64+
+    distinct denominator factors, or on a trivariate expansion of degree 16.
+    If that is ever wrong, the order of escape is unchanged: `gmpy2` for the
+    arithmetic, then a compiled normaliser behind the same interface.
+    **Trigger to reopen:** a real problem, rather than a synthetic one,
+    over budget.
 19. **(B), ever?** A kernel written in a prover and extracted — verified
     `check_step`, verified `ring` — is a genuinely different project and this
     document does not plan it. Worth recording that the parser sits
@@ -3984,9 +4207,61 @@ of hiding. Every pass found things about the **rules**; none could find
 anything about the **obligations**. That is a limit of the method rather than
 of the effort, and the thing that lifts it is a kernel.
 
-**This file is now the whole record.** The review document and the revision-1
-draft were folded in and deleted on 2026-09-20; nothing here is under version
-control yet, so there is no copy of either elsewhere. Where a number appears
-above, the measurement behind it is quoted with it.
+**Revision 7, 2026-09-23 — stage 0c, and the first thing checked by code.**
+A `ring`/`field` spike (`spike/ring/`) ran §11.2 and found what stage 0's
+method could not: an error in *how an obligation is closed*, rather than in
+what the rules say. **One rule changed, and it is trusted**: `field` takes
+facts, because §11.2's `rewrite sqrt_sq_val` had nothing to act on (§6.2,
+§11.2). §15's claim is unchanged in form, since each fact is a theorem passed
+as a handle, but the trusted procedure it rests on has grown a parameter,
+which is why this is a revision. The other changes:
+
+- **§6.2** — `field`'s obligation specified as *every divisor in its input*,
+  replacing "every denominator it cancels", which cannot be implemented as
+  stated. `ring`'s treatment of division, and atom identity up to arguments'
+  normal forms, now stated.
+- **§6.3** — `d_const` covers any term free of x. `-u` and `u / v` get no
+  entries and are routed through `ring` and `field`, so the table stays at
+  twenty-four.
+- **§5.3** — method 4 tries the goal as written before normalising, for
+  `d_atan`'s `1 + u^2`, an obligation §11.2 had never listed.
+- **§16.2, §18 Q18** — measured and settled: not a risk at the corpus's sizes.
+- **§17** — stage 0c closed. Its third question, what `ring`/`field` costs to
+  write by hand, is explicitly *not* answered by a spike Claude wrote.
+
+That the review and three stage-0 passes all missed the §11.2 error is the
+lesson of this revision, and it confirms revision 6's closing note: **SymPy
+and review check what the rules say; only running them checks how a proof uses
+them.** Stage 1's headless kernel is where the rest of that class will turn up.
+
+**Revision 8, 2026-09-23 — the recognizer, measured.** A second spike
+(`spike/recognizer/`) scored §8.5's table against the technique the course's
+own solutions use: 15/22 on the target corpus, and 3/9 held out from units
+01–10. Rows fitted to the first set's misses reached 22/22 there and gained
+nothing held out. That is the result that matters, and it is about the method
+more than the table. The changes:
+
+- **§8.5** — five rows: the chain rule, which was missing outright; the eˣ sin x
+  cycle, which the parts row had been credited with and never matched;
+  √(x² − a²); tan/tanh as f′/f; and the linear-over-quadratic split. Row seven
+  is now ln|f|, stale since `d_abs` arrived in revision 6. Matching runs on the
+  normalised goal. Two one-off techniques are recorded without rows.
+- **§17** — the recognizer corpus gains a held-out rule and its first numbers.
+  The table moves after stage 1's headless kernel. The assistance line's 400 is
+  flagged as probably low. The gate's rung readings are to be taken only
+  where the recognizer fired.
+- **§18 Q15** — partly answered: reach before granularity.
+
+No rule, judgement or trusted component changed. The lesson is the one
+revision 7 drew about the kernel, now applied to the product: **a table scored
+on the examples it was written from measures its author.** This one needed a
+held-out set to show that, and so will every later version of it.
+
+**This file is the whole design record.** The review document and the
+revision-1 draft were folded in and deleted on 2026-09-20, before the project
+was under version control, so there is no copy of either elsewhere; the git
+history starts at revision 6. The exceptions are the two spikes' READMEs,
+`spike/ring/README.md` and `spike/recognizer/README.md`, which hold their
+working records; the findings above are folded from them. Where a number appears above, the measurement behind it is quoted with it.
 
 
