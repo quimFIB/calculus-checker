@@ -82,6 +82,22 @@ findings are `DESIGN.md` revision 9.
 `ring`/`field` promoted** (§17, as corrected in revision 9). At 15 hours a
 week that is 6–17 weeks.
 
+**A session picking this up asks items 1–3 below first, before anything
+else.** They are the user's decisions, and they decide what gets measured.
+
+**Read for this milestone**, beyond §1, §8.5 and §17:
+- §5.3–§5.4 (discharge, obligations);
+- §6.1–§6.4 (structural rules, algebra, derivatives, `ftc`);
+- §6.8 (the named entries);
+- §9 (`?A` and `close`);
+- §11 (the two proofs);
+- §15.3 (handles);
+- §18 Q21 (the matcher).
+
+**Where things go, by default:** the kernel in `kernel/`, the done script as
+`kernel/proof_of_life.py`, and the hours log as `kernel/HOURS.md`. `spike/`
+stays untouched as the record.
+
 ### Before any code
 
 1. **Who writes it?** If you do, it is the first measurement of your own pace.
@@ -207,8 +223,9 @@ A script with no UI, which stays as the regression suite, does all of this:
 - Compare hours and lines per component against each row. Extrapolate only
   from `from-scratch` rows, and report `design-fix` separately.
 - **Whoever wrote it**, measure review cost: time fixing each encoding until
-  the kernel accepts it with a correct obligation list. Drafting time is not
-  review time; log it separately. The goals come from the course, as the
+  the kernel accepts it with a correct obligation list. That is the review
+  cost per encoding that §17 has been waiting on. Drafting time is not review
+  time; log it separately. The goals come from the course, as the
   kernel's first problem files (§16.4). Seed them with `STAGE0.md`'s S1–S3:
   - S1 is ∫₀¹ 3x²+2x;
   - S2 is ∫₀¹ x·exp(x²);
@@ -237,7 +254,6 @@ A script with no UI, which stays as the regression suite, does all of this:
   Restated for revision 9, and checked against `spike/ring/`: `field` closes
   the derivative owing `x # 0`, and the close needs `ln_e` and `ln_one`. It
   needs `e_gt_one` (§6.8), so add that to the §6.8 entries when S3 is used.
-  That is the review cost per encoding that §17 has been waiting on.
 
 **After it:** the rest of stage 1 (real discharge, `int_subst`, regularity),
 then the in-process `step` becomes §16.3's API, then the recognizer table
@@ -271,9 +287,8 @@ scored on a held-out set (revision 8), then the UI.
    Timings settle §18 Q18: §11.2 runs in ~1 ms, and every corpus-shaped case
    is ≥10× inside the 100 ms budget. It does *not* price writing `ring`/`field`
    by hand, since Claude wrote it.
-3. Then the recognizer table, which is content rather than code and is where
-   hours buy the most.
-   **Spiked 2026-09-23** (`spike/recognizer/README.md`, folded into
+3. **The recognizer table** — content rather than code, and where hours buy
+   the most. **Spiked 2026-09-23** (`spike/recognizer/README.md`, folded into
    `DESIGN.md` as revision 8). §8.5's table as written names the course's technique for 15
    of 22 target integrals, and 3 of 9 held out from units 01–10. Five rows
    fitted to the misses took the first set to 22/22 and the held-out set
