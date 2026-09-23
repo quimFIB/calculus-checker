@@ -1,6 +1,6 @@
 # A calculus proof checker
 
-**Status: design, revision 8, 2026-09-23. The tool is not built; two spikes
+**Status: design, revision 9, 2026-09-23. The tool is not built; two spikes
 are** — stage 0c's `ring`/`field` in `spike/ring/`, and the recognizer in
 `spike/recognizer/` (§8.5, §17). This proposes a
 system, states exactly what it would and would not guarantee, tests the design
@@ -95,6 +95,27 @@ rather than the mathematics, and that §8.5 has no row for the chain rule. So
 others, and states row 5 as ln|f| (§8.5). §17 now requires a held-out score,
 and puts stage 1's kernel before the table. Nothing in §15 moved, and no rule
 or trusted component changed.
+
+**Revision 9 comes from reviewing the plan for the first milestone.** Six
+reviewers, each checked by a skeptic, went over the proof-of-life handoff in
+`WHAT.md`. They found four things wrong in the design itself, not just in the
+handoff:
+- **π and e have no sign.** §5.3 claimed `t ≥ 0` follows on [0, π/2]. It
+  does not while π enters Fourier–Motzkin with no magnitude, and both parts of
+  readiness P1 need it. The same holds for e_const over stage 0's [1, e].
+  §6.8 gains `pi_pos` and `e_gt_one`. §5.3's justification of its
+  satisfiability pre-check was also false (`pi < 3`); the pre-check is safe,
+  for the converse reason, now stated.
+- **§6.1 allowed an unsound rewrite.** It let `rewrite` carry a domain-limited
+  equation under `D[x]`, which proves `D[x] sqrt(x^2) ≐ 1` at 0. It is now
+  restricted to open domains.
+- **§11's obligation lists were stale.** They still showed the closed-interval
+  `ftc` of revision 5.
+- **§17's arithmetic was off.** Its proof-of-life figure, 60–100 hours, was
+  below the sum of its own rows, 105–185.
+
+What `rewrite` matches up to is now an open question (§18 Q21), to be settled
+by writing the P1 scripts out first.
 
 Scope agreed at the outset, and revised since: it targets **scalar real
 analysis** as §13 now bounds it; it is a design document, not a prototype; and
@@ -844,11 +865,37 @@ A goal may first be `field`-normalised. Then, **in the order tried**:
    axiom about their magnitude. This is not a corner: readiness P1 integrates
    over [0, π/2], so method 2 puts `0 ≤ t ≤ pi/2` into the constraint set of
    the flagship example. Treating π as free is sound and keeps the fragment
-   decidable — `t ≥ 0` follows, `t < 2` does not — and the satisfiability
-   pre-check below reads them the same way, since a set that is satisfiable with
-   π free is satisfiable with π at its value. A goal that genuinely needs π's
-   magnitude is out of this method's reach and belongs to a `cite` or, after
-   stage 2, to §10's enclosures. *(Stage 0, `STAGE0.md` gap 6: sound as
+   decidable, **but on its own it proves less than revisions 6–8 said**. Method
+   2's constraint is `min(0, pi/2) ≤ t`, and with π unsigned that minimum is
+   undetermined, so `t ≥ 0` does *not* follow. **Revision 9: each named
+   constant brings its sign fact into the constraint set whenever it occurs:
+   `pi_pos : pi > 0` and `e_gt_one : e_const > 1` (§6.8).** Then `t ≥ 0`
+   follows and `t < 2` still does not. Both parts of readiness P1 need this:
+   §11.1's `0 ≤ t` by range, and `sqrt(pi^2/4) ≐ pi/2`'s `pi/2 ≥ 0`. So does
+   stage 0's S3, whose range [1, e] cannot be oriented until `e_const > 1` is
+   known. More generally, method 2 can write its constraint as a linear
+   `a ≤ t ≤ b` only once the order of a and b follows from the constraint set.
+   Where it does not, method 2 adds nothing rather than a `min`/`max` that
+   Fourier–Motzkin cannot read. *(Found by the proof-of-life review. Stage 0's
+   gap 6 had called this sound as intended, which it is, and harmless for S3
+   and P1, which it was not.)*
+
+   **The satisfiability pre-check below is safe with the constants free, but
+   not for the reason revisions 6–8 gave.** They said a set satisfiable with
+   π free is satisfiable with π at its value, and `pi < 3` shows that is false.
+   What holds is the converse, and it is the direction the pre-check needs:
+   - A set **unsatisfiable** with π free is unsatisfiable at π's value, so a
+     refusal is never wrong.
+   - A set that passes with π free but fails at π's value can only come from
+     hypotheses that are false of the real π. By-range's intervals and the sign
+     facts above are always true of it. Everything Fourier–Motzkin derives from
+     such a set holds for every π satisfying it, so the judgement is vacuously
+     true of the real π, not false.
+
+   The exploit class the pre-check exists for, a constraint set the *kernel*
+   made inconsistent (§5.1's reversed limits), is still closed. A goal that
+   genuinely needs π's magnitude beyond its sign is out of this method's reach
+   and belongs to a `cite` or, after stage 2, to §10's enclosures. *(Stage 0, `STAGE0.md` gap 6: sound as
    intended, and previously unstated.)*
 4. **by sign certificate** — the goal is ring-normalised and a positivity
    witness is sought: a sum of even powers plus a positive rational; for a
@@ -990,6 +1037,21 @@ expert reading — and §15 now states what the argument actually is.
 `rewrite h at p` (rewriting with a proven equation at a position, carrying the
 position's domain), `weaken` (from `φ @ D` and `D' ⊆ D` conclude `φ @ D'`),
 `cases` (split on a decidable trichotomy), `close` (§9).
+
+**Under a binder, a domain-limited equation is not enough (revision 9).**
+Pointwise equality on D gives equal derivatives only where D contains an
+open neighbourhood of the point. Unrestricted, `cong` and `rewrite` would
+take `sqrt_sq : sqrt(x^2) ≐ x @ x ≥ 0` under `D[x]` to
+`D[x] sqrt(x^2) ≐ 1 @ x ≥ 0`, which is false at 0. So:
+- Under `D[x]`, the equation must hold `@ ⊤` or on an **open** domain (strict
+  inequalities only), and the result carries that domain.
+- Under `lim[x → c]`, it must hold on a punctured neighbourhood of c.
+- Under `Int[x = a .. b]`, the range domain of §5.3's method 2 is enough,
+  because the integral depends only on values on the range.
+
+The proof-of-life review found this. No worked example needs the forbidden
+case, which is why it had gone unnoticed; §17's bank now carries it as a
+must-refuse.
 
 ### 6.2 Algebra — the three places a normal form is allowed
 
@@ -1534,6 +1596,16 @@ because the corpus raises them; they are stated by the mathematics:
   `d_ln`'s u > 0.
 - `cos_nonzero_on` — `d_tan`'s side condition, which §8.5's Weierstrass row
   emits on every use.
+- `pi_pos : pi > 0` — *revision 9.* π is an opaque atom to `ring` and a free
+  variable to Fourier–Motzkin (§5.3), so nothing else knows its sign. By-range
+  over [0, π/2] and every `sqrt_sq` at a multiple of π need it. It is cited
+  (Rocq's `PI_RGT_0`), and §5.3 adds it to the constraint set whenever `pi`
+  occurs, so it rarely has to be named.
+- `e_gt_one : e_const > 1` — *revision 9*, for the same reason. By-range
+  over [1, e] (stage 0's S3, ∫₁^e ln x / x) cannot be oriented without it, so
+  `d_ln`'s `x > 0` is out of reach. Cited, and added by §5.3 whenever `e_const`
+  occurs. It is `> 1` rather than `> 0` because 1 is the endpoint the corpus
+  pairs it with.
 
 `cite <Lemma>` invokes a named theorem from a curated library file with its
 hypotheses checked. **The library file is part of the trusted base** (§15) and
@@ -2375,23 +2447,26 @@ proof
   ⊢ Int[t = 0 .. pi/2] sin(sqrt(t^2)) * (2*t)  ≐  ?A
 
   step rewrite sqrt_sq
-       obl  0 ≤ t                                      by range        ✓
+       obl  0 ≤ t                                      by range, pi_pos ✓
   ⊢ Int[t = 0 .. pi/2] sin t * (2*t)  ≐  ?A
 
   step ftc  F := 2*sin t - 2*t*cos t
-       obl  D[t] F ≐ sin t * (2*t)  @ [0,pi/2]         by deriv; ring  ✓
-       obl  F ∈ C¹([0,pi/2])                           by reg          ✓
+       obl  F ∈ C⁰([0,pi/2]) ∧ F ∈ C¹((0,pi/2))        by reg          ✓
+       obl  D[t] F ≐ sin t * (2*t)  @ (0,pi/2)         by deriv; ring  ✓
        obl  sin t * (2*t) ∈ C⁰([0,pi/2])               by reg          ✓
   ⊢ (2*sin(pi/2) - 2*(pi/2)*cos(pi/2)) - (2*sin 0 - 2*0*cos 0)  ≐  ?A
 
-  step rewrite [sin_pi_half, cos_pi_half, sin_zero, cos_zero]
+  step rewrite [sin_pi_half, cos_pi_half, sin_zero]
   step close  ?A := 2                                  by ring         ✓
 qed
 
-  Proved.  0 admissions.  18 rule applications, 12 distinct rules.
+  Proved.  0 admissions.
 ```
 
-Three things to notice, and one correction from revision 1.
+Three things to notice, and one correction from revision 1. *(Revision 9
+brought the `ftc` premises up to §6.4's split form, named `pi_pos` beside
+by-range, dropped `cos_zero`, which `ring` makes unnecessary since
+`2*0*cos 0` is 0, and removed a rule count nobody had checked.)*
 
 **The `sqrt_sq` step is the whole argument for this design.** √(*t*²) = *t* is
 false — it is |*t*| — and a CAS will make that rewrite without comment. Here it
@@ -2433,13 +2508,15 @@ proof
        obl  1 + x > 0            @ [0,1]     by domain (linear)             ✓
        obl  x^2 - x + 1 > 0                  by sign ((x-1/2)² + 3/4)       ✓
        obl  sqrt 3 # 0                       by sqrt_pos                    ✓
-       obl  D[x] F ≐ 1/(1 + x^3) @ [0,1]     by deriv;
+       obl  D[x] F ≐ 1/(1 + x^3) @ (0,1)     by deriv;
                                                 field [sqrt_sq_val 3]       ✓
        obl  1 + ((2*x - 1)/sqrt 3)^2 # 0     by sign (as written)           ✓
        obl  1 + x^3 # 0          @ [0,1]     by product (lines 1–2; ring)   ✓
-       obl  F ∈ C¹([0,1]) ∧ 1/(1+x^3) ∈ C⁰([0,1])   by reg                  ✓
+       obl  F ∈ C⁰([0,1]) ∧ F ∈ C¹((0,1))    by reg                         ✓
+       obl  1/(1+x^3) ∈ C⁰([0,1])            by reg                         ✓
   step rewrite [ln_one, atan_one_sqrt3, atan_odd]
   step close  ?A := (1/3)*ln 2 + pi/(3*sqrt 3)            by field          ✓
+       obl  3*sqrt 3 # 0                     by product (sqrt_pos)          ✓
 
   step approx ?A ≈ 0.83565 ± 5e-6
        enclosure [0.8356487, 0.8356489]                                     ✓
@@ -3516,8 +3593,14 @@ count says the 400 undercounts, likely by half or more.
 
 **6–11 months at 15 hours a week; 4–7 at 25; 2½–4½ full-time.** The first
 useful landing is much earlier: the headless kernel proving §11.1 and §11.2 is
-roughly 160–275 hours of that, and a narrower proof-of-life (`ring`/`field` +
-`deriv` + `ftc` against readiness P1 only, stub domains) is 60–100.
+roughly 160–275 hours of that. A narrower proof-of-life (`ring`/`field` +
+`deriv` + `ftc` against readiness P1 only, stub domains) was quoted here as
+60–100. **That was below the sum of its own rows** (60–110, 15–25 and 30–50,
+so 105–185). Revision 9 corrects it. `WHAT.md`'s proof-of-life adds terms, the
+matcher, the parser, `close`, the P1 rules from §6.8 and handles. Summed row by
+row, that is about **150–255 hours from scratch, or 90–145 with the ring
+spike's `ring`/`field` promoted**, which at 15 hours a week is most of the
+four-month window below.
 
 **The authoring line is the one figure here that is an upper bound rather than
 an estimate**, and it is deliberately not revised downward. Stage 0 found the
@@ -3651,7 +3734,8 @@ review found:
 - **The rule-statement cases found by reading**: a reversed-limit `sqrt_sq`, a
   reversed-limit `ln|u|`, a non-monotone `int_subst`, an ODE uniqueness claim
   past the blow-up time (ẋ = x², x(0) = 1, on [0,2]), a pendulum with θ₀
-  omitted, and both spellings of the negative-exponent pole
+  omitted, rewriting `D[x] sqrt(x^2)` with `sqrt_sq` under `D[x]` (§6.1,
+  revision 9), and both spellings of the negative-exponent pole
   (∫_{−1}^{1} −x^(−2) and ∫_{−1}^{1} −1/x²). *A bank that tests one spelling of
   a term is testing the author's habits.*
 - **The four brand cases** of §15.3 — a fabricated judgement, a prototype-forged
@@ -3917,6 +4001,21 @@ the change of language and deployment, and reopen Q7.
     a wrong answer is indistinguishable from an unfound proof (§13). Is a v1
     `check` that can only ever say "yes" or "I don't know" worth shipping, or
     does it wait for §8.6's certified probe?
+21. **What does `rewrite` match modulo?** *(Revision 9.)* `ftc` substitutes
+    the endpoints literally, producing `ln(1+0)`, `atan((2*1-1)/sqrt 3)` and
+    `sqrt(pi^2/4)`. None of these is syntactically the left-hand side of
+    `ln_one`, `atan_one_sqrt3` or `sqrt_sq`, so §11.2's own rewrite step fires
+    nowhere under a purely syntactic matcher. The matcher is trusted (§15.2),
+    so this belongs in the design and not in the code. The default the
+    proof-of-life trials:
+    - the rule is instantiated explicitly (`rewrite sqrt_sq (u := pi/2)`);
+    - it is accepted when the instantiated left-hand side and the target
+      subterm agree after **ring**-normalising atom arguments, the congruence
+      §6.2 already uses for atom identity (never field-normalising, which
+      would need obligations);
+    - every §6.8 entry used is pinned by its exact statement.
+
+    Settle it by writing both P1 scripts out step by step before any code.
 
 ---
 
@@ -4256,6 +4355,43 @@ No rule, judgement or trusted component changed. The lesson is the one
 revision 7 drew about the kernel, now applied to the product: **a table scored
 on the examples it was written from measures its author.** This one needed a
 held-out set to show that, and so will every later version of it.
+
+**Revision 9, 2026-09-23 — the first milestone, reviewed.** The
+proof-of-life handoff in `WHAT.md` was reviewed along six dimensions:
+- mathematical feasibility,
+- scope,
+- soundness and the trust boundary,
+- estimate and measurement,
+- consistency with this document,
+- done criteria.
+
+Each dimension's findings went to a skeptic told to refute them. Of 49, 48
+survived, and they were merged into 18. Most were about the handoff, which was
+rewritten. Five reached this document:
+- **§5.3 / §6.8** — π has no sign under Fourier–Motzkin, so "`t ≥ 0` follows"
+  was false and readiness P1 could not be completed by any discharge method.
+  `pi_pos` is added, and it enters the constraint set whenever `pi` occurs. The
+  same gap for e_const over stage 0's S3 range gives `e_gt_one`. Method 2 now
+  adds its constraint only once the endpoints' order is known. The
+  satisfiability pre-check's stated justification was false, and the true one
+  is recorded: an unsatisfiable-with-constants-free set is unsatisfiable at
+  their values, and nothing the kernel adds is false of them. The last two
+  were noticed while applying the review, not by it.
+- **§6.1** — a domain-limited equation can no longer be carried under `D[x]`
+  or `lim`. That was an unsound rule statement no example had exercised, and
+  §17's bank now carries it.
+- **§11.1 / §11.2** — the `ftc` obligations are brought up to §6.4's split
+  form, `cos_zero` is dropped where `ring` does its work, and the close's
+  `3*sqrt 3 # 0` is listed.
+- **§17** — the proof-of-life figure is corrected from 60–100 hours to the sum
+  of its rows. At the handoff's scope that is 150–255 from scratch, or 90–145
+  with the ring spike promoted.
+- **§18 Q21** — what `rewrite` matches up to is open, with a default to trial.
+
+The review itself was folded in and not kept, as the revision-2 review was.
+**The pattern repeats a third time:** each round of *using* the design, by
+encoding goals, then by running code, now by planning the build, has found an
+unsound or unreachable step that every reading before it passed.
 
 **This file is the whole design record.** The review document and the
 revision-1 draft were folded in and deleted on 2026-09-20, before the project

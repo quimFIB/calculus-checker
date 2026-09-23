@@ -81,13 +81,24 @@ problem stage0.S3                         -- nontrivial domain obligation
   goal  Int[x = 1 .. e_const] (ln x)/x  ≐  ?A
 proof
   step ftc  F := (ln x)^2 / 2
-       obl  x > 0                   @ [1,e_const]  by range; linear (x ≥ 1)
-       obl  D[x] F ≐ (ln x)/x       @ [1,e_const]  by deriv; field
-       obl  F ∈ C¹ ∧ (ln x)/x ∈ C⁰               by reg
+       obl  F ∈ C⁰([1,e_const]) ∧ F ∈ C¹((1,e_const))   by reg
+            ⤷ obl  x > 0         @ [1,e_const]  by range, e_gt_one; linear (x ≥ 1)
+       obl  D[x] F ≐ (ln x)/x    @ (1,e_const)  by deriv; field
+            ⤷ obl  x > 0         @ (1,e_const)  (d_ln)       by range, e_gt_one; linear
+            ⤷ obl  x # 0         @ (1,e_const)  (field)      by range, e_gt_one; linear
+       obl  (ln x)/x ∈ C⁰([1,e_const])                  by reg
+            ⤷ obl  x > 0         @ [1,e_const]  by range, e_gt_one; linear
   step rewrite [ln_e, ln_one]               -- ln_e: see gap 1
   step close  ?A := 1/2                     by norm_num
 qed
 ```
+
+*Restated 2026-09-23 (`DESIGN.md` revision 9). The first version, written
+against revision 5, used the closed-interval `ftc` premises (`D[x] F ≐ f
+@ [1,e_const]`, `F ∈ C¹`) that gap 1 later split. It also annotated `x > 0` by
+range alone, which cannot orient [1, e] while `e_const` is unsigned (gap 6's
+correction). Checked against `spike/ring/`: `field` closes the derivative
+owing `x # 0`, and the close needs `ln_e` and `ln_one`, as written.*
 
 ```
 problem stage0.S5                         -- ODE, linear drag
@@ -193,6 +204,14 @@ the linear constraints", and `e_const` is not a rational. Here it is harmless �
 
 Treating named constants as free variables is almost certainly the intent and
 is sound. It is never said, and §5.3's satisfiability pre-check has to agree.
+
+*Correction, 2026-09-23 (`DESIGN.md` revision 9).* "Harmless" above was wrong.
+`x ≥ 1` does not follow either: by-range gives `min(1, e_const) ≤ x`, and with
+`e_const` unsigned the range cannot be oriented. The same holds for π over
+[0, π/2]. Both constants now bring sign facts into the constraint set
+(`pi_pos`, `e_gt_one`, §6.8). With them, S3's `x > 0` by range closes as
+annotated. Its `ftc` obligations were in the closed-interval form that revision
+6 split (§6.4); S3 is restated above in the split form.
 
 ### 7. `abs` in a goal, confirmed with a concrete cost
 

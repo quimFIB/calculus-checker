@@ -5,7 +5,7 @@ one way, course to tool (§18 Q6, settled revision 6). The course problems are a
 separable package `./calc` loads, not part of the tool, which is §1's
 replaceability test made operational.
 
-Design, plus one spike: the tool itself is not built. Design 2026-09-20,
+Design, plus two spikes: the tool itself is not built. Design 2026-09-20,
 stage 0b first pass 2026-09-21, decoupling pass and stage 0 first pass
 2026-09-22, the stage 0c `ring`/`field` spike (`spike/ring/`) and a recognizer
 spike (`spike/recognizer/`) 2026-09-23.
@@ -13,7 +13,7 @@ spike (`spike/recognizer/`) 2026-09-23.
 `DESIGN.md` is the design; `STAGE0.md` is the first attempt to *use* it —
 forty-one goals and two table sweeps, fourteen gaps, all folded back in.
 
-`DESIGN.md` is **revision 8** (2026-09-23), and is **the whole record** — the adversarial review
+`DESIGN.md` is **revision 9** (2026-09-23), and is **the whole record** — the adversarial review
 that produced revision 2 and the revision-1 draft were folded into it and
 deleted before the project was under version control. Its closing sections
 carry what the review established, what was attacked and held, and how much to
@@ -69,7 +69,155 @@ kill it. Nothing else is required reading before stage 1; Waterproof's course
 evaluations are optional, since adoption evidence for the class is not this
 tool's falsifier.
 
-Next, in order:
+## Start here: the proof-of-life (chosen 2026-09-23, reviewed the same day)
+
+The next step is the first real code: **a headless kernel that proves
+readiness P1** (`DESIGN.md` §11.1 and §11.2). It is the smallest thing that
+runs the whole check-mode loop end to end, and it should land inside the
+roughly four-month motivation window §17 warns about. A six-dimension review,
+with each finding checked by a skeptic, shaped what follows. Its design-level
+findings are `DESIGN.md` revision 9.
+
+**Budget: about 150–255 hours from scratch, or 90–145 with the ring spike's
+`ring`/`field` promoted** (§17, as corrected in revision 9). At 15 hours a
+week that is 6–17 weeks.
+
+### Before any code
+
+1. **Who writes it?** If you do, it is the first measurement of your own pace.
+   Every estimate so far is unmeasured, because Claude wrote both spikes. If
+   Claude writes it, it proves the loop and prices nothing.
+2. **Is `ring`/`field` promoted from the spike?** This decides whether §17's
+   widest row (60–110 h) gets measured at all.
+3. **Declare the hours per week and a target date.** At half the midpoint,
+   compare finished components against their §17 rows. If actual ÷ estimate on
+   from-scratch rows exceeds ~1.5, re-project stage 1 and re-scope before going
+   on.
+4. **Write the concrete grammar**: precedence, reserved names (`e` vs
+   `e_const`), declared function symbols only, binders, `?A`, endpoints and
+   domains. The spike's `terms.py` reads `e^x` with `e` as a variable,
+   `x(x+1)` as a call to an undeclared function, and `x^2^3` as a real power.
+5. **Write both P1 proofs out step by step** as (move, args) data, before any
+   code:
+   - every §6.8 entry pinned by its exact statement
+     (`atan_one_sqrt3 : atan(1/sqrt 3) ≐ pi/6`);
+   - every rewrite explicitly instantiated;
+   - `rewrite`'s matching settled, which is §18 Q21. The default to trial is
+     that the left-hand side and target agree after **ring**-normalising atom
+     arguments.
+6. **Write the expected obligation lists by hand**, each obligation with its
+   domain and open and closed intervals kept distinct. Take them from §6.3,
+   §6.4's four split `ftc` premises, and §11 as revision 9 corrected it. With
+   discharge stubbed, these lists are the only thing the milestone shows about
+   soundness.
+
+### The route
+
+**P1.1 starts from §11.1's substituted goal**
+`Int[t = 0 .. pi/2] sin(sqrt(t^2)) * (2*t) ≐ ?A`. It runs §11.1's remaining
+steps: `rewrite sqrt_sq`, owing `0 ≤ t` by range and `pi_pos`; then `ftc`
+with F := 2 sin t − 2t cos t; then the endpoint rewrites; then `close`.
+`int_subst` waits for the next step.
+
+This route exercises `sqrt_sq` on a bound variable, which §11 calls the whole
+argument for the design, and the matcher's binder case. *(A direct route on
+x, with F = 2 sin√x − 2√x cos√x, also works: `field` owes `2·sqrt x # 0`,
+`d_sqrt` owes `x > 0`, both on (0, π²/4), and `sqrt(pi^2/4)` still needs
+`pi_pos`. It never touches `sqrt_sq` on a bound variable, so it is the
+fallback.)*
+
+**P1.2 is §11.2 as revision 9 states it**: `ftc` with the partial-fraction
+F, the check `field [sqrt_sq_val 3]`, the endpoint rewrites, and `close`
+owing `3*sqrt 3 # 0`.
+
+### Scope
+
+**In:**
+- **Terms, parser and plain-text printer**, rewritten against §5.1. The spike's
+  are spike-grade.
+- **`ring`/`field` with facts.** `poly.py` and `field.py`'s normaliser and fact
+  reduction are near kernel quality; copy them, do not move them. Their
+  *interface* is not:
+  - facts become theorem handles, and the result inherits each fact's
+    obligations (`3 ≥ 0` from `sqrt_sq_val 3`);
+  - obligations become (term, domain) pairs keyed structurally, not strings;
+  - there is no public `holds` flag;
+  - residual formatting moves out of the trusted files.
+- **`deriv` as kernel steps that collect side conditions** (§6.3, with revision
+  7's `d_const`, and `-u` and `u/v` routed through `ring`/`field`).
+- **`ftc`** with §6.4's four premises.
+- **§6.1's `refl`, `trans` and `cong`, `norm_num`, and `rewrite`** per the
+  Q21 default, with revision 9's restriction under `D[x]`.
+- **`close` for `?A`**, with the trusted scope check and the `closed`
+  whitelist (§9).
+- **A minimal linear proof state**: the goal (which may carry `?A`), live
+  obligations and handles. Moves go through an in-process
+  `step(state, move, args)` shaped like §16.3's `/step`, so the script survives
+  as the regression suite.
+- **The §6.8 entries P1 uses:** `sqrt_sq`, `pi_pos`, `sin_pi_half`,
+  `cos_pi_half`, `sin_zero`, `ln_one`, `atan_one_sqrt3`, `atan_odd`,
+  `sqrt_sq_val` and `sqrt_pos`. `sqrt_pos` is named but not used until
+  discharge exists.
+- **§15.3's handles by default**, with the sentinel only if handles prove
+  awkward. The script's header says which is in force.
+
+**Stubbed:** discharge (§5.3). The obligation tracker keeps §5.4's three
+states. Each undischarged side condition becomes a kernel-minted
+**admission** with reason `discharge not built`, tagged with the §5.3 method or
+§6.8 cite expected to close it. **An obligation tagged `none` fails the
+milestone**, which is how the π gap would have shown up. The result reads
+`Proved modulo N admissions`, never `Proved`. Literal divisors closed by
+`norm_num` count as discharged.
+
+**Out:** `int_subst`, real discharge, regularity beyond listing it, the HTTP
+API, the UI, the recognizer, and §11.2's `approx` step, which is stage 2.
+
+### Done when
+
+A script with no UI, which stays as the regression suite, does all of this:
+
+1. **Proves** P1.1 ≐ 2 and P1.2 ≐ ⅓ ln 2 + π/(3√3). It also accepts P1.2 in
+   the form ⅓ ln 2 + π√3/9.
+2. **Asserts each obligation list**, with domains, against the list written
+   before coding, and checks every admission's tag.
+3. **Fails on three planted bugs:** `d_ln` emitting nothing; `ftc`'s derivative
+   premise attached to [a,b] instead of (a,b); the tracker dropping one
+   obligation.
+4. **Rejects wrong answers, asserting the residual each time:**
+   - P1.1 with F := sin t − t cos t (residual −t·sin t);
+   - P1.2 with ln coefficient 1/3 in place of 1/6;
+   - P1.2 without the `sqrt_sq_val` fact.
+5. **Refuses bad moves:**
+   - rewriting `D[x] sqrt(x^2)` with `sqrt_sq` (§6.1, revision 9);
+   - `close ?A := t` with t bound;
+   - `close ?A := Int[x = 0 .. 1] 1/(1 + x^3)`;
+   - a raw equation passed to `field` as a fact;
+   - the handle forgeries: constructing a theorem directly or through
+     `object.__new__`, a copy or pickle round trip used as a handle, a
+     fabricated handle id, a direct write to the tracker, and printing
+     `Proved.` while N > 0.
+6. **Round-trips the parser**: `parse(print(t)) ≡ t` as structure, over every
+   term in the script plus `-x^2`, `sin x^2`, `1/sqrt 3*x` and `pi^2/4`. Each
+   parsed goal is echoed before it is proved, and undeclared function symbols
+   are refused.
+
+**Then measure:**
+- Keep the hours log as (date, hours, §17 row, tag), with the tag one of
+  `from-scratch`, `rewrite-from-spike`, `promote` or `design-fix`.
+- Compare hours and lines per component against each row. Extrapolate only
+  from `from-scratch` rows, and report `design-fix` separately.
+- **Whoever wrote it**, measure review cost on `STAGE0.md`'s S1–S3: time
+  fixing each encoding until the kernel accepts it with a correct obligation
+  list. Only S3 has a written encoding (restated for revision 9). S1 and S2
+  are table rows, so draft them first, and don't count that time as review.
+  S3 integrates over [1, e], so it needs `e_gt_one` in the §6.8 entries.
+  That is the review cost per encoding that §17 has been waiting on.
+
+**After it:** the rest of stage 1 (real discharge, `int_subst`, regularity),
+then the in-process `step` becomes §16.3's API, then the recognizer table
+scored on a held-out set (revision 8), then the UI.
+
+## What has been done, in order
 
 1. **§17 stage 0 — first pass done 2026-09-22, see `STAGE0.md`.** Fifteen goals
    encoded against §5.1 and §6 as they stand, every one SymPy-verified; seven
