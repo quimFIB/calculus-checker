@@ -7164,6 +7164,10 @@ DATA_CHANGES = (
      "no existing expectation changes",
      "the task's items 1 and 2",
      "second review 2026-09-24"),
+    ("SECOND_REVIEW_BAD_MOVES int_subst_reverse_limit_holds_Int",
+     "hi 'Int[y = 1 .. oo] 1' -> '1'; the 'was' note corrected",
+     "the second-review build: the old hi holds oo, which INT_SUBST_RULE step 1 refuses bad-args before step 3 reaches the new trees-in-limits test, and on 45132e5 the move was already bad-args, not orientation-undecided. With hi := 1 the selected Int's own upper limit trips the test after step 3. Checked by the main session against INT_SUBST_RULE step 1",
+     'adjudicated during implementation'),
 )
 
 
@@ -11697,12 +11701,15 @@ SECOND_REVIEW_BAD_MOVES = [
      "goal": "Int[x = 0 .. (Int[y = 1 .. oo] 1)] 0 == ?A", "setup": [],
      "move": ("int_subst", {"mode": "reverse", "var": "x", "sub": "x",
                             "new_var": "u", "lo": "0",
-                            "hi": "Int[y = 1 .. oo] 1", "f": "0",
+                            "hi": "1", "f": "0",
                             "check": "ring", "facts": [], "occurrence": 0}),
      "refusal": "Int-or-D-not-normalisable",
-     "was": "orientation-undecided: reverse mode decides the old range's "
+     # hi was the Int itself, but it holds oo, which INT_SUBST_RULE step 1
+     # refuses 'bad-args' before step 3 (DATA_CHANGES, adjudicated)
+     "was": "bad-args with the old hi (it held oo); with hi := 1, "
+            "orientation-undecided: reverse mode decides the old range's "
             "order first (step 8)",
-     "why": "the selected Int's limit, and hi, hold an Int"},
+     "why": "the selected Int's upper limit holds an Int"},
     {"id": "int_flip_limit_holds_Int",
      "goal": "Int[x = 0 .. (Int[y = 1 .. oo] 1)] 0 == ?A", "setup": [],
      "move": ("int_flip", {"occurrence": 0}),
