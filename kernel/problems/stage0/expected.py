@@ -776,6 +776,71 @@ DECISIONS = {
             "DISCHARGE_NEW_ENTRIES, not here) touch no stage-0 key and no "
             "E27 case; and no stage-0 obligation is refuted, so the new "
             "message form has no instance",
+    # int_subst spec 2026-09-24
+    "PF18": "The first problem file whose reference proof uses int_subst "
+            "is kernel/problems/stage1/SUB1.json, id stage1.SUB1, in "
+            "PF1-PF2's format with one more move shape (p1_expected "
+            "INT_SUBST_ARGS: var, sub, new_var, lo, hi as strings, check, "
+            "facts). It is not in stage0/, because item 7's floor requires "
+            "every *.json there to be one PROOF_FILES names, and adding one "
+            "before the move exists would turn the suite red. Its expected "
+            "data is this file's section 12, keyed separately "
+            "(INT_SUBST_*), so no stage-0 table gains a key. STAGE0.md gap "
+            "5 is why it exists: an authored proof would otherwise hand F "
+            "straight to ftc and never exercise the move",
+    "PF19": "SUB1 is Int_0^1 x*sqrt(1 - x) = 4/15 by x := 1 - t^2 over t "
+            "from 1 to 0: §8.5's 'sqrt(u) inside f(.) -> u = t^2' row with "
+            "u = 1 - x, so substitution is the natural route. phi is "
+            "decreasing with literal ends, so the new integral is reversed "
+            "and E4 owes no orientation (p1_expected E40); the answer's "
+            "sign rests on keeping the limits as given (SUB1-W2, and the "
+            "planted bug int_subst_sorts_new_limits). sqrt_sq then fires "
+            "through a ring-normalised argument, 1 - (1 - t^2) = t^2 (§18 "
+            "Q21). F is written (2/5)*t^5 - (2/3)*t^3 so that its "
+            "coefficients are x-free literals, d_const fires on them and "
+            "nothing is routed (PF8 would otherwise add route_div's 5 # 0 "
+            "and 3 # 0 sources). Rejected candidates: S2 by u := x^2 "
+            "(reverse substitution is out, p1_expected E37); S2 by x := "
+            "sqrt u (refused, PF20); and Int_0^4 1/(1 + sqrt x) = "
+            "4 - 2 ln 3 by x := t^2, the more familiar example, whose "
+            "installation owes 1 + sqrt x # 0 @ [0, 4], which no §5.3 "
+            "method closes and F3 cannot refute (FINDINGS), so it would be "
+            "admitted tagged none and fail the no-none check. (Owner "
+            "answers 2026-09-24: the first and last are now problem files, "
+            "S2R by PF21 and SUB2 by PF22; SUB1 is kept, as the decreasing "
+            "literal-ended case)",
+    "PF20": "S2 keeps its reference proof (ftc with F := exp(x^2)/2) and "
+            "gains no substitution route. Reverse substitution is out "
+            "(E37), and the forward x := sqrt u over [0, 1] is refused "
+            "(INT_SUBST_S0_REFUSALS S2-SUB-W1): phi = sqrt u is not C^1 at "
+            "0, and d_sqrt's u > 0 on the closed range is decided false at "
+            "u = 0. The refusal is correct under §6.4 as stated (phi in "
+            "C^1([a, b])), though the transformed integrand, after "
+            "cancelling sqrt u, is continuous; that cancellation is what "
+            "reverse substitution would do. (Owner answers 2026-09-24: S2 "
+            "keeps S2.json unchanged, and gains the reverse route in "
+            "stage1/S2R.json, PF21; S2-SUB-W1 is unchanged)",
+    # int_subst spec 2026-09-24, owner answers
+    "PF21": "S2R is S2 by reverse substitution (p1_expected E45): u := x^2 "
+            "with f := exp(u)/2 and new limits 0 and 1. The learner supplies "
+            "f as a term in u; the kernel substitutes x^2 for u, "
+            "multiplies by deriv's 2*x^1*1, and ring checks x*exp(x^2) == "
+            "(exp(x^2)/2)*(2*x^1*1) on [0, 1]. It is a separate file "
+            "because S2.json, in stage0/, is asserted by item 7 as it "
+            "stands, and its loader does not know the move. The proof then "
+            "is S2's own tail on u: ftc with F := exp(u)/2, exp_one, "
+            "exp_zero and the same close. Its N is 4, not 5: F is the "
+            "integrand, so ftc's F in C^0 and f in C^0 are one key (E8). "
+            "S2R-W1 is the missing 1/2, refused by the integrand check with "
+            "its residual",
+    "PF22": "SUB2 is Int_0^4 1/(1 + sqrt x) = 4 - 2 ln 3 by x := t^2 over "
+            "[0, 2], the example PF19 had to reject. The owner's sqrt_nonneg "
+            "(p1_expected E49) closes 1 + sqrt x # 0 @ [0, 4] and, after "
+            "the substitution, 1 + sqrt(t^2) # 0 @ [0, 2], each ('linear', "
+            "('sqrt_nonneg',)). ftc checks by field, owing 1 + t # 0 on "
+            "(0, 2); the answer is stated with ln 3, which ln(1 + 2) is as "
+            "an atom. SUB2-W1 keeps the old upper limit, the classic "
+            "unchanged-limits error, refused at 4^2 == 4",
 }
 
 # ---------------------------------------------------------------------------
@@ -857,6 +922,25 @@ FINDINGS = [
     "where it runs, and §6.8 should say that its claim now holds of every "
     "accepted close, relative to the entries in force (p1_expected "
     "DESIGN_DEFECTS).",
+    # int_subst spec 2026-09-24
+    "§8.5's recognizer row 'sqrt(u) inside f(.) -> u = t^2' has an "
+    "obstacle before any substitution: a sqrt inside a divisor. "
+    "Int_0^4 1/(1 + sqrt x) owes 1 + sqrt x # 0 @ [0, 4] at installation, "
+    "and nothing decides it: Fourier-Motzkin sees sqrt x as an opaque atom "
+    "with no sign fact (only pi and e_const bring one), sign and sign "
+    "product see a degree-1 sum, sqrt_pos concludes sqrt a > 0 and not "
+    "1 + sqrt a > 0, and F3 cannot evaluate sqrt 4 or sqrt 2. It is true, "
+    "and admitted tagged none. A fact sqrt a >= 0 @ a >= 0 read by the "
+    "linear method (a schema entry, which E29's Farkas labels exclude), or "
+    "a sign rule for sqrt atoms, is what §5.3 would need (PF19). (Owner "
+    "answers 2026-09-24: resolved by sqrt_nonneg, p1_expected E49; SUB2 "
+    "is that integral, PF22.)",
+    "S2's natural substitution has no kernel move: reverse substitution "
+    "(u := x^2) is out of int_subst (p1_expected E37), and the forward "
+    "x := sqrt u is refused because sqrt is not C^1 at 0 (PF20). ftc "
+    "remains S2's only route, which STAGE0.md gap 5 already said of its "
+    "reference proof. (Owner answers 2026-09-24: resolved, reverse "
+    "substitution is in, p1_expected E45; S2R, PF21.)",
 ]
 
 # ---------------------------------------------------------------------------
@@ -906,6 +990,29 @@ VERIFIED = (
     "(x - 1) = -1 on both ranges, (1 - e) + (e - 1) = 0 strict, (0 - e) + "
     "(e - 1) = -1), each key is true on its domain with e real, and each "
     "Farkas key's set without the goal is satisfiable (x = 3/2, e = 2)",
+    # int_subst spec 2026-09-24
+    "int_subst spec 2026-09-24, SymPy 1.14 in scratch: Int_0^1 x sqrt(1 - x) "
+    "= 4/15, and so is the transformed Int_1^0 (1 - t^2) sqrt(1 - (1 - "
+    "t^2)) (-2t) dt, before and after sqrt_sq; 1 - (1 - t^2) = t^2; the "
+    "ends map (1 - 1^2 = 0, 1 - 0^2 = 1); both DERIV outputs are the true "
+    "derivatives; F(0) - F(1) = 4/15, and -4/15 with the limits sorted; "
+    "SUB1-W1's residual is 1 and SUB1-W2's 8/15; 1 - x >= 0 and t >= 0 on "
+    "[0, 1]; S2's x := sqrt u has phi' = 1/(2 sqrt u), unbounded at 0, "
+    "though its transformed integrand integrates to (e - 1)/2; Int_0^4 "
+    "1/(1 + sqrt x) = 4 - 2 ln 3. SUB1.json loads, and its goal, step ids "
+    "and moves match INT_SUBST_STEPS; every string in section 12 parses "
+    "with terms.py's parser and round-trips, the echo is the printer's, "
+    "and both goal_after trees equal the ones built with terms.subst",
+    # int_subst spec 2026-09-24, owner answers
+    "int_subst spec 2026-09-24, owner answers, SymPy 1.14 in scratch: S2R's identity x e^(x^2) = "
+    "(e^(x^2)/2)(2x), Int_0^1 e^u/2 = (e - 1)/2, (e^u/2)' = e^u/2, its "
+    "deriv output and F(1) - F(0); S2R-W1's residual -x e^(x^2); SUB2's "
+    "4 - 2 ln 3 before and after x := t^2, 2^2 = 4, F' = 2t/(1 + t), the "
+    "deriv output, F(2) - F(0); SUB2-W1's 4^2 - 4 = 12. All three JSON "
+    "files load and match INT_SUBST_STEPS; every string parses and "
+    "round-trips; each echo is the printer's; each int_subst and ftc "
+    "goal_after equals its rebuilt tree, and S2R's identity key "
+    "body == f[u := x^2]*g'",
 )
 
 # ---------------------------------------------------------------------------
@@ -1005,6 +1112,57 @@ CHANGES = (
      "discharge spec 2026-09-24, owner answers",
      "grep of S1.json-S3.json and this file for cos 0 and sqrt 0: none; "
      "the verifier re-run passes with the entries in force"),
+    # int_subst spec 2026-09-24: additions only, no existing value changed,
+    # nothing new asserted until the build (p1_expected INT_SUBST_SWITCH).
+    ("section 12 (new): INT_SUBST_PROOF_FILES, INT_SUBST_GOALS, "
+     "INT_SUBST_ECHO, INT_SUBST_STEPS, INT_SUBST_THEOREMS, INT_SUBST_DERIV, "
+     "INT_SUBST_OBLIGATIONS, INT_SUBST_EXPECTED, INT_SUBST_FINAL_TRACKER, "
+     "INT_SUBST_ADMISSIONS, INT_SUBST_VERDICTS, INT_SUBST_ANSWERS, "
+     "INT_SUBST_NUMERIC, INT_SUBST_WRONG_ANSWERS, INT_SUBST_S0_REFUSALS; "
+     "kernel/problems/stage1/SUB1.json (new)",
+     "no problem file used int_subst",
+     "SUB1, Int_0^1 x*sqrt(1 - x) = 4/15 by x := 1 - t^2 over t from 1 to "
+     "0, 'Proved modulo 5 admissions', with two wrong answers (limits in "
+     "increasing order; the lost sign) and S2's forward substitution "
+     "x := sqrt u refused at d_sqrt's u > 0 @ [0, 1]",
+     "WHAT.md 'Start here' item 1 and the task's item 4: a problem where "
+     "substitution is the natural route, derived by hand before any code "
+     "under p1_expected's INT_SUBST_RULE",
+     "hand derivation; import-time cross-check; scratch SymPy and parser "
+     "checks (VERIFIED, last entry)"),
+    ("DECISIONS PF18-PF20 (new), FINDINGS (two appended), VERIFIED (one "
+     "appended)",
+     "none",
+     "PF18 where the file lives and why; PF19 why SUB1 and not S2 or "
+     "Int_0^4 1/(1 + sqrt x); PF20 S2 unchanged; the findings: a sqrt in "
+     "a divisor has no deciding method, and S2's substitution has no "
+     "kernel move",
+     "int_subst spec 2026-09-24",
+     "scratch run 2026-09-24, SymPy 1.14"),
+    # int_subst spec 2026-09-24, owner answers: additions and text notes only; SUB1, S2-SUB-W1 and every
+    # stage-0 value are unchanged.
+    ("section 12: S2R and SUB2 added to every INT_SUBST_* table, "
+     "S2R-W1 and SUB2-W1 appended to INT_SUBST_WRONG_ANSWERS, a second "
+     "cross-check over all three files; kernel/problems/stage1/S2R.json "
+     "and SUB2.json (new)",
+     "SUB1 was the only int_subst problem file",
+     "S2R: S2 by reverse u := x^2, 'Proved modulo 4 admissions' (ftc's F "
+     "in C^0 is its f in C^0); SUB2: Int_0^4 1/(1 + sqrt x) = 4 - 2 ln 3 "
+     "by x := t^2, 'Proved modulo 5 admissions', its divisors closed by "
+     "sqrt_nonneg",
+     "the owner's answers 1 and 5 (p1_expected E45, E49)",
+     "hand derivation under the amended INT_SUBST_RULE and SQRT_FACT_RULE; "
+     "import-time cross-check; scratch SymPy and parser checks (VERIFIED)"),
+    ("DECISIONS PF19 and PF20 (a closing note each), PF21 and PF22 (new); "
+     "FINDINGS, the two int_subst entries (a resolution note each); "
+     "VERIFIED, one entry appended",
+     "PF19 rejected S2 by u := x^2 and Int_0^4 1/(1 + sqrt x); PF20 left S2 "
+     "with ftc only; the findings named a sqrt divisor no method decides "
+     "and S2's missing move",
+     "both rejected candidates are now problem files; both findings "
+     "resolved by the owner's answers",
+     "int_subst spec 2026-09-24, owner answers",
+     "p1_expected E45 and E49"),
 )
 
 # ---------------------------------------------------------------------------
@@ -1179,3 +1337,547 @@ DISCHARGE_S0_SEAMS = {
                            "caught_by": "the obligation lists only; N no "
                                         "longer moves"},
 }
+
+# ---------------------------------------------------------------------------
+# 12. int_subst in a problem file (int_subst spec 2026-09-24)
+#
+# p1_expected's section 12 states the move (INT_SUBST_RULE, E36-E44); this is
+# a problem file's data under it, derived by hand the same way, without
+# reading kernel.py, and written after discharge was wired, so only the
+# post-discharge values exist. PF18-PF20 give the choices. The file is
+# kernel/problems/stage1/SUB1.json, not in stage0/, because item 7's floor
+# requires every *.json in stage0/ to be one PROOF_FILES names (PF18).
+# Nothing here is asserted until the build (p1_expected INT_SUBST_SWITCH).
+#
+# Restated from p1_expected so this file stands alone (values verbatim).
+T_SIGN = ("sign", ())
+T_RING = ("ring", ())
+S_SQRT_SQ = "rewrite_hyp"
+S_SUBST_LO, S_SUBST_HI = "int_subst_lo", "int_subst_hi"
+S_SUBST_C1, S_SUBST_C0 = "int_subst_phi_C1", "int_subst_f_C0"
+OBLIGATION_DECIDED_FALSE = "obligation-decided-false"
+
+
+def HI(i):
+    return ("dom", i, "hi")
+
+
+def _sos(const, squares, sense=None):
+    return {"method": "sign", "sense": sense, "const": const,
+            "squares": tuple(squares)}
+
+
+def _point(key, reading, **values):
+    """p1_expected's F3 message parts, without exact values."""
+    return ("point", {"key": key, "point": dict(sorted(values.items())),
+                      "reading": reading})
+
+
+# Paths relative to kernel/problems/.
+INT_SUBST_PROOF_FILES = {"SUB1": ("stage1/SUB1.json", "reference_proof")}
+INT_SUBST_GOALS = {"SUB1": "Int[x = 0 .. 1] x*sqrt(1 - x) == ?A"}
+INT_SUBST_ECHO = {"SUB1": "Int[x = 0 .. 1] x*sqrt(1 - x) == ?A"}
+
+SUB1_S1 = ("Int[t = 1 .. 0] (1 - t^2)*sqrt(1 - (1 - t^2))"
+           "*(0 + (0*t^2 + (-1)*(2*t^1*1))) == ?A")
+SUB1_S2 = "Int[t = 1 .. 0] (1 - t^2)*t*(0 + (0*t^2 + (-1)*(2*t^1*1))) == ?A"
+# F[t := b] - F[t := a] with b = hi = 0 and a = lo = 1 (E4 orders the literal
+# ends for the premises, and ftc keeps the limits as written)
+SUB1_AFTER_FTC = "(2/5)*0^5 - (2/3)*0^3 - ((2/5)*1^5 - (2/3)*1^3) == ?A"
+SUB1_F = "(2/5)*t^5 - (2/3)*t^3"
+SUB1_F_INTEGRAND = "(1 - t^2)*t*(0 + (0*t^2 + (-1)*(2*t^1*1)))"
+
+INT_SUBST_STEPS = {
+    "SUB1": [
+        {"id": "s1", "move": "int_subst", "goal_after": SUB1_S1},
+        # sqrt_sq with u := t at sqrt(1 - (1 - t^2)): ring_nf of the
+        # argument is t^2 (REWRITE_RULE step 3), and t is bound by the
+        # enclosing Int (step 6)
+        {"id": "s2", "move": "rewrite", "occurrences": 1,
+         "goal_after": SUB1_S2},
+        {"id": "s3", "move": "ftc", "goal_after": SUB1_AFTER_FTC},
+        # ring over literals: 0 - (2/5 - 2/3) = 4/15
+        {"id": "s4", "move": "close", "goal_after": None},
+    ],
+}
+INT_SUBST_THEOREMS = {"SUB1": "Int[x = 0 .. 1] x*sqrt(1 - x) == 4/15"}
+
+# deriv (E12) at int_subst's step 10, on the closed [0, 1], and in ftc
+INT_SUBST_DERIV = {
+    ("SUB1", "s1"): {
+        "var": "t", "F": "1 - t^2",
+        "trace": [("d_add", "1 - t^2", ()), ("d_const", "1", ()),
+                  ("route_neg", "-t^2", ()), ("d_mul", "-1*t^2", ()),
+                  ("d_const", "-1", ()), ("d_pow_int", "t^2", ()),
+                  ("d_var", "t", ())],
+        "output": "0 + (0*t^2 + (-1)*(2*t^1*1))",
+        "emits": (),
+    },
+    # PF19: F's coefficients are literal fractions, x-free, so d_const
+    # fires on them and nothing is routed (no route_div, unlike S2 and S3)
+    ("SUB1", "s3"): {
+        "var": "t", "F": SUB1_F,
+        "trace": [("d_add", SUB1_F, ()), ("d_mul", "(2/5)*t^5", ()),
+                  ("d_const", "2/5", ()), ("d_pow_int", "t^5", ()),
+                  ("d_var", "t", ()), ("route_neg", "-((2/3)*t^3)", ()),
+                  ("d_mul", "-1*((2/3)*t^3)", ()), ("d_const", "-1", ()),
+                  ("d_mul", "(2/3)*t^3", ()), ("d_const", "2/3", ()),
+                  ("d_pow_int", "t^3", ()), ("d_var", "t", ())],
+        "output": ("0*t^5 + (2/5)*(5*t^4*1) + (0*((2/3)*t^3)"
+                   " + (-1)*(0*t^3 + (2/3)*(3*t^2*1)))"),
+        "emits": (),
+    },
+}
+
+# Per step, after discharge. Hand-derived (p1_expected INT_SUBST_RULE):
+#   goal: sqrt(1 - x) owes 1 - x >= 0 on the literal range [0, 1], by range
+#     on the upper end: (x - 1, strict) + (1 - x) = 0 with a strict
+#     constraint. No orientation (literal ends).
+#   s1: step 8, the limits 1 and 0 owe nothing and are literal, so I' is
+#     [0, 1] and no orientation is owed (E40). Step 9, 1 - t^2 owes
+#     nothing. Step 10, deriv emits nothing. Step 11, 1 - 1^2 == 0 and
+#     1 - 0^2 == 1 by ring. Step 12, the two Reg, the C^0 one on the
+#     composed integrand. Step 13, the new integrand's sqrt owes
+#     1 - (1 - t^2) >= 0 on [0, 1]: FM sees t^2 as opaque and fails, and
+#     sign closes its ring normal form t^2 (E20).
+#   s2: sqrt_sq's t >= 0 on [0, 1], by range on the lower end; R = t has no
+#     former; no orientation (literal).
+#   s3: F's 2/5 and 2/3 owe 5 # 0 and 3 # 0 (literal); the premises on
+#     [0, 1] and (0, 1); ring's check emits nothing; the new goal's
+#     fractions are the same two keys.
+#   s4: the value 4/15 owes 15 # 0.
+INT_SUBST_OBLIGATIONS = {
+    "SUB1": {
+        "goal": [
+            ("1 - x >= 0", "[0, 1]", (S_FORMER,), DISCHARGED, T_RANGE, True),
+        ],
+        "s1": [
+            ("1 - 1^2 == 0", "true", (S_SUBST_LO,), DISCHARGED, T_RING, True),
+            ("1 - 0^2 == 1", "true", (S_SUBST_HI,), DISCHARGED, T_RING, True),
+            ("1 - t^2 in C^1([0, 1])", "[0, 1]", (S_SUBST_C1,), ADMITTED,
+             T_REG, True),
+            ("(1 - t^2)*sqrt(1 - (1 - t^2)) in C^0([0, 1])", "[0, 1]",
+             (S_SUBST_C0,), ADMITTED, T_REG, True),
+            ("1 - (1 - t^2) >= 0", "[0, 1]", (S_FORMER,), DISCHARGED, T_SIGN,
+             True),
+        ],
+        "s2": [
+            ("t >= 0", "[0, 1]", (S_SQRT_SQ,), DISCHARGED, T_RANGE, True),
+        ],
+        "s3": [
+            ("5 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+            ("3 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+            (SUB1_F + " in C^0([0, 1])", "[0, 1]", (S_FTC_C0F,), ADMITTED,
+             T_REG, True),
+            (SUB1_F + " in C^1((0, 1))", "(0, 1)", (S_FTC_C1F,), ADMITTED,
+             T_REG, True),
+            ("D[t](" + SUB1_F + ") == " + SUB1_F_INTEGRAND, "(0, 1)",
+             (S_FTC_D,), DISCHARGED, T_DERIV_RING, True),
+            (SUB1_F_INTEGRAND + " in C^0([0, 1])", "[0, 1]", (S_FTC_C0f,),
+             ADMITTED, T_REG, True),
+        ],
+        "s4": [
+            ("15 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+        ],
+    },
+}
+
+INT_SUBST_EXPECTED = {
+    "SUB1": {
+        ("1 - x >= 0", "[0, 1]"): (T_RANGE, _farkas({GOAL: "1", HI(0): "1"})),
+        ("1 - (1 - t^2) >= 0", "[0, 1]"): (T_SIGN,
+                                          _sos("0", [("1", "t", 2)])),
+        ("t >= 0", "[0, 1]"): (T_RANGE, _RANGE_LO),
+    },
+}
+
+INT_SUBST_FINAL_TRACKER = {
+    "SUB1": [
+        ("1 - x >= 0", "[0, 1]", DISCHARGED, T_RANGE),
+        ("1 - 1^2 == 0", "true", DISCHARGED, T_RING),
+        ("1 - 0^2 == 1", "true", DISCHARGED, T_RING),
+        ("1 - t^2 in C^1([0, 1])", "[0, 1]", ADMITTED, T_REG),
+        ("(1 - t^2)*sqrt(1 - (1 - t^2)) in C^0([0, 1])", "[0, 1]", ADMITTED,
+         T_REG),
+        ("1 - (1 - t^2) >= 0", "[0, 1]", DISCHARGED, T_SIGN),
+        ("t >= 0", "[0, 1]", DISCHARGED, T_RANGE),
+        ("5 # 0", "true", DISCHARGED, T_NORM_NUM),
+        ("3 # 0", "true", DISCHARGED, T_NORM_NUM),
+        (SUB1_F + " in C^0([0, 1])", "[0, 1]", ADMITTED, T_REG),
+        (SUB1_F + " in C^1((0, 1))", "(0, 1)", ADMITTED, T_REG),
+        ("D[t](" + SUB1_F + ") == " + SUB1_F_INTEGRAND, "(0, 1)", DISCHARGED,
+         T_DERIV_RING),
+        (SUB1_F_INTEGRAND + " in C^0([0, 1])", "[0, 1]", ADMITTED, T_REG),
+        ("15 # 0", "true", DISCHARGED, T_NORM_NUM),
+    ],
+}
+
+# N: int_subst's two regularity premises and ftc's three (p1_expected E43:
+# 3 + 2k). None is tagged none.
+INT_SUBST_ADMISSIONS = {"SUB1": 5}
+INT_SUBST_VERDICTS = {name: VERDICT.format(n=n)
+                      for name, n in INT_SUBST_ADMISSIONS.items()}
+INT_SUBST_ANSWERS = {"SUB1": "4/15"}
+INT_SUBST_NUMERIC = {"SUB1": 0.26666666666666666}  # 4/15
+
+# Refusals, in WRONG_ANSWERS' shape. Each emits nothing (E13).
+INT_SUBST_WRONG_ANSWERS = [
+    {"id": "SUB1-W1",
+     "what": "SUB1's substitution with the new limits in increasing order, "
+             "lo 0 and hi 1: phi(0) = 1 is not the lower limit 0",
+     "goal": INT_SUBST_GOALS["SUB1"],
+     "move": ("int_subst", {"var": "x", "sub": "1 - t^2", "new_var": "t",
+                            "lo": "0", "hi": "1", "check": "ring",
+                            "facts": []}),
+     "refusal": "int-subst-endpoint-mismatch",
+     "message": ("int-subst-endpoint-mismatch",
+                 {"image": "1 - 0^2", "limit": "0", "end": "lower"}),
+     "residual": "1 - 0^2 - 0",
+     "compare": ("ring", ())},
+    {"id": "SUB1-W2",
+     "what": "SUB1 closed with -4/15, the sign a learner loses by reading "
+             "the reversed limits [1, 0] as [0, 1]",
+     "state": ("SUB1", "s3"),
+     "move": ("close", {"value": "-4/15", "check": "ring", "facts": []}),
+     "refusal": "close-check-failed",
+     "residual": SUB1_AFTER_FTC.split(" == ")[0] + " - (-4/15)",
+     "compare": ("ring", ())},
+]
+
+# PF20. S2's substitution, as a learner would try it forward: refused, and
+# correctly, because sqrt is not C^1 at 0. Before the refusal: sqrt u owes
+# u >= 0 on [0, 1] (range, discharged); then deriv's d_sqrt owes u > 0 on
+# the CLOSED [0, 1] (p1_expected E38), which F3 decides false at u = 0.
+# (Were it not, the upper endpoint sqrt 1 == 1 would still fail: sqrt 1
+# has no exact value and ring reads it as an atom.)
+INT_SUBST_S0_REFUSALS = [
+    {"id": "S2-SUB-W1",
+     "what": "S2 by x := sqrt u over u in [0, 1], the forward form of the "
+             "learner's u = x^2",
+     "goal": GOALS["S2"],
+     "move": ("int_subst", {"var": "x", "sub": "sqrt u", "new_var": "u",
+                            "lo": "0", "hi": "1", "check": "ring",
+                            "facts": []}),
+     "refusal": OBLIGATION_DECIDED_FALSE,
+     "message": _point("u > 0 @ [0, 1]", "0 > 0", u="0"),
+     "deriv_trace": [("d_sqrt", "sqrt u", ("u > 0 @ [0, 1]",)),
+                     ("d_var", "u", ())]},
+]
+
+# The data cross-checks itself when imported, as section 11 does.
+for _p, _rows in INT_SUBST_FINAL_TRACKER.items():
+    _keys = [(r[0], r[1]) for r in _rows]
+    assert len(set(_keys)) == len(_keys), _p
+    _seen = set()
+    for _sid, _obs in INT_SUBST_OBLIGATIONS[_p].items():
+        for _ob in _obs:
+            _fin = [r for r in _rows if (r[0], r[1]) == (_ob[0], _ob[1])]
+            assert _fin and _fin[0][2:] == (_ob[3], _ob[4]), (_p, _sid, _ob)
+            assert _ob[5] == ((_ob[0], _ob[1]) not in _seen), (_p, _sid, _ob)
+        _seen |= {(o[0], o[1]) for o in _obs}
+    assert _seen == set(_keys), _p
+    assert [s["id"] for s in INT_SUBST_STEPS[_p]] == \
+        [k for k in INT_SUBST_OBLIGATIONS[_p] if k != "goal"], _p
+    assert sum(r[2] == ADMITTED for r in _rows) == INT_SUBST_ADMISSIONS[_p]
+    assert all(r[3] == T_REG for r in _rows if r[2] == ADMITTED), _p
+    for _k, (_tag, _c) in INT_SUBST_EXPECTED[_p].items():
+        assert [r for r in _rows if (r[0], r[1]) == _k][0][2:] == \
+            (DISCHARGED, _tag), (_p, _k)
+del _p, _rows, _keys, _seen, _sid, _obs, _ob, _fin, _k, _tag, _c
+
+# --- Owner answers 2026-09-24 (int_subst spec 2026-09-24, owner answers) ---
+#
+# Two more problem files in stage1/: S2R, S2 by the reverse substitution
+# u := x^2 (p1_expected E45, PF21), and SUB2, Int_0^4 1/(1 + sqrt x) by
+# x := t^2, which installs only because sqrt_nonneg now closes its divisor
+# (E49, PF22). SUB1 and S2-SUB-W1 are unchanged: SUB1's ends are literal,
+# so E46 keeps them, and no key of either holds a sqrt atom.
+S_SUBST_INT = "int_subst_integrand"
+T_LINEAR_SQRT = ("linear", ("sqrt_nonneg",))
+
+
+def SQRT(u):
+    return ("fact", "sqrt_nonneg", u)
+
+
+INT_SUBST_PROOF_FILES.update({
+    "S2R": ("stage1/S2R.json", "reference_proof"),
+    "SUB2": ("stage1/SUB2.json", "reference_proof"),
+})
+INT_SUBST_GOALS.update({
+    "S2R": GOALS["S2"],
+    "SUB2": "Int[x = 0 .. 4] 1/(1 + sqrt x) == ?A",
+})
+INT_SUBST_ECHO.update({
+    "S2R": ECHO["S2"],
+    "SUB2": "Int[x = 0 .. 4] 1/(1 + sqrt x) == ?A",
+})
+
+S2R_S1 = "Int[u = 0 .. 1] exp(u)/2 == ?A"
+S2R_AFTER_FTC = "exp(1)/2 - exp(0)/2 == ?A"
+S2R_IDENTITY = "x*exp(x^2) == (exp(x^2)/2)*(2*x^1*1)"
+SUB2_S1 = "Int[t = 0 .. 2] (1/(1 + sqrt(t^2)))*(2*t^1*1) == ?A"
+SUB2_S2 = "Int[t = 0 .. 2] (1/(1 + t))*(2*t^1*1) == ?A"
+SUB2_F = "2*t - 2*ln(1 + t)"
+SUB2_F_INTEGRAND = "(1/(1 + t))*(2*t^1*1)"
+SUB2_AFTER_FTC = "2*2 - 2*ln(1 + 2) - (2*0 - 2*ln(1 + 0)) == ?A"
+
+INT_SUBST_STEPS.update({
+    "S2R": [
+        # reverse mode (E45): the new integral is f over the new limits
+        {"id": "s1", "move": "int_subst", "goal_after": S2R_S1},
+        {"id": "s2", "move": "ftc", "goal_after": S2R_AFTER_FTC},
+        {"id": "s3", "move": "rewrite", "occurrences": 1,
+         "goal_after": "e_const/2 - exp(0)/2 == ?A"},
+        {"id": "s4", "move": "rewrite", "occurrences": 1,
+         "goal_after": "e_const/2 - 1/2 == ?A"},
+        {"id": "s5", "move": "close", "goal_after": None},
+    ],
+    "SUB2": [
+        {"id": "s1", "move": "int_subst", "goal_after": SUB2_S1},
+        {"id": "s2", "move": "rewrite", "occurrences": 1,
+         "goal_after": SUB2_S2},
+        {"id": "s3", "move": "ftc", "goal_after": SUB2_AFTER_FTC},
+        {"id": "s4", "move": "rewrite", "occurrences": 1,
+         "goal_after": "2*2 - 2*ln(1 + 2) - (2*0 - 2*0) == ?A"},
+        # ring: ln(1 + 2) and ln 3 are one atom (§6.2)
+        {"id": "s5", "move": "close", "goal_after": None},
+    ],
+})
+INT_SUBST_THEOREMS.update({
+    "S2R": THEOREMS["S2"],
+    "SUB2": "Int[x = 0 .. 4] 1/(1 + sqrt x) == 4 - 2*ln 3",
+})
+
+INT_SUBST_DERIV.update({
+    # reverse mode's g' on the closed old range (E45)
+    ("S2R", "s1"): {"var": "x", "F": "x^2",
+                    "trace": [("d_pow_int", "x^2", ()), ("d_var", "x", ())],
+                    "output": "2*x^1*1", "emits": ()},
+    # S2's own pattern (PF8: u/2 routed, owing 2 # 0)
+    ("S2R", "s2"): {"var": "u", "F": "exp(u)/2",
+                    "trace": [("route_div", "exp(u)/2", ("2 # 0",)),
+                              ("d_mul", "exp(u)*(1/2)", ()),
+                              ("d_exp", "exp(u)", ()), ("d_var", "u", ()),
+                              ("d_const", "1/2", ())],
+                    "output": "exp(u)*1*(1/2) + exp(u)*0",
+                    "emits": ("2 # 0",)},
+    ("SUB2", "s1"): {"var": "t", "F": "t^2",
+                     "trace": [("d_pow_int", "t^2", ()), ("d_var", "t", ())],
+                     "output": "2*t^1*1", "emits": ()},
+    ("SUB2", "s3"): {
+        "var": "t", "F": SUB2_F,
+        "trace": [("d_add", SUB2_F, ()), ("d_mul", "2*t", ()),
+                  ("d_const", "2", ()), ("d_var", "t", ()),
+                  ("route_neg", "-(2*ln(1 + t))", ()),
+                  ("d_mul", "-1*(2*ln(1 + t))", ()), ("d_const", "-1", ()),
+                  ("d_mul", "2*ln(1 + t)", ()), ("d_const", "2", ()),
+                  ("d_ln", "ln(1 + t)", ("1 + t > 0 @ (0, 2)",)),
+                  ("d_add", "1 + t", ()), ("d_const", "1", ()),
+                  ("d_var", "t", ())],
+        "output": ("0*t + 2*1 + (0*(2*ln(1 + t)) + (-1)*(0*ln(1 + t)"
+                   " + 2*((0 + 1)/(1 + t))))"),
+        "emits": ("1 + t > 0 @ (0, 2)",)},
+})
+
+# Per step, after discharge. Hand-derived (p1_expected INT_SUBST_RULE):
+#   S2R s1 (reverse): I = [0, 1] is literal, so no orientation; the new
+#     limits 0 and 1 are literal, so E46 keeps them. Step 9: g = x^2 owes
+#     nothing, f(g(x)) = exp(x^2)/2 owes 2 # 0 (closed: true). Step 10:
+#     g' = 2*x^1*1. Step 11: x*exp(x^2) == (exp(x^2)/2)*(2*x^1*1) on
+#     [0, 1] by ring (division by the literal 2 is a coefficient). Step 12:
+#     0^2 == 0 and 1^2 == 1 by ring. Step 13: the two Reg on [0, 1]. Step
+#     14: f's /2 again (merged).
+#   S2R s2: F = exp(u)/2 IS the integrand, so ftc's F in C^0 and f in C^0
+#     premises are one key with two sources (E8), and ftc adds two
+#     admissions, not three. deriv's route_div and F's and the new goal's
+#     /2 are the one 2 # 0.
+#   SUB2 goal: 1 + sqrt x # 0 @ [0, 4] by E49's label, (-(1 + sqrt x)) +
+#     sqrt x = -1, no domain item used: ('linear', ('sqrt_nonneg',)); sqrt
+#     x's own x >= 0 by range.
+#   SUB2 s1: P1.1-sheet's s1 on [0, 2] with literal ends (no orientation,
+#     no 2 # 0), and the composed divisor 1 + sqrt(t^2) # 0 closed as the
+#     goal's was, the atom sqrt(t^2) matched by ring_nf of t^2.
+#   SUB2 s3: F's ln(1 + t) on [0, 2]; d_ln's on (0, 2); field's 1 + t
+#     divisor (in deriv's (0 + 1)/(1 + t) and in the integrand) on (0, 2);
+#     the new goal's two literal ln arguments.
+INT_SUBST_OBLIGATIONS.update({
+    "S2R": {
+        "goal": [],
+        "s1": [
+            ("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+            (S2R_IDENTITY, "[0, 1]", (S_SUBST_INT,), DISCHARGED,
+             T_DERIV_RING, True),
+            ("0^2 == 0", "true", (S_SUBST_LO,), DISCHARGED, T_RING, True),
+            ("1^2 == 1", "true", (S_SUBST_HI,), DISCHARGED, T_RING, True),
+            ("x^2 in C^1([0, 1])", "[0, 1]", (S_SUBST_C1,), ADMITTED, T_REG,
+             True),
+            ("exp(x^2)/2 in C^0([0, 1])", "[0, 1]", (S_SUBST_C0,), ADMITTED,
+             T_REG, True),
+        ],
+        "s2": [
+            ("2 # 0", "true", (S_FORMER, S_ROUTE_DIV), DISCHARGED,
+             T_NORM_NUM, False),
+            ("exp(u)/2 in C^0([0, 1])", "[0, 1]", (S_FTC_C0F, S_FTC_C0f),
+             ADMITTED, T_REG, True),
+            ("exp(u)/2 in C^1((0, 1))", "(0, 1)", (S_FTC_C1F,), ADMITTED,
+             T_REG, True),
+            ("D[u](exp(u)/2) == exp(u)/2", "(0, 1)", (S_FTC_D,), DISCHARGED,
+             T_DERIV_RING, True),
+        ],
+        "s3": [],
+        "s4": [],
+        "s5": [
+            ("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, False),
+        ],
+    },
+    "SUB2": {
+        "goal": [
+            ("1 + sqrt x # 0", "[0, 4]", (S_FORMER,), DISCHARGED,
+             T_LINEAR_SQRT, True),
+            ("x >= 0", "[0, 4]", (S_FORMER,), DISCHARGED, T_RANGE, True),
+        ],
+        "s1": [
+            ("0^2 == 0", "true", (S_SUBST_LO,), DISCHARGED, T_RING, True),
+            ("2^2 == 4", "true", (S_SUBST_HI,), DISCHARGED, T_RING, True),
+            ("t^2 in C^1([0, 2])", "[0, 2]", (S_SUBST_C1,), ADMITTED, T_REG,
+             True),
+            ("1/(1 + sqrt(t^2)) in C^0([0, 2])", "[0, 2]", (S_SUBST_C0,),
+             ADMITTED, T_REG, True),
+            ("1 + sqrt(t^2) # 0", "[0, 2]", (S_FORMER,), DISCHARGED,
+             T_LINEAR_SQRT, True),
+            ("t^2 >= 0", "[0, 2]", (S_FORMER,), DISCHARGED, T_SIGN, True),
+        ],
+        "s2": [
+            ("t >= 0", "[0, 2]", (S_SQRT_SQ,), DISCHARGED, T_RANGE, True),
+        ],
+        "s3": [
+            ("1 + t > 0", "[0, 2]", (S_FORMER,), DISCHARGED, T_RANGE, True),
+            (SUB2_F + " in C^0([0, 2])", "[0, 2]", (S_FTC_C0F,), ADMITTED,
+             T_REG, True),
+            (SUB2_F + " in C^1((0, 2))", "(0, 2)", (S_FTC_C1F,), ADMITTED,
+             T_REG, True),
+            (SUB2_F_INTEGRAND + " in C^0([0, 2])", "[0, 2]", (S_FTC_C0f,),
+             ADMITTED, T_REG, True),
+            ("1 + t > 0", "(0, 2)", (S_D_LN,), DISCHARGED, T_RANGE, True),
+            ("1 + t # 0", "(0, 2)", (S_FIELD,), DISCHARGED, T_RANGE, True),
+            ("D[t](" + SUB2_F + ") == " + SUB2_F_INTEGRAND, "(0, 2)",
+             (S_FTC_D,), DISCHARGED, T_DERIV_FIELD, True),
+            ("1 + 2 > 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+            ("1 + 0 > 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+        ],
+        "s4": [],
+        "s5": [
+            ("3 > 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+        ],
+    },
+})
+
+INT_SUBST_EXPECTED.update({
+    "S2R": {},  # nothing a §5.3 method discharges; the rest is in-step
+    "SUB2": {
+        ("1 + sqrt x # 0", "[0, 4]"): (
+            T_LINEAR_SQRT, _farkas({GOAL: "1", SQRT("x"): "1"}, ">")),
+        ("x >= 0", "[0, 4]"): (T_RANGE, _RANGE_LO),
+        ("1 + sqrt(t^2) # 0", "[0, 2]"): (
+            T_LINEAR_SQRT, _farkas({GOAL: "1", SQRT("t^2"): "1"}, ">")),
+        ("t^2 >= 0", "[0, 2]"): (T_SIGN, _sos("0", [("1", "t", 2)])),
+        ("t >= 0", "[0, 2]"): (T_RANGE, _RANGE_LO),
+        ("1 + t > 0", "[0, 2]"): (T_RANGE, _RANGE_LO),
+        ("1 + t > 0", "(0, 2)"): (T_RANGE, _RANGE_LO),
+        ("1 + t # 0", "(0, 2)"): (T_RANGE, _RANGE_LO_NZ),
+    },
+})
+
+INT_SUBST_FINAL_TRACKER.update({
+    "S2R": [
+        ("2 # 0", "true", DISCHARGED, T_NORM_NUM),
+        (S2R_IDENTITY, "[0, 1]", DISCHARGED, T_DERIV_RING),
+        ("0^2 == 0", "true", DISCHARGED, T_RING),
+        ("1^2 == 1", "true", DISCHARGED, T_RING),
+        ("x^2 in C^1([0, 1])", "[0, 1]", ADMITTED, T_REG),
+        ("exp(x^2)/2 in C^0([0, 1])", "[0, 1]", ADMITTED, T_REG),
+        ("exp(u)/2 in C^0([0, 1])", "[0, 1]", ADMITTED, T_REG),
+        ("exp(u)/2 in C^1((0, 1))", "(0, 1)", ADMITTED, T_REG),
+        ("D[u](exp(u)/2) == exp(u)/2", "(0, 1)", DISCHARGED, T_DERIV_RING),
+    ],
+    "SUB2": [
+        ("1 + sqrt x # 0", "[0, 4]", DISCHARGED, T_LINEAR_SQRT),
+        ("x >= 0", "[0, 4]", DISCHARGED, T_RANGE),
+        ("0^2 == 0", "true", DISCHARGED, T_RING),
+        ("2^2 == 4", "true", DISCHARGED, T_RING),
+        ("t^2 in C^1([0, 2])", "[0, 2]", ADMITTED, T_REG),
+        ("1/(1 + sqrt(t^2)) in C^0([0, 2])", "[0, 2]", ADMITTED, T_REG),
+        ("1 + sqrt(t^2) # 0", "[0, 2]", DISCHARGED, T_LINEAR_SQRT),
+        ("t^2 >= 0", "[0, 2]", DISCHARGED, T_SIGN),
+        ("t >= 0", "[0, 2]", DISCHARGED, T_RANGE),
+        ("1 + t > 0", "[0, 2]", DISCHARGED, T_RANGE),
+        (SUB2_F + " in C^0([0, 2])", "[0, 2]", ADMITTED, T_REG),
+        (SUB2_F + " in C^1((0, 2))", "(0, 2)", ADMITTED, T_REG),
+        (SUB2_F_INTEGRAND + " in C^0([0, 2])", "[0, 2]", ADMITTED, T_REG),
+        ("1 + t > 0", "(0, 2)", DISCHARGED, T_RANGE),
+        ("1 + t # 0", "(0, 2)", DISCHARGED, T_RANGE),
+        ("D[t](" + SUB2_F + ") == " + SUB2_F_INTEGRAND, "(0, 2)", DISCHARGED,
+         T_DERIV_FIELD),
+        ("1 + 2 > 0", "true", DISCHARGED, T_NORM_NUM),
+        ("1 + 0 > 0", "true", DISCHARGED, T_NORM_NUM),
+        ("3 > 0", "true", DISCHARGED, T_NORM_NUM),
+    ],
+})
+
+# S2R: int_subst's two Reg and ftc's two (its F in C^0 is its f in C^0);
+# SUB2: two and three.
+INT_SUBST_ADMISSIONS.update({"S2R": 4, "SUB2": 5})
+INT_SUBST_VERDICTS = {name: VERDICT.format(n=n)
+                      for name, n in INT_SUBST_ADMISSIONS.items()}
+INT_SUBST_ANSWERS.update({"S2R": ANSWERS["S2"], "SUB2": "4 - 2*ln 3"})
+INT_SUBST_NUMERIC.update({"S2R": NUMERIC["S2"],
+                          "SUB2": 1.8027754226637804})  # 4 - 2 ln 3
+
+INT_SUBST_WRONG_ANSWERS += [
+    {"id": "S2R-W1",
+     "what": "S2 by u := x^2 with f := exp(u), the factor 1/2 missing: "
+             "exp(x^2)*(2x) is twice the integrand",
+     "goal": INT_SUBST_GOALS["S2R"],
+     "move": ("int_subst", {"mode": "reverse", "var": "x", "sub": "x^2",
+                            "new_var": "u", "lo": "0", "hi": "1",
+                            "f": "exp u", "check": "ring", "facts": []}),
+     "refusal": "int-subst-check-failed",
+     "message": ("int-subst-check-failed", {"f": "exp u"}),
+     "residual": "x*exp(x^2) - exp(x^2)*(2*x^1*1)",
+     "compare": ("ring", ())},
+    {"id": "SUB2-W1",
+     "what": "SUB2 with the old upper limit kept, t from 0 to 4 (the limits "
+             "not changed with the variable)",
+     "goal": INT_SUBST_GOALS["SUB2"],
+     "move": ("int_subst", {"var": "x", "sub": "t^2", "new_var": "t",
+                            "lo": "0", "hi": "4", "check": "ring",
+                            "facts": []}),
+     "refusal": "int-subst-endpoint-mismatch",
+     "message": ("int-subst-endpoint-mismatch",
+                 {"image": "4^2", "limit": "4", "end": "upper"}),
+     "residual": "4^2 - 4",
+     "compare": ("ring", ())},
+]
+
+# The cross-check again, over every proof in section 12.
+for _p, _rows in INT_SUBST_FINAL_TRACKER.items():
+    _keys = [(r[0], r[1]) for r in _rows]
+    assert len(set(_keys)) == len(_keys), _p
+    _seen = set()
+    for _sid, _obs in INT_SUBST_OBLIGATIONS[_p].items():
+        for _ob in _obs:
+            _fin = [r for r in _rows if (r[0], r[1]) == (_ob[0], _ob[1])]
+            assert _fin and _fin[0][2:] == (_ob[3], _ob[4]), (_p, _sid, _ob)
+            assert _ob[5] == ((_ob[0], _ob[1]) not in _seen), (_p, _sid, _ob)
+        _seen |= {(o[0], o[1]) for o in _obs}
+    assert _seen == set(_keys), _p
+    assert [s["id"] for s in INT_SUBST_STEPS[_p]] == \
+        [k for k in INT_SUBST_OBLIGATIONS[_p] if k != "goal"], _p
+    assert sum(r[2] == ADMITTED for r in _rows) == INT_SUBST_ADMISSIONS[_p]
+    assert all(r[3] == T_REG for r in _rows if r[2] == ADMITTED), _p
+    for _k, (_tag, _c) in INT_SUBST_EXPECTED[_p].items():
+        assert [r for r in _rows if (r[0], r[1]) == _k][0][2:] == \
+            (DISCHARGED, _tag), (_p, _k)
+assert set(INT_SUBST_PROOF_FILES) == set(INT_SUBST_FINAL_TRACKER)
+del _p, _rows, _keys, _seen, _sid, _obs, _ob, _fin, _k, _tag, _c

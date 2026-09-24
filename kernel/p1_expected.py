@@ -4992,6 +4992,290 @@ DECISIONS = {
            "values, by its negation, or at a point, and there how). (5) "
            "The bounded counter-point search is accepted: a miss stays "
            "admitted, tagged none (DISCHARGE_UNDECIDED)",
+    # E36-E44: int_subst spec 2026-09-24, written before any code (section
+    # 12, INT_SUBST_RULE, states each in full).
+    "E36": "int_subst is a fifth step() move (§6.4's name; §11.1's `step "
+           "subst (x := t^2) over t in [0, pi/2]` is its display). Args, "
+           "exactly: {'var': str, 'sub': Term, 'new_var': str, 'lo': Term, "
+           "'hi': Term, 'check': 'ring' | 'field', 'facts': [handle, ...]}, "
+           "read as x := sub over new_var from lo to hi, with sub(lo) owed "
+           "equal to the integral's lower limit and sub(hi) its upper. It "
+           "composes with step() exactly as ftc does: the common checks, "
+           "then fact slots, then INT_SUBST_RULE's refusals in order, one "
+           "buffer of emissions, E13 on refusal. It acts on the goal's "
+           "left side only, which must be an Int ('int-subst-no-integral'), "
+           "as ftc does; the rhs and the goal's domain are unchanged. "
+           "Reasons: §8.4's substitution row ('you supply x := phi(t) and "
+           "the range; the tool computes phi'') fixes what the learner "
+           "gives; var is redundant with the binder but is what §11.1's "
+           "script types, so a mismatch is the learner's error "
+           "('int-subst-wrong-variable'), not bad-args; `check` and "
+           "`facts` are ftc's (E9), because the endpoint equations need "
+           "field for a divisor (x := 1/t) as ftc's check does. A position "
+           "argument (int_subst inside a sum, under a D) is not needed by "
+           "P1 or SUB1 and is left out, so a substitution under D[x] never "
+           "reaches the rule (§6.1 rev 9's argument would otherwise have to "
+           "be restated for it)"
+           ". Amended by the owner's answers of 2026-09-24: an optional 'mode' ('forward', the default, or 'reverse' with an extra 'f', E45) and an optional 'occurrence' (E48) join the key set, and the move acts on any Int in the goal, not only the top-level left side (E48); the no-integral refusal is then 'nothing to select', and a substitution under D[y] is tested as rewrite's step 9 is",
+    "E37": "forward substitution only: x := phi(t) replaces the integration "
+           "variable, as §6.4 states the rule and §8.4 describes the move. "
+           "Reverse substitution u := g(x), §8.5's chain-rule row "
+           "f'(x)*g(f(x)) -> u = f(x), is out of this step. It is the same "
+           "theorem read right to left, but the kernel would have to be "
+           "handed the new integrand f(u) and check h(x) == f(g(x))*g'(x) "
+           "on [a, b] by field, a second trusted check with its own "
+           "divisors and facts that §6.4 does not state; ftc already closes "
+           "every such integral directly (STAGE0.md gap 5: S2 by F := "
+           "exp(x^2)/2). Found while deciding: the forward emulation of "
+           "S2's u = x^2, x := sqrt u over [0, 1], is refused, correctly, "
+           "because sqrt is not C^1 at 0 (d_sqrt's u > 0 @ [0, 1], F3 at "
+           "u = 0; problems/stage0 INT_SUBST_S0_REFUSALS). So the chain-rule "
+           "row has no substitution move at all until reverse substitution "
+           "is decided (owner question)"
+           ". Superseded by the owner's answer of 2026-09-24 (E45): "
+           "reverse substitution is in, as int_subst's reverse mode, "
+           "and S2 gains the route u := x^2 (problems/stage0 S2R). "
+           "The forward x := sqrt u stays refused, correctly",
+    "E38": "premises and where they live (INT_SUBST_RULE steps 8-12). With "
+           "G the goal's domain and I' the E4 range of (new_var, lo, hi): "
+           "lo's and hi's formers at G; sub's formers at G+I'; deriv(sub, "
+           "new_var, G+I') and its side conditions on the CLOSED I', unlike "
+           "ftc's open J, because §6.4 asks phi in C^1([a, b]) and phi' "
+           "stands in the new integrand, which must be defined at the ends; "
+           "Reg(sub, 1, G+I') (source int_subst_phi_C1) and Reg(f[x := sub], "
+           "0, G+I') (int_subst_f_C0), both admitted 'regularity not "
+           "built'. The C^0 premise is on the composed f(phi(t)), not on f "
+           "over the old range (§6.4, and §11.1's correction of revision "
+           "1); the new integrand f(phi(t))*phi'(t) enters the goal and its "
+           "formers are charged at G+I', which is where §11.1's nested "
+           "t^2 >= 0 @ [0, pi/2] comes from (sqrt's former, E26, by sign). "
+           "The old range [a, b] is used by nothing, so int_subst owes no "
+           "key on it and not its orientation",
+    "E39": "the endpoint equations sub[new_var := lo] == a and sub[new_var "
+           ":= hi] == b (a, b the integral's limits as written), keyed at G "
+           "(E5: true when closed), are decided IN THE STEP, never "
+           "admitted: first §6.8's exact values (E31's rewrite, trusted), "
+           "then `check` (ring, or field with the facts, whose divisors, "
+           "hypotheses and inst formers are emitted at G as ftc's are). "
+           "Both hold: each is recorded DISCHARGED with tag (check, the "
+           "exact-value entries used then the facts' entries), certificate "
+           "None, sources int_subst_lo and int_subst_hi, as ftc's premise "
+           "is (E9). Either fails: 'int-subst-endpoint-mismatch' with "
+           "residual image - limit after the exact values (E14), lower end "
+           "first. Reasons: §11.1 decides them 'by ring'; an equation is "
+           "no discharge target (DISCHARGE_RULE, Targets), so emitted "
+           "normally a true non-literal one ((pi/2)^2 == pi^2/4) could only "
+           "be admitted; and without the exact values x := ln t over [1, "
+           "e_const] and x := sin t could never pass (ln 1, sin(pi/2) are "
+           "atoms to ring). The images need no charge of their own: sub's "
+           "formers were charged on I', which contains both ends",
+    "E40": "orientation and decreasing phi. The correspondence is by end, "
+           "not by order: lo is the preimage of the lower limit. The new "
+           "integral is Int[new_var = lo .. hi], as §6.4 writes it, so a "
+           "decreasing phi gives reversed limits, which §5.1 gives a "
+           "meaning. I' is built by E4: literal ends are ordered by "
+           "norm_num and give [min, max] with no orientation owed, which "
+           "handles x := 1 - t over [1, 0] and SUB1 (INT_SUBST_ACCEPTS "
+           "decreasing_literal_ends); otherwise I' = [lo, hi] and lo <= hi "
+           "is owed at G (orient), always, since the Reg premises use I'. "
+           "For a decreasing phi with non-literal ends that orientation is "
+           "false and F2 refuses the step (INT_SUBST_BAD_MOVES "
+           "decreasing_symbolic_ends: x := pi/2 - t over [pi/2, 0]). This "
+           "is a limitation, stated: §5.1 calls x = a cos(theta) 'the "
+           "canonical case' of reversed output, and it is refused. Owner "
+           "question: a flipped conclusion Int[t = hi .. lo] "
+           "-(f(phi(t))*phi'(t)), or E4's orient argument"
+           ". Superseded in part by the owner's answer of "
+           "2026-09-24 (E46): with non-literal ends the kernel now "
+           "decides which order discharge proves, keeps the limits "
+           "when lo <= hi is discharged, builds the flipped "
+           "Int[t = hi .. lo] -(...) when hi <= lo is, and refuses "
+           "'int-subst-orientation-undecided' when neither is. "
+           "Literal ends are unchanged. decreasing_symbolic_ends is "
+           "now accepted, flipped",
+    "E41": "phi' is deriv's output, verbatim (E12's literal forms, so t^2 "
+           "gives 2*t^1*1), and never an argument. A learner cannot supply "
+           "a wrong phi': an extra key is 'bad-args' (E36's exact key "
+           "set). deriv is trusted in this milestone (§15.2 item 2, "
+           "ARCHITECTURE.md §1), so a wrong phi' would be a trusted-base "
+           "bug, the classic 'forgot the dx' error, and the planted bug "
+           "int_subst_drops_phi_prime is how the suite shows it is caught. "
+           "The kernel does not tidy phi' (it never simplifies anything "
+           "itself): P1.1-sheet's new integrand is sin(sqrt(t^2))*(2*t^1*1), "
+           "not §11.1's display sin(sqrt(t^2))*(2*t), and the rest of the "
+           "route is unaffected because ring reads t^1*1 as t",
+    "E42": "freshness, scope and capture (§15.2 items 1 and 3, GRAMMAR.md "
+           "§5, D10, D11). new_var must be a variable name (parse_term "
+           "gives a Var; else bad-args) that occurs nowhere in the current "
+           "goal, free or bound, domain included, so in particular not var "
+           "itself ('int-subst-not-fresh'). fv(sub) must lie in fv(goal) + "
+           "{new_var}, and fv(lo), fv(hi) in fv(goal) "
+           "('int-subst-scope'): sub may not mention the old bound "
+           "variable, nor a limit the new one (GRAMMAR.md §5: a bound "
+           "variable may not occur in its own endpoints). f[x := sub] is "
+           "built by terms.subst, trusted and capture-avoiding, before "
+           "anything is emitted, so D10's refusal ('subst-under-D') and "
+           "D17's ('rpow-literal-exponent') come first. check_goal on the "
+           "new goal is the backstop (D11, shadowing). Freshness is "
+           "stricter than soundness needs, since capture-avoiding "
+           "substitution and check_goal already make a clash harmless or "
+           "refused, and it is kept strict so that the variable the "
+           "learner named is the one in the new goal. E19 is unchanged: "
+           "close checks the value against the ORIGINAL goal's bound names, "
+           "where new_var does not occur, so ?A := t - t + 2 after "
+           "P1.1-sheet passes the scope check (the theorem then holds for "
+           "every t, so nothing unsound is reported) and is refused by "
+           "E27 (b2) instead (INT_SUBST_BAD_MOVES close_with_new_variable)"
+           ". Amended by the owner's answers (E45, E48): scope is "
+           "relative to the position (free in the goal or bound by an "
+           "enclosing Int), and in reverse mode sub may mention var "
+           "and f may mention new_var, each and nothing else outside "
+           "that scope",
+    "E43": "interaction with discharge and E26-E27. Every emission except "
+           "the two endpoint equations goes through DISCHARGE_RULE "
+           "unchanged: formers, the orientation and deriv's side "
+           "conditions are discharged by certificate, or refuse the step "
+           "when decided false (E33: x := ln t over [0, 1] at t = 0; the "
+           "non-monotone 1/x case at t = 0), or are admitted; the two Reg "
+           "premises are admitted REASON_REG. E26 (b): an Int or D in sub "
+           "is refused by deriv ('deriv-no-rule' or "
+           "'Int-or-D-not-normalisable'), one in a limit by the endpoint "
+           "check's ring, and one in the body only reaches Reg keys (which "
+           "skip norm_num) and the new goal, where Int and D owe no "
+           "former. E27 is untouched: it runs only in close. With "
+           "regularity unbuilt, a proof through int_subst reads 'Proved "
+           "modulo 3 + 2k admissions' for k substitutions and one ftc",
+    "E44": "staging. The move's data lives in section 12's INT_SUBST_* "
+           "tables and in problems/stage0's section 12, not in PROOFS, "
+           "REFUSAL_CODES, SOURCES or any DISCHARGE_* table, so the suite "
+           "stays green until the build: every existing child process runs "
+           "PROOFS, and a fifth proof there would need all 48 existing "
+           "seams re-traced against it, which tests the old seams and not "
+           "the new move. INT_SUBST_SEAMS re-traces the three whose seam "
+           "int_subst uses. P1.1 (the t-form) stays in PROOFS as the proof "
+           "of its own goal; whether P1.1-sheet becomes ROUTE['P1.1'] is "
+           "the owner's (INT_SUBST_SWITCH)"
+           ". The owner answered (E47): not now, a follow-up after "
+           "the build",
+    # E45-E49: the owner's answers of 2026-09-24 to the int_subst spec's
+    # five questions (int_subst spec 2026-09-24, owner answers). Section
+    # 12's INT_SUBST_RULE states them in full. Where E38, E39 and E42 say
+    # G, read P, the position domain (E48).
+    "E45": "reverse substitution is in (owner's answer 1), as int_subst's "
+           "mode 'reverse': args {'mode': 'reverse', var, sub, new_var, lo, "
+           "hi, f, check, facts[, occurrence]}, read as new_var := sub, "
+           "where sub = g(x) is a term in var and f = f(new_var), the new "
+           "integrand the learner supplies, is a term in new_var; lo and hi "
+           "are the learner's new limits, owed equal to g(a) and g(b). The "
+           "kernel builds f(g(x)) := f[new_var := g] by terms.subst and "
+           "g' := deriv(g, var, P+I) on the CLOSED old range I (E38's "
+           "reason: g in C^1([a, b])), and checks body == f(g(x))*g'(x) at "
+           "P+I by `check` (field's divisors and the facts' hypotheses and "
+           "inst formers at P+I). A failure refuses "
+           "'int-subst-check-failed' with residual body - f(g(x))*g'(x) "
+           "(E14); success records that equation DISCHARGED with tag "
+           "('deriv+' + check, the facts' entries), certificate None, "
+           "source int_subst_integrand, as ftc's premise is (E9). The "
+           "endpoint equations g(a) == lo and g(b) == hi are E39's, exact "
+           "values then check, so the new limits are learner-written "
+           "values (0 and 1), not unevaluated images (0^2, 1^2). Premises: "
+           "Reg(g, 1, P+I) and Reg(f(g(x)), 0, P+I). The image question: "
+           "the theorem needs f continuous on g([a, b]), and the kernel "
+           "never states an image. For continuous g on the compact [a, b], "
+           "f(g(x)) in C^0([a, b]) is equivalent to f in C^0(g([a, b])) "
+           "(g is a closed map onto its image, hence a quotient map: "
+           "§6.4's own argument for the forward form), so the premise is "
+           "stated on the composition over the OLD range, monotone or not, "
+           "and nothing is refused for non-monotonicity "
+           "(INT_SUBST_ACCEPTS reverse_non_monotone). f(g(x))'s formers "
+           "are charged at P+I, which is f's definedness on the image in "
+           "the same way; the new goal's own formers, f on the interval "
+           "between the new limits, are charged as any new goal's are, and "
+           "hold whenever the premise does, since that interval lies in "
+           "g([a, b]) by the intermediate value theorem. The old range's "
+           "orientation a <= b is owed when non-literal (the premises use "
+           "I), as for ftc. This is §6.4's rule read right to left, with "
+           "the identity body == f(g(x))*g'(x) as the checked link. "
+           "HolPy's first probe (Int_-1^1 x^2 by u = x^2, giving 0) is "
+           "refused at that check (INT_SUBST_BAD_MOVES holpy_probe_reverse)",
+    "E46": "orientation of the new range, both modes (owner's answer 2). "
+           "Two rational literal ends: E4 orders them, nothing is owed, and "
+           "the limits are kept as given, reversed or not, because every "
+           "later step orders them the same way and owes nothing false "
+           "(SUB1 and decreasing_literal_ends are unchanged). Otherwise the "
+           "kernel asks discharge, DISCHARGE_RULE steps (3)-(5) only, with "
+           "no refutation, for lo <= hi at P: if that is discharged it is "
+           "emitted (orient) and the limits kept; else for hi <= lo at P: "
+           "if that is discharged it is emitted (orient) and the new "
+           "integral is the flipped Int[new_var = hi .. lo] -(body'), with "
+           "the premises on [hi, lo]; else the step is refused "
+           "'int-subst-orientation-undecided'. Only the chosen key is "
+           "emitted, so a false candidate is not chosen rather than "
+           "refuted. Soundness: §5.1 defines a reversed integral, "
+           "Int[t = c .. d] g == -Int[t = d .. c] g, and -Int g == "
+           "Int(-g) pointwise; the flip is that identity composed with "
+           "§6.4's, a trusted rule-table addition (§15.2 item 2) owing "
+           "nothing beyond the discharged order, which is what makes "
+           "[hi, lo] the range. An undecided non-literal order was "
+           "admitted under E4; it is now refused, because the kernel must "
+           "know which form to build. x = cos(theta) over [pi/2, 0], "
+           "§5.1's canonical case, is accepted (INT_SUBST_ACCEPTS "
+           "cos_theta_canonical and cos_theta_full)",
+    "E47": "P1.1-sheet stays in INT_SUBST_PROOFS (owner's answer 3). "
+           "Moving it into PROOFS and ROUTE['P1.1'], with the re-trace of "
+           "the existing seams against it, is a follow-up after the build",
+    "E48": "position (owner's answer 4). An optional 'occurrence' (int, "
+           "E2's 0-based index) selects the k-th Integral node of the "
+           "goal's non-?A side (both sides when there is no ?A) in "
+           "REWRITE_RULE's pre-order; an index out of range refuses "
+           "'int-subst-no-integral', and a binder other than var "
+           "'int-subst-wrong-variable'. With no occurrence, exactly one "
+           "Int binding var must exist: none refuses "
+           "'int-subst-wrong-variable' when the side holds some Int and "
+           "'int-subst-no-integral' when it holds none; two or more refuse "
+           "'int-subst-ambiguous'. Not E2's every-occurrence default: E2 "
+           "is safe because every occurrence is the same term, while the "
+           "Ints binding var generally have different limits and bodies, "
+           "and one set of args fits one integral's endpoint equations, so "
+           "'all' would refuse unless they coincide; the learner names "
+           "the one meant. P, the position domain (REWRITE_RULE step 7), "
+           "is G plus the E4 range of each Int whose body holds the "
+           "selected one, and replaces G throughout; scope (E42) is "
+           "relative to it. Under a D[y] (REWRITE_RULE step 9, E11): if y "
+           "occurs free in the selected Int's limits or body, in sub, f, "
+           "lo or hi, or in a limit of an Int between the D[y] and the "
+           "position, the step is refused "
+           "'rewrite-under-D-needs-open-domain', rewrite's code, since it "
+           "is rewrite's rule. Every key the step emits is built from "
+           "those terms and carries a closed range or a Reg judgement, "
+           "neither open in y, so when y occurs in one of them step 9 "
+           "cannot be met, and when it occurs in none no emitted key "
+           "mentions y and step 9's (a) and (b) hold vacuously. "
+           "Conservative, as E11 (b) is. Soundness: the step proves "
+           "Int_old == Int_new at P under what it emits (every key at P, "
+           "P+I or P+I'); replacing an equal subterm at its position is "
+           "REWRITE_RULE step 5's congruence (E16's cong) with domain P; "
+           "under an enclosing Int the range domain is enough (§6.1), "
+           "and under D[y] the test above is step 9",
+    "E49": "a sign fact for sqrt atoms is in (owner's answer 5): "
+           "sqrt_nonneg : sqrt a >= 0 @ a >= 0, pinned for entries.py "
+           "(SQRT_NONNEG_ENTRY) and read by the linear method (§5.3 "
+           "methods 2 and 3) for each sqrt atom of the key, as pi_pos and "
+           "e_gt_one are read for their constants: label ('fact', "
+           "'sqrt_nonneg', u), constraint (sqrt u, non-strict), accepted "
+           "only when an atom sqrt w with ring_nf(w) = ring_nf(u) occurs "
+           "in the key's proposition or domain (SQRT_FACT_RULE). Its "
+           "hypothesis u >= 0 gets no child certificate: an accepted "
+           "certificate claims the obligation only where its terms are "
+           "defined (DISCHARGE_RULE, the trust split), and where sqrt u is "
+           "defined u >= 0 holds, which is also exactly the former E26 "
+           "charged where that sqrt entered. Cited as 'sqrt_nonneg' when "
+           "its multiplier is positive, after pi_pos and e_gt_one. "
+           "Re-derived by hand: no existing expectation changes "
+           "(SQRT_FACT_CHANGES lists every key holding a sqrt atom and "
+           "why), and 1 + sqrt x # 0 @ [0, 4] is now discharged "
+           "('linear', ('sqrt_nonneg',)), so Int_0^4 1/(1 + sqrt x) is a "
+           "problem file (problems/stage0 SUB2)",
 }
 
 DESIGN_DEFECTS = [
@@ -5170,6 +5454,71 @@ DESIGN_DEFECTS = [
     "* 0 == ?A; E4's 0 <= x for Int[t = 0 .. x]) refused rather than "
     "admitted. The owner settled the full reading on 2026-09-24 (E35 "
     "(1)); Q22 should record it.",
+    # int_subst spec 2026-09-24
+    "§5.1 says reversed limits are 'normal output of int_subst with a "
+    "decreasing phi - x = a cos theta is the canonical case'. Under E4 and "
+    "discharge only literal-ended reversed output survives: a non-literal "
+    "reversed range owes lo <= hi, which F2 decides false, so x = a*cos "
+    "theta over [pi/2, 0] is refused at the int_subst step itself (E40). "
+    "§5.1 and §6.4 should say how a decreasing phi with symbolic ends is "
+    "handled (a flipped conclusion, or an orient argument), or that it is "
+    "not. (Owner answers 2026-09-24, E46: resolved in the kernel by the "
+    "flipped form Int[t = hi .. lo] -(...) when discharge proves hi <= lo, "
+    "and 'int-subst-orientation-undecided' when it proves neither order; "
+    "§5.1 and §6.4 should state both, and that literal ends are kept.)",
+    "§8.1 shows `step subst (x := sin t) over t in [0, pi/2]` on P1.1's "
+    "goal as '✓ legal' with no progress. Its upper endpoint equation is "
+    "sin(pi/2) == pi^2/4, i.e. 1 == 2.467..., false, and no t has sin t = "
+    "pi^2/4 since sin <= 1; the kernel refuses it "
+    "'int-subst-endpoint-mismatch' (INT_SUBST_BAD_MOVES "
+    "sin_guess_from_8_1). §8.6's probe prints 1.3012779 for the same "
+    "guess; with the range the example gives, the transformed integral "
+    "is Int_0^1 sin(sqrt x) = 2 sin 1 - 2 cos 1 = 0.6023... (SymPy). A "
+    "legal, no-progress guess would be x := (pi^2/4)*sin t over [0, pi/2], "
+    "whose ends map by sin_zero and sin_pi_half.",
+    "§8.5's chain-rule row f'(x)*g(f(x)) -> u = f(x), 'the commonest "
+    "substitution there is', is a reverse substitution, and §6.4 and §8.4 "
+    "state only the forward move x := phi(t). Its forward emulation for "
+    "S2, x := sqrt u, is refused because sqrt is not C^1 at 0 (E37). So "
+    "the row names a move the rule table does not have; ftc closes those "
+    "integrals directly (STAGE0.md gap 5), and the owner should decide "
+    "whether a reverse move is wanted. (Owner answers 2026-09-24, E45: "
+    "reverse substitution is in, as int_subst's reverse mode; §6.4 should "
+    "state the reverse reading with its checked link body == "
+    "f(g(x))*g'(x), and §8.4's substitution row should list what the "
+    "learner supplies in each mode.)",
+    # int_subst spec 2026-09-24, owner answers
+    "§5.3 method 2-3's sign facts are 'each named constant' (rev 9). By "
+    "the owner's decision (E49) each sqrt atom of a key brings sqrt_nonneg "
+    "the same way, with no child obligation because a certificate claims "
+    "its key only where the key's terms are defined; §5.3 and §6.8 should "
+    "say so. It is what closes 1 + sqrt x # 0, the divisor §8.5's 'kill "
+    "the root' row meets before any substitution.",
+    "§6.1 and §6.4 state int_subst on a whole goal. By the owner's "
+    "decision (E48) it acts at a position, selected as rewrite selects, "
+    "with rewrite's congruence and its step-9 restriction under D[y]; "
+    "§6.4 should say so, and that the default without a position is "
+    "exactly one integral over var, not E2's every occurrence.",
+    "§5.1's canonical example is only half served: the owner's ∫_0^1 "
+    "sqrt(1 - x^2) with x = cos theta over [pi/2, 0] is now accepted as a "
+    "move (INT_SUBST_ACCEPTS cos_theta_canonical), but the goal still "
+    "installs owing 1 - x^2 >= 0 @ [0, 1] tagged none (sign product never "
+    "closes a non-strict goal, STAGE0.md S8), and the new integrand owes "
+    "1 - (cos theta)^2 >= 0, also none, and needs pyth and a sign fact for "
+    "cos on [0, pi/2] to finish. Neither gap is the substitution's.",
+    "§11.1 writes the endpoint obligation as one line, '0^2 = 0 ∧ (pi/2)^2 "
+    "= pi^2/4 by ring'. §5.2's goals are lists and D12 has no "
+    "conjunctions, so they are two keys, decided in-step (E39), and they "
+    "need §6.8's exact values as well as ring once phi is a transcendental "
+    "(ln 1 = 0, sin(pi/2) = 1). §11.1's list also omits pi/2's 2 # 0 from "
+    "the new upper limit, which its revision-10 note mentions.",
+    "§6.4 states int_subst's premises but not where phi' is computed or on "
+    "which interval its side conditions live. They must be on the closed "
+    "range (E38), since phi in C^1([a, b]) is closed; so deriv's side "
+    "conditions are sufficient, not necessary: x := t*sqrt t over [0, 1] "
+    "is C^1 (phi' = (3/2) sqrt t) but d_sqrt's t > 0 @ [0, 1] refuses it. "
+    "That is a completeness limit of reading C^1 off deriv, not a "
+    "soundness one, and it goes away only with §6.9's regularity rules.",
 ]
 
 # What was checked at build time, in scratch, with SymPy 1.14 and mpmath.
@@ -5364,6 +5713,51 @@ VERIFIED = (
     "still sin(pi/2); the new e27 values equal 1 and 0; no reference "
     "proof's closing value and no other accepted value holds cos 0 or "
     "sqrt 0",
+    # int_subst spec 2026-09-24
+    "int_subst spec (section 12), SymPy 1.14 in scratch: every transformed "
+    "integral equals the original (Int_0^{pi^2/4} sin sqrt x = 2 = "
+    "Int_0^{pi/2} sin(sqrt(t^2))*2t; Int_0^1 2x = 1 = Int_1^0 2(1 - t)(-1); "
+    "Int_1^1 x = 0 = Int_-1^1 2t^3; Int_0^1 exp x = e - 1 = Int_1^e "
+    "exp(ln t)/t; SUB1's 4/15 both ways); every endpoint equation holds "
+    "where accepted and fails where refused ((pi/2)^2 = pi^2/4; pi^2 - "
+    "pi^2/4 = (3/4)pi^2; sin(pi/2) - pi^2/4 = 1 - pi^2/4, nonzero, and "
+    "pi^2/4 > 1); each deriv output is the true derivative; each ftc "
+    "check and value (F(0) - F(1) = 1 and 4/15; the sorted-limits bug "
+    "gives -1 and -4/15); every discharged key is true on its domain and "
+    "every refused one false at its named point (t > 0 and u > 0 at 0, "
+    "t^2 # 0 at 0, pi/2 <= 0); Int_-1^1 2/t diverges; Int_{pi/2}^0 "
+    "cos(pi/2 - t)(-1) = 1, so the refused decreasing case is a valid "
+    "substitution; the subst-under-D cases' true values (2t^2, y*t) "
+    "differ from the naive ones (0, 2yt); (t sqrt t)' = (3/2) sqrt t. "
+    "DESIGN.md §8.6's 1.3012779 for the sin guess does not match: the "
+    "guess over [0, pi/2] gives Int_0^1 sin sqrt x = 0.6023... Every "
+    "string in section 12 and in problems/stage0's section 12 parses with "
+    "terms.py's parser and round-trips through its printer; every "
+    "int_subst goal_after equals Int(new_var, lo, hi, Mul(body[x := sub], "
+    "deriv output)) built with terms.subst, every ftc goal_after "
+    "F[t := hi] - F[t := lo], and every endpoint key sub[t := end] (a "
+    "check of the hand derivation, not a source of it); and both data "
+    "files import with their cross-checks, the existing suite still "
+    "passing",
+    # int_subst spec 2026-09-24, owner answers
+    "int_subst spec 2026-09-24, owner answers, SymPy 1.14 in scratch, 107 checks: the flipped forms equal the "
+    "originals (Int_0^{pi/2} -(cos(pi/2 - t)(-1)) = 1; x = cos theta "
+    "gives pi/4 for sqrt(1 - x^2) and 1/2 for x, and F(pi/2) - F(0) = "
+    "1/2); the flip identity; cos(pi/2) = 0 and cos 0 = 1; the sum's value "
+    "is unchanged by the move; D[y] of the constant integral is 1 both "
+    "ways, while Int_0^1 x*y = y/2 depends on y; y*t over [0, 1/y] is valid "
+    "for either sign of y, so its order is genuinely undecided; reverse "
+    "mode's identities (x e^(x^2) = (e^(x^2)/2)(2x), 2x^3 = x^2(2x)), "
+    "values ((e - 1)/2; 0 = 0 for the non-monotone g) and failures "
+    "(S2R-W1's residual -x e^(x^2); HolPy's x^2 - x|x| = 2 at x = -1, "
+    "against the true 2/3); SUB2's value 4 - 2 ln 3 both ways, its F', "
+    "deriv output and endpoints; sqrt a >= 0 sampled; sqrt x > 0 false at "
+    "0. terms.py's parser and printer: every new string parses and "
+    "round-trips; every new int_subst goal_after equals the tree rebuilt "
+    "from its parts (flipped Neg, position replacement, reverse f), every "
+    "reverse identity key body == f[u := g]*g', every ftc goal_after "
+    "F[hi] - F[lo], every endpoint image; both data files import with "
+    "their cross-checks, and the suite still passes 481 of 481",
 )
 
 # Changes to this file made after it was frozen. The first was adjudicated
@@ -6112,6 +6506,145 @@ DATA_CHANGES = (
      "F3 walks at most the first 256 points in candidate order, and a miss is admitted, tagged none; a point counts only where the formers of the proposition and of every domain item are settled true",
      "skeptic review of the wired discharge (b99972e). The Cartesian product was exponential in the variable count (9 variables took 30 s inside install); E35 (5) already accepts misses. Separately, F3 named a counter-point where a domain item was itself undefined, refusing a key that is true where it is defined; 'keeps every term defined' is now stated to cover the domain items. No expected outcome in the spec changes: every refusal's point is within the first 256, and none relies on an undefined domain item",
      'discharge review fix 2026-09-24'),
+    # int_subst spec 2026-09-24: written before any code, without reading
+    # kernel.py. Additions only; no existing expected value, table or case
+    # changes, and nothing new is asserted until the build (E44).
+    ("DECISIONS E36-E44 (new)",
+     "int_subst's args and step() composition (E36), forward direction "
+     "only (E37), premises and their domains (E38), the in-step endpoint "
+     "equations (E39), orientation and decreasing phi (E40), phi' from "
+     "deriv (E41), freshness, scope, capture and E19 unchanged (E42), the "
+     "interaction with discharge, E26 and E27 (E43), and staging (E44)",
+     "WHAT.md 'Start here' item 1: the spec for int_subst before any code",
+     "int_subst spec 2026-09-24"),
+    ("section 12 (new): INT_SUBST_MOVE, INT_SUBST_ARGS, "
+     "REFUSAL_CODES_INT_SUBST, INT_SUBST_MESSAGES, SOURCES_INT_SUBST, "
+     "DISCHARGE_METHODS_INT_SUBST, T_RING and its two cited forms, "
+     "INT_SUBST_RULE",
+     "the move stated in full, step by step: six new refusal codes with "
+     "message templates, four new sources, the in-step check's tags",
+     "E36-E43, stated as REWRITE_RULE and DISCHARGE_RULE are, so the "
+     "tables are checks of a rule and not fitted to an implementation",
+     "int_subst spec 2026-09-24"),
+    ("section 12 (new): INT_SUBST_PROOFS['P1.1-sheet'], INT_SUBST_DERIV, "
+     "INT_SUBST_OBLIGATIONS, INT_SUBST_EXPECTED, INT_SUBST_FINAL_TRACKER, "
+     "INT_SUBST_ADMISSIONS, INT_SUBST_VERDICTS, INT_SUBST_ANSWERS, "
+     "INT_SUBST_NUMERIC",
+     "P1.1 from the sheet's goal Int[x = 0 .. pi^2/4] sin(sqrt x) == ?A: "
+     "s1 int_subst x := t^2 over t in [0, pi/2], then P1.1's six steps; 15 "
+     "keys, 5 admitted (two int_subst Reg, three ftc Reg), 'Proved modulo "
+     "5 admissions', theorem Int[x = 0 .. pi^2/4] sin(sqrt x) == 2",
+     "WHAT.md: 'P1.1 then starts from the sheet's own goal'; §11.1's "
+     "obligation list, derived by hand under INT_SUBST_RULE",
+     "int_subst spec 2026-09-24"),
+    ("section 12 (new): INT_SUBST_ACCEPTS, INT_SUBST_BAD_MOVES",
+     "three accepted moves (decreasing phi with literal ends, continued to "
+     "'Proved modulo 5 admissions'; a non-monotone phi; ln's endpoints by "
+     "exact values) and eighteen refusals (freshness three ways, scope "
+     "twice, no integral under D[y], wrong variable, infinite endpoint, a "
+     "supplied phi', two endpoint mismatches including §8.1's sin guess, "
+     "phi undefined on the new range, the non-monotone divergent case, a "
+     "decreasing phi with symbolic ends, subst-under-D twice, an Int in "
+     "phi, and a close naming the new variable)",
+     "item 3 of the task: must-refuse cases with exact codes and messages",
+     "int_subst spec 2026-09-24"),
+    ("section 12 (new): INT_SUBST_PLANTED_BUGS, INT_SUBST_SEAMS, "
+     "INT_SUBST_SWITCH, and an import-time cross-check",
+     "seven planted bugs for the move's rules, three existing seams "
+     "re-traced on P1.1-sheet and SUB1, and how the suite switches in one "
+     "commit with PROOFS and every DISCHARGE_* table untouched",
+     "E44: a spec must say what catches each rule's loss, and the suite "
+     "must stay green until the build",
+     "int_subst spec 2026-09-24"),
+    ("DESIGN_DEFECTS, five entries appended; VERIFIED, one entry appended",
+     "§5.1's decreasing-phi claim against E4 and F2; §8.1/§8.6's sin guess "
+     "shown legal though its endpoint fails, and §8.6's probe value; §8.5's "
+     "chain-rule row naming a move the table lacks; §11.1's conjunction and "
+     "its missing 2 # 0; §6.4 silent on where phi' and its side conditions "
+     "live, and deriv's C^1 as sufficient, not necessary",
+     "the places this file records what DESIGN.md must change, and the "
+     "record of the checks",
+     "int_subst spec 2026-09-24"),
+    # int_subst spec 2026-09-24, owner answers: the owner's answers of 2026-09-24 to the spec's five questions,
+    # carried out by hand before any code. Existing P1 and stage-0
+    # expectations are unchanged (SQRT_FACT_CHANGES); int_subst's own
+    # staged cases change where listed.
+    ("DECISIONS E45-E49 (new); E36, E37, E40, E42 and E44 amended (a "
+     "closing sentence each)",
+     "reverse mode (E45), the flipped orientation (E46), P1.1-sheet staged "
+     "(E47), the position selector (E48), sqrt_nonneg (E49); E37's "
+     "forward-only and E40's refusal of symbolic decreasing phi are "
+     "superseded, E36's top-level-only and E42's scope made relative to the "
+     "position, E44's owner question answered",
+     "the owner's answers 1-5 of 2026-09-24",
+     "int_subst spec 2026-09-24, owner answers"),
+    ("section 12: INT_SUBST_ARGS_REVERSE, INT_SUBST_OPTIONAL, "
+     "INT_SUBST_MODES (new); REFUSAL_CODES_INT_SUBST (three codes added: "
+     "int-subst-ambiguous, int-subst-orientation-undecided, "
+     "int-subst-check-failed; two descriptions reworded); "
+     "INT_SUBST_MESSAGES (four templates added; wrong-variable gains a "
+     "'/none' form, no-integral an '/occurrence' form); SOURCES_INT_SUBST "
+     "(int_subst_integrand added, two reworded); T_RING_COS_PI_HALF, "
+     "T_RING_COS_ZERO, T_LINEAR_SQRT, SQRT (new); INT_SUBST_RULE rewritten",
+     "the rule now has both modes, the selector and P, the D test, the "
+     "orientation decision and the flip, and the soundness at a position; "
+     "its step numbers changed (the old 2-15 are the new 2-16 with "
+     "selection, the D test and the reverse check inserted)",
+     "E45, E46, E48",
+     "int_subst spec 2026-09-24, owner answers"),
+    ("INT_SUBST_BAD_MOVES decreasing_symbolic_ends (removed), "
+     "no_integral_under_D (refusal changed), wrong_variable (message "
+     "changed)",
+     "decreasing_symbolic_ends was refused 'obligation-decided-false' on "
+     "pi/2 <= 0 and is now INT_SUBST_ACCEPTS "
+     "decreasing_symbolic_ends_flipped; no_integral_under_D was "
+     "'int-subst-no-integral' and is now "
+     "'rewrite-under-D-needs-open-domain'; wrong_variable's message is "
+     "the '/none' template, since no occurrence is given",
+     "E46: a discharged reverse order flips; E48: the Int is selected "
+     "anywhere, and below D[y] the D test refuses it; E48's default",
+     "int_subst spec 2026-09-24, owner answers"),
+    ("INT_SUBST_ACCEPTS: six cases added (decreasing_symbolic_ends_flipped, "
+     "cos_theta_canonical, cos_theta_full, sum_second_occurrence, "
+     "under_D_constant_integral, reverse_non_monotone); "
+     "INT_SUBST_BAD_MOVES: nine added (no_integral_anywhere, "
+     "ambiguous_default, occurrence_out_of_range, under_D_body_mentions_y, "
+     "orientation_undecided, reverse_g_undefined, holpy_probe_reverse, "
+     "reverse_f_mentions_old_variable, f_in_forward_mode)",
+     "the owner's requested cases: the canonical x := cos theta (with "
+     "cos_pi_half and cos_zero in the endpoint check), a sum's second "
+     "integral, an Int under D refused as rewrite refuses and its accepted "
+     "twin, the default with no occurrence, reverse mode's wrong f and "
+     "undefined g, and HolPy's reverse probe",
+     "owner answers 1, 2 and 4",
+     "int_subst spec 2026-09-24, owner answers"),
+    ("INT_SUBST_PLANTED_BUGS: int_subst_no_orientation redefined and "
+     "re-traced; six added (int_subst_flips_without_decision, "
+     "int_subst_occurrence_ignored, int_subst_under_D_unchecked, "
+     "int_subst_reverse_skips_check, "
+     "int_subst_reverse_premise_on_new_range, sqrt_fact_strict)",
+     "no_orientation's catch moved from the removed refusal to the "
+     "flipped cases and orientation_undecided; each new rule has a bug "
+     "that a case catches",
+     "E45, E46, E48, E49",
+     "int_subst spec 2026-09-24, owner answers"),
+    ("SQRT_NONNEG_ENTRY, SQRT_FACT_RULE, SQRT_FACT_CHANGES, "
+     "SQRT_FACT_MUST_REJECT, SQRT_FACT_CHECKER_ACCEPTS (new); "
+     "INT_SUBST_SWITCH rewritten",
+     "the sqrt sign fact pinned, its label and hypothesis argument, the "
+     "re-derivation of every key holding a sqrt atom (none changes), two "
+     "checker rejections and two acceptances; the switch now carries "
+     "entries.py, the checker, the search, the tagger and the property "
+     "test's sqrt family, and says P1.1-sheet joins PROOFS after the build",
+     "E47, E49",
+     "int_subst spec 2026-09-24, owner answers"),
+    ("DESIGN_DEFECTS: the §5.1 and §8.5 entries gain the owner's "
+     "resolution; three entries appended (§5.3/§6.8 sqrt sign facts, "
+     "§6.1/§6.4 int_subst at a position, §5.1's canonical example still "
+     "half served); VERIFIED, one entry appended",
+     "what DESIGN.md must now say, and the record of the re-run checks",
+     "the places this file records what DESIGN.md must change",
+     "int_subst spec 2026-09-24, owner answers"),
 )
 
 
@@ -7695,3 +8228,1458 @@ DISCHARGE_ORDER_CHECK = (
     "(proof_of_life.py's entries checks), so moving sqrt_sq from first to "
     "second position changes no assertion. No other expectation changes.",
 )
+
+
+# ---------------------------------------------------------------------------
+# 12. int_subst, specified before any code (int_subst spec 2026-09-24)
+#
+# WHAT.md "Start here" item 1: the move §6.4 states and §11.1 uses first,
+# so that P1.1 starts from the sheet's own goal. DECISIONS E36-E44 give the
+# design in brief with § references; INT_SUBST_RULE states it in full, one
+# paragraph per point, as REWRITE_RULE and DISCHARGE_RULE do, so that every
+# table below is a check of a stated rule and not fitted to an
+# implementation. Written from DESIGN.md revision 10 (§5.1, §6.1, §6.4,
+# §6.9, §8.1, §8.4-§8.6, §11.1, §15.2, §18 Q23), ARCHITECTURE.md, GRAMMAR.md
+# and the data files, without reading kernel.py. Every string below was
+# parsed with terms.py's parser and every piece of mathematics checked with
+# SymPy in a scratch directory (VERIFIED, last entry).
+#
+# Discharge is wired, so only post-discharge expectations are written: no
+# pre-discharge (stub) table exists for int_subst, and every admission's
+# reason is DISCHARGE's REASON_REG. Nothing here is asserted until the build
+# (INT_SUBST_SWITCH): the tables are kept out of PROOFS, REFUSAL_CODES,
+# SOURCES and the DISCHARGE_* tables so the suite stays green (E44).
+
+INT_SUBST_MOVE = "int_subst"
+# The key sets (E36, E45, E48; owner answers 2026-09-24). 'mode' is
+# optional and defaults to 'forward', so every forward case below is
+# written without it; 'reverse' requires 'f', and 'f' in forward mode is
+# bad-args. 'occurrence' is optional in both modes.
+INT_SUBST_ARGS = ("var", "sub", "new_var", "lo", "hi", "check", "facts")
+INT_SUBST_ARGS_REVERSE = INT_SUBST_ARGS + ("mode", "f")
+INT_SUBST_OPTIONAL = ("mode", "occurrence")
+INT_SUBST_MODES = ("forward", "reverse")
+
+# New refusal codes, merged into the coverage check at the build, as
+# REFUSAL_CODES_DISCHARGE was. Only the mismatch and check-failed carry a
+# residual. A substitution under D[y] reuses rewrite's
+# 'rewrite-under-D-needs-open-domain' (E48).
+REFUSAL_CODES_INT_SUBST = {
+    "int-subst-no-integral": "E36, E48: the goal holds no Int, or none at "
+                             "the given occurrence (ftc-no-integral's "
+                             "twin)",
+    "int-subst-wrong-variable": "E36, E48: the selected Int does not bind "
+                                "var, or with no occurrence no Int does "
+                                "while some Int exists",
+    "int-subst-ambiguous": "E48 (owner answers): no occurrence is given "
+                           "and two or more Ints bind var",
+    "int-subst-infinite-endpoint": "E36, §5.1: a limit of the selected "
+                                   "integral is oo or -oo; sub(lo) == oo "
+                                   "is not a term, and the improper case is "
+                                   "int_improper's (ftc-infinite-endpoint's "
+                                   "twin)",
+    "int-subst-not-fresh": "E42, D11: new_var occurs in the current goal, "
+                           "free or bound (var itself included)",
+    "int-subst-scope": "E42, E48, GRAMMAR.md §5: a variable of sub, f, lo "
+                       "or hi is not in scope at the position (new_var in "
+                       "a limit included)",
+    "int-subst-orientation-undecided": "E46 (owner answers): the new "
+                                       "limits are not two literals, and "
+                                       "discharge proves neither lo <= hi "
+                                       "nor hi <= lo",
+    "int-subst-endpoint-mismatch": "E39: an endpoint equation, after "
+                                   "§6.8's exact values, fails by `check`. "
+                                   "Carries the residual image - limit",
+    "int-subst-check-failed": "E45 (owner answers), reverse mode: the "
+                              "integrand is not f(g(x))*g'(x) by `check`. "
+                              "Carries the residual body - f(g(x))*g'(x) "
+                              "(ftc-check-failed's twin)",
+}
+
+# Their messages, asserted by filling the template with terms.show of the
+# named parts, never as a literal printout (E27_MESSAGES' convention).
+# {part} is 'the substitution', 'the new integrand', 'the lower limit' or
+# 'the upper limit'; {name} the first out-of-scope variable in sorted order;
+# {end} 'lower' or 'upper'; {image} the endpoint image as emitted, BEFORE
+# the exact values; {limit} the limit it is owed equal to; {n} a numeral.
+# 'int-subst-no-integral' has two templates, the second when an occurrence
+# was given.
+INT_SUBST_MESSAGES = {
+    "int-subst-no-integral": "the goal holds no integral",
+    "int-subst-no-integral/occurrence": "the goal holds no integral at "
+                                        "occurrence {occurrence}",
+    "int-subst-wrong-variable": "the integral is over {bound}, not {var}",
+    "int-subst-wrong-variable/none": "no integral in the goal is over {var}",
+    "int-subst-ambiguous": "{n} integrals are over {var}; give an "
+                           "occurrence",
+    "int-subst-infinite-endpoint": "int_subst needs finite limits, and "
+                                   "{limit} is not (int_improper is the "
+                                   "route)",
+    "int-subst-not-fresh": "{new_var} already occurs in the goal; choose a "
+                           "fresh variable",
+    "int-subst-scope": "{part} {term} mentions {name}, which is not in "
+                       "scope",
+    "int-subst-orientation-undecided": "the order of {lo} and {hi} is not "
+                                       "decided; state it in the goal's "
+                                       "domain",
+    "int-subst-endpoint-mismatch": "{image} == {limit} fails at the {end} "
+                                   "limit",
+    "int-subst-check-failed": "the integrand is not f(g(x))*g'(x) for "
+                              "f := {f}",
+}
+
+# New sources, merged into SOURCES at the build.
+S_SUBST_LO, S_SUBST_HI = "int_subst_lo", "int_subst_hi"
+S_SUBST_C1, S_SUBST_C0 = "int_subst_phi_C1", "int_subst_f_C0"
+S_SUBST_INT = "int_subst_integrand"
+SOURCES_INT_SUBST = {
+    S_SUBST_LO: "int_subst's lower endpoint equation (forward sub(lo) == a, "
+                "reverse sub(a) == lo), decided in-step (§6.4, E39)",
+    S_SUBST_HI: "int_subst's upper endpoint equation, likewise (§6.4, E39)",
+    S_SUBST_C1: "int_subst premise: the substitution's map in C^1 on its "
+                "closed range, phi on the new one (forward) or g on the old "
+                "one (reverse) (§6.4, E38, E45)",
+    S_SUBST_C0: "int_subst premise: the composed integrand f(phi(t)) or "
+                "f(g(x)) in C^0 on that range (§6.4, §11.1's correction, "
+                "E38, E45)",
+    S_SUBST_INT: "int_subst reverse mode: body == f(g(x))*g'(x) on the old "
+                 "range, decided in-step (E45)",
+}
+# The in-step checks' tags, merged into DISCHARGE_METHODS at the build: a
+# discharged endpoint equation is tagged with its check and the entries it
+# used (E39); reverse mode's integrand identity 'deriv+' + check, as ftc's
+# premise is (E9, E45).
+DISCHARGE_METHODS_INT_SUBST = {
+    "ring": "§6.2 ring, run inside the int_subst step on an endpoint "
+            "equation after §6.8's exact values (E39)",
+    "field": "§6.2 field with the step's facts, likewise (E39)",
+}
+T_RING = ("ring", ())
+T_RING_LN_ONE = ("ring", ("ln_one",))
+T_RING_LN_E = ("ring", ("ln_e",))
+T_RING_COS_PI_HALF = ("ring", ("cos_pi_half",))
+T_RING_COS_ZERO = ("ring", ("cos_zero",))
+# E49: the linear method citing the sqrt atoms' sign fact
+T_LINEAR_SQRT = ("linear", ("sqrt_nonneg",))
+
+
+def SQRT(u):
+    """E49's Farkas label for the sign fact of the atom sqrt u."""
+    return ("fact", "sqrt_nonneg", u)
+
+
+INT_SUBST_RULE = (
+    "The rule (§6.4), two modes and one flip. Forward: phi in C^1([c, d]) "
+    "and f(phi(t)) in C^0([c, d]) give Int[x = phi(c) .. phi(d)] f == "
+    "Int[t = c .. d] f(phi(t))*phi'(t). Reverse (E45): g in C^1([a, b]), "
+    "f(g(x)) in C^0([a, b]) and h == f(g(x))*g'(x) on [a, b] give "
+    "Int[x = a .. b] h == Int[u = g(a) .. g(b)] f. Flip (E46, §5.1): "
+    "Int[t = c .. d] k == Int[t = d .. c] -k. The move reads each left to "
+    "right at one integral of the goal, selected by position (E48), and "
+    "replaces it there, leaving the rest of the goal, the rhs ?A included, "
+    "unchanged. In what follows the selected integral is "
+    "Int[var = a .. b] body, P is its position domain, and body' is the new "
+    "integrand before any flip: F*phi' (forward, F := body[var := sub]) or "
+    "f (reverse).",
+
+    "1. The common step() checks (ARCHITECTURE.md §4): the state is "
+    "minted, the goal is open, the move is one of the five (rewrite, fact, "
+    "ftc, close, int_subst), and args has exactly the mode's keys "
+    "(INT_SUBST_ARGS for forward, with 'mode' optional; "
+    "INT_SUBST_ARGS_REVERSE for reverse), plus 'occurrence' optionally, "
+    "each of the right type, else 'bad-args': mode is 'forward' or "
+    "'reverse'; var and new_var are str, each naming a variable "
+    "(parse_term gives a Var, so pi, e_const, sin and e are refused); sub, "
+    "lo, hi and f are Terms holding no MVar and no oo (close's rule for "
+    "its value); occurrence is an int >= 0, not a bool; check is 'ring' "
+    "or 'field'; facts is a list, and 'ring' with a fact is bad-args "
+    "(ftc's rule). Any other key, a phi' among them, is bad-args (E41), "
+    "and so is 'f' in forward mode. Fact slots are resolved next (E17).",
+
+    "2. Selection (E48). The Integral nodes of the goal's non-?A side "
+    "(both sides, lhs first, when there is no ?A) are enumerated in "
+    "REWRITE_RULE's pre-order. With occurrence k: the k-th, else "
+    "'int-subst-no-integral' ('/occurrence' template); its binder must be "
+    "var, else 'int-subst-wrong-variable'. With none: the Ints binding "
+    "var; exactly one is selected; none refuses 'int-subst-wrong-variable' "
+    "('/none' template) if the side holds any Int, else "
+    "'int-subst-no-integral'; two or more refuse 'int-subst-ambiguous'. P "
+    "is the goal's domain G plus the E4 range of each Int whose body holds "
+    "the selected one, outermost first (REWRITE_RULE step 7).",
+
+    "3. Neither of the selected integral's limits a, b may be infinite, "
+    "else 'int-subst-infinite-endpoint' (E36; as E9 for ftc).",
+
+    "4. Freshness (E42): new_var occurs nowhere in the current goal (fv or "
+    "bv of either side, or of the domain), else 'int-subst-not-fresh'. "
+    "Since var is bound in the goal, new_var == var is refused here.",
+
+    "5. Scope (E42, E48), with S the names in scope at the position (fv "
+    "of the goal and the binders of the enclosing Ints): forward, fv(sub) "
+    "within S + {new_var}; reverse, fv(sub) within S + {var}, then fv(f) "
+    "within S + {new_var}; both, fv(lo) and fv(hi) within S. Checked in "
+    "that order, else 'int-subst-scope' naming the part and the first "
+    "offending name.",
+
+    "6. Under D[y] (E48, REWRITE_RULE step 9): if the selected Int lies "
+    "below a D[y] and y occurs free in its limits or body, in sub, f, lo "
+    "or hi, or in a limit of an Int between the D[y] and the position, "
+    "the step is refused 'rewrite-under-D-needs-open-domain'.",
+
+    "7. Syntax, before anything is emitted, each by terms.subst (trusted, "
+    "capture-avoiding; its refusals 'subst-under-D' (D10) and "
+    "'rpow-literal-exponent' (D17) come here). Forward: F := body[var := "
+    "sub], and the images sub[new_var := lo] and sub[new_var := hi]. "
+    "Reverse: Fg := f[new_var := sub], and the images sub[var := a] and "
+    "sub[var := b].",
+
+    "8. Ranges and the new orientation. Reverse only, first: I := E4's "
+    "range of (var, a, b), owing a <= b at P (orient) when the ends are "
+    "not two literals, since the premises use I (a false one refuses by "
+    "F2, as for ftc). Both: lo's and hi's formers at P (E6, E26; they lie "
+    "outside the new Int's scope). Then E46 on (lo, hi): two rational "
+    "literals are ordered by norm_num, nothing is owed, the limits are "
+    "kept and I' = [min, max]; otherwise lo <= hi at P is put to "
+    "DISCHARGE_RULE steps (3)-(5), and if discharged it is emitted "
+    "(orient), the limits are kept and I' = [lo, hi]; otherwise hi <= lo "
+    "at P likewise, and if discharged it is emitted (orient), the new "
+    "integral will be flipped and I' = [hi, lo]; otherwise the step is "
+    "refused 'int-subst-orientation-undecided'. A candidate that is not "
+    "discharged is never emitted, so it is never refuted. D denotes P+I' "
+    "in forward mode and P+I in reverse: the premises' domain.",
+
+    "9. The substitution's formers at D, source former: forward, sub's; "
+    "reverse, sub's and then Fg's, which is f's definedness on the image "
+    "stated over the old range (E45). phi (or g) must be defined on the "
+    "whole closed range, both ends included, which is also what makes the "
+    "endpoint images defined (E39).",
+
+    "10. The derivative on the closed range (E38): forward phi' := "
+    "deriv(sub, new_var, D), reverse g' := deriv(sub, var, D). Its trace "
+    "and output are the step's `trace` and `output`, as ftc's are, and its "
+    "side conditions are emitted at D. deriv's refusals ('deriv-no-rule', "
+    "'Int-or-D-not-normalisable') refuse the step.",
+
+    "11. Reverse only: the integrand check (E45). body == Mul(Fg, g') is "
+    "decided at D by `check` (ring, or field with the facts, whose "
+    "divisors (field_div), facts' hypotheses (fact_hyp) and facts' inst "
+    "formers (former) are emitted at D). A failure refuses "
+    "'int-subst-check-failed' with residual body - Fg*g' (E14). Success "
+    "emits that equation with discharged_by ('deriv+' + check, the facts' "
+    "entries), certificate None, source int_subst_integrand.",
+
+    "12. Endpoint equations (E39), lower then upper, keyed at P (E5): "
+    "forward sub[new_var := lo] == a and sub[new_var := hi] == b; reverse "
+    "sub[var := a] == lo and sub[var := b] == hi. Each is rewritten with "
+    "§6.8's exact values (E31's rewrite, trusted) and decided by `check`, "
+    "whose divisors and facts' obligations are emitted at P. A failure "
+    "refuses 'int-subst-endpoint-mismatch' with residual lhs - rhs of the "
+    "rewritten equation. Success emits the equation as written, with "
+    "discharged_by (check, the exact-value entries used then the facts' "
+    "entries), certificate None, source int_subst_lo or int_subst_hi. "
+    "Never admitted, never refuted (ARCHITECTURE.md §5 order step 1), and "
+    "E7's Int-or-D refusal is not needed, the check's ring having refused "
+    "any Int or D node (E26 (b)).",
+
+    "13. Premises (E38, E45), ADMITTED ('reg', ()), REASON_REG: forward "
+    "Reg(sub, 1, D) (int_subst_phi_C1) and Reg(F, 0, D) (int_subst_f_C0); "
+    "reverse Reg(sub, 1, D) and Reg(Fg, 0, D).",
+
+    "14. The new integral: Integral(new_var, lo, hi, body') when the limits "
+    "were kept (reversed, if literal and reversed, E40), or "
+    "Integral(new_var, hi, lo, Neg(body')) when flipped (E46). It replaces "
+    "the selected Int at its position; nothing else in the goal changes. "
+    "Its formers are charged as installation charges a term: its limits at "
+    "P, its body at P plus its own E4 range, with the orientation whenever "
+    "a key uses that range (already owed by step 8 when it is not literal, "
+    "so it merges). This is where the composed integrand's formers "
+    "(§11.1's t^2 >= 0) and phi''s own (the divisor of 1/(2*sqrt t)) are "
+    "charged, and, in reverse mode, f's on the new range. Then check_goal "
+    "on the new goal (D11 and shadowing: the backstop behind step 4).",
+
+    "15. Emission order, for the step's `emitted` list (compared as a set, "
+    "KEYING) and for which refusal comes first: steps 8, 9, 10, 11, 12 "
+    "(lower, upper), 13, 14. Every emission goes through kernel._emit and "
+    "DISCHARGE_RULE; a refused step emits nothing and changes nothing "
+    "(E13). In forward mode the old range enters no key, so neither it nor "
+    "its orientation is owed (E38).",
+
+    "16. What int_subst never does: it does not compute the image of the "
+    "substitution's map (§6.4's reason for the composed C^0 premise, and "
+    "E45's for reverse mode), does not require it monotone (§6.4, 'Do not "
+    "weaken it'), does not tidy phi' or g' (E41), flips only on a "
+    "discharged order (E46), and does not touch the rhs, so ?A and E19's "
+    "original goal are unchanged (E42).",
+
+    "17. Soundness at a position (E48). The step proves Int_old == "
+    "Int_new at P under every key it emits (at P, P+I or P+I'). Replacing "
+    "an equal subterm at a position is REWRITE_RULE step 5's congruence "
+    "(E16's cong) with domain P: under an enclosing Int the range domain "
+    "is enough (§6.1), and under a D[y] step 6 enforces step 9.",
+)
+
+# --- P1.1 from the sheet's goal ---------------------------------------------
+#
+# The sheet's goal is the fallback's goal (§11 heading, §8.1). s1 is
+# int_subst; s2-s7 are the existing P1.1 route (PROOFS['P1.1'] s1-s6) with
+# the same args, on a goal whose integrand carries deriv's 2*t^1*1 where
+# P1_1_GOAL has §11.1's 2*t (E41).
+P1_1_SHEET_GOAL = P1_1_FALLBACK_GOAL
+P1_1_SHEET_S1 = "Int[t = 0 .. pi/2] sin(sqrt(t^2))*(2*t^1*1) == ?A"
+P1_1_SHEET_S2 = "Int[t = 0 .. pi/2] sin t * (2*t^1*1) == ?A"
+_P11 = {s["id"]: s for s in PROOFS["P1.1"]["steps"]}
+
+INT_SUBST_PROOFS = {
+    "P1.1-sheet": {
+        "fallback": False,
+        "goal": P1_1_SHEET_GOAL,
+        "steps": [
+            {"id": "s1", "move": "int_subst",
+             "args": {"var": "x", "sub": "t^2", "new_var": "t", "lo": "0",
+                      "hi": "pi/2", "check": "ring", "facts": []},
+             "goal_after": P1_1_SHEET_S1},
+            {"id": "s2", "move": "rewrite", "args": _P11["s1"]["args"],
+             "occurrences": 1, "goal_after": P1_1_SHEET_S2},
+            {"id": "s3", "move": "ftc", "args": _P11["s2"]["args"],
+             "goal_after": P1_1_AFTER_FTC},
+            {"id": "s4", "move": "rewrite", "args": _P11["s3"]["args"],
+             "occurrences": 1, "goal_after": _P11["s3"]["goal_after"]},
+            {"id": "s5", "move": "rewrite", "args": _P11["s4"]["args"],
+             "occurrences": 1, "goal_after": _P11["s4"]["goal_after"]},
+            {"id": "s6", "move": "rewrite", "args": _P11["s5"]["args"],
+             "occurrences": 1, "goal_after": _P11["s5"]["goal_after"]},
+            {"id": "s7", "move": "close", "args": _P11["s6"]["args"],
+             "goal_after": None},
+        ],
+        # the ORIGINAL goal instantiated (E19): the theorem WHAT.md's
+        # 'P1.1 then starts from the sheet's own goal' asks for
+        "theorem": "Int[x = 0 .. pi^2/4] sin(sqrt x) == 2",
+    },
+}
+del _P11
+
+# deriv inside int_subst (step 10) and inside ftc, in DERIV's shape. s1's
+# domain is the closed [0, pi/2] (E38); t^2 owes nothing there. s3's F is
+# P1.1's, so its trace and output are DERIV['P1.1']'s; only the integrand
+# the check compares against differs, and ring equates them.
+INT_SUBST_DERIV = {
+    ("P1.1-sheet", "s1"): {
+        "var": "t", "F": "t^2",
+        "trace": [("d_pow_int", "t^2", ()), ("d_var", "t", ())],
+        "output": "2*t^1*1",
+        "emits": (),
+    },
+    ("P1.1-sheet", "s3"): DERIV["P1.1"],
+}
+
+# Per step, after discharge (6-tuples, OB_FIELDS; new read against the
+# tracker before the step). Hand-derived:
+#   goal: the fallback's installation exactly (sqrt x owes x >= 0 on the
+#     range, range; the range's 0 <= pi^2/4 by sign, E20; pi^2/4's 4 # 0).
+#   s1 (INT_SUBST_RULE): step 8, hi = pi/2 owes 2 # 0 (literal, norm_num);
+#     I' = [0, pi/2] is not two literals, so 0 <= pi/2 (linear, pi_pos).
+#     Step 9, t^2 has no former. Step 10, deriv emits nothing. Step 11,
+#     0^2 == 0 and (pi/2)^2 == pi^2/4 by ring, no exact value used ((1/4)
+#     pi^2 both sides). Step 12, the two Reg. Step 13, the new goal's
+#     pi/2 (2 # 0 again, merged), and sqrt(t^2)'s t^2 >= 0 on [0, pi/2]
+#     (sign, E20), which uses the range, so 0 <= pi/2 again (merged).
+#     §11.1's five lines, plus 2 # 0, with §11.1's conjunction as two keys.
+#   s2-s7: P1.1's s1-s6, with the integrand's 2*t^1*1 in ftc's two keys
+#     that mention f.
+INT_SUBST_OBLIGATIONS = {
+    "P1.1-sheet": {
+        "goal": [
+            ("4 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+            ("x >= 0", "[0, pi^2/4]", (S_FORMER,), DISCHARGED, T_RANGE,
+             True),
+            ("0 <= pi^2/4", "true", (S_ORIENT,), DISCHARGED, T_SIGN, True),
+        ],
+        "s1": [
+            ("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+            ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI,
+             True),
+            ("0^2 == 0", "true", (S_SUBST_LO,), DISCHARGED, T_RING, True),
+            ("(pi/2)^2 == pi^2/4", "true", (S_SUBST_HI,), DISCHARGED, T_RING,
+             True),
+            ("t^2 in C^1([0, pi/2])", "[0, pi/2]", (S_SUBST_C1,), ADMITTED,
+             T_REG, True),
+            ("sin(sqrt(t^2)) in C^0([0, pi/2])", "[0, pi/2]", (S_SUBST_C0,),
+             ADMITTED, T_REG, True),
+            ("t^2 >= 0", "[0, pi/2]", (S_FORMER,), DISCHARGED, T_SIGN, True),
+        ],
+        "s2": [
+            ("t >= 0", "[0, pi/2]", (S_SQRT_SQ,), DISCHARGED, T_RANGE, True),
+            ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI,
+             False),
+        ],
+        "s3": [
+            ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI,
+             False),
+            ("2*sin t - 2*t*cos t in C^0([0, pi/2])", "[0, pi/2]",
+             (S_FTC_C0F,), ADMITTED, T_REG, True),
+            ("2*sin t - 2*t*cos t in C^1((0, pi/2))", "(0, pi/2)",
+             (S_FTC_C1F,), ADMITTED, T_REG, True),
+            ("D[t](2*sin t - 2*t*cos t) == sin t * (2*t^1*1)", "(0, pi/2)",
+             (S_FTC_D,), DISCHARGED, T_DERIV_RING, True),
+            ("sin t * (2*t^1*1) in C^0([0, pi/2])", "[0, pi/2]",
+             (S_FTC_C0f,), ADMITTED, T_REG, True),
+            ("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, False),
+        ],
+        "s4": [],
+        "s5": [],
+        "s6": [],
+        "s7": [],
+    },
+}
+
+# Certificates of the keys a §5.3 method discharges (DISCHARGE_EXPECTED's
+# shape and helpers). The two endpoint equations have none (in-step).
+INT_SUBST_EXPECTED = {
+    "P1.1-sheet": {
+        ("x >= 0", "[0, pi^2/4]"): (T_RANGE, _RANGE_LO),
+        ("0 <= pi^2/4", "true"): (T_SIGN, _PI_SQ),
+        ("0 <= pi/2", "true"): (T_LINEAR_PI, _PI_HALF),
+        ("t^2 >= 0", "[0, pi/2]"): (T_SIGN, _sos("0", [("1", "t", 2)])),
+        ("t >= 0", "[0, pi/2]"): (T_RANGE, _RANGE_LO),
+    },
+}
+
+# Written out by hand, in emission order (compared as a set).
+INT_SUBST_FINAL_TRACKER = {
+    "P1.1-sheet": [
+        ("4 # 0", "true", DISCHARGED, T_NORM_NUM),
+        ("x >= 0", "[0, pi^2/4]", DISCHARGED, T_RANGE),
+        ("0 <= pi^2/4", "true", DISCHARGED, T_SIGN),
+        ("2 # 0", "true", DISCHARGED, T_NORM_NUM),
+        ("0 <= pi/2", "true", DISCHARGED, T_LINEAR_PI),
+        ("0^2 == 0", "true", DISCHARGED, T_RING),
+        ("(pi/2)^2 == pi^2/4", "true", DISCHARGED, T_RING),
+        ("t^2 in C^1([0, pi/2])", "[0, pi/2]", ADMITTED, T_REG),
+        ("sin(sqrt(t^2)) in C^0([0, pi/2])", "[0, pi/2]", ADMITTED, T_REG),
+        ("t^2 >= 0", "[0, pi/2]", DISCHARGED, T_SIGN),
+        ("t >= 0", "[0, pi/2]", DISCHARGED, T_RANGE),
+        ("2*sin t - 2*t*cos t in C^0([0, pi/2])", "[0, pi/2]", ADMITTED,
+         T_REG),
+        ("2*sin t - 2*t*cos t in C^1((0, pi/2))", "(0, pi/2)", ADMITTED,
+         T_REG),
+        ("D[t](2*sin t - 2*t*cos t) == sin t * (2*t^1*1)", "(0, pi/2)",
+         DISCHARGED, T_DERIV_RING),
+        ("sin t * (2*t^1*1) in C^0([0, pi/2])", "[0, pi/2]", ADMITTED,
+         T_REG),
+    ],
+}
+
+# N: the substitution's two regularity premises and ftc's three. §11.1
+# ends 'Proved. 0 admissions'; that needs §6.9's regularity (WHAT.md stage
+# 1 piece 2), which closes all five.
+INT_SUBST_ADMISSIONS = {"P1.1-sheet": 5}
+INT_SUBST_VERDICTS = {name: VERDICT.format(n=n)
+                      for name, n in INT_SUBST_ADMISSIONS.items()}
+INT_SUBST_ANSWERS = {"P1.1-sheet": "2"}
+INT_SUBST_NUMERIC = {"P1.1-sheet": 2.0}
+
+# --- Accepted moves ---------------------------------------------------------
+#
+# In MATCH_ACCEPTS' shape, after discharge: `goal_emits` is installation's
+# list, `emits` the int_subst step's, `deriv` its step 10, and an optional
+# `then` continues the proof, each step with its own list, to a verdict.
+INT_SUBST_ACCEPTS = [
+    {"id": "decreasing_literal_ends",
+     "goal": "Int[x = 0 .. 1] 2*x == ?A",
+     "goal_emits": [],  # 2*x owes nothing, and the range is literal
+     "move": ("int_subst", {"var": "x", "sub": "1 - t", "new_var": "t",
+                            "lo": "1", "hi": "0", "check": "ring",
+                            "facts": []}),
+     # E40: the new limits as given, reversed, which §5.1 reads as
+     # -Int[t = 0 .. 1]; E4 orders the literal ends, so I' = [0, 1] and
+     # nothing is owed for the orientation
+     "goal_after": "Int[t = 1 .. 0] 2*(1 - t)*(0 + (0*t + (-1)*1)) == ?A",
+     "deriv": {"var": "t", "F": "1 - t",
+               "trace": [("d_add", "1 - t", ()), ("d_const", "1", ()),
+                         ("route_neg", "-t", ()), ("d_mul", "-1*t", ()),
+                         ("d_const", "-1", ()), ("d_var", "t", ())],
+               "output": "0 + (0*t + (-1)*1)", "emits": ()},
+     "emits": [
+         ("1 - 1 == 0", "true", (S_SUBST_LO,), DISCHARGED, T_RING, True),
+         ("1 - 0 == 1", "true", (S_SUBST_HI,), DISCHARGED, T_RING, True),
+         ("1 - t in C^1([0, 1])", "[0, 1]", (S_SUBST_C1,), ADMITTED, T_REG,
+          True),
+         ("2*(1 - t) in C^0([0, 1])", "[0, 1]", (S_SUBST_C0,), ADMITTED,
+          T_REG, True)],
+     "then": [
+         # ftc on a reversed literal range (the suite's own case, E4): the
+         # premises on [0, 1] and (0, 1), the new goal F(b) - F(a) with
+         # b = hi = 0 and a = lo = 1
+         {"move": ("ftc", {"F": "t^2 - 2*t", "check": "ring", "facts": []}),
+          "goal_after": "0^2 - 2*0 - (1^2 - 2*1) == ?A",
+          "deriv": {"var": "t", "F": "t^2 - 2*t",
+                    "trace": [("d_add", "t^2 - 2*t", ()),
+                              ("d_pow_int", "t^2", ()), ("d_var", "t", ()),
+                              ("route_neg", "-(2*t)", ()),
+                              ("d_mul", "-1*(2*t)", ()),
+                              ("d_const", "-1", ()), ("d_mul", "2*t", ()),
+                              ("d_const", "2", ()), ("d_var", "t", ())],
+                    "output": "2*t^1*1 + (0*(2*t) + (-1)*(0*t + 2*1))",
+                    "emits": ()},
+          "emits": [
+              ("t^2 - 2*t in C^0([0, 1])", "[0, 1]", (S_FTC_C0F,), ADMITTED,
+               T_REG, True),
+              ("t^2 - 2*t in C^1((0, 1))", "(0, 1)", (S_FTC_C1F,), ADMITTED,
+               T_REG, True),
+              ("D[t](t^2 - 2*t) == 2*(1 - t)*(0 + (0*t + (-1)*1))", "(0, 1)",
+               (S_FTC_D,), DISCHARGED, T_DERIV_RING, True),
+              ("2*(1 - t)*(0 + (0*t + (-1)*1)) in C^0([0, 1])", "[0, 1]",
+               (S_FTC_C0f,), ADMITTED, T_REG, True)]},
+         {"move": ("close", {"value": "1", "check": "ring", "facts": []}),
+          "goal_after": None, "emits": []},
+     ],
+     "report": VERDICT.format(n=5),
+     "theorem": "Int[x = 0 .. 1] 2*x == 1",
+     "why": "§5.1's reversed limits as normal output of a decreasing phi, "
+            "handled by E4's literal ordering: the int_subst step owes no "
+            "orientation, and ftc gives F(0) - F(1) = 0 - (1 - 2) = 1. "
+            "SymPy: Int_1^0 2(1 - t)(-1) dt = 1 = Int_0^1 2x dx. The "
+            "planted bug int_subst_sorts_new_limits turns the value into -1 "
+            "and the close fails"},
+    {"id": "non_monotone_accepted",
+     "goal": "Int[x = 1 .. 1] x == ?A",
+     "goal_emits": [],
+     "move": ("int_subst", {"var": "x", "sub": "t^2", "new_var": "t",
+                            "lo": "-1", "hi": "1", "check": "ring",
+                            "facts": []}),
+     "goal_after": "Int[t = -1 .. 1] t^2*(2*t^1*1) == ?A",
+     "deriv": INT_SUBST_DERIV[("P1.1-sheet", "s1")],
+     "emits": [
+         ("(-1)^2 == 1", "true", (S_SUBST_LO,), DISCHARGED, T_RING, True),
+         ("1^2 == 1", "true", (S_SUBST_HI,), DISCHARGED, T_RING, True),
+         ("t^2 in C^1([-1, 1])", "[-1, 1]", (S_SUBST_C1,), ADMITTED, T_REG,
+          True),
+         ("t^2 in C^0([-1, 1])", "[-1, 1]", (S_SUBST_C0,), ADMITTED, T_REG,
+          True)],
+     "why": "§6.4 keeps the no-monotonicity generality (and the review's "
+            "'Do not weaken it'): t^2 folds [-1, 1] onto [0, 1], the "
+            "endpoint interval is the point {1}, and the identity still "
+            "holds, Int_1^1 x = 0 = Int_-1^1 2 t^3 dt (SymPy). Nothing is "
+            "owed beyond the premises: x has no former. The twin that must "
+            "refuse is INT_SUBST_BAD_MOVES non_monotone_divergent"},
+    {"id": "ln_endpoints_by_exact_values",
+     "goal": "Int[x = 0 .. 1] exp x == ?A",
+     "goal_emits": [],
+     "move": ("int_subst", {"var": "x", "sub": "ln t", "new_var": "t",
+                            "lo": "1", "hi": "e_const", "check": "ring",
+                            "facts": []}),
+     "goal_after": "Int[t = 1 .. e_const] exp(ln t)*(1/t) == ?A",
+     # d_ln on the closed range (E38), the same key as ln's former
+     "deriv": {"var": "t", "F": "ln t",
+               "trace": [("d_ln", "ln t", ("t > 0 @ [1, e_const]",)),
+                         ("d_var", "t", ())],
+               "output": "1/t", "emits": ("t > 0 @ [1, e_const]",)},
+     "emits": [
+         # step 8: e_const is not a literal, so the orientation is owed
+         ("1 <= e_const", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_E, True),
+         # step 9 (ln's former) and step 10 (d_ln), one key; step 13's
+         # ln t again (merged)
+         ("t > 0", "[1, e_const]", (S_FORMER, S_D_LN), DISCHARGED, T_RANGE,
+          True),
+         # step 11: E31's ln_one and ln_e make both literal, then ring
+         ("ln 1 == 0", "true", (S_SUBST_LO,), DISCHARGED, T_RING_LN_ONE,
+          True),
+         ("ln e_const == 1", "true", (S_SUBST_HI,), DISCHARGED, T_RING_LN_E,
+          True),
+         ("ln t in C^1([1, e_const])", "[1, e_const]", (S_SUBST_C1,),
+          ADMITTED, T_REG, True),
+         ("exp(ln t) in C^0([1, e_const])", "[1, e_const]", (S_SUBST_C0,),
+          ADMITTED, T_REG, True),
+         # step 13: phi' = 1/t owes its divisor on the range
+         ("t # 0", "[1, e_const]", (S_FORMER,), DISCHARGED, T_RANGE, True)],
+     "certificates": {
+         ("1 <= e_const", "true"): _farkas({GOAL: "1",
+                                            FACT("e_gt_one"): "1"}),
+         ("t > 0", "[1, e_const]"): _RANGE_LO,
+         ("t # 0", "[1, e_const]"): _RANGE_LO_NZ},
+     "why": "E39's exact values in the endpoint check: ln 1 and ln e_const "
+            "are atoms to ring, and ln_one and ln_e make the equations 0 == "
+            "0 and 1 == 1. SymPy: Int_1^e exp(ln t)/t dt = e - 1 = Int_0^1 "
+            "exp x dx. The goal cannot be finished yet (no exp_ln entry "
+            "rewrites exp(ln t)); the case pins the move only"},
+    # --- owner answers 2026-09-24 ---------------------------------------
+    # E46: a decreasing phi with symbolic ends, flipped. Was the refusal
+    # decreasing_symbolic_ends ('obligation-decided-false' on pi/2 <= 0).
+    {"id": "decreasing_symbolic_ends_flipped",
+     "goal": "Int[x = 0 .. pi/2] cos x == ?A",
+     # the limit pi/2 owes 2 # 0 (norm_num); cos is total
+     "goal_emits": [("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM,
+                     True)],
+     "move": ("int_subst", {"var": "x", "sub": "pi/2 - t", "new_var": "t",
+                            "lo": "pi/2", "hi": "0", "check": "ring",
+                            "facts": []}),
+     # step 8: pi/2 <= 0 is not discharged (FM with pi_pos finds its
+     # negated goal feasible), 0 <= pi/2 is (linear, pi_pos): flipped
+     "goal_after": "Int[t = 0 .. pi/2] -(cos(pi/2 - t)*(0 + (0*t + (-1)*1)))"
+                   " == ?A",
+     "deriv": {"var": "t", "F": "pi/2 - t",
+               "trace": [("d_add", "pi/2 - t", ()), ("d_const", "pi/2", ()),
+                         ("route_neg", "-t", ()), ("d_mul", "-1*t", ()),
+                         ("d_const", "-1", ()), ("d_var", "t", ())],
+               "output": "0 + (0*t + (-1)*1)", "emits": ()},
+     "emits": [
+         # lo's pi/2 (step 8), sub's pi/2 (step 9, closed: true), and the
+         # new goal's limit and body (step 14): one key, not new
+         ("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, False),
+         ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI, True),
+         ("pi/2 - pi/2 == 0", "true", (S_SUBST_LO,), DISCHARGED, T_RING,
+          True),
+         ("pi/2 - 0 == pi/2", "true", (S_SUBST_HI,), DISCHARGED, T_RING,
+          True),
+         ("pi/2 - t in C^1([0, pi/2])", "[0, pi/2]", (S_SUBST_C1,),
+          ADMITTED, T_REG, True),
+         ("cos(pi/2 - t) in C^0([0, pi/2])", "[0, pi/2]", (S_SUBST_C0,),
+          ADMITTED, T_REG, True)],
+     "certificates": {("0 <= pi/2", "true"): _PI_HALF},
+     "why": "E46: §5.1's reversed integral, flipped to an oriented one. "
+            "Int_{pi/2}^0 cos(pi/2 - t)(-1) dt = Int_0^{pi/2} "
+            "-(cos(pi/2 - t)(-1)) dt = 1 = Int_0^{pi/2} cos x dx (SymPy). "
+            "The key pi/2 <= 0 is never emitted, so nothing is refuted"},
+    # E46: §5.1's canonical case, x = cos(theta) over [pi/2, 0], on the
+    # owner's example. The move is accepted; the goal cannot be finished
+    # yet (it needs pyth and a sign fact for cos on [0, pi/2]).
+    {"id": "cos_theta_canonical",
+     "goal": "Int[x = 0 .. 1] sqrt(1 - x^2) == ?A",
+     # E26's known gap: 1 - x^2 >= 0 is non-strict, so sign product does not
+     # close it (TAG_RULES), FM sees x^2 as opaque, and it is true, so F3
+     # finds no point: admitted, tagged none (STAGE0.md S8's degeneracy)
+     "goal_emits": [("1 - x^2 >= 0", "[0, 1]", (S_FORMER,), ADMITTED,
+                     T_NONE, True)],
+     "goal_reasons": {("1 - x^2 >= 0", "[0, 1]"): REASON_NONE},
+     "move": ("int_subst", {"var": "x", "sub": "cos theta",
+                            "new_var": "theta", "lo": "pi/2", "hi": "0",
+                            "check": "ring", "facts": []}),
+     "goal_after": "Int[theta = 0 .. pi/2] "
+                   "-(sqrt(1 - (cos theta)^2)*(-sin theta * 1)) == ?A",
+     "deriv": {"var": "theta", "F": "cos theta",
+               "trace": [("d_cos", "cos theta", ()),
+                         ("d_var", "theta", ())],
+               "output": "-sin theta * 1", "emits": ()},
+     "emits": [
+         ("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+         ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI, True),
+         # the exact values in the endpoint check (E39)
+         ("cos(pi/2) == 0", "true", (S_SUBST_LO,), DISCHARGED,
+          T_RING_COS_PI_HALF, True),
+         ("cos 0 == 1", "true", (S_SUBST_HI,), DISCHARGED, T_RING_COS_ZERO,
+          True),
+         ("cos theta in C^1([0, pi/2])", "[0, pi/2]", (S_SUBST_C1,),
+          ADMITTED, T_REG, True),
+         ("sqrt(1 - (cos theta)^2) in C^0([0, pi/2])", "[0, pi/2]",
+          (S_SUBST_C0,), ADMITTED, T_REG, True),
+         # the composed integrand's sqrt (step 14): cos theta is an opaque
+         # atom, and F3's only candidate in the range is theta = 0, where
+         # with cos_zero it reads 1 - 1^2 >= 0, true (1 is not shown to lie
+         # in [0, pi/2] with pi_pos alone). Admitted, tagged none
+         ("1 - (cos theta)^2 >= 0", "[0, pi/2]", (S_FORMER,), ADMITTED,
+          T_NONE, True)],
+     "certificates": {("0 <= pi/2", "true"): _PI_HALF},
+     "reasons": {("1 - (cos theta)^2 >= 0", "[0, pi/2]"): REASON_NONE},
+     "why": "§5.1's canonical reversed output, now accepted by E46's flip. "
+            "The two none admissions are true and are the design's known "
+            "gaps, not this move's: a non-strict polynomial sign (E26's "
+            "note on sign product) and a cos atom. SymPy: Int_{pi/2}^0 "
+            "sqrt(1 - cos^2)(-sin) = Int_0^{pi/2} sin^2 = pi/4 = Int_0^1 "
+            "sqrt(1 - x^2)"},
+    # the same substitution on an integrand that owes nothing, to a verdict
+    {"id": "cos_theta_full",
+     "goal": "Int[x = 0 .. 1] x == ?A",
+     "goal_emits": [],
+     "move": ("int_subst", {"var": "x", "sub": "cos theta",
+                            "new_var": "theta", "lo": "pi/2", "hi": "0",
+                            "check": "ring", "facts": []}),
+     "goal_after": "Int[theta = 0 .. pi/2] -(cos theta * (-sin theta * 1))"
+                   " == ?A",
+     "deriv": {"var": "theta", "F": "cos theta",
+               "trace": [("d_cos", "cos theta", ()),
+                         ("d_var", "theta", ())],
+               "output": "-sin theta * 1", "emits": ()},
+     "emits": [
+         ("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+         ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI, True),
+         ("cos(pi/2) == 0", "true", (S_SUBST_LO,), DISCHARGED,
+          T_RING_COS_PI_HALF, True),
+         ("cos 0 == 1", "true", (S_SUBST_HI,), DISCHARGED, T_RING_COS_ZERO,
+          True),
+         ("cos theta in C^1([0, pi/2])", "[0, pi/2]", (S_SUBST_C1,),
+          ADMITTED, T_REG, True),
+         ("cos theta in C^0([0, pi/2])", "[0, pi/2]", (S_SUBST_C0,),
+          ADMITTED, T_REG, True)],
+     "certificates": {("0 <= pi/2", "true"): _PI_HALF},
+     "then": [
+         {"move": ("ftc", {"F": "(sin theta)^2/2", "check": "ring",
+                           "facts": []}),
+          "goal_after": "(sin(pi/2))^2/2 - (sin 0)^2/2 == ?A",
+          "deriv": {"var": "theta", "F": "(sin theta)^2/2",
+                    "trace": [("route_div", "(sin theta)^2/2", ("2 # 0",)),
+                              ("d_mul", "(sin theta)^2*(1/2)", ()),
+                              ("d_pow_int", "(sin theta)^2", ()),
+                              ("d_sin", "sin theta", ()),
+                              ("d_var", "theta", ()),
+                              ("d_const", "1/2", ())],
+                    "output": ("2*(sin theta)^1*(cos theta * 1)*(1/2)"
+                               " + (sin theta)^2*0"),
+                    "emits": ("2 # 0",)},
+          "emits": [
+              ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI,
+               False),
+              ("2 # 0", "true", (S_FORMER, S_ROUTE_DIV), DISCHARGED,
+               T_NORM_NUM, False),
+              ("(sin theta)^2/2 in C^0([0, pi/2])", "[0, pi/2]",
+               (S_FTC_C0F,), ADMITTED, T_REG, True),
+              ("(sin theta)^2/2 in C^1((0, pi/2))", "(0, pi/2)",
+               (S_FTC_C1F,), ADMITTED, T_REG, True),
+              ("D[theta]((sin theta)^2/2) == -(cos theta * (-sin theta * 1))",
+               "(0, pi/2)", (S_FTC_D,), DISCHARGED, T_DERIV_RING, True),
+              ("-(cos theta * (-sin theta * 1)) in C^0([0, pi/2])",
+               "[0, pi/2]", (S_FTC_C0f,), ADMITTED, T_REG, True)]},
+         {"move": ("rewrite", {"entry": "sin_pi_half", "inst": {},
+                               "at": "sin(pi/2)"}),
+          "goal_after": "1^2/2 - (sin 0)^2/2 == ?A", "emits": []},
+         {"move": ("rewrite", {"entry": "sin_zero", "inst": {},
+                               "at": "sin 0"}),
+          "goal_after": "1^2/2 - 0^2/2 == ?A", "emits": []},
+         {"move": ("close", {"value": "1/2", "check": "ring", "facts": []}),
+          "goal_after": None,
+          "emits": [("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM,
+                     False)]},
+     ],
+     "report": VERDICT.format(n=5),
+     "theorem": "Int[x = 0 .. 1] x == 1/2",
+     "why": "x = cos theta, decreasing with symbolic ends, to a verdict: "
+            "the flip gives Int_0^{pi/2} sin(theta)cos(theta) = 1/2 = "
+            "Int_0^1 x (SymPy). The planted bug int_subst_no_orientation "
+            "keeps Int[theta = pi/2 .. 0], and ftc then owes pi/2 <= 0, "
+            "refused by F2"},
+    # E48: position. The sum's second integral (the owner's 'occurrence
+    # 2'), which is occurrence 1 in E2's 0-based index.
+    {"id": "sum_second_occurrence",
+     "goal": "(Int[x = 0 .. 1] 2*x) + (Int[x = 0 .. pi^2/4] sin(sqrt x))"
+             " == ?A",
+     # the second Int's installation keys, exactly P1.1-sheet's; the first
+     # owes nothing
+     "goal_emits": list(INT_SUBST_OBLIGATIONS["P1.1-sheet"]["goal"]),
+     "move": ("int_subst", {"var": "x", "sub": "t^2", "new_var": "t",
+                            "lo": "0", "hi": "pi/2", "check": "ring",
+                            "facts": [], "occurrence": 1}),
+     "goal_after": "(Int[x = 0 .. 1] 2*x)"
+                   " + (Int[t = 0 .. pi/2] sin(sqrt(t^2))*(2*t^1*1)) == ?A",
+     "deriv": INT_SUBST_DERIV[("P1.1-sheet", "s1")],
+     # P is the goal's domain, true (a sum is not a binder): the emissions
+     # are P1.1-sheet's s1, key for key
+     "emits": list(INT_SUBST_OBLIGATIONS["P1.1-sheet"]["s1"]),
+     "why": "E48's selector: occurrence 1 is the second Int in pre-order. "
+            "The first stays over x beside the new one over t (sibling "
+            "binders, as OCCURRENCE_CASE has). Without the occurrence the "
+            "move is refused 'int-subst-ambiguous' (INT_SUBST_BAD_MOVES "
+            "ambiguous_default)"},
+    # E48: a position below D[y] where step 9 holds vacuously
+    {"id": "under_D_constant_integral",
+     "goal": "D[y](y*(Int[x = 0 .. 1] 2*x)) == ?A",
+     "goal_emits": [],
+     "move": ("int_subst", {"var": "x", "sub": "1 - t", "new_var": "t",
+                            "lo": "1", "hi": "0", "check": "ring",
+                            "facts": []}),
+     "goal_after": "D[y](y*(Int[t = 1 .. 0] 2*(1 - t)*(0 + (0*t + (-1)*1))))"
+                   " == ?A",
+     "deriv": {"var": "t", "F": "1 - t",
+               "trace": [("d_add", "1 - t", ()), ("d_const", "1", ()),
+                         ("route_neg", "-t", ()), ("d_mul", "-1*t", ()),
+                         ("d_const", "-1", ()), ("d_var", "t", ())],
+               "output": "0 + (0*t + (-1)*1)", "emits": ()},
+     # decreasing_literal_ends' four keys: y occurs in nothing the step reads
+     "emits": [
+         ("1 - 1 == 0", "true", (S_SUBST_LO,), DISCHARGED, T_RING, True),
+         ("1 - 0 == 1", "true", (S_SUBST_HI,), DISCHARGED, T_RING, True),
+         ("1 - t in C^1([0, 1])", "[0, 1]", (S_SUBST_C1,), ADMITTED, T_REG,
+          True),
+         ("2*(1 - t) in C^0([0, 1])", "[0, 1]", (S_SUBST_C0,), ADMITTED,
+          T_REG, True)],
+     "why": "E48's D test passes: y occurs in none of the Int's limits and "
+            "body, sub, lo or hi, so no emitted key mentions y and step 9 "
+            "holds vacuously; the integral is a constant in y and the "
+            "equality holds for every y. The twin that must refuse is "
+            "INT_SUBST_BAD_MOVES under_D_body_mentions_y"},
+    # E45: reverse mode with a non-monotone g, accepted
+    {"id": "reverse_non_monotone",
+     "goal": "Int[x = -1 .. 1] 2*x^3 == ?A",
+     "goal_emits": [],
+     "move": ("int_subst", {"mode": "reverse", "var": "x", "sub": "x^2",
+                            "new_var": "u", "lo": "1", "hi": "1", "f": "u",
+                            "check": "ring", "facts": []}),
+     "goal_after": "Int[u = 1 .. 1] u == ?A",
+     "deriv": {"var": "x", "F": "x^2",
+               "trace": [("d_pow_int", "x^2", ()), ("d_var", "x", ())],
+               "output": "2*x^1*1", "emits": ()},
+     "emits": [
+         # step 11: 2*x^3 == x^2*(2*x^1*1) on [-1, 1] by ring
+         ("2*x^3 == x^2*(2*x^1*1)", "[-1, 1]", (S_SUBST_INT,), DISCHARGED,
+          T_DERIV_RING, True),
+         ("(-1)^2 == 1", "true", (S_SUBST_LO,), DISCHARGED, T_RING, True),
+         ("1^2 == 1", "true", (S_SUBST_HI,), DISCHARGED, T_RING, True),
+         ("x^2 in C^1([-1, 1])", "[-1, 1]", (S_SUBST_C1,), ADMITTED, T_REG,
+          True),
+         # f(g(x)) = u[u := x^2]: f's continuity on the image [0, 1],
+         # stated over the old range (E45)
+         ("x^2 in C^0([-1, 1])", "[-1, 1]", (S_SUBST_C0,), ADMITTED, T_REG,
+          True)],
+     "why": "E45's image argument: x^2 maps [-1, 1] onto [0, 1], the new "
+            "limits are both 1, and the premise is stated on f(g(x)) over "
+            "[-1, 1], not on an interval of u, so no monotonicity is "
+            "needed. Int_-1^1 2x^3 = 0 = Int_1^1 u (SymPy). The twin that "
+            "must refuse is holpy_probe_reverse"},
+]
+
+# --- Must-refuse ------------------------------------------------------------
+#
+# In BAD_MOVES' shape. `message` is INT_SUBST_MESSAGES' template filled
+# (a dict of its fields, terms as GRAMMAR.md strings shown after parsing),
+# or DECIDED_FALSE_MESSAGES' (via _point / _negation), or E27_MESSAGES'
+# (`e27`, as the E27 BAD_MOVES cases). Every refused step emits nothing.
+INT_SUBST_BAD_MOVES = [
+    # E42: freshness and scope
+    {"id": "not_fresh_free",
+     "goal": "Int[x = 0 .. 1] x*y == ?A @ y > 0", "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "y^2", "new_var": "y",
+                            "lo": "0", "hi": "1", "check": "ring",
+                            "facts": []}),
+     "refusal": "int-subst-not-fresh",
+     "message": ("int-subst-not-fresh", {"new_var": "y"}),
+     "why": "y is free in the goal (its domain and integrand). Accepted, "
+            "the new goal would bind y and keep it free, and check_goal's "
+            "D11 would refuse it last (the planted bug "
+            "int_subst_skips_freshness shows that backstop)"},
+    {"id": "not_fresh_same_variable",
+     "goal": "Int[x = 0 .. 1] 2*x == ?A", "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "2*x", "new_var": "x",
+                            "lo": "0", "hi": "1/2", "check": "ring",
+                            "facts": []}),
+     "refusal": "int-subst-not-fresh",
+     "message": ("int-subst-not-fresh", {"new_var": "x"}),
+     "why": "x is the binder being replaced; a rename is not a move (E16's "
+            "argument). Mathematically sound (Int_0^{1/2} 2(2x)*2 dx = 1), "
+            "so this refusal is about naming, and it comes before the "
+            "scope check that would otherwise pass"},
+    {"id": "not_fresh_bound_in_body",
+     "goal": "Int[x = 0 .. 1] (Int[t = 0 .. 1] x*t) == ?A", "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "t^2", "new_var": "t",
+                            "lo": "0", "hi": "1", "check": "ring",
+                            "facts": []}),
+     "refusal": "int-subst-not-fresh",
+     "message": ("int-subst-not-fresh", {"new_var": "t"}),
+     "why": "t is bound inside the body. Substituting t^2 there is the "
+            "capture case: terms.subst would rename the inner binder, "
+            "which is sound but silently changes the learner's names, so "
+            "freshness refuses first"},
+    {"id": "scope_old_variable",
+     "goal": "Int[x = 0 .. 1] 2*x == ?A", "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "x*t", "new_var": "t",
+                            "lo": "0", "hi": "1", "check": "ring",
+                            "facts": []}),
+     "refusal": "int-subst-scope",
+     "message": ("int-subst-scope", {"part": "the substitution",
+                                     "term": "x*t", "name": "x"}),
+     "why": "x is bound by the integral being replaced; after the move it "
+            "would be free, a name the goal never had"},
+    {"id": "scope_new_variable_in_limit",
+     "goal": "Int[x = 0 .. 1] 2*x == ?A", "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "t", "new_var": "t",
+                            "lo": "t - t", "hi": "1", "check": "ring",
+                            "facts": []}),
+     "refusal": "int-subst-scope",
+     "message": ("int-subst-scope", {"part": "the lower limit",
+                                     "term": "t - t", "name": "t"}),
+     "why": "GRAMMAR.md §5: a bound variable may not occur in its own "
+            "endpoints, even where ring would cancel it"},
+    # E36: the shape of the goal and the args
+    {"id": "no_integral_under_D",
+     "goal": "D[y](Int[x = 0 .. y] x) == ?A @ 0 <= y", "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "t^2", "new_var": "t",
+                            "lo": "0", "hi": "sqrt y", "check": "ring",
+                            "facts": []}),
+     # owner answers (E48): was 'int-subst-no-integral', when only the
+     # top-level lhs was reached. The Int is now selected where it is, and
+     # below D[y] its upper limit mentions y (so do hi's sqrt y and the
+     # range [0, y]), so step 6 refuses it as rewrite's step 9 would
+     "refusal": "rewrite-under-D-needs-open-domain",
+     "why": "the task's substitution under D[y], now reached by the "
+            "selector: the step would emit keys on the closed ranges "
+            "[0, y] and [0, sqrt y], not open in y (§6.1 rev 9, E11). The "
+            "goal installs: x owes nothing, so no key uses [0, y]"},
+    {"id": "wrong_variable",
+     "goal": P1_1_SHEET_GOAL, "setup": [],
+     "move": ("int_subst", {"var": "y", "sub": "t^2", "new_var": "t",
+                            "lo": "0", "hi": "pi/2", "check": "ring",
+                            "facts": []}),
+     "refusal": "int-subst-wrong-variable",
+     # owner answers (E48): with no occurrence, the '/none' template
+     "message": ("int-subst-wrong-variable/none", {"var": "y"}),
+     "why": "the learner named a variable no integral binds"},
+    {"id": "infinite_endpoint",
+     "goal": "Int[x = 1 .. oo] exp(-x) == ?A", "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "t + 1", "new_var": "t",
+                            "lo": "0", "hi": "1", "check": "ring",
+                            "facts": []}),
+     "refusal": "int-subst-infinite-endpoint",
+     "message": ("int-subst-infinite-endpoint", {"limit": "oo"}),
+     "why": "sub(hi) == oo is not a term (§5.1); an improper integral is "
+            "int_improper's, as for ftc (E9). Refused before anything is "
+            "read from the args' limits"},
+    {"id": "phi_prime_supplied",
+     "goal": P1_1_SHEET_GOAL, "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "t^2", "new_var": "t",
+                            "lo": "0", "hi": "pi/2", "check": "ring",
+                            "facts": [], "dsub": "t"}),
+     "refusal": "bad-args",
+     "why": "the task's 'wrong phi'': not applicable, because phi' is "
+            "deriv's output and never an argument (E41). The move's key "
+            "set is exact, so a supplied phi', right or wrong, is bad-args"},
+    # E39: the endpoints
+    {"id": "endpoints_do_not_map",
+     "goal": P1_1_SHEET_GOAL, "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "t^2", "new_var": "t",
+                            "lo": "0", "hi": "pi", "check": "ring",
+                            "facts": []}),
+     "refusal": "int-subst-endpoint-mismatch",
+     "message": ("int-subst-endpoint-mismatch",
+                 {"image": "pi^2", "limit": "pi^2/4", "end": "upper"}),
+     "residual": "pi^2 - pi^2/4",
+     "compare": ("ring", ()),
+     "why": "ring leaves (3/4)*pi^2. Before it the step's other emissions "
+            "hold (0 <= pi linear with pi_pos; 0^2 == 0), so the mismatch "
+            "is the refusal"},
+    {"id": "sin_guess_from_8_1",
+     "goal": P1_1_SHEET_GOAL, "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "sin t", "new_var": "t",
+                            "lo": "0", "hi": "pi/2", "check": "ring",
+                            "facts": []}),
+     "refusal": "int-subst-endpoint-mismatch",
+     "message": ("int-subst-endpoint-mismatch",
+                 {"image": "sin(pi/2)", "limit": "pi^2/4", "end": "upper"}),
+     # after sin_pi_half (E39): 1 == pi^2/4
+     "residual": "1 - pi^2/4",
+     "compare": ("ring", ()),
+     "why": "DESIGN.md §8.1's 'your guess', shown there as '✓ legal'. The "
+            "lower end holds by sin_zero, and the upper reads 1 == pi^2/4 "
+            "after sin_pi_half, false; no t has sin t = pi^2/4 (> 1). "
+            "DESIGN_DEFECTS records it"},
+    # E38, E43: definedness on the new range, decided false
+    {"id": "phi_undefined_on_new_range",
+     "goal": "Int[x = 0 .. 1] exp x == ?A", "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "ln t", "new_var": "t",
+                            "lo": "0", "hi": "1", "check": "ring",
+                            "facts": []}),
+     "refusal": OBLIGATION_DECIDED_FALSE,
+     "message": _point("t > 0 @ [0, 1]", "0 > 0", t="0"),
+     "why": "step 9: ln t owes t > 0 on [0, 1], false at the closed lower "
+            "end (F3's first candidate). It comes before the endpoint "
+            "check, whose ln 0 == 0 is not decided by anything. The twin "
+            "over [1, e_const] is INT_SUBST_ACCEPTS "
+            "ln_endpoints_by_exact_values"},
+    {"id": "non_monotone_divergent",
+     "goal": "Int[x = 1 .. 1] 1/x == ?A", "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "t^2", "new_var": "t",
+                            "lo": "-1", "hi": "1", "check": "ring",
+                            "facts": []}),
+     "refusal": OBLIGATION_DECIDED_FALSE,
+     "message": _point("t^2 # 0 @ [-1, 1]", "0^2 # 0", t="0"),
+     "why": "§6.4's own example of why the C^0 premise is on the composed "
+            "integrand: the endpoint interval is {1}, so f = 1/x is fine "
+            "there, but (1/t^2)*(2*t) has a pole at 0 in [-1, 1] and "
+            "Int_-1^1 2/t diverges. Step 13 charges the new integrand's "
+            "divisor t^2 # 0 on [-1, 1]: F3 passes the ends -1 and 1 and "
+            "refutes at the midpoint 0 (decided_false_pole's pattern). "
+            "Installation owes x # 0 @ [1, 1] (range, discharged). This is "
+            "HolPy's first probe (§4.2), in forward form, and §17's "
+            "'non-monotone int_subst' must-refuse"},
+    # E42: substitution into D, GRAMMAR.md §5's rule, reached through a move
+    {"id": "subst_under_D_of_the_variable",
+     "goal": "Int[x = 0 .. 1] D[x](x^2) == ?A", "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "t^2", "new_var": "t",
+                            "lo": "0", "hi": "1", "check": "ring",
+                            "facts": []}),
+     "refusal": "subst-under-D",
+     "why": "(D[x] x^2)[x := t^2] is 2 t^2, but no term of the grammar "
+            "writes it by pushing the substitution inside, and the naive "
+            "D[x]((t^2)^2) is 0 (SymPy); D10 refuses every y = x case. The "
+            "first move to reach REFUSAL_CODES' 'subst-under-D' "
+            "('unreachable in P1')"},
+    {"id": "subst_under_D_capture",
+     "goal": "Int[x = 0 .. 1] D[y](x*y) == ?A", "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "y*t", "new_var": "t",
+                            "lo": "0", "hi": "1", "check": "ring",
+                            "facts": []}),
+     "refusal": "subst-under-D",
+     "why": "y is free in the goal (D10), so y*t is in scope (E42), but "
+            "substituting it under D[y] would capture: (D[y](x*y))[x := "
+            "y*t] is y*t, while D[y](y*t*y) is 2*y*t (SymPy). D10's "
+            "second clause needs y not free in the substituted term"},
+    # E43: an Int in phi is refused by deriv
+    {"id": "sub_holds_Int",
+     "goal": "Int[x = 0 .. 1] 2*x == ?A", "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "Int[s = 0 .. t] s",
+                            "new_var": "t", "lo": "0", "hi": "1",
+                            "check": "ring", "facts": []}),
+     "refusal": "deriv-no-rule",
+     "why": "E26 (b) through deriv (E12): the Int has t free in its limit, "
+            "so d_const does not apply and no §6.3 rule does. Steps 8 and "
+            "9 emit nothing (s owes nothing), and the step is refused at "
+            "step 10 before any endpoint check"},
+    # E42: E19 unchanged
+    {"id": "close_with_new_variable",
+     "goal": P1_1_SHEET_GOAL,
+     "state": ("P1.1-sheet", "s6"),
+     "move": ("close", {"value": "t - t + 2", "check": "ring", "facts": []}),
+     "refusal": "close-not-evaluated",
+     "e27": {"clause": "b", "at": "t - t + 2",
+             "message": "t - t + 2 is unreduced literal arithmetic"},
+     "why": "P1.1's close_bound_variable_ring_true is refused "
+            "'close-scope-bound-variable' because t is bound in its "
+            "original goal. Here the original goal is the sheet's, which "
+            "binds only x, so E19 passes, ring proves the close, and the "
+            "theorem Int[x = 0 .. pi^2/4] sin(sqrt x) == t - t + 2 would be "
+            "true for every t, so nothing unsound is at stake. E27 (b2) "
+            "refuses the form: the maximal sum's normal form has 1 "
+            "monomial against 3"},
+    # --- owner answers 2026-09-24 ---------------------------------------
+    # E48: selection
+    {"id": "no_integral_anywhere",
+     "goal": "sin 1 + 1 == ?A", "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "t^2", "new_var": "t",
+                            "lo": "0", "hi": "1", "check": "ring",
+                            "facts": []}),
+     "refusal": "int-subst-no-integral",
+     "message": ("int-subst-no-integral", {}),
+     "why": "no Int node on the non-?A side, so nothing to select"},
+    {"id": "ambiguous_default",
+     "goal": "(Int[x = 0 .. 1] 2*x) + (Int[x = 0 .. pi^2/4] sin(sqrt x))"
+             " == ?A", "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "t^2", "new_var": "t",
+                            "lo": "0", "hi": "pi/2", "check": "ring",
+                            "facts": []}),
+     "refusal": "int-subst-ambiguous",
+     "message": ("int-subst-ambiguous", {"n": "2", "var": "x"}),
+     "why": "E48's default is exactly one Int binding var, not E2's every "
+            "occurrence: the two integrals have different limits, and one "
+            "set of args fits one integral's endpoint equations. The "
+            "accepted twin is INT_SUBST_ACCEPTS sum_second_occurrence"},
+    {"id": "occurrence_out_of_range",
+     "goal": "(Int[x = 0 .. 1] 2*x) + (Int[x = 0 .. pi^2/4] sin(sqrt x))"
+             " == ?A", "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "t^2", "new_var": "t",
+                            "lo": "0", "hi": "pi/2", "check": "ring",
+                            "facts": [], "occurrence": 2}),
+     "refusal": "int-subst-no-integral",
+     "message": ("int-subst-no-integral/occurrence", {"occurrence": "2"}),
+     "why": "the goal has two Ints, occurrences 0 and 1 (E2's index), as "
+            "rewrite's out-of-range index refuses (REWRITE_RULE's "
+            "arguments)"},
+    # E48: under D[y], as rewrite's step 9
+    {"id": "under_D_body_mentions_y",
+     "goal": "D[y](Int[x = 0 .. 1] x*y) == ?A", "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "1 - t", "new_var": "t",
+                            "lo": "1", "hi": "0", "check": "ring",
+                            "facts": []}),
+     "refusal": "rewrite-under-D-needs-open-domain",
+     "why": "y occurs in the body, so the composed-integrand premise "
+            "(1 - t)*y in C^0([0, 1]) mentions y, and a regularity "
+            "judgement is not an open condition in y: step 9 (a) cannot be "
+            "met. Conservative, as E11 (b) is (Leibniz would allow it). The "
+            "accepted twin is INT_SUBST_ACCEPTS under_D_constant_integral"},
+    # E46: neither order decided
+    {"id": "orientation_undecided",
+     "goal": "Int[x = 0 .. 1] 2*x == ?A @ y # 0", "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "y*t", "new_var": "t",
+                            "lo": "0", "hi": "1/y", "check": "field",
+                            "facts": []}),
+     "refusal": "int-subst-orientation-undecided",
+     "message": ("int-subst-orientation-undecided", {"lo": "0",
+                                                     "hi": "1/y"}),
+     "why": "step 8: hi's 1/y owes y # 0 @ y # 0, discharged by hyp; then "
+            "neither 0 <= 1/y nor 1/y <= 0 is discharged (inv(y) is an "
+            "opaque atom, and a NonZero item gives no Farkas label), since "
+            "the substitution is increasing for y > 0 and decreasing for "
+            "y < 0. The endpoint equations would hold (y*0 == 0 by ring, "
+            "y*(1/y) == 1 by field at y # 0). Stating @ y > 0 is the "
+            "learner's move. Under E4 alone this orientation would have "
+            "been admitted, tagged none"},
+    # E45: reverse mode
+    {"id": "reverse_g_undefined",
+     "goal": "Int[x = 0 .. 1] 2*x == ?A", "setup": [],
+     "move": ("int_subst", {"mode": "reverse", "var": "x", "sub": "ln x",
+                            "new_var": "u", "lo": "0", "hi": "0", "f": "u",
+                            "check": "ring", "facts": []}),
+     "refusal": OBLIGATION_DECIDED_FALSE,
+     "message": _point("x > 0 @ [0, 1]", "0 > 0", x="0"),
+     "why": "step 9: g = ln x owes x > 0 on the old range [0, 1], false at "
+            "the closed lower end, before the integrand check or the "
+            "endpoints are read"},
+    {"id": "holpy_probe_reverse",
+     "goal": "Int[x = -1 .. 1] x^2 == ?A", "setup": [],
+     "move": ("int_subst", {"mode": "reverse", "var": "x", "sub": "x^2",
+                            "new_var": "u", "lo": "1", "hi": "1",
+                            "f": "sqrt u/2", "check": "ring", "facts": []}),
+     "refusal": "int-subst-check-failed",
+     "message": ("int-subst-check-failed", {"f": "sqrt u/2"}),
+     "residual": "x^2 - (sqrt(x^2)/2)*(2*x^1*1)",
+     "compare": ("ring", ()),
+     "why": "HolPy's first probe (§4.2): Int_-1^1 x^2 by u = x^2, whose "
+            "new limits 1 .. 1 give 0 against the true 2/3. Steps 8-10 "
+            "hold (f(g(x)) = sqrt(x^2)/2 owes 2 # 0 and x^2 >= 0 on "
+            "[-1, 1], both discharged), and the check fails: x^2 is not "
+            "x*sqrt(x^2), which is -x^2 for x < 0, and no fact makes "
+            "sqrt(x^2) equal to x. With the check skipped the move would "
+            "prove the false 2/3 == 0 (planted bug "
+            "int_subst_reverse_skips_check)"},
+    {"id": "reverse_f_mentions_old_variable",
+     "goal": "Int[x = 0 .. 1] x*exp(x^2) == ?A", "setup": [],
+     "move": ("int_subst", {"mode": "reverse", "var": "x", "sub": "x^2",
+                            "new_var": "u", "lo": "0", "hi": "1",
+                            "f": "x*u", "check": "ring", "facts": []}),
+     "refusal": "int-subst-scope",
+     "message": ("int-subst-scope", {"part": "the new integrand",
+                                     "term": "x*u", "name": "x"}),
+     "why": "E42: f is a term in new_var; x would be free in the new goal"},
+    {"id": "f_in_forward_mode",
+     "goal": P1_1_SHEET_GOAL, "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "t^2", "new_var": "t",
+                            "lo": "0", "hi": "pi/2", "check": "ring",
+                            "facts": [], "f": "t"}),
+     "refusal": "bad-args",
+     "why": "E45: 'f' belongs to reverse mode; forward mode's new integrand "
+            "is built by the kernel (E41)"},
+]
+
+# --- Planted bugs for the build to add --------------------------------------
+#
+# One per rule of the move whose loss could produce a false 'Proved' or a
+# wrong goal. The seams are the architecture's to name (ARCHITECTURE.md
+# §7); the data fixes the mutation and what must catch it. caught_by
+# locations: (proof, step, key, dom) for a list, (proof, step, 'goal_after')
+# or (proof, step, 'refused'), ('INT_SUBST_BAD_MOVES' | 'INT_SUBST_ACCEPTS',
+# id) for a case whose outcome changes, and ('S0', ...) for problems/stage0
+# section 12. N where it moves.
+INT_SUBST_PLANTED_BUGS = {
+    "int_subst_skips_endpoint_check": {
+        "mutation": "both endpoint equations are recorded discharged "
+                    "without running the exact values or the check",
+        "caught_by": [("INT_SUBST_BAD_MOVES", "endpoints_do_not_map"),
+                      ("INT_SUBST_BAD_MOVES", "sin_guess_from_8_1"),
+                      ("S0", "SUB1-W1")]},
+    "int_subst_drops_phi_prime": {
+        "mutation": "the new integrand is F alone, without phi' (the "
+                    "forgotten dx)",
+        # P1.1-sheet: s2 then gives sin t, and s3's check fails against
+        # deriv(F) = 2 t sin t ('ftc-check-failed')
+        "caught_by": [("P1.1-sheet", "s1", "goal_after"),
+                      ("P1.1-sheet", "s3", "refused"),
+                      ("INT_SUBST_ACCEPTS", "decreasing_literal_ends"),
+                      ("S0", "SUB1", "s1", "goal_after")]},
+    "int_subst_deriv_on_open": {
+        "mutation": "deriv's side conditions are emitted on the open "
+                    "interval instead of the closed range",
+        # S2 via sqrt u: d_sqrt's u > 0 moves to (0, 1) and is discharged;
+        # the step then fails at the upper endpoint, sqrt 1 == 1, which ring
+        # cannot decide, so the code changes. ln: d_ln's key moves to
+        # (1, e_const), a new key, and t > 0 @ [1, e_const] loses d_ln
+        "caught_by": [("S0", "S2-SUB-W1"),
+                      ("INT_SUBST_ACCEPTS", "ln_endpoints_by_exact_values")]},
+    "int_subst_C0_on_original_integrand": {
+        "mutation": "the forward C^0 premise is f on the old range, "
+                    "Reg(body, 0, P + [a, b]), revision 1's statement that "
+                    "§11.1 corrects",
+        "caught_by": [("P1.1-sheet", "s1", "sin(sqrt(t^2)) in "
+                       "C^0([0, pi/2])", "[0, pi/2]"),
+                      ("S0", "SUB1", "s1", "(1 - t^2)*sqrt(1 - (1 - t^2)) in "
+                       "C^0([0, 1])", "[0, 1]")]},
+    # owner answers: the orientation now decides the form (E46)
+    "int_subst_no_orientation": {
+        "mutation": "step 8's orientation is neither decided nor emitted, "
+                    "and the given limits are always kept",
+        # decreasing_symbolic_ends_flipped keeps Int[t = pi/2 .. 0] and
+        # loses 0 <= pi/2; cos_theta_full's ftc then owes pi/2 <= 0 and is
+        # refused by F2; orientation_undecided is accepted. In P1.1-sheet
+        # the orientation is still emitted by step 14 (t^2 >= 0 uses the
+        # range), so it is not caught there
+        "caught_by": [("INT_SUBST_ACCEPTS", "decreasing_symbolic_ends_flipped"),
+                      ("INT_SUBST_ACCEPTS", "cos_theta_full"),
+                      ("INT_SUBST_BAD_MOVES", "orientation_undecided")]},
+    "int_subst_flips_without_decision": {
+        "mutation": "the new integral is flipped whenever lo <= hi is not "
+                    "discharged, without discharging hi <= lo",
+        "caught_by": [("INT_SUBST_BAD_MOVES", "orientation_undecided")]},
+    "int_subst_skips_freshness": {
+        "mutation": "step 4 is skipped",
+        # not_fresh_free then reaches check_goal ('D11-bound-and-free');
+        # not_fresh_same_variable is accepted (sound, E42);
+        # not_fresh_bound_in_body is accepted with the inner binder renamed
+        # or refused by check_goal; each differs from int-subst-not-fresh
+        "caught_by": [("INT_SUBST_BAD_MOVES", "not_fresh_free"),
+                      ("INT_SUBST_BAD_MOVES", "not_fresh_same_variable"),
+                      ("INT_SUBST_BAD_MOVES", "not_fresh_bound_in_body")]},
+    "int_subst_sorts_new_limits": {
+        "mutation": "the new integral's literal limits are ordered, "
+                    "Int[t = min .. max], instead of kept as given",
+        # a decreasing phi loses its sign: SUB1 reaches -4/15 and its close
+        # with 4/15 fails; decreasing_literal_ends reaches -1
+        "caught_by": [("INT_SUBST_ACCEPTS", "decreasing_literal_ends"),
+                      ("S0", "SUB1", "s1", "goal_after"),
+                      ("S0", "SUB1", "s4", "refused")]},
+    # owner answers: position (E48)
+    "int_subst_occurrence_ignored": {
+        "mutation": "the first Int binding var is taken whatever the "
+                    "occurrence",
+        "caught_by": [("INT_SUBST_ACCEPTS", "sum_second_occurrence"),
+                      ("INT_SUBST_BAD_MOVES", "occurrence_out_of_range")]},
+    "int_subst_under_D_unchecked": {
+        "mutation": "step 6 is skipped",
+        "caught_by": [("INT_SUBST_BAD_MOVES", "under_D_body_mentions_y"),
+                      ("INT_SUBST_BAD_MOVES", "no_integral_under_D")]},
+    # owner answers: reverse mode (E45)
+    "int_subst_reverse_skips_check": {
+        "mutation": "reverse mode's integrand check is recorded without "
+                    "running it",
+        # holpy_probe_reverse is then accepted, a proof of the false
+        # Int_-1^1 x^2 == Int_1^1 ... (2/3 against 0)
+        "caught_by": [("INT_SUBST_BAD_MOVES", "holpy_probe_reverse"),
+                      ("S0", "S2R-W1")]},
+    "int_subst_reverse_premise_on_new_range": {
+        "mutation": "reverse mode states f in C^0 on the interval between "
+                    "the new limits instead of f(g(x)) in C^0([a, b])",
+        "caught_by": [("INT_SUBST_ACCEPTS", "reverse_non_monotone"),
+                      ("S0", "S2R", "s1", "exp(x^2)/2 in C^0([0, 1])",
+                       "[0, 1]")]},
+    # owner answers: the sqrt sign fact (E49), a trusted checker rule
+    "sqrt_fact_strict": {
+        "mutation": "the Farkas checker reads a ('fact', 'sqrt_nonneg', u) "
+                    "label as sqrt u > 0",
+        "caught_by": [("SQRT_FACT_MUST_REJECT", "sqrt_fact_nonstrict_pair"),
+                      ("PROPERTY", "farkas")]},
+}
+
+# --- The sqrt sign fact (E49, owner answers 2026-09-24) --------------------
+#
+# Pinned for entries.py in NAMED_ENTRIES' shape, appended after cos_zero
+# (ENTRIES goes from 16 to 17 entries). Its position is immaterial: E27 (a)
+# reads only equation entries, E31 only equations with no schema variable,
+# and TAG_RULES' cite looks for an ordering conclusion, which only a key
+# sqrt u >= 0 or 0 <= sqrt u would match (none exists in the data).
+SQRT_NONNEG_ENTRY = {
+    "sqrt_nonneg": {
+        "statement": "sqrt a >= 0 @ a >= 0",
+        "schema": ("a",),
+        "hyps": ("a >= 0",),
+        "use": "sign fact: joins the linear method's constraint set for each "
+               "sqrt atom of a key (E49), as pi_pos does for pi; also a "
+               "cite entry",
+        "cite": "§6.8's sign-fact row, by the owner's decision (E49); the "
+                "square root's range, Rocq's sqrt_pos in Stdlib.Reals",
+        "used_in": ("problems/stage0 SUB2 (1 + sqrt x # 0 @ [0, 4], "
+                    "1 + sqrt(t^2) # 0 @ [0, 2])",),
+    },
+}
+
+SQRT_FACT_RULE = (
+    "Amends DISCHARGE_RULE's 'constraint set' and 'Farkas certificate' "
+    "paragraphs, and TAG_RULES' range/linear paragraph, at the build. A "
+    "label ('fact', 'sqrt_nonneg', u), u a term, is in a key's constraint "
+    "set exactly when an atom sqrt w occurs in the key's proposition or "
+    "domain with ring_nf(w) = ring_nf(u) (the atom identity of §6.2); its "
+    "constraint is (sqrt u, not strict), meaning sqrt u >= 0. The search "
+    "and the tagger add one such constraint per distinct sqrt atom of the "
+    "key, beside the named constants' sign facts, and a certificate using "
+    "one with a positive multiplier cites 'sqrt_nonneg', after pi_pos and "
+    "e_gt_one. The suite compares such a label by ring_nf of u.",
+
+    "Its hypothesis. sqrt_nonneg owes a >= 0, and the checker asks no "
+    "child certificate for it. DISCHARGE_RULE's trust split says an "
+    "accepted certificate proves the obligation at every point of its "
+    "domain where its terms are defined, definedness being carried by the "
+    "separate former keys (E6, E26). At such a point every sqrt atom of "
+    "the key is defined, so its argument is >= 0 and the atom is >= 0: the "
+    "hypothesis is the atom's own definedness, which the sqrt former "
+    "already charged, u >= 0, at the position where that sqrt entered. "
+    "That is why the label needs the atom to occur in the key: a sqrt "
+    "that does not occur is no term of the key, and nothing makes it "
+    "defined there.",
+
+    "Why a label and not a Γ item or a cite. A cite needs the conclusion "
+    "to imply the proposition syntactically (TAG_RULES), and sqrt u >= 0 "
+    "implies 1 + sqrt u # 0 only through arithmetic; the Farkas "
+    "combination is that arithmetic, checked.",
+)
+
+# Every key in either data file holding a sqrt atom, re-derived by hand
+# under SQRT_FACT_RULE: NONE changes tag, certificate, status or outcome.
+# The fact adds one non-strict constraint s >= 0 per atom. It can close a
+# target only if the negated target plus a positive multiple of s >= 0 sums
+# to a negative constant, or to 0 with a strict constraint used, and in
+# every key below s appears with the sign that needs s > 0 or s # 0.
+SQRT_FACT_CHANGES = {
+    ("2*sqrt x # 0", "(0, pi^2/4)"): "as 2s > 0, the negated goal -2s >= 0 "
+        "plus 2(s >= 0) sums to 0 with nothing strict; as 2s < 0, the "
+        "negated goal 2s >= 0 is consistent with s >= 0. Still sign product "
+        "with sqrt_pos (P1.1-fallback)",
+    ("sqrt 3 # 0", "true"): "the same shape, s # 0: still cite sqrt_pos "
+        "(P1.2, P1.2-alt)",
+    ("3*sqrt 3 # 0", "true"): "the same: still sign product (P1.2)",
+    ("1 + ((2*x - 1)/sqrt 3)^2 # 0", "(0, 1)"): "sqrt 3 occurs only inside "
+        "inv(sqrt 3); the target's monomials are x^2*inv(sqrt 3)^2 and the "
+        "like, which s >= 0 does not touch: still sign (P1.2)",
+    ("sqrt 4 # 0", "true"): "DISCHARGE_MUST_REJECT's if_emitted outcome: "
+        "still cite sqrt_pos, 4 > 0 literal",
+    ("sqrt a # 0", "[0, 1]"): "DISCHARGE_MUST_REJECT "
+        "farkas_schema_entry_as_fact's key and if_emitted: s >= 0 cannot "
+        "give s # 0, and F3 still refutes at a = 0 with sqrt_zero",
+    ("sqrt x # 0", "[0, 1]"): "DISCHARGE_BAD_MOVES_ADDED "
+        "decided_false_sqrt_at_end and the must-reject cases on it: still "
+        "refused at x = 0, since no certificate comes first",
+    ("sqrt x # 0", "(0, 1)"): "DISCHARGE_CHECKER_ACCEPTS: its certificate "
+        "is unchanged and still accepted; the search's first certificate "
+        "is still the cite",
+    "every other key": "holds no sqrt atom (t^2 >= 0, x >= 0, 1 - x >= 0 "
+        "and the like are sqrt formers' own keys, whose propositions are "
+        "the argument, not the atom), so its constraint set is unchanged; "
+        "Reg keys and in-step equations are not searched",
+}
+
+# The checker's new label called directly, in DISCHARGE_MUST_REJECT's and
+# DISCHARGE_CHECKER_ACCEPTS' shape (truth: ('true',) or ('false', point)).
+SQRT_FACT_MUST_REJECT = [
+    {"id": "sqrt_fact_nonstrict_pair",
+     "key": ("sqrt x > 0", "[0, 1]"),
+     "certificate": _farkas({GOAL: "1", SQRT("x"): "1"}),
+     "expected": "rejected",
+     "rejects_because": "the combination sums to 0 and both constraints "
+                        "are non-strict (-sqrt x >= 0 and sqrt x >= 0)",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("refused", _point("sqrt x > 0 @ [0, 1]", "0 > 0",
+                                      entries=("sqrt_zero",), x="0"))},
+    {"id": "sqrt_fact_absent_atom",
+     "key": ("1 + x > 0", "[0, 1]"),
+     "certificate": _farkas({GOAL: "1", SQRT("x"): "1"}),
+     "expected": "rejected",
+     "rejects_because": "no sqrt x occurs in the key, so the label is not "
+                        "in its constraint set",
+     "truth": ("true",),
+     "if_emitted": ("discharged", T_RANGE)},
+]
+SQRT_FACT_CHECKER_ACCEPTS = [
+    {"id": "sqrt_fact_one_plus_sqrt",
+     "key": ("1 + sqrt x # 0", "[0, 4]"),
+     "certificate": _farkas({GOAL: "1", SQRT("x"): "1"}, ">"),
+     "tag": T_LINEAR_SQRT,
+     "why": "(-(1 + sqrt x), non-strict) + (sqrt x, non-strict) = -1 < 0"},
+    {"id": "sqrt_fact_atom_by_normal_form",
+     "key": ("1 + sqrt(t^2) # 0", "[0, 2]"),
+     "certificate": _farkas({GOAL: "1", SQRT("t^2"): "1"}, ">"),
+     "tag": T_LINEAR_SQRT,
+     "why": "the atom sqrt(t^2) is matched by ring_nf of its argument"},
+]
+
+# Three existing seams whose code int_subst also runs, re-traced on the new
+# proofs (E44). The other P1 seams do not run against INT_SUBST_PROOFS.
+INT_SUBST_SEAMS = {
+    # the sheet's installation loses x >= 0 @ [0, pi^2/4] and, with no key
+    # using the old range, its orientation; s1 loses t^2 >= 0 @ [0, pi/2]
+    # but keeps 0 <= pi/2 (step 8 owes it for the premises). All were
+    # discharged, so N does not move.
+    "no_sqrt_former": {
+        "admissions": {"P1.1-sheet": 5},
+        "caught_by": [("P1.1-sheet", "goal", "x >= 0", "[0, pi^2/4]"),
+                      ("P1.1-sheet", "goal", "0 <= pi^2/4", "true"),
+                      ("P1.1-sheet", "s1", "t^2 >= 0", "[0, pi/2]"),
+                      ("S0", "SUB1", "goal", "1 - x >= 0", "[0, 1]"),
+                      ("S0", "SUB1", "s1", "1 - (1 - t^2) >= 0", "[0, 1]")]},
+    # without pi_pos the search has no certificate for 0 <= pi/2 nor for
+    # its negation: admitted ('none', ()), REASON_NONE, wherever emitted
+    "pi_pos_not_in_constraint_set": {
+        "admissions": {"P1.1-sheet": 6},
+        "retagged": {"P1.1-sheet": [("0 <= pi/2", "true", ADMITTED,
+                                     T_NONE)]},
+        "caught_by": [("P1.1-sheet", "s1", "0 <= pi/2", "tag"),
+                      ("P1.1-sheet", "s1", "0 <= pi/2", "status"),
+                      ("P1.1-sheet", "s2", "0 <= pi/2", "tag"),
+                      ("P1.1-sheet", "s3", "0 <= pi/2", "tag"),
+                      ("N", "P1.1-sheet")]},
+    # deriv's APP_RULES seam, reached through int_subst's step 10
+    "d_ln_emits_nothing": {
+        "admissions": {"P1.1-sheet": 5},
+        "caught_by": [("INT_SUBST_ACCEPTS", "ln_endpoints_by_exact_values",
+                       "t > 0", "[1, e_const]", "sources")]},
+}
+
+INT_SUBST_SWITCH = (
+    "One commit, the suite green before and after. Kernel: int_subst in "
+    "kernel.py as INT_SUBST_RULE states it, both modes, the selector and "
+    "the flip; step()'s move list five long, its StepRecord carrying "
+    "deriv's trace and output as ftc's does; loader.py's shape check "
+    "learns both key sets and 'occurrence'. entries.py gains "
+    "SQRT_NONNEG_ENTRY after cos_zero; discharge.py's Farkas checker, "
+    "search.py and tagger.py read SQRT_FACT_RULE's label (the owner's "
+    "answer 5, E49). Data merged by the suite, not by editing the tables "
+    "above: REFUSAL_CODES_INT_SUBST into the refusal-code coverage check "
+    "(each code is reached by an INT_SUBST_BAD_MOVES or stage-0 case), "
+    "SOURCES_INT_SUBST into SOURCES, DISCHARGE_METHODS_INT_SUBST into "
+    "DISCHARGE_METHODS, and any suite count of ENTRIES from 16 to 17.",
+
+    "Suite: a new item asserts INT_SUBST_PROOFS as items 1-2 assert "
+    "PROOFS (goal_after trees, per-step INT_SUBST_OBLIGATIONS with "
+    "sources, status, tag, new, reason and certificate against "
+    "INT_SUBST_EXPECTED, deriv against INT_SUBST_DERIV, the final "
+    "tracker, N, the verdict, the theorem, no admission tagged none, and "
+    "a math-module check of INT_SUBST_NUMERIC); every INT_SUBST_ACCEPTS "
+    "case with its continuation, its certificates and its reasons (two "
+    "admissions tagged none in cos_theta_canonical are expected, outside "
+    "the no-none check, as OCCURRENCE_CASE's is); every "
+    "INT_SUBST_BAD_MOVES case by code, by message filled from its "
+    "template, and by residual under `compare`; SQRT_FACT_MUST_REJECT and "
+    "SQRT_FACT_CHECKER_ACCEPTS through test_discharge.py, and a sqrt "
+    "family in DISCHARGE_PROPERTY_TEST's Farkas generator (keys holding "
+    "sqrt of a linear polynomial, sampled at points where it is a rational "
+    "square, the rest skipped and counted) so that sqrt_fact_strict is "
+    "caught by PROPERTY; INT_SUBST_PLANTED_BUGS and INT_SUBST_SEAMS in "
+    "child processes by the existing mechanism; and problems/stage0's "
+    "section 12 under item 7's machinery with its own floor (stage1/ holds "
+    "exactly the files INT_SUBST_PROOF_FILES names).",
+
+    "Unchanged: PROOFS, ROUTE, FALLBACKS, PLANTED_BUGS, "
+    "DEFINEDNESS_MUTATIONS and every DISCHARGE_* table (SQRT_FACT_CHANGES: "
+    "no existing expectation moves); no existing child runs P1.1-sheet. "
+    "By the owner's answer (E47), P1.1-sheet joins PROOFS and "
+    "ROUTE['P1.1'] in a follow-up after the build, with the existing "
+    "seams re-traced against it then.",
+)
+
+# The data cross-checks itself when imported, as section 11 does.
+for _p, _rows in INT_SUBST_FINAL_TRACKER.items():
+    _keys = [(r[0], r[1]) for r in _rows]
+    assert len(set(_keys)) == len(_keys), _p
+    _steps = INT_SUBST_OBLIGATIONS[_p]
+    assert [s["id"] for s in INT_SUBST_PROOFS[_p]["steps"]] == \
+        [k for k in _steps if k != "goal"], _p
+    _seen = set()
+    for _sid, _obs in _steps.items():
+        for _ob in _obs:
+            _fin = [r for r in _rows if (r[0], r[1]) == (_ob[0], _ob[1])]
+            assert _fin and _fin[0][2] == _ob[3] and _fin[0][3] == _ob[4], \
+                (_p, _sid, _ob)
+            assert _ob[5] == ((_ob[0], _ob[1]) not in _seen), (_p, _sid, _ob)
+        _seen |= {(o[0], o[1]) for o in _obs}
+    assert _seen == set(_keys), _p
+    assert sum(r[2] == ADMITTED for r in _rows) == INT_SUBST_ADMISSIONS[_p]
+    assert all(r[3] == T_REG for r in _rows if r[2] == ADMITTED), _p
+    for (_k, (_tag, _cert)) in INT_SUBST_EXPECTED[_p].items():
+        _r = [r for r in _rows if (r[0], r[1]) == _k]
+        assert _r and _r[0][2] == DISCHARGED and _r[0][3] == _tag, (_p, _k)
+# P1.1-sheet's installation is the fallback's, after discharge
+assert INT_SUBST_OBLIGATIONS["P1.1-sheet"]["goal"] == \
+    DISCHARGE_OBLIGATIONS["P1.1-fallback"]["goal"]
+assert set(REFUSAL_CODES_INT_SUBST) <= {
+    c["refusal"] for c in INT_SUBST_BAD_MOVES}
+del _p, _rows, _keys, _steps, _seen, _sid, _obs, _ob, _fin, _k, _tag, _cert, _r
