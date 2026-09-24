@@ -1163,6 +1163,16 @@ CHANGES = (
      "resolved by the owner's answers",
      "int_subst spec 2026-09-24, owner answers",
      "p1_expected E45 and E49"),
+    # int_subst review 2026-09-24: re-traced, nothing changed
+    ("section 12 and every stage-0 table (no change)",
+     "none",
+     "none: no stage-0 or stage-1 key is a false key without a refuting "
+     "point among the old candidates, so p1_expected E50's roots, walked "
+     "after every existing candidate, change no status, tag, message or "
+     "N; S2-SUB-W1's u > 0 @ [0, 1] is still refused at u = 0, the first "
+     "candidate",
+     "int_subst review 2026-09-24: p1_expected E50 and F3_ROOTS_CHANGES",
+     "hand re-trace of every key in section 12 and sections 4-11"),
 )
 
 # ---------------------------------------------------------------------------

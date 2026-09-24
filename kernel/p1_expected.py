@@ -5276,6 +5276,46 @@ DECISIONS = {
            "why), and 1 + sqrt x # 0 @ [0, 4] is now discharged "
            "('linear', ('sqrt_nonneg',)), so Int_0^4 1/(1 + sqrt x) is a "
            "problem file (problems/stage0 SUB2)",
+    # int_subst review 2026-09-24: the main session's decision on the
+    # skeptic's F3 finding, within the owner's Q22 decision (E33, E35 (1))
+    # to refuse what discharge can show false.
+    "E50": "F3 tries the rational roots of the proposition's own "
+           "polynomial pieces (main session's decision, 2026-09-24; "
+           "COUNTERPOINT_CANDIDATES (4)). The skeptic's finding: "
+           "Int[x = -1 .. 5/3] 1/(x^2 + 1) by x := 5/(2*t - 5) over [0, 4], "
+           "then ftc, reported 'Proved modulo 9 admissions' for a false "
+           "value, because 2*t - 5 # 0 @ [0, 4], false only at t = 5/2, "
+           "was admitted tagged none: no candidate is a root of the key's "
+           "polynomial. The defect predates int_subst (ftc alone, "
+           "Int[x = 0 .. 4] -1/(1 + (x - 5/2)^2) with F := atan(1/(x - "
+           "5/2)), shows it), but a substitution's map puts its poles into "
+           "keys routinely. The pieces of a proposition's target g "
+           "(DISCHARGE_RULE, Targets) are g, each factor of a top-level "
+           "product in it, and each base of an integer power, recursively; "
+           "each piece whose ring normal form is a polynomial in one "
+           "variable v with rational coefficients (no other variable, "
+           "constant or atom) contributes its rational roots, found by the "
+           "rational root test on its integer coefficients and kept only "
+           "where the polynomial is exactly 0, as candidates for v. The "
+           "test is bounded as the tagger's factoriser is: a polynomial "
+           "whose lowest nonzero or leading integer coefficient exceeds "
+           "ROOT_TEST_BOUND (10^6) in absolute value contributes none. The "
+           "roots come last for v, after (1)-(3), smallest |r| first and "
+           "positive before negative, so every existing first point, and "
+           "every existing message, is unchanged, and the 256-point walk "
+           "still bounds the search. Only the proposition's pieces count: "
+           "at a root of an owed former's polynomial the former is not "
+           "settled true, so F3's definedness rule discards that point, "
+           "and each former is its own key, where that polynomial is the "
+           "target and its roots are tried. Still undecided, and admitted "
+           "none: irrational poles (t^2 - 2 # 0 @ [0, 2], "
+           "F3_ROOTS_CASES f3_irrational_pole_undecided), roots beyond the "
+           "bound, and pieces with more than one variable. An exact "
+           "univariate sign decision (Sturm sequences) is recorded as a "
+           "future method (DESIGN_DEFECTS). F3 stays untrusted and can "
+           "only refuse (E33): a wrong root costs a wrong refusal, which "
+           "the refutation's re-check at its point and the property test "
+           "catch",
 }
 
 DESIGN_DEFECTS = [
@@ -5519,6 +5559,28 @@ DESIGN_DEFECTS = [
     "is C^1 (phi' = (3/2) sqrt t) but d_sqrt's t > 0 @ [0, 1] refuses it. "
     "That is a completeness limit of reading C^1 off deriv, not a "
     "soundness one, and it goes away only with §6.9's regularity rules.",
+    # int_subst review 2026-09-24
+    "§18 Q22's settled reading (E33 F3) decides a key false at a rational "
+    "point from a fixed candidate set, and the set never held a root of "
+    "the key's own polynomial, so a pole inside the range at a point that "
+    "is neither an end nor the midpoint was admitted tagged none: the "
+    "skeptic's Int[x = -1 .. 5/3] 1/(x^2 + 1) by x := 5/(2*t - 5) reported "
+    "'Proved modulo 9 admissions' for a false value. E50 adds the rational "
+    "roots of the proposition's univariate pieces. §18 Q22 and §5.4 should "
+    "say that an admission tagged none may be false exactly when no "
+    "candidate refutes it, that the candidates include those roots, and "
+    "that the remaining misses are irrational roots (t^2 - 2 # 0 on "
+    "[0, 2]), roots beyond ROOT_TEST_BOUND, and multivariate pieces. "
+    "Future method, recorded and not built: an exact univariate sign "
+    "decision by Sturm sequences, which would decide t^2 - 2 # 0 on "
+    "[0, 2] (a real root in the range, so false) with a certificate the "
+    "trusted checker can re-check by counting sign changes; it would be "
+    "§5.3's first method that proves an obligation false rather than "
+    "failing to prove it.",
+    "§5.4's example of a false admission tagged none, x - 5 # 0 on "
+    "[0, oo) (E33, the §5.4 entry above, DISCHARGE_UNDECIDED), is refuted "
+    "at x = 5 once E50 lands; the example becomes t^2 - 2 # 0 on [0, 2] "
+    "(F3_ROOTS_CHANGES).",
 ]
 
 # What was checked at build time, in scratch, with SymPy 1.14 and mpmath.
@@ -5758,6 +5820,24 @@ VERIFIED = (
     "reverse identity key body == f[u := g]*g', every ftc goal_after "
     "F[hi] - F[lo], every endpoint image; both data files import with "
     "their cross-checks, and the suite still passes 481 of 481",
+    # int_subst review 2026-09-24
+    "int_subst review 2026-09-24, SymPy 1.14 in scratch: the reproducer's true value atan(5/3) + "
+    "pi/4 = 1.8158 against the reported -atan(3/5) - pi/4 = -1.3258, its "
+    "ends mapping (-1, 5/3) and its only pole 5/2 in [0, 4]; ftc alone: "
+    "the true -(atan(3/2) + atan(5/2)) = -2.1731 against the ftc value "
+    "atan(2/3) + atan(2/5) = 0.9685, F' equal to the integrand off 5/2 and "
+    "F jumping by pi there; each F3 walk's earlier candidates true and its "
+    "root false (5/2, 5/2, 2, 5); t^2 - 2 with no rational root among "
+    "+-1, +-2 and a root sqrt 2 in [0, 2]; x <= 5 true at its root; the "
+    "three gap cases' integrals (1 = Int_1^e 1/t, pi^2/4 both ways, "
+    "-pi^2/4 both ways). terms.py: every string parses and round-trips, and "
+    "every F3 reading is the proposition with terms.lit at the point. Then, "
+    "after the hand derivation, the committed kernel (ed40695) was driven "
+    "as a black box: REVIEW_ACCEPTS' emissions and goals, "
+    "REVIEW_BAD_MOVES' refusal and message, and the new sqrt case's "
+    "'unknown-label' match it exactly; the F3 cases show today's false "
+    "admissions tagged none (their 'was'); the irrational pole is admitted "
+    "'no method decides it'. The suite still passes, both files importing",
 )
 
 # Changes to this file made after it was frozen. The first was adjudicated
@@ -6649,6 +6729,53 @@ DATA_CHANGES = (
      "the seam no longer expects P1.1-sheet to finish with 6 admissions and 0 <= pi/2 admitted tagged none; it is caught at P1.1-sheet s1 as a refusal (int-subst-orientation-undecided)",
      "the int_subst build showed the old expectation contradicts E46: [0, pi/2] is not a literal range, so s1 must prove one order of the new limits to choose the new integral's form, and without pi's sign fact neither is proved, so s1 is refused. Checked by the main session against E46's text",
      'adjudicated during implementation'),
+    # int_subst review 2026-09-24: the skeptic's review of the int_subst build (ed40695). E50 is
+    # the main session's decision; the expectation changes it makes are
+    # staged in F3_ROOTS_CHANGES, and every new case in section 12b, so the
+    # committed suite stays green until the build.
+    ("DECISIONS E50 (new); COUNTERPOINT_CANDIDATES, paragraph (4) appended",
+     "F3 also tries the rational roots of the proposition's univariate "
+     "polynomial pieces, last for each variable, bounded by "
+     "ROOT_TEST_BOUND (10^6); owed formers' roots are argued out; "
+     "irrational roots stay undecided",
+     "the skeptic's false theorem: a pole of a substitution's map (or of "
+     "ftc's F) at a rational interior point was admitted tagged none",
+     "the main session's decision, within the owner's Q22 decision (E33, "
+     "E35 (1))"),
+    ("section 12b (new): ROOT_TEST_BOUND, F3_ROOTS_CASES, "
+     "F3_ROOTS_UNDECIDED, F3_ROOTS_CHANGES",
+     "three refusals with their messages (the skeptic's reproducer, now "
+     "refused at its int_subst step on 2*t - 5 # 0 @ [0, 4] at t = 5/2; "
+     "ftc alone on x - 5/2 # 0 @ [0, 4] at x = 5/2; t - 2 # 0 @ [0, 3] at "
+     "t = 2), the irrational pole t^2 - 2 # 0 @ [0, 2] still admitted none, "
+     "and the one existing expectation that changes: DISCHARGE_UNDECIDED's "
+     "x - 5 # 0 @ [0, oo) becomes a refusal at x = 5, with every other "
+     "false undecided key and every refusal message re-traced unchanged",
+     "E50; the task's items 1 and 2",
+     "int_subst review 2026-09-24"),
+    ("section 12b (new): REVIEW_ACCEPTS, REVIEW_BAD_MOVES, "
+     "REVIEW_SQRT_FACT_MUST_REJECT",
+     "the skeptic's three test gaps: forward_constant_body_partial_phi (a "
+     "constant body, so step 9 alone gives t > 0 its 'former' source), "
+     "reverse_symbolic_old_range_oriented and _reversed (reverse mode's "
+     "old-range orientation, owed, and refused by F2 when reversed), and "
+     "sqrt_fact_label_for_absent_atom (a sqrt label for an absent atom "
+     "beside a present one, 'unknown-label')",
+     "three mutations (m_no_sub_formers, m_reverse_no_old_orient, "
+     "m_sqrt_fact_any_u) passed all 565 checks",
+     "int_subst review 2026-09-24"),
+    ("section 12b (new): REVIEW_PLANTED_BUGS, REVIEW_SWITCH",
+     "f3_no_root_candidates and the three surviving mutations as planted "
+     "bugs, each with the new case that catches it; how the tables join "
+     "the asserted ones",
+     "a rule without a catching case is untested",
+     "int_subst review 2026-09-24"),
+    ("DESIGN_DEFECTS, two entries appended; VERIFIED, one entry appended",
+     "§18 Q22 and §5.4 on F3's reach, Sturm sequences recorded as a future "
+     "exact univariate sign method, and §5.4's false-undecided example "
+     "moving to t^2 - 2 # 0 on [0, 2]; the record of the checks",
+     "the places this file records what DESIGN.md must change",
+     "int_subst review 2026-09-24"),
 )
 
 
@@ -6992,6 +7119,19 @@ COUNTERPOINT_CANDIDATES = (
     "A point counts only where every term is defined: the formers owed by "
     "the proposition AND by every domain item must be settled true at the "
     "point, and a domain item holds there only if it is defined there.",
+    # int_subst review 2026-09-24 (E50, the main session's decision)
+    "(4) Roots, after (1)-(3) for each variable v: the rational roots of "
+    "each polynomial piece of the proposition's target that is univariate "
+    "in v with rational coefficients (E50: the target, each factor of a "
+    "top-level product, each base of an integer power, recursively), by "
+    "the rational root test on the piece's integer coefficients, bounded "
+    "by ROOT_TEST_BOUND (10^6) on the lowest nonzero and the leading "
+    "coefficient, each kept only where the polynomial is exactly 0, "
+    "smallest |r| first and positive before negative, and a root outside "
+    "a domain item bounding v against a rational literal dropped. Like "
+    "every candidate, a root counts only where the domain and every "
+    "owed former are settled true (the paragraph above). An irrational "
+    "root is never a candidate.",
 )
 
 # Certificate helpers. Labels as DISCHARGE_RULE names them; rationals as
@@ -9684,3 +9824,292 @@ assert INT_SUBST_OBLIGATIONS["P1.1-sheet"]["goal"] == \
 assert set(REFUSAL_CODES_INT_SUBST) <= {
     c["refusal"] for c in INT_SUBST_BAD_MOVES}
 del _p, _rows, _keys, _steps, _seen, _sid, _obs, _ob, _fin, _k, _tag, _cert, _r
+
+
+# ---------------------------------------------------------------------------
+# 12b. The int_subst review (int_subst review 2026-09-24)
+#
+# The skeptic of the int_subst build (ed40695) found no false int_subst
+# step, but found that F3 never tries a root of a key's own polynomial (E50),
+# and three rules no case isolates (three mutations that passed the whole
+# suite). Written as a spec before any code, as section 11 and 12 were:
+# the tables below are STAGED, and each says the table it joins when the
+# build lands (REVIEW_SWITCH), so the committed suite stays green meanwhile.
+# Every outcome was derived by hand from INT_SUBST_RULE, DISCHARGE_RULE and
+# the amended COUNTERPOINT_CANDIDATES, and checked with SymPy (VERIFIED,
+# last entry).
+
+ROOT_TEST_BOUND = 10 ** 6  # E50: as the tagger's rational root factoriser
+
+# E50's cases. Refusals are in BAD_MOVES' shape; the undecided one in
+# DISCHARGE_UNDECIDED's. For each, the candidate walk for the key's one
+# variable is written out: (1) the domain's rational bounds, (2) the
+# midpoint, (3) 0, 1, -1, (4) the new roots.
+F3_ROOTS_CASES = [
+    # The skeptic's reproducer. It now stops at its first step: int_subst's
+    # step 9 charges sub's former 2*t - 5 # 0 on [0, 4] (E25: nonzero),
+    # which no method closes (2*t - 5 changes sign; E18's content split
+    # leaves t - 5/2 # 0, itself none), and F3 walks t = 0, 4, 2, 1 (all
+    # true), -1 (outside [0, 4]), then the root 5/2 of the target 2*t - 5.
+    # The installation's keys (x^2 + 1 # 0 by sign, 5/3's 3 # 0) hold.
+    {"id": "f3_root_int_subst_pole",
+     "goal": "Int[x = -1 .. 5/3] 1/(x^2 + 1) == ?A", "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "5/(2*t - 5)", "new_var": "t",
+                            "lo": "0", "hi": "4", "check": "field",
+                            "facts": []}),
+     "refusal": OBLIGATION_DECIDED_FALSE,
+     "message": _point("2*t - 5 # 0 @ [0, 4]", "2*(5/2) - 5 # 0", t="5/2"),
+     "was": "accepted, and the skeptic's continuation (ftc F := "
+            "-atan((2*t - 5)/5), atan_odd, close -atan(3/5) - atan 1) "
+            "reported 'Proved modulo 9 admissions' for a false value",
+     "why": "phi = 5/(2t - 5) has a pole at t = 5/2 inside [0, 4], so it is "
+            "not C^1 there and the substitution is invalid: the integral "
+            "is atan(5/3) + pi/4 = 1.8158..., the reported value "
+            "-atan(3/5) - pi/4 = -1.3258... (SymPy). Both ends map "
+            "(5/(2*0 - 5) = -1, 5/(2*4 - 5) = 5/3), so only the former "
+            "stood between the move and the false theorem"},
+    # The same defect with ftc alone: F's former x - 5/2 # 0 on [0, 4],
+    # emitted at ftc's (ii) before anything else it emits (the range is
+    # literal, so there is no orientation first). Walk: 0, 4, 2, 1, -1,
+    # then the root 5/2.
+    {"id": "f3_root_ftc_antiderivative_pole",
+     "goal": "Int[x = 0 .. 4] -1/(1 + (x - 5/2)^2) == ?A", "setup": [],
+     "move": ("ftc", {"F": "atan(1/(x - 5/2))", "check": "field",
+                      "facts": []}),
+     "refusal": OBLIGATION_DECIDED_FALSE,
+     "message": _point("x - 5/2 # 0 @ [0, 4]", "5/2 - 5/2 # 0", x="5/2"),
+     "was": "accepted, the goal becoming atan(1/(4 - 5/2)) - atan(1/(0 - "
+            "5/2)) == ?A, which closes to the false atan(2/3) + atan(2/5)",
+     "why": "F = atan(1/(x - 5/2)) has F' = the integrand except at 5/2, "
+            "where F jumps by pi; the true value is -(atan(3/2) + "
+            "atan(5/2)) = -2.1730..., the ftc value 0.9685... (SymPy). "
+            "The integrand itself is continuous, so installation owes "
+            "nothing false; the pole is F's"},
+    # A root on the closed range, at installation. Walk: 0, 3, 3/2, 1, -1,
+    # then the root 2.
+    {"id": "f3_root_closed_range",
+     "goal": "Int[t = 0 .. 3] 1/(t - 2) == ?A", "setup": [],
+     "move": ("install", {}),
+     "refusal": OBLIGATION_DECIDED_FALSE,
+     "message": _point("t - 2 # 0 @ [0, 3]", "2 - 2 # 0", t="2"),
+     "was": "installed, t - 2 # 0 @ [0, 3] admitted tagged none",
+     "why": "the FTC-across-a-pole trap with the pole at an interior "
+            "rational point that is neither an end nor the midpoint"},
+]
+# The undecided twin: an irrational pole stays admitted none.
+F3_ROOTS_UNDECIDED = [
+    {"id": "f3_irrational_pole_undecided",
+     "goal": "Int[t = 0 .. 2] 1/(t^2 - 2) == ?A",
+     "goal_emits": [
+         ("t^2 - 2 # 0", "[0, 2]", (S_FORMER,), ADMITTED, T_NONE, True)],
+     "reasons": {("t^2 - 2 # 0", "[0, 2]"): REASON_NONE},
+     "why": "false at t = sqrt 2, which is irrational: the rational root "
+            "test on t^2 - 2 tries 1, -1, 2, -2, none a root, and the walk "
+            "0, 2, 1, -1 finds t^2 - 2 # 0 true at each point in [0, 2]. "
+            "No method closes it (t^2 opaque to FM, no sign form, no "
+            "rational factor). E50's stated limit; Sturm sequences would "
+            "decide it (DESIGN_DEFECTS)"},
+]
+
+# What E50 changes in the expectations already in this file, applied in the
+# build commit with the code (REVIEW_SWITCH). The roots come after every
+# existing candidate, so a key refused before is refused at the same first
+# point with the same message; a key discharged before is unchanged
+# (discharge runs before refutation). Only a false key with no refuting
+# point among the old candidates can change, and every such key in both data
+# files was re-traced:
+F3_ROOTS_CHANGES = {
+    "DISCHARGE_UNDECIDED_remove": ("undecided_false_unbounded_candidates",),
+    # x - 5 # 0 @ [0, oo): walk 0, 1, -1 (outside), then the root 5
+    "DISCHARGE_BAD_MOVES_ADDED_add": [
+        {"id": "decided_false_root_on_unbounded_range",
+         "goal": "Int[x = 0 .. oo] 1/(x - 5) == ?A",
+         "setup": [], "move": ("install", {}),
+         "refusal": OBLIGATION_DECIDED_FALSE,
+         "message": _point("x - 5 # 0 @ [0, oo)", "5 - 5 # 0", x="5"),
+         "why": "E50: was DISCHARGE_UNDECIDED's "
+                "undecided_false_unbounded_candidates, the false key the "
+                "bounded search missed; 5 is the root of its target"}],
+    # the false-but-undecided example becomes the irrational pole
+    "DISCHARGE_UNDECIDED_add": ["F3_ROOTS_UNDECIDED f3_irrational_pole_undecided"],
+    "unchanged, re-traced": (
+        "cos 1 # 0 (DISCHARGE_UNDECIDED): closed, so F3 does not apply",
+        "(x + pi)/(x + pi) - 1 # 0 @ [1, 2] (DISCHARGE_BAD_MOVES_ADDED "
+        "field_zero_divisor_opaque): its target holds pi and inv(x + pi), "
+        "so no piece is a polynomial in x alone",
+        "x <= 5 @ [0, oo) (DISCHARGE_MUST_REJECT farkas_infinite_end, "
+        "if_emitted admitted none): the root 5 of 5 - x reads 5 <= 5, true "
+        "(a non-strict target is not falsified at its own root); 6 is "
+        "still no candidate",
+        "1 - x^2 >= 0 @ [0, 1] and 1 - (cos theta)^2 >= 0 @ [0, pi/2] "
+        "(INT_SUBST_ACCEPTS cos_theta_canonical): the first is true, its "
+        "roots 1 and -1 are already candidates; the second holds an atom",
+        "0 <= pi/2 and pi/2 >= 0 under pi_pos_not_in_constraint_set: "
+        "closed",
+        "every refusal message in either file (DISCHARGE_*, "
+        "INT_SUBST_BAD_MOVES, stage 0's S2-SUB-W1, the planted-bug and "
+        "mutation refusals): each key is univariate or, for x < z @ x < y, "
+        "w < z, has no univariate piece, and its first refuting point "
+        "precedes any root, so no message changes",
+        "every key the pre-discharge tables list: no longer asserted",
+    ),
+    "prose": ("DESIGN_DEFECTS' §5.4 entry and DISCHARGE_UNDECIDED's "
+              "comment use x - 5 # 0 @ [0, oo) as the false-but-undecided "
+              "example; after the build it is t^2 - 2 # 0 @ [0, 2]"),
+}
+
+# The skeptic's three test gaps: behaviour already built, which no case
+# isolated, each shown by a mutation that passed all 565 checks
+# (m_no_sub_formers, m_reverse_no_old_orient, m_sqrt_fact_any_u). They
+# join INT_SUBST_ACCEPTS, INT_SUBST_BAD_MOVES and SQRT_FACT_MUST_REJECT.
+REVIEW_ACCEPTS = [
+    # the body does not mention x, so step 14 charges no former of phi,
+    # and t > 0 @ [1, e_const]'s 'former' source comes from step 9 alone
+    # (d_ln's side condition is the same key, with its own source)
+    {"id": "forward_constant_body_partial_phi",
+     "goal": "Int[x = 0 .. 1] 1 == ?A",
+     "goal_emits": [],
+     "move": ("int_subst", {"var": "x", "sub": "ln t", "new_var": "t",
+                            "lo": "1", "hi": "e_const", "check": "ring",
+                            "facts": []}),
+     "goal_after": "Int[t = 1 .. e_const] 1*(1/t) == ?A",
+     "deriv": {"var": "t", "F": "ln t",
+               "trace": [("d_ln", "ln t", ("t > 0 @ [1, e_const]",)),
+                         ("d_var", "t", ())],
+               "output": "1/t", "emits": ("t > 0 @ [1, e_const]",)},
+     "emits": [
+         ("1 <= e_const", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_E, True),
+         ("t > 0", "[1, e_const]", (S_FORMER, S_D_LN), DISCHARGED, T_RANGE,
+          True),
+         ("ln 1 == 0", "true", (S_SUBST_LO,), DISCHARGED, T_RING_LN_ONE,
+          True),
+         ("ln e_const == 1", "true", (S_SUBST_HI,), DISCHARGED, T_RING_LN_E,
+          True),
+         ("ln t in C^1([1, e_const])", "[1, e_const]", (S_SUBST_C1,),
+          ADMITTED, T_REG, True),
+         # F = 1 has no free variable, so the interval is named (D13)
+         ("1 in C^0(t in [1, e_const])", "t in [1, e_const]", (S_SUBST_C0,),
+          ADMITTED, T_REG, True),
+         ("t # 0", "[1, e_const]", (S_FORMER,), DISCHARGED, T_RANGE, True)],
+     "certificates": {
+         ("1 <= e_const", "true"): _farkas({GOAL: "1",
+                                            FACT("e_gt_one"): "1"}),
+         ("t > 0", "[1, e_const]"): _RANGE_LO,
+         ("t # 0", "[1, e_const]"): _RANGE_LO_NZ},
+     "why": "pins INT_SUBST_RULE step 9 by its source: with it skipped the "
+            "key is still emitted, by d_ln, and ln_endpoints_by_exact_values "
+            "and phi_undefined_on_new_range keep their outcome, because the "
+            "first recharges ln t in step 14 and the second is refused by "
+            "d_ln's key. Int_0^1 1 = 1 = Int_1^e 1/t (SymPy)"},
+    # reverse mode owes the old range's orientation when it is symbolic
+    {"id": "reverse_symbolic_old_range_oriented",
+     "goal": "Int[x = 0 .. pi/2] 2*x == ?A",
+     "goal_emits": [("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM,
+                     True)],
+     "move": ("int_subst", {"mode": "reverse", "var": "x", "sub": "x^2",
+                            "new_var": "u", "lo": "0", "hi": "pi^2/4",
+                            "f": "1", "check": "ring", "facts": []}),
+     "goal_after": "Int[u = 0 .. pi^2/4] 1 == ?A",
+     "deriv": {"var": "x", "F": "x^2",
+               "trace": [("d_pow_int", "x^2", ()), ("d_var", "x", ())],
+               "output": "2*x^1*1", "emits": ()},
+     "emits": [
+         # step 8, reverse: I = [0, pi/2] owes its order (the premises use I)
+         ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI, True),
+         # hi's pi^2/4, then the new range's order, decided by sign (E46)
+         ("4 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+         ("0 <= pi^2/4", "true", (S_ORIENT,), DISCHARGED, T_SIGN, True),
+         ("2*x == 1*(2*x^1*1)", "[0, pi/2]", (S_SUBST_INT,), DISCHARGED,
+          T_DERIV_RING, True),
+         ("0^2 == 0", "true", (S_SUBST_LO,), DISCHARGED, T_RING, True),
+         ("(pi/2)^2 == pi^2/4", "true", (S_SUBST_HI,), DISCHARGED, T_RING,
+          True),
+         ("x^2 in C^1([0, pi/2])", "[0, pi/2]", (S_SUBST_C1,), ADMITTED,
+          T_REG, True),
+         ("1 in C^0(x in [0, pi/2])", "x in [0, pi/2]", (S_SUBST_C0,),
+          ADMITTED, T_REG, True)],
+     "certificates": {("0 <= pi/2", "true"): _PI_HALF,
+                      ("0 <= pi^2/4", "true"): _PI_SQ},
+     "why": "pins step 8's reverse-mode orientation of the old range, "
+            "which no case with literal old limits reaches. Int_0^{pi/2} "
+            "2x = pi^2/4 = Int_0^{pi^2/4} 1 (SymPy)"},
+]
+REVIEW_BAD_MOVES = [
+    {"id": "reverse_symbolic_old_range_reversed",
+     "goal": "Int[x = pi/2 .. 0] 2*x == ?A", "setup": [],
+     "move": ("int_subst", {"mode": "reverse", "var": "x", "sub": "x^2",
+                            "new_var": "u", "lo": "pi^2/4", "hi": "0",
+                            "f": "1", "check": "ring", "facts": []}),
+     "refusal": OBLIGATION_DECIDED_FALSE,
+     "message": _negation("pi/2 <= 0", "pi/2 > 0", T_LINEAR_PI),
+     "why": "step 8, reverse: the old range [pi/2, 0] owes pi/2 <= 0, and "
+            "F2 decides it false, as for ftc on the same goal (E4). The "
+            "goal installs, since 2*x owes nothing and no key uses the "
+            "range. The substitution itself is valid (Int_{pi/2}^0 2x = "
+            "-pi^2/4 = Int_{pi^2/4}^0 1, SymPy): E46 flips only the NEW "
+            "range, and a goal whose own integral is reversed with symbolic "
+            "limits cannot be used by any move that reads its range"},
+]
+REVIEW_SQRT_FACT_MUST_REJECT = [
+    {"id": "sqrt_fact_label_for_absent_atom",
+     "key": ("1 + sqrt x # 0", "[0, 4]"),
+     "certificate": _farkas({GOAL: "1", SQRT("x"): "1", SQRT("x + 1"): "1"},
+                            ">"),
+     "expected": "rejected",
+     "rejects_because": "sqrt(x + 1) occurs nowhere in the key, so its "
+                        "label is not in the constraint set (the checker's "
+                        "'unknown-label'), although the key does hold the "
+                        "atom sqrt x",
+     "truth": ("true",),
+     "if_emitted": ("discharged", T_LINEAR_SQRT),
+     "why": "isolates SQRT_FACT_RULE's membership test: sqrt_fact_absent_atom's "
+            "key holds no sqrt atom at all, so a check that accepts any "
+            "label once some sqrt atom is present passes it. The test is "
+            "defensive: an absent atom's constraint can never cancel, so "
+            "without it this certificate is still rejected, but by the "
+            "combination rule, and the reason code shows which rule acted"},
+]
+
+# Planted bugs for the build, as INT_SUBST_PLANTED_BUGS' shape.
+REVIEW_PLANTED_BUGS = {
+    "f3_no_root_candidates": {
+        "mutation": "COUNTERPOINT_CANDIDATES' (4) is not walked",
+        "caught_by": [("F3_ROOTS_CASES", "f3_root_int_subst_pole"),
+                      ("F3_ROOTS_CASES", "f3_root_ftc_antiderivative_pole"),
+                      ("F3_ROOTS_CASES", "f3_root_closed_range"),
+                      ("DISCHARGE_BAD_MOVES_ADDED",
+                       "decided_false_root_on_unbounded_range")]},
+    "int_subst_no_sub_formers": {
+        "mutation": "INT_SUBST_RULE step 9 charges nothing (the skeptic's "
+                    "m_no_sub_formers)",
+        "caught_by": [("INT_SUBST_ACCEPTS", "forward_constant_body_partial_phi",
+                       "t > 0", "[1, e_const]", "sources")]},
+    "int_subst_reverse_no_old_orient": {
+        "mutation": "step 8 does not owe the old range's order in reverse "
+                    "mode (the skeptic's m_reverse_no_old_orient)",
+        "caught_by": [("INT_SUBST_ACCEPTS", "reverse_symbolic_old_range_oriented"),
+                      ("INT_SUBST_BAD_MOVES",
+                       "reverse_symbolic_old_range_reversed")]},
+    "sqrt_fact_any_u": {
+        "mutation": "a sqrt label is accepted for any u once the key holds "
+                    "some sqrt atom (the skeptic's m_sqrt_fact_any_u)",
+        "caught_by": [("SQRT_FACT_MUST_REJECT",
+                       "sqrt_fact_label_for_absent_atom")]},
+}
+
+REVIEW_SWITCH = (
+    "One commit, with the code: the F3 search (refute.py, untrusted) walks "
+    "COUNTERPOINT_CANDIDATES (4) with ROOT_TEST_BOUND; the suite asserts "
+    "F3_ROOTS_CASES beside DISCHARGE_BAD_MOVES_ADDED and F3_ROOTS_UNDECIDED "
+    "beside DISCHARGE_UNDECIDED, applies F3_ROOTS_CHANGES to those two "
+    "tables, and gains REVIEW_PLANTED_BUGS' f3_no_root_candidates; "
+    "DISCHARGE_PROPERTY_TEST's refutation re-check covers the new "
+    "refusals as it covers every F3 refusal, and its generator gains "
+    "univariate # 0 keys with a rational root inside the range.",
+    "The three gap cases need no code: REVIEW_ACCEPTS joins "
+    "INT_SUBST_ACCEPTS, REVIEW_BAD_MOVES joins INT_SUBST_BAD_MOVES, and "
+    "REVIEW_SQRT_FACT_MUST_REJECT joins SQRT_FACT_MUST_REJECT (its reason "
+    "code 'unknown-label' in test_discharge.py's map), with the other "
+    "three REVIEW_PLANTED_BUGS as child-process mutations. They may land "
+    "in the same commit or before it.",
+)
