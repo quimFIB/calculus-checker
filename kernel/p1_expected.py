@@ -7057,6 +7057,10 @@ DATA_CHANGES = (
      "spec missed; the record of the checks",
      "the places this file records what DESIGN.md must change",
      "consolidation spec 2026-09-24, owner answers"),
+    ("CONSOLIDATION_MUST_REJECT sin_fact_not_a_label if_emitted; SIGN_PRODUCT_NONSTRICT_RULE (a paragraph)",
+     "if_emitted's tag drops pi_pos; the rule states that a content of -1 is not split off under a non-strict target",
+     "the consolidation build: sin theta >= 0 @ [0, pi/2]'s child theta <= pi is closed by the range alone ((theta - pi, strict) + theta + 2*(pi/2 - theta) = 0), so pi_pos is unneeded; and splitting off -1 under a non-strict target made the one factor restate the key, contradicting the flat certificates the data pins. Checked by the main session",
+     'adjudicated during implementation'),
 )
 
 
@@ -10696,6 +10700,11 @@ SIGN_PRODUCT_NONSTRICT_RULE = (
     "certifies is used. 1 - x^2 on [0, 1] factors as -(x - 1)(x + 1): "
     "x - 1 <= 0 (not < 0: it is 0 at 1) by the upper end, x + 1 > 0 by the "
     "lower end, parity (-1)(-1) = +1.",
+    "Content split (TAG_RULES (i)) under a non-strict target: a content of "
+    "-1 is not split off, because the one factor's goal would restate the "
+    "key; the sign is carried by the content in the product certificate "
+    "(-(x - 1)(x + 1) for 1 - x^2 >= 0). Strict targets are unchanged. "
+    "(Resolved by the consolidation build; recorded by the main session.)",
 )
 _ONE_MINUS_X2 = _product("-1", [("x - 1", "<=", _farkas({GOAL: "1",
                                                          HI(0): "1"})),
@@ -10894,7 +10903,9 @@ CONSOLIDATION_MUST_REJECT = [
                         "atom's definedness, so it is no label "
                         "('unknown-label'); cite is its route",
      "truth": ("true",),
-     "if_emitted": ("discharged", T_CITE_SIN)},
+     # if emitted, the search's own certificate closes theta <= pi by the
+     # range alone, so no pi_pos cite (DATA_CHANGES, adjudicated)
+     "if_emitted": ("discharged", ("cite", ("sin_nonneg_on",)))},
 ]
 
 # Planted bugs for the build (INT_SUBST_PLANTED_BUGS' shape).

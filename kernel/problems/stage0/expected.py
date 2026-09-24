@@ -1218,6 +1218,10 @@ CHANGES = (
      "by norm_num as before; QC1's int_subst keeps E46's flip",
      "consolidation spec 2026-09-24, owner answers: p1_expected E56",
      "hand re-trace of every range in sections 4-13"),
+    ("QC1 s3, CONSOLIDATION_EXPECTED and CONSOLIDATION_FINAL_TRACKER: sin theta >= 0 @ [0, pi/2]",
+     "tag ('cite', ('sin_nonneg_on', 'pi_pos')) -> ('cite', ('sin_nonneg_on',)); the child theta <= pi's certificate -> _farkas({GOAL: 1, LO(0): 1, HI(0): 2})",
+     "the consolidation build showed the child is closed by the range alone: (theta - pi, strict) + (theta - 0) + 2*(pi/2 - theta) = 0, strict, so pi_pos is unneeded and TAG_RULES' deletion filter drops sign facts first. Checked by the main session",
+     "adjudicated during implementation"),
 )
 
 # ---------------------------------------------------------------------------
@@ -1952,7 +1956,10 @@ T_PRODUCT_COS = ("sign product", ("cos_le_one", "cos_ge_neg_one"))
 T_LINEAR_PI = ("linear", ("pi_pos",))
 T_RING_COS_PI_HALF = ("ring", ("cos_pi_half",))
 T_RING_COS_ZERO = ("ring", ("cos_zero",))
-T_CITE_SIN = ("cite", ("sin_nonneg_on", "pi_pos"))
+# theta <= pi follows from the range alone (theta >= 0 and theta <= pi/2 give
+# pi >= 0): (theta - pi, strict) + theta + 2*(pi/2 - theta) = 0, strict, and
+# TAG_RULES' deletion filter drops the unneeded pi_pos (CHANGES, adjudicated)
+T_CITE_SIN = ("cite", ("sin_nonneg_on",))
 T_DERIV_FIELD_PYTH = ("deriv+field", ("pyth_cos",))
 
 
@@ -2125,8 +2132,8 @@ CONSOLIDATION_EXPECTED = {
         ("sin theta >= 0", "[0, pi/2]"): (T_CITE_SIN, _cite(
             "sin_nonneg_on", {"u": "theta"},
             [("theta >= 0", _RANGE_LO),
-             ("theta <= pi", _farkas({GOAL: "1", HI(0): "1",
-                                      FACT("pi_pos"): "1/2"}))])),
+             ("theta <= pi", _farkas({GOAL: "1", LO(0): "1",
+                                      HI(0): "2"}))])),
     },
 }
 
