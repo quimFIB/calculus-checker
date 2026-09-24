@@ -111,8 +111,6 @@ handoff:
   restricted to open domains.
 - **§11's obligation lists were stale.** They still showed the closed-interval
   `ftc` of revision 5.
-- **§17's arithmetic was off.** Its proof-of-life figure, 60–100 hours, was
-  below the sum of its own rows, 105–185.
 
 What `rewrite` matches up to is now an open question (§18 Q21), to be settled
 by writing the P1 scripts out first.
@@ -626,7 +624,7 @@ has no domain-obligation pedagogy.
 vscode.dev with no server) is a controlled-natural-language layer over Rocq or
 Lean. It is the closest existing artefact to the *interaction* §16 describes,
 and its published evaluations are the only real evidence anyone has about
-whether students use a thing like this — **which is worth an hour, and is not
+whether students use a thing like this — **which is worth reading, and is not
 a prerequisite for anything** (revision 6; the closing section says why). It is
 not a substitute: no `ftc`-by-differentiation kernel, no
 certified `approx`, no dimensions, and it inherits exactly the per-proof cost
@@ -2238,7 +2236,7 @@ subsumes it. Incommensurate angles (`sin x` and `sin(pi*x)` together) stay
 outside, as do §6.4's algebraic constants — `(√3)² ≐ 3` is `sqrt_sq_val`, a
 different kind of fact about a different kind of atom.
 
-**Cost.** ~200 lines in the assistance layer, 15–30 hours, in stage 1 (§17).
+**Cost.** ~200 lines in the assistance layer, in stage 1 (§17).
 Nothing to reuse: the reduction has to emit *these* kernel steps against
 *this* rule table.
 
@@ -2794,7 +2792,7 @@ is.
 ### Why
 
 The ledger is a one-time fixed cost, and a real one: ~250 lines of generator
-plus 60–100 hours across 80–110 lemmas, plus installing and choosing a library
+plus 80–110 lemmas, plus installing and choosing a library
 stack that is not on this machine. Revision 1 priced it as an afterthought
 ("~60 lemmas") and the review repriced it as a small second project.
 
@@ -2952,7 +2950,7 @@ Either of these, and the deferral ends:
 
 - **The layering gate passes and a unit's worth of real work has been done in
   the tool** (§17). At that point the tool is a thing that gets used, and the
-  ledger is worth its 60–100 hours.
+  ledger is worth building.
 - **A falsifier-bank acceptance traces to a rule *statement* rather than an
   implementation bug.** That is direct evidence that the v1 argument of §15.4
   is not enough, and it should be acted on immediately rather than at the next
@@ -3244,8 +3242,8 @@ only one reachable.
 **Because the project's binding constraint is finding out whether §1's loop
 works, and Python is the shortest path to that.** §17's gate — does the average
 hint rung fall over a corpus — is the central falsifier, it sits behind the
-whole of stage 1, and every hour of implementation language between here and it
-is an hour spent on a question that is not in doubt. The recognizer table is
+whole of stage 1, and any effort spent on implementation language before it is
+effort spent on a question that is not in doubt. The recognizer table is
 content, the progress signal is a heuristic, the attempt tree is bookkeeping;
 none of them is hard, all of them are *fiddly*, and fiddly-and-not-hard is what
 Python is for.
@@ -3425,7 +3423,7 @@ proofs; every place the language cannot express one, or the rule table cannot
 close one, is the output. **The output is a gap list, not a number.**
 
 *Revisions 2 through 5 called this "measure the authoring rate" and made the
-hours-per-goal figure the single most decision-relevant quantity in the plan.
+authoring rate the single most decision-relevant quantity in the plan.
 The first pass (2026-09-22, `STAGE0.md`) retired that framing.* The course
 supplies a worked solution for every problem, so the mathematics is given and
 what remains is **encoding** — which can be drafted mechanically and checked
@@ -3466,23 +3464,18 @@ improving. That is the signal to stop, not the count.
 **What stage 0 cannot do, and neither can anything before stage 1 — which is
 now the argument for going there.** Nothing checks the *encodings*. SymPy settles the mathematics and says nothing about
 whether an obligation list is complete, which is exactly where §11.2's three
-errors lived. **This is why the cost question does not belong here.** If goals
-are drafted mechanically and reviewed by a person, the quantity that prices the
-corpus is review time — and §1 is explicit that the learner has no calculus
-fluency, so reviewing a drafted encoding is a weak check made by the wrong
-reviewer. The right reviewer is the kernel. **So the pricing half of the old
-stage 0 moves behind stage 1's headless kernel**, where a reference proof can
-be run rather than read, and the authoring line in the table below stays an
-estimate until then. That is a real cost of this re-framing and it is stated
-rather than hidden: the plan no longer has a cheap early answer to *what does
-the corpus cost*, and it has a cheap early answer to *do the rules work*, which
-is the question that was actually blocking.
+errors lived. §1 is explicit that the learner has no calculus fluency, so
+reviewing a drafted encoding by eye is a weak check made by the wrong reviewer.
+**The right reviewer is the kernel**, where a reference proof can be run rather
+than read. So checking the encodings waits for stage 1's headless kernel, and
+stage 0 gives a cheap early answer to *do the rules work*, which is the
+question that was actually blocking.
 
 **Stage 0b — drive Iscalc/HolPy before writing the API. Closed, 2026-09-21 and
 2026-09-22; findings in §4.2.** §16's three tiers make it the nearest neighbour
 architecturally as well as intellectually, down to the implementation language,
 which is what turned it from background reading into the obvious thing to try
-first. It cost an afternoon rather than the budgeted day.
+first.
 
 **What it returned.** Their step protocol resends the whole file per move — a
 counter-example for §16.3 rather than a model. Their side-condition automation
@@ -3505,21 +3498,19 @@ true. What a day of use added is that **the soundness property §15 exists to
 provide is absent from their kernel's own rules**, not merely unproved, which
 is the difference between a weaker version of this and a different thing.
 
-**Stage 0c — the `ring` spike, a few days.** Sparse polynomials over ℚ[atoms]
-as dictionaries of exponent tuples, `field` normalisation *emitting its
+**Stage 0c — the `ring` spike.** Sparse polynomials over ℚ[atoms] as
+dictionaries of exponent tuples, `field` normalisation *emitting its
 nonvanishing obligations*, run against §11.2's flagship residual. This is the
-widest single range in the effort table (60–110 hours), the one component whose
-bug is a false `Proved` rather than a rejected step, the one where no library
-can be borrowed because none emits obligations, and — per §15.5 — the one where
-a one-line reach for SymPy would end the project's claim. It is also where
-§16.2's performance risk lives. Three days here converts the largest estimate
-in this document from a guess into a measurement.
+one component whose bug is a false `Proved` rather than a rejected step, the
+one where no library can be borrowed because none emits obligations, and — per
+§15.5 — the one where a one-line reach for SymPy would end the project's claim.
+It is also where §16.2's performance risk lives.
 
 **Stage 0c closed on 2026-09-23** (`spike/ring/`, with its own README).
-`ring` and `field` come to ~370 lines of code, against the effort table's 600
+`ring` and `field` come to ~370 lines of code, against the size table's 600
 for `ring`/`field`/`norm_num`. There are 28 tests, including property tests
 that check every verdict against exact rational evaluation, and they catch
-each of four planted false-`Proved` bugs. It answered two of its three
+each of four planted false-`Proved` bugs. It answered both of its
 questions:
 
 - **Does the design work?** Mostly. It also corrected the flagship: §11.2's
@@ -3527,10 +3518,6 @@ questions:
   Five smaller corrections went to §5.3, §6.2 and §6.3.
 - **Is it fast enough?** Yes, by at least an order of magnitude on every
   corpus-shaped case (§16.2, §18 Q18).
-- **What does it cost to write?** *Not answered.* The spike was written by
-  Claude in one session, so it prices nothing about writing it by hand, for
-  the same reason stage 0 stopped measuring an authoring rate. The 60–110
-  hours stand as an estimate.
 
 **The recognizer table follows the headless kernel, not the other way round**
 (revision 8). The table had been listed as the next thing after 0c because it
@@ -3554,88 +3541,72 @@ propagation, which cover the obligations the target problems actually raise);
 the full §6.9 regularity table (only the C⁰/C¹ subset `ftc` needs); dimensions
 and `buckingham`; and the series and limit rules.
 
-### Effort
-
-Hours assume ~10 lines/hour for mechanical code and ~5–6 for the trusted core
-with its tests — fluent pace for correctness-critical symbolic code, not heroic
-pace.
+### Size
 
 **Stage 1 — the exploration environment.** Target: readiness **P1, P3, P5**
 worked in the loop, plus unit 00's quadrature cases, which need no numerics.
 
-| Component | Lines | Hours |
-|---|---|---|
-| **Kernel** — terms, equality, substitution, matcher | 300 | 20–30 |
-| **Kernel** — `ring` / `field` / `norm_num`, **with `field`'s obligations** | 600 | 60–110 |
-| **Kernel** — `deriv` + the derivative table (§6.3) | 200 | 15–25 |
-| **Kernel** — `ftc`, forward moves, obligation tracker, discharge | 250 | 30–50 |
-| **Kernel** — regularity, the C⁰/C¹ subset `ftc` needs (§6.9) | 120 | 12–20 |
-| **Kernel** — `abs` in goals: `d_abs`, the two rewrites, the C⁰/C¹ entry (§5.1) | 60 | 6–12 |
-| **Kernel** — `diverges`: the judgement, `div_limit`/`compare`/`power`/`pole` (§5.2) | 140 | 15–25 |
-| **Kernel** — parser + KaTeX printer + round-trip property test | 300 | 25–40 |
-| **Assistance** — palette, antiderivative card, recognizer, progress signal (§8.5) | 400 † | 40–65 |
-| **Assistance** — residual reporting and the three kinds of stuck (§8.7) | 200 | 20–35 |
-| **Assistance** — speculative probe, floating-point quadrature (§8.6) | 120 | 10–18 |
-| **Assistance** — factoriser and partial-fraction solver, `ring`-verified | 200 | 20–35 |
-| **Assistance** — `trig_norm`, the trig canonicaliser (§8.9) | 200 | 15–30 |
-| **Assistance** — attempt tree, session state, the §16.3 API | 350 | 30–50 |
-| **UI** — three panes, tree rendering, stepping and retraction, the ladder | 800 | 70–110 |
-| Run: the `./calc` entry point, vendored KaTeX, no dependencies | 40 | 5–15 |
-| Symbolic falsifier bank + the recognizer corpus (below) | — | 25–40 |
-| Authoring: readiness P1–P5 and unit 00's quadrature cases (**upper bound** — see below) | — | 20–60 |
-| **Total** | **~4,300** | **436–767** |
+| Component | Lines |
+|---|---|
+| **Kernel** — terms, equality, substitution, matcher | 300 |
+| **Kernel** — `ring` / `field` / `norm_num`, **with `field`'s obligations** | 600 |
+| **Kernel** — `deriv` + the derivative table (§6.3) | 200 |
+| **Kernel** — `ftc`, forward moves, obligation tracker, discharge | 250 |
+| **Kernel** — regularity, the C⁰/C¹ subset `ftc` needs (§6.9) | 120 |
+| **Kernel** — `abs` in goals: `d_abs`, the two rewrites, the C⁰/C¹ entry (§5.1) | 60 |
+| **Kernel** — `diverges`: the judgement, `div_limit`/`compare`/`power`/`pole` (§5.2) | 140 |
+| **Kernel** — parser + KaTeX printer + round-trip property test | 300 |
+| **Assistance** — palette, antiderivative card, recognizer, progress signal (§8.5) | 400 † |
+| **Assistance** — residual reporting and the three kinds of stuck (§8.7) | 200 |
+| **Assistance** — speculative probe, floating-point quadrature (§8.6) | 120 |
+| **Assistance** — factoriser and partial-fraction solver, `ring`-verified | 200 |
+| **Assistance** — `trig_norm`, the trig canonicaliser (§8.9) | 200 |
+| **Assistance** — attempt tree, session state, the §16.3 API | 350 |
+| **UI** — three panes, tree rendering, stepping and retraction, the ladder | 800 |
+| Run: the `./calc` entry point, vendored KaTeX, no dependencies | 40 |
+| **Total** | **~4,300** |
 
 † *Probably low.* The recognizer spike's shape analysis and rows alone came to
 ~560 lines, without the palette, the card or the progress signal, and without
-the chain-rule row or normalised matching (§8.5). The hours are not re-estimated,
-since a spike Claude wrote measures nothing about writing it by hand. The line
-count says the 400 undercounts, likely by half or more.
+the chain-rule row or normalised matching (§8.5). The line count says the 400
+undercounts, likely by half or more.
 
-**6–11 months at 15 hours a week; 4–7 at 25; 2½–4½ full-time.** The first
-useful landing is much earlier: the headless kernel proving §11.1 and §11.2 is
-roughly 160–275 hours of that. A narrower proof-of-life (`ring`/`field` +
-`deriv` + `ftc` against readiness P1 only, stub domains) was quoted here as
-60–100. **That was below the sum of its own rows** (60–110, 15–25 and 30–50,
-so 105–185). Revision 9 corrects it. `WHAT.md`'s proof-of-life adds terms, the
-matcher, the parser, `close`, the P1 rules from §6.8 and handles. Summed row by
-row, that is about **150–255 hours from scratch, or 90–145 with the ring
-spike's `ring`/`field` promoted**, which at 15 hours a week is most of the
+Stage 1 also carries the symbolic falsifier bank and the recognizer corpus
+(below), and authoring readiness P1–P5 and unit 00's quadrature cases. Both are
+content rather than lines.
+
+**The first useful landing is much earlier:** the headless kernel proving
+§11.1 and §11.2. `WHAT.md`'s proof-of-life is `ring`/`field` + `deriv` + `ftc`
+against readiness P1 only, with discharge stubbed, plus terms, the matcher, the
+parser, `close`, the P1 rules from §6.8 and handles — landing inside the
 four-month window below.
 
-**The authoring line is the one figure here that is an upper bound rather than
-an estimate**, and it is deliberately not revised downward. Stage 0 found the
-drafting mechanical, which would cut it — but what replaces drafting is review,
-and review is unpriced until there is a kernel to review against (see *The
-dominant cost*, below). Leaving 20–60 in place is the conservative reading;
-the total is quoted with it and would fall if the review measurement comes in
-low.
+**Against revision 4's OCaml estimate** (~4,450 lines) this is slightly
+smaller, and Python is simpler to write for exactly this shape of code —
+dictionaries of exponent tuples, pattern dispatch over a term type, a small
+HTTP layer — and the parser, the server and the build story are each
+meaningfully simpler. What that simplicity costs is stated in §16.2 and
+should not be forgotten: no type checker over the term
+language, no enforcement of §15.3, and a verified kernel that would be a
+rewrite rather than a module swap.
 
-**Against revision 4's OCaml estimate** (~4,450 lines, 480–840 hours) this is
-about 15% cheaper, and the saving is real rather than optimism: Python is
-faster to write for exactly this shape of code — dictionaries of exponent
-tuples, pattern dispatch over a term type, a small HTTP layer — and the parser,
-the server and the build story are each meaningfully simpler. What is bought
-with that saving is stated in §16.2 and should not be forgotten while spending
-it: no type checker over the term language, no enforcement of §15.3, and a
-verified kernel that would be a rewrite rather than a module swap.
-
-**The remaining uncertainty is `ring`/`field`, not the toolchain.** 60–110
-hours is the widest single range, nothing exists to copy because no library
-emits nonvanishing obligations, and it is the one component whose bug is a
-false `Proved` rather than a rejected step. It is also, per §15.5, the one
-place where a one-line reach for SymPy would quietly end the project. Budget
-the slow version and measure before optimising.
+**The remaining uncertainty is `ring`/`field`, not the toolchain.** No library
+emits nonvanishing obligations, so nothing outside the spike exists to copy,
+and it is the one component whose bug is a false `Proved` rather than a
+rejected step. It is also, per §15.5, the one place where a one-line reach for
+SymPy would quietly end the project. Write the slow version first and profile
+before optimising.
 
 **What comes after, if stage 1 earns it.**
 
-| Stage | Contents | Lines | Hours |
-|---|---|---|---|
-| **2. Certified numbers** | `enclose()` over MPFR, precision policy, interval extension and composition, `approx`, the certified probe and `quad_verified`, series and limit rules, dimensions and `buckingham`. Target: **unit 00 complete**, and readiness P1 including its five significant figures | ~1,650 | 170–280 |
-| **3. The integrator, then `auto` and `solve`** | table, derivative patterns, substitution heuristics, parts with cycle detection, the rational tier reusing stage 1's factoriser; then the search layers §2 prepared for | ~1,200 | 170–280 |
-| **4. Kernel completion** | Fourier–Motzkin with Farkas witnesses, the full §6.9 table, the ODE solver (§8.3) | ~600 | 70–110 |
-| **V. Machine-checked rules** | *deferred and unbound from any prover* (§14) — the rule table stated and proved in a prover, provenance tags, the assumption whitelist. 80–110 lemmas, most of them `cited`. **(A) only**; a verified kernel is §18 Q19 and is not planned | ~250 | 80–130 |
+| Stage | Contents | Lines |
+|---|---|---|
+| **2. Certified numbers** | `enclose()` over MPFR, precision policy, interval extension and composition, `approx`, the certified probe and `quad_verified`, series and limit rules, dimensions and `buckingham`. Target: **unit 00 complete**, and readiness P1 including its five significant figures | ~1,650 |
+| **3. The integrator, then `auto` and `solve`** | table, derivative patterns, substitution heuristics, parts with cycle detection, the rational tier reusing stage 1's factoriser; then the search layers §2 prepared for | ~1,200 |
+| **4. Kernel completion** | Fourier–Motzkin with Farkas witnesses, the full §6.9 table, the ODE solver (§8.3) | ~600 |
+| **V. Machine-checked rules** | *deferred and unbound from any prover* (§14) — the rule table stated and proved in a prover, provenance tags, the assumption whitelist. 80–110 lemmas, most of them `cited`. **(A) only**; a verified kernel is §18 Q19 and is not planned | ~250 |
 
-Everything through stage 4 is **~7,400 lines and 806–1,337 hours**; stage V on
+Everything through stage 4 is **~7,400 lines**; stage V on
 top of that is conditional spend, not planned spend, and the library install
 and two-lemma spike come with it rather than before it.
 
@@ -3652,16 +3623,12 @@ the integrator and the certified numeric kernel — arrive after the question
 It is authoring the formal goal for each problem — **and the unit is the
 lettered part, not the problem.**
 
-*How much of that survives stage 0's re-framing is now genuinely open, and this
-section states the old position first and the correction after it.* The
-counting below is unaffected and stands. What is affected is the **rate**:
-drafting an encoding turned out to be mechanical once the course has supplied
-the mathematics, so the term that prices the corpus is **review**, not
-authoring — and review cannot be priced until there is a kernel to review
-against, because §1's learner cannot check an encoding by eye. So the figures
-here are an upper bound inherited from a superseded model. They are kept, not
-revised downward on optimism, until stage 1 makes the real measurement
-available.
+*Stage 0's re-framing changes part of this, and this section states the old
+position first and the correction after it.* The counting below is unaffected
+and stands. What is affected is where the work lies: drafting an encoding
+turned out to be mechanical once the course has supplied the mathematics, so
+the real work is **review**, not authoring — and review needs a kernel to
+review against, because §1's learner cannot check an encoding by eye.
 
 §12.1 authors `unit00.P1.a`: one part, one
 goal, one answer schema, one proof script. Unit 00's P1 has parts (a)–(e), five
@@ -3672,10 +3639,10 @@ missed by counting problems.
 
 Two things pull the other way. Parts within one problem share their
 `var`/`fun`/`assume` declarations and physical setup, so the marginal part is
-much cheaper than the first. And **price the targets this document commits
-to**: stage 1 is readiness P1/P3/P5 plus unit 00's quadrature cases, stage 2 is
-unit 00 complete. That is tens of hours, not the 100–300 revision 1 quoted for
-work nobody has agreed to do. (Its supporting figures were also off: units
+much cheaper than the first. And **count only the targets this document
+commits to**: stage 1 is readiness P1/P3/P5 plus unit 00's quadrature cases, stage 2 is
+unit 00 complete. That is a small fraction of what revision 1 counted,
+which covered work nobody has agreed to do. (Its supporting figures were also off: units
 00–07 are 8 of 41 units and 98 of 512 problems, a **fifth** of the course, not
 a third.)
 
@@ -3710,7 +3677,7 @@ already ran.
 **One cost revision 1 did not have, because the component did not exist:** the
 recognizer table is *content*, not code, and its rows have to be right. That is
 the integration-techniques chapter transcribed and indexed by syntax, and it is
-the part of stage 1 where hours buy the most.
+the part of stage 1 where the work pays most.
 
 ### The falsifier bank, and the recognizer corpus
 
@@ -3829,15 +3796,14 @@ rather than averaged in.
 
 **Building the checker is more interesting than unit 00, and will stay that way
 for about four months.** This is a fact about proof-assistant projects, not
-about anyone's character. It is worth reading as an estimate of how long the
-motivation lasts rather than how long the work takes — the two differ by a
-factor of three — and it is the real argument for the ordering above: get the
+about anyone's character. It is an estimate of how long the motivation
+lasts, not of how long the work takes, and it is the real argument for the ordering above: get the
 loop running against readiness P1 inside that window, because that is the
 evidence that arrives while you still want it.
 
 It is also the argument for §14's deferral, stated once more in its sharpest
 form: **the worst outcome in this plan is not an unsound kernel, it is a
-hundred hours of Rocq proofs about a tool that nobody opened.**
+pile of Rocq proofs about a tool that nobody opened.**
 
 ---
 
@@ -4138,7 +4104,7 @@ What the exercise established beyond the number is that **a stated basis is
 what turns this from an argument into a count**, and §6.8's basis is now in
 §6.8; the other sections still need theirs.
 
-**One thing worth an hour, and it is optional.** Waterproof (TU Eindhoven,
+**One thing worth reading, and it is optional.** Waterproof (TU Eindhoven,
 arXiv:2606.01875) is the closest existing artefact to the *interaction* §16
 describes, and its published course evaluations are the only real evidence
 anyone has about whether a tool like this gets used. Revision 5 called that
@@ -4176,8 +4142,8 @@ Revision 4 chose OCaml on an extraction argument and rewrote §14, §15.3 and §
 around it; revision 5 withdrew the premise, settled on **Python in three tiers
 with a browser UI**, separated (A) verified rules from (B) a verified kernel in
 §14, reopened the prover question, and added §15.5's prohibition on SymPy in
-the kernel. §17's estimate fell to ~3,900 lines and 400–700 hours (since
-~4,300 and 436–767, with §8.9, `abs` and `diverges`). No rule, no
+the kernel. §17's estimate fell to ~3,900 lines (since ~4,300, with §8.9, `abs` and
+`diverges`). No rule, no
 judgement form and nothing in §15's claim changed across either. **On
 2026-09-21** a first pass of stage 0b added §4.2's findings from driving HolPy
 and its verdict: reimplement the core, with four things from HolPy to take into
@@ -4255,7 +4221,7 @@ and the rate measures whoever does it. What the gaps changed:
   coverage must not be read as move coverage.
 
 **One number moved and one moved for the first time.** Stage 1 goes to ~4,300
-lines and 436–767 hours with §8.9, `abs` in goals and `diverges`. And §6.8's
+lines with §8.9, `abs` in goals and `diverges`. And §6.8's
 70 is the first part of the owed
 rule recount to be counted rather than estimated — above all three of the
 ~80/~100/~110 readings, which means the disagreement was not between a high and
@@ -4383,9 +4349,6 @@ rewritten. Five reached this document:
 - **§11.1 / §11.2** — the `ftc` obligations are brought up to §6.4's split
   form, `cos_zero` is dropped where `ring` does its work, and the close's
   `3*sqrt 3 # 0` is listed.
-- **§17** — the proof-of-life figure is corrected from 60–100 hours to the sum
-  of its rows. At the handoff's scope that is 150–255 from scratch, or 90–145
-  with the ring spike promoted.
 - **§18 Q21** — what `rewrite` matches up to is open, with a default to trial.
 
 The review itself was folded in and not kept, as the revision-2 review was.

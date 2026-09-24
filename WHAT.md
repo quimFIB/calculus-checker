@@ -62,7 +62,7 @@ and says so in its own UI; §15.4 states what carries soundness instead.
 **The falsifier.** §17's gate: work readiness P1–P5 and unit 00's quadrature
 cases, and plot the maximum hint rung per problem against time. If the average
 does not fall, the tool is a crutch rather than a trainer and §1's claim has
-failed. ~4,300 lines and 436–767 hours to find out.
+failed. ~4,300 lines to find out.
 
 Read `DESIGN.md` §1, §8.5 and §17 first — the idea, the product, and what would
 kill it. Nothing else is required reading before stage 1; Waterproof's course
@@ -78,12 +78,8 @@ roughly four-month motivation window §17 warns about. A six-dimension review,
 with each finding checked by a skeptic, shaped what follows. Its design-level
 findings are `DESIGN.md` revision 9.
 
-**Budget: about 150–255 hours from scratch, or 90–145 with the ring spike's
-`ring`/`field` promoted** (§17, as corrected in revision 9). At 15 hours a
-week that is 6–17 weeks.
-
-**A session picking this up asks items 1–3 below first, before anything
-else.** They are the user's decisions, and they decide what gets measured.
+`ring`/`field` are promoted from the ring spike rather than rewritten (see
+*Scope*).
 
 **Read for this milestone**, beyond §1, §8.5 and §17:
 - §5.3–§5.4 (discharge, obligations);
@@ -94,26 +90,16 @@ else.** They are the user's decisions, and they decide what gets measured.
 - §15.3 (handles);
 - §18 Q21 (the matcher).
 
-**Where things go, by default:** the kernel in `kernel/`, the done script as
-`kernel/proof_of_life.py`, and the hours log as `kernel/HOURS.md`. `spike/`
-stays untouched as the record.
+**Where things go, by default:** the kernel in `kernel/` and the done script
+as `kernel/proof_of_life.py`. `spike/` stays untouched as the record.
 
 ### Before any code
 
-1. **Who writes it?** If you do, it is the first measurement of your own pace.
-   Every estimate so far is unmeasured, because Claude wrote both spikes. If
-   Claude writes it, it proves the loop and prices nothing.
-2. **Is `ring`/`field` promoted from the spike?** This decides whether §17's
-   widest row (60–110 h) gets measured at all.
-3. **Declare the hours per week and a target date.** At half the midpoint,
-   compare finished components against their §17 rows. If actual ÷ estimate on
-   from-scratch rows exceeds ~1.5, re-project stage 1 and re-scope before going
-   on.
-4. **Write the concrete grammar**: precedence, reserved names (`e` vs
+1. **Write the concrete grammar**: precedence, reserved names (`e` vs
    `e_const`), declared function symbols only, binders, `?A`, endpoints and
    domains. The spike's `terms.py` reads `e^x` with `e` as a variable,
    `x(x+1)` as a call to an undeclared function, and `x^2^3` as a real power.
-5. **Write both P1 proofs out step by step** as (move, args) data, before any
+2. **Write both P1 proofs out step by step** as (move, args) data, before any
    code:
    - every §6.8 entry pinned by its exact statement
      (`atan_one_sqrt3 : atan(1/sqrt 3) ≐ pi/6`);
@@ -121,7 +107,7 @@ stays untouched as the record.
    - `rewrite`'s matching settled, which is §18 Q21. The default to trial is
      that the left-hand side and target agree after **ring**-normalising atom
      arguments.
-6. **Write the expected obligation lists by hand**, each obligation with its
+3. **Write the expected obligation lists by hand**, each obligation with its
    domain and open and closed intervals kept distinct. Take them from §6.3,
    §6.4's four split `ftc` premises, and §11 as revision 9 corrected it. With
    discharge stubbed, these lists are the only thing the milestone shows about
@@ -217,43 +203,37 @@ A script with no UI, which stays as the regression suite, does all of this:
    parsed goal is echoed before it is proved, and undeclared function symbols
    are refused.
 
-**Then measure:**
-- Keep the hours log as (date, hours, §17 row, tag), with the tag one of
-  `from-scratch`, `rewrite-from-spike`, `promote` or `design-fix`.
-- Compare hours and lines per component against each row. Extrapolate only
-  from `from-scratch` rows, and report `design-fix` separately.
-- **Whoever wrote it**, measure review cost: time fixing each encoding until
-  the kernel accepts it with a correct obligation list. That is the review
-  cost per encoding that §17 has been waiting on. Drafting time is not review
-  time; log it separately. The goals come from the course, as the
-  kernel's first problem files (§16.4). Seed them with `STAGE0.md`'s S1–S3:
-  - S1 is ∫₀¹ 3x²+2x;
-  - S2 is ∫₀¹ x·exp(x²);
-  - S3's current encoding is below.
+**Then:** run the first course goals through the kernel as its first problem
+files (§16.4), fixing each encoding until the kernel accepts it with a correct
+obligation list. Seed them with `STAGE0.md`'s S1–S3:
 
-  `STAGE0.md` is a frozen record, and its S3 is the revision-5 version.
+- S1 is ∫₀¹ 3x²+2x;
+- S2 is ∫₀¹ x·exp(x²);
+- S3's current encoding is below.
 
-  ```
-  problem stage0.S3                         -- nontrivial domain obligation
-    answer schema  closed
-    goal  Int[x = 1 .. e_const] (ln x)/x  ≐  ?A
-  proof
-    step ftc  F := (ln x)^2 / 2
-         obl  F ∈ C⁰([1,e_const]) ∧ F ∈ C¹((1,e_const))   by reg
-              ⤷ obl  x > 0      @ [1,e_const]  by range, e_gt_one; linear
-         obl  D[x] F ≐ (ln x)/x    @ (1,e_const)  by deriv; field
-              ⤷ obl  x > 0      @ (1,e_const)  (d_ln)    by range, e_gt_one; linear
-              ⤷ obl  x # 0      @ (1,e_const)  (field)   by range, e_gt_one; linear
-         obl  (ln x)/x ∈ C⁰([1,e_const])                  by reg
-              ⤷ obl  x > 0      @ [1,e_const]  by range, e_gt_one; linear
-    step rewrite [ln_e, ln_one]
-    step close  ?A := 1/2                     by norm_num
-  qed
-  ```
+`STAGE0.md` is a frozen record, and its S3 is the revision-5 version.
 
-  Restated for revision 9, and checked against `spike/ring/`: `field` closes
-  the derivative owing `x # 0`, and the close needs `ln_e` and `ln_one`. It
-  needs `e_gt_one` (§6.8), so add that to the §6.8 entries when S3 is used.
+```
+problem stage0.S3                         -- nontrivial domain obligation
+  answer schema  closed
+  goal  Int[x = 1 .. e_const] (ln x)/x  ≐  ?A
+proof
+  step ftc  F := (ln x)^2 / 2
+       obl  F ∈ C⁰([1,e_const]) ∧ F ∈ C¹((1,e_const))   by reg
+            ⤷ obl  x > 0      @ [1,e_const]  by range, e_gt_one; linear
+       obl  D[x] F ≐ (ln x)/x    @ (1,e_const)  by deriv; field
+            ⤷ obl  x > 0      @ (1,e_const)  (d_ln)    by range, e_gt_one; linear
+            ⤷ obl  x # 0      @ (1,e_const)  (field)   by range, e_gt_one; linear
+       obl  (ln x)/x ∈ C⁰([1,e_const])                  by reg
+            ⤷ obl  x > 0      @ [1,e_const]  by range, e_gt_one; linear
+  step rewrite [ln_e, ln_one]
+  step close  ?A := 1/2                     by norm_num
+qed
+```
+
+Restated for revision 9, and checked against `spike/ring/`: `field` closes
+the derivative owing `x # 0`, and the close needs `ln_e` and `ln_one`. It
+needs `e_gt_one` (§6.8), so add that to the §6.8 entries when S3 is used.
 
 **After it:** the rest of stage 1 (real discharge, `int_subst`, regularity),
 then the in-process `step` becomes §16.3's API, then the recognizer table
@@ -278,17 +258,15 @@ scored on a held-out set (revision 8), then the UI.
    that it is a **fallback after `field` fails**, not a preprocessor.
 2. **The `ring` spike** (§17 stage 0c) — sparse polynomials over ℚ[atoms] with
    `field`'s nonvanishing obligations, in Python, against §11.2's flagship
-   residual. A few days; it is the widest single range in §17 and the one
-   component whose bug is a false `Proved`.
+   residual. It is the one component whose bug is a false `Proved`.
    **Closed 2026-09-23** — `spike/ring/`, folded into `DESIGN.md` as
    revision 7. It closes §11.2 with 28 tests passing, including property
    tests against exact evaluation. The finding that mattered: §11.2's
    `rewrite sqrt_sq_val` could never fire, so `field` now takes proven facts.
    Timings settle §18 Q18: §11.2 runs in ~1 ms, and every corpus-shaped case
-   is ≥10× inside the 100 ms budget. It does *not* price writing `ring`/`field`
-   by hand, since Claude wrote it.
-3. **The recognizer table** — content rather than code, and where hours buy
-   the most. **Spiked 2026-09-23** (`spike/recognizer/README.md`, folded into
+   is ≥10× inside the 100 ms budget.
+3. **The recognizer table** — content rather than code, and where the work
+   pays most. **Spiked 2026-09-23** (`spike/recognizer/README.md`, folded into
    `DESIGN.md` as revision 8). §8.5's table as written names the course's technique for 15
    of 22 target integrals, and 3 of 9 held out from units 01–10. Five rows
    fitted to the misses took the first set to 22/22 and the held-out set
