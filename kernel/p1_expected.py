@@ -6100,6 +6100,10 @@ DATA_CHANGES = (
      "Re-checked by hand (DISCHARGE_ORDER_CHECK): no other E27 case, "
      "exact-value rewrite or entries-order-dependent expectation changes",
      "discharge spec 2026-09-24, owner answers"),
+    ("PLANTED discharge bug farkas_any_fact's caught_by; DISCHARGE_MUST_REJECT farkas_schema_entry_as_fact (new)",
+     "farkas_any_fact is now caught at the new case farkas_schema_entry_as_fact (sqrt a # 0 @ [0, 1] with a sqrt_pos 'fact'), not at farkas_non_fact_entry",
+     "the build (commit 1 of DISCHARGE_SWITCH) showed farkas_non_fact_entry cannot isolate the mutation: with the fact rule dropped its combination -pi/2 + (1/2)*sqrt a is still no constant, so it is rejected anyway. In the new case the entry's atom is the proposition's, so only the fact rule stops the false claim; it is false at a = 0 (sqrt_zero). Checked by the main session",
+     'adjudicated during implementation'),
 )
 
 
@@ -7033,6 +7037,17 @@ DISCHARGE_MUST_REJECT = [
                         "so it is no constraint",
      "truth": ("true",),
      "if_emitted": ("discharged", T_LINEAR_PI)},
+    {"id": "farkas_schema_entry_as_fact",
+     "key": ("sqrt a # 0", "[0, 1]"),
+     "cert": _farkas({GOAL: "1", FACT("sqrt_pos"): "1"}, ">"),
+     "rejects_because": "sqrt_pos has a schema variable and a hypothesis, "
+                        "so it is no constraint; here the entry's own atom is "
+                        "the proposition's, so only that rule stops a false "
+                        "claim (sqrt a > 0 read as a constraint drops a > 0)",
+     "truth": ("false", {"a": "0"}),
+     # sqrt_zero at a = 0 reads 0 # 0 (E35 (3))
+     "if_emitted": ("refused", _point("sqrt a # 0 @ [0, 1]", "0 # 0",
+                                      entries=("sqrt_zero",), a="0"))},
     {"id": "farkas_infinite_end",
      "key": ("x <= 5", "[0, oo)"),
      "cert": _farkas({GOAL: "1", HI(0): "1"}),
@@ -7352,7 +7367,10 @@ DISCHARGE_NEW_PLANTED_BUGS = {
                       ("PROPERTY", "farkas")]},
     "farkas_any_fact": {
         "mutation": "a ('fact', name) label is accepted for any ENTRIES name",
-        "caught_by": [("DISCHARGE_MUST_REJECT", "farkas_non_fact_entry")]},
+        # was farkas_non_fact_entry, which cannot isolate this mutation: its
+        # combination, -pi/2 + (1/2)*sqrt a, is no constant, so it is rejected
+        # whether or not the fact rule holds (DATA_CHANGES, adjudicated)
+        "caught_by": [("DISCHARGE_MUST_REJECT", "farkas_schema_entry_as_fact")]},
     "farkas_no_goal_needed": {
         "mutation": "the ('goal',) multiplier may be absent",
         "caught_by": [("DISCHARGE_MUST_REJECT", "farkas_goal_unused")]},
