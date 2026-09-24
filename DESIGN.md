@@ -764,6 +764,17 @@ reversed limit made the constraint set inconsistent, and Fourier–Motzkin prove
 1 ≤ x ≤ −1, derives 0 ≤ x, discharges `sqrt_sq`, and the kernel proves −1 ≐ 0.
 Reversed limits are normal output of `int_subst` with a decreasing φ — `x = a
 cos θ` is the canonical case — so this was reachable, not hypothetical.
+*(Revision 10, int_subst: the claim holds, through a flip. Once every range
+owes `lo ≤ hi` (§6.4), a reversed range with symbolic ends owes an order that
+is false, so x = cos θ over [π/2, 0] was at first refused at the substitution
+itself. `int_subst` now builds the oriented form, ∫₀^{π/2} −(…) dθ, when
+discharge proves the ends' order the other way. That is this paragraph's
+definition applied once. Literal ends, as in x := 1 − t over [1, 0], are kept
+reversed, since every later step orders them the same way and owes nothing.
+∫₀¹ √(1−x²) by x = cos θ is accepted as a move. It does not finish yet. The
+goal still owes `1 − x^2 ≥ 0` and the new integrand owes `1 − (cos θ)^2 ≥ 0`,
+both tagged `none`, and closing needs `pyth` and a sign fact for cos on
+[0, π/2]. Neither gap is the substitution's.)*
 
 **Inverse hyperbolics are in.** Separable ODEs with quadratic drag integrate
 to `artanh`, and §8.5's recognizer row √(x²+a²) → x = a sinh u needs `asinh` to
@@ -969,6 +980,16 @@ A goal may first be `field`-normalised. Then, **in the order tried**:
    gap 6 had called this sound as intended, which it is, and harmless for S3
    and P1, which it was not.)*
 
+   *(Revision 10, int_subst, E49: each `sqrt` atom brings a sign fact the same
+   way. It is `sqrt_nonneg : sqrt u ≥ 0` (§6.8), and the linear method reads it
+   once for each `sqrt w` that occurs in the obligation or its domain, as it
+   reads `pi_pos`. Its hypothesis `u ≥ 0` gets no child obligation. A
+   certificate claims its obligation only where the obligation's terms are
+   defined, and wherever `sqrt u` is defined, `u ≥ 0` holds; it is the former
+   that was charged when the `sqrt` entered. This is what closes
+   `1 + sqrt x # 0` on [0, 4], the divisor §8.5's kill-the-root row meets
+   before any substitution.)*
+
    **The satisfiability pre-check below is safe with the constants free, but
    not for the reason revisions 6–8 gave.** They said a set satisfiable with
    π free is satisfiable with π at its value, and `pi < 3` shows that is false.
@@ -1093,6 +1114,19 @@ and the `cosh u > 0` of §6.9. If it is ever wired in, it is a **trusted** rule
 and belongs in §15's list as well as this one. Until then, the named positivity
 facts of §6.8 cover the cases that actually block.
 
+**Nor is there yet a method that decides an obligation false exactly**
+*(revision 10, int_subst review, E50)*. Discharge refuses what it can show
+false (§18 Q22), and one of its three ways is a rational counter-point. Since
+the review, the candidates include the rational roots of the obligation's own
+one-variable polynomials, so a rational pole inside a range is found (§5.4).
+An irrational one is not. `t^2 − 2 # 0` on [0, 2] is false at √2, no
+rational point shows it, and it stays admitted, tagged `none`. **Sturm
+sequences are the recorded future method, not built.** They decide exactly
+the sign of a one-variable polynomial on an interval, and they give a
+certificate the trusted checker can re-check by counting sign changes. That
+would make them the first method on this list that proves an obligation false,
+rather than failing to prove it true.
+
 ### 5.4 Obligations and the obligation pane
 
 Every rule application may emit obligations. The kernel maintains, for each
@@ -1110,8 +1144,22 @@ proof:
   `domain inconsistent`, or `certificate not accepted`. An obligation
   discharge decides false refuses the step with `obligation-decided-false`
   instead of being admitted. An admission tagged `none` may still be false,
-  such as `x − 5 # 0` on [0, ∞), which the bounded counter-point search
-  misses.)*
+  such as `t^2 − 2 # 0` on [0, 2], which the bounded counter-point search
+  misses.)* *(Revision 10, int_subst review, E50: the example was
+  `x − 5 # 0` on [0, ∞), which is now refuted at x = 5. The search's
+  candidates were a range's rational ends, its midpoint, and 0, 1 and −1,
+  never a root of the obligation's own polynomial. So a pole strictly inside
+  a range was admitted `none`. The skeptic's case: ∫ from −1 to 5/3 of 1/(x² + 1) by
+  x := 5/(2t − 5) over [0, 4] puts one at t = 5/2, and it read
+  `Proved modulo 9 admissions` for a false value. `ftc` alone has the same
+  class. The search now also tries the rational roots of each one-variable
+  polynomial piece of the obligation: the whole, each factor of a top-level
+  product, and each base of an integer power. The roots are bounded as the
+  tagger's factoriser is, and they are tried last, so no earlier refusal
+  message changes. **An admission tagged `none` may be false exactly when no
+  candidate refutes it.** The misses that remain are irrational roots, roots
+  beyond the bound, and pieces in more than one variable. §5.3 names the
+  exact method that would close the first.)*
 
 A proof with admissions reports `Proved modulo 3 admissions`, listing them,
 and never `Proved`. This is `Admitted` from Rocq, and it is what makes the
@@ -1530,6 +1578,101 @@ certificate, which costs the no-monotonicity generality; or a §10 interval
 enclosure R ⊇ φ([a,b]) with f ∈ C⁰(R), which is sound but is stage-2 machinery
 against a stage-1 target. `sep_autonomous` inherits whichever is chosen.)*
 
+**`int_subst` as built reads the rule both ways (revision 10, int_subst).**
+The letters are the drawn rule's. [a, b] is the range on which the map is
+differentiated, and every premise sits on it: it is the new range in forward
+mode and the old one in reverse.
+- **Forward, x := φ(t)**, which is §11.1's
+  `step subst (x := t^2) over t in [0, pi/2]`. The learner supplies φ and
+  the new range [a, b]. The kernel computes φ′ by `deriv` and never takes it
+  as an argument, so the classic forgotten-dx error cannot be typed. It
+  builds f(φ(t)) by the trusted capture-avoiding substitution, and replaces
+  the integral with `Int[t = a .. b] f(φ(t))·φ′(t)`. This is the rule as
+  drawn, read left to right.
+- **Reverse, u := g(x)**, which is the learner's "let u = x²". The goal's
+  integral is the right-hand side, with x for t and g for φ. The learner
+  supplies g, the new limits and the new integrand f(u). The kernel computes
+  g′ on [a, b] and checks **integrand ≐ f(g(x))·g′(x)** by `ring` or `field`,
+  taking facts as `ftc`'s check does. It then replaces the integral with
+  `Int[u = c .. d] f(u)`, where c and d are the learner's new limits. This is
+  the same theorem read right to left, and that identity is the checked link.
+  A failed check refuses the step with its residual. HolPy's first probe
+  (§4.2), ∫₋₁¹ x² by u = x² with new limits 1 .. 1 and f = √u/2, is refused
+  there, because f(g(x))·g′(x) is x·√(x²), and that is −x² for x < 0.
+
+**What it owes, and where each premise lives.**
+- **φ ∈ C¹ and f(φ(t)) ∈ C⁰ on [a, b], closed.** Both are admitted as
+  `regularity not built` until §6.9 exists, so a proof through k
+  substitutions and one `ftc` reads `Proved modulo 3 + 2k admissions`. In
+  reverse mode they are g ∈ C¹ and f(g(x)) ∈ C⁰ on the old range. By the
+  closed-map argument above, that is f continuous on g([a, b]), so g need not
+  be monotone and nothing is refused for it.
+- **`deriv`'s side conditions for φ′, also on the closed [a, b]**, not on an
+  open interval as `ftc`'s are. The theorem asks φ ∈ C¹([a, b]), and φ′
+  stands in the new integrand, which must be defined at the ends.
+- **The endpoint equations.** A goal's limits are written values, not the
+  images φ(a) and φ(b), so the step owes φ(a) ≐ the lower limit and
+  φ(b) ≐ the upper. In reverse mode it owes g(a) ≐ c and g(b) ≐ d. They are
+  two obligations, because a goal is a list (§5.2), and **both are decided
+  in the step, never admitted.** §6.8's exact values are applied first, then
+  the move's `ring` or `field`. A mismatch refuses the step with the
+  residual, lower end first. There are two reasons for deciding them in the
+  step. An equation is not a target of any §5.3 method, so a true
+  non-literal one such as `(pi/2)^2 ≐ pi^2/4` could otherwise only be
+  admitted. And without the exact values, x := ln t over [1, e] could never
+  pass, since `ln 1` is an atom to `ring`.
+- **The composed integrand's formers**, charged on [a, b] when the new goal
+  enters, as every new goal's are (§5.1). That is where §11.1's nested
+  `t^2 ≥ 0` comes from. The new variable must be fresh in the goal.
+- **The orientation of each range**, below.
+
+**Reading C¹ off `deriv` is sufficient, not necessary.** x := t·√t over [0, 1]
+is C¹, with φ′ = (3/2)√t continuous on the closed range. But `d_sqrt` owes
+t > 0 on [0, 1], which is false at 0, so the step is refused. That is a
+completeness limit and not a soundness one. It goes away only with §6.9's
+regularity rules, which can state C¹ without differentiating through the
+root.
+
+**A decreasing φ keeps the correspondence by end, not by order.** The new
+lower limit is the preimage of the old lower limit, so a decreasing φ gives
+reversed new limits, a > b.
+- **With two literal ends**, the range is ordered by `norm_num` and nothing
+  is owed. The limits are kept as given, reversed or not (x := 1 − t over
+  [1, 0]), and §5.1 gives them their meaning.
+- **With symbolic ends**, the kernel asks discharge for a ≤ b. If that is
+  proved, it is owed and the limits are kept. Otherwise it asks for b ≤ a. If
+  that is proved, the step emits the **flipped, oriented** integral
+  `Int[t = b .. a] −(f(φ(t))·φ′(t))`, with the premises on [b, a]. If neither
+  order is proved, the step is refused with
+  `int-subst-orientation-undecided`. The flip is §5.1's definition of a
+  reversed integral composed with this rule. It is a trusted addition to the
+  rule table and owes nothing beyond the discharged order. It is what lets
+  §5.1's x = cos θ over [π/2, 0] through.
+
+Reverse mode orients its new limits c and d in the same way. It owes the old
+range's a ≤ b as `ftc` does, since its premises sit there.
+
+One consequence is stricter than `ftc`. An undecided symbolic order, which
+`ftc` would emit and admit, refuses here, because the kernel must know which
+form to build. Readiness P1.1 without `pi_pos` is refused at its `subst` step.
+
+**It acts on one integral, chosen as `rewrite` chooses a position.** An
+optional occurrence selects the k-th integral, counting as `rewrite` counts
+(§6.1). With no occurrence given, exactly one integral binding the named
+variable must exist, and two or more refuse the step as ambiguous. This is
+not `rewrite`'s every-occurrence default. Two integrals binding x generally
+have different limits and bodies, and one set of endpoint equations fits only
+one of them. Everything is owed at the position's domain: the goal's domain,
+plus the range of each enclosing integral. Putting the new integral in place
+of the old one is `rewrite`'s congruence. Under a `D[y]`, §6.1's open-domain
+rule applies, as it does for `rewrite`. Everything the step emits is on a
+closed range or is a regularity judgement, and neither is open in y. So if y
+occurs in the selected integral or in the move's terms, the step is refused.
+If it occurs in none of them, nothing emitted mentions y. *(Specified before
+the code as `kernel/p1_expected.py` E36–E49, with the owner deciding the
+reverse mode, the flip, the selector and §5.3's `sqrt_nonneg`, then built and
+reviewed. P1.1 now starts from the sheet's own goal, §11.1.)*
+
 **The split premises do not over-admit, and the case that shows it is
 ∫₀¹ x^(−1/2) dx = 2.** Splitting the regularity across [a,b] and (a,b) was
 meant to let in an integral whose *antiderivative* misbehaves at an endpoint
@@ -1796,6 +1939,12 @@ because the corpus raises them; they are stated by the mathematics:
   `d_ln`'s `x > 0` is out of reach. Cited, and added by §5.3 whenever `e_const`
   occurs. It is `> 1` rather than `> 0` because 1 is the endpoint the corpus
   pairs it with.
+- `sqrt_nonneg : sqrt a ≥ 0 @ a ≥ 0` — *revision 10, int_subst* (E49). `sqrt a`
+  is an opaque atom to Fourier–Motzkin, so `1 + sqrt x # 0` had no method,
+  and it is the divisor of ∫₀⁴ 1/(1 + √x), the first thing the kill-the-root
+  row meets. §5.3's linear method reads it once for each `sqrt` atom in an
+  obligation, as it reads `pi_pos`. Its hypothesis owes nothing, since it is
+  the former the `sqrt` already paid on entry (§5.3).
 
 `cite <Lemma>` invokes a named theorem from a curated library file with its
 hypotheses checked. **The library file is part of the trusted base** (§15) and
@@ -1889,9 +2038,10 @@ not the run that works. It is the one that does not.
     This integrand wants a substitution: there is a root around the
     argument of a transcendental, and nothing in the table matches.
 
-  > step subst (x := sin t) over t in [0, pi/2]                  ← your guess
+  > step subst (x := pi^2/4 * sin t) over t in [0, pi/2]         ← your guess
     ✓ legal.
-      ⊢ Int[t = 0 .. ...] sin(sqrt(sin t)) * cos t  ≐  ?A
+      ⊢ Int[t = 0 .. pi/2] sin(sqrt(pi^2/4 * sin t)) * (pi^2/4 * cos t)
+          ≐  ?A
     ⚠ no progress: the root is still there, and the integrand now
       matches nothing.  2 atoms before, 3 after.
 
@@ -1902,7 +2052,7 @@ not the run that works. It is the one that does not.
   > step subst (x := t^2) over t in [0, pi/2]
     ✓  obl  t^2 ∈ C¹([0, pi/2])                     reg
        obl  sin(sqrt(t^2)) ∈ C⁰([0, pi/2])          reg → t² ≥ 0 by sign
-       obl  0^2 ≐ 0 ∧ (pi/2)^2 ≐ pi^2/4             ring
+       obl  0^2 ≐ 0,  (pi/2)^2 ≐ pi^2/4             ring, in the step
     ✓ progress: root removable, `sqrt_sq` now matches at position 1.
       probe: value preserved, 12 digits agree.                   ~
 ```
@@ -1915,6 +2065,16 @@ nothing. The progress signal (§8.5) is what turned a legal dead end into
 feedback. The ladder gave a nudge before it gave the answer. And the
 speculative probe (§8.6) confirmed the good substitution numerically before any
 effort went into the four steps after it.
+
+*(Revision 10, int_subst: earlier revisions showed the guess as `x := sin t`
+and marked it legal. It is not legal. Its upper end maps to
+sin(π/2) = 1, not π²/4, and no t reaches π²/4, since sin ≤ 1. The kernel
+refuses it at the step with `int-subst-endpoint-mismatch` and the residual
+`1 − pi^2/4`. That is feedback too, but it comes from the kernel and not from
+the progress signal. A legal dead end has to map both ends, so the guess shown
+is scaled: its ends map by `sin_zero` and `sin_pi_half`. §8.6 keeps the
+unscaled guess as its probe example. The good substitution's endpoint line is
+two equations, both decided in the step (§6.4).)*
 
 **by hand** — you supply every move; the tool does the algebra. This is the
 same script with the palette and the ladder ignored.
@@ -2072,7 +2232,8 @@ what it looks like when you would rather do it yourself.
 
 | Move | You supply | The tool supplies |
 |---|---|---|
-| substitution | *x* := φ(*t*) and the range | computes φ′, rewrites, checks φ ∈ C¹ and emits `f(φ(t)) ∈ C⁰([a,b])` |
+| substitution, forward | *x* := φ(*t*) and the new range | computes φ′, rewrites, decides both endpoint equations, emits φ ∈ C¹ and `f(φ(t)) ∈ C⁰([a,b])` |
+| substitution, reverse | *u* := *g*(*x*), the new limits and the new integrand *f*(*u*) | computes *g*′, checks integrand ≐ *f*(*g*(*x*))·*g*′(*x*), decides both endpoint equations, emits *g* ∈ C¹ and `f(g(x)) ∈ C⁰` on the old range |
 | by parts | *u* and *v* | computes *u*′, checks *v*′, assembles both halves |
 | partial fractions | the ansatz, or nothing | solves for the coefficients exactly; verifies by recombining |
 | completing the square | nothing | does it; `ring` verifies |
@@ -2115,7 +2276,7 @@ with what each move will demand in return:
   √(x² + a²)                     →  x = a sinh u                [inverse: asinh]
   √(x² − a²)                     →  x = a cosh u                [x ≥ a; inverse: acosh]
   √(u) inside f(·)               →  u = t², kill the root       [emits u ≥ 0]
-  f′(x)·g(f(x))                  →  u = f(x)                    [see below]
+  f′(x)·g(f(x))                  →  u = f(x)                    [reverse int_subst]
   f′(x)/f(x)                     →  ln|f|                       [emits f # 0]
   tan u,  tanh u                 →  −ln|cos u|,  ln cosh u      [f′/f after tan_def]
   P(x)·e^{ax}, P(x)·sin ax       →  parts, reducing deg P each time
@@ -2144,7 +2305,13 @@ and the `cases` split on f's sign is no longer needed.
   was offered Weierstrass. It is the one row that is a search rather than a
   pattern: is some factor a constant multiple of the derivative of a subterm of
   another factor? `field`'s constant-ratio test (D[x] of the ratio ≐ 0) is
-  what answers it.
+  what answers it. *(Revision 10, int_subst: the move the row names is
+  `int_subst`'s reverse mode, u := f(x). The learner writes g(u), and the
+  kernel checks the integrand against g(f(x))·f′(x) (§6.4). Until then the
+  rule table had only the forward move. Its emulation of u = x² as x := √u is
+  refused, correctly, because √ is not C¹ at 0, so the commonest substitution
+  there is had no substitution move at all, and `ftc` closed those integrals
+  directly.)*
 
 **The rows match the normalised goal, not the written one** (revision 8).
 Three of the spike's six held-out misses were rows reading the raw term:
@@ -2229,7 +2396,7 @@ transformed integral still has the same value.
 ```
 ```
   > step subst (x := sin t) over t in [0, pi/2]
-    ~ probe: 2.0000000000 vs 1.3012779 — VALUE CHANGED.
+    ~ probe: 2.0000000000 vs 0.6023373579 — VALUE CHANGED.
       Check the endpoints and the dx factor.
 ```
 
@@ -2237,6 +2404,18 @@ This is the single largest reduction in the cost of a wrong guess in the whole
 document, which is why it is in v1 despite needing no kernel support at all:
 a mistaken substitution is caught in milliseconds instead of four steps later
 when `ftc` refuses to close.
+
+*(Revision 10, int_subst: the second probe printed 1.3012779, which is not the
+value of that move. With the range shown, the transformed integral is
+∫₀^{π/2} sin(√(sin t))·cos t dt = ∫₀¹ sin √x dx = 2 sin 1 − 2 cos 1 ≈ 0.6023,
+as mpmath and SymPy both give. The kernel now refuses this move
+itself, because its upper end does not map (§8.1). A substitution the kernel
+accepts cannot change the value, since φ′ is computed and both endpoint
+equations are decided in the step (§6.4). So for `int_subst` the probe's catch
+repeats a refusal and adds the size of the error. A changed value the kernel
+does not refuse can now come only through an admission: a regularity premise,
+or an obligation tagged `none` that is false, such as a pole the counter-point
+search misses (§5.4).)*
 
 **It is explicitly not evidence, and the UI marks it `~` rather than `✓`.**
 The v1 probe is ordinary floating-point adaptive quadrature. It can be wrong in
@@ -2663,15 +2842,18 @@ exercises the whole design.
 problem readiness.P1.1
   answer schema  closed
   goal  Int[x = 0 .. pi^2/4] sin(sqrt x)  ≐  ?A
+       obl  4 # 0                                      by norm_num     ✓
        obl  0 ≤ pi^2/4                                 by sign         ✓
        obl  x ≥ 0  @ [0, pi^2/4]                       by range        ✓
 
 proof
   step subst (x := t^2) over t in [0, pi/2]
-       obl  t^2 ∈ C¹([0, pi/2])                        by reg          ✓
-       obl  0^2 ≐ 0 ∧ (pi/2)^2 ≐ pi^2/4                by ring         ✓
-       obl  sin(sqrt(t^2)) ∈ C⁰([0, pi/2])             by reg          ✓
+       obl  2 # 0                                      by norm_num     ✓
        obl  0 ≤ pi/2                                   by linear, pi_pos ✓
+       obl  0^2 ≐ 0                                    by ring, in step ✓
+       obl  (pi/2)^2 ≐ pi^2/4                          by ring, in step ✓
+       obl  t^2 ∈ C¹([0, pi/2])                        by reg          ✓
+       obl  sin(sqrt(t^2)) ∈ C⁰([0, pi/2])             by reg          ✓
        obl  t^2 ≥ 0  @ [0, pi/2]                       by sign         ✓
   ⊢ Int[t = 0 .. pi/2] sin(sqrt(t^2)) * (2*t)  ≐  ?A
 
@@ -2702,6 +2884,19 @@ former (§5.1), and `t^2 ≥ 0` was listed before only as `reg`'s sub-obligation
 second, since by-range needs the order before it can supply `t ≥ 0`. `sqrt_sq`'s
 obligation is written as the entry states it, `t ≥ 0`, because obligations are
 keyed in each rule's own orientation.)*
+
+*(Revision 10, int_subst: the kernel now runs this from the sheet's own goal,
+with the `subst` step included, and reports `Proved modulo 5 admissions`. Two
+of them are the substitution's `reg` premises and three are `ftc`'s, so every
+one is regularity, which §6.9 closes. Everything else is discharged. The
+endpoint line was one conjunction and is two obligations, because §5.2's goals
+are lists. Both are decided in the step by `ring`, with §6.8's exact values
+first where φ is transcendental, and neither can be admitted (§6.4). `pi/2`'s
+`2 # 0`, which the note above mentions, is listed now, and so is the goal's
+`4 # 0`. The substitution's lines are in the order the kernel emits them. The
+new integrand is shown tidied: the kernel carries `deriv`'s `2*t^1*1`, which
+`ring` reads as `2*t`. The run is staged beside the main proof set, and it
+joins that set in the next consolidation step.)*
 
 Three things to notice, and one correction from revision 1. *(Revision 9
 brought the `ftc` premises up to §6.4's split form, named `pi_pos` beside
@@ -3905,6 +4100,8 @@ proving §11.1 and §11.2. `WHAT.md`'s proof-of-life built `ring`/`field`,
 and handles against readiness P1, with discharge stubbed, in `kernel/`. The
 rest of the kernel list — real discharge, `int_subst`, regularity, `abs`,
 `diverges` — and everything under assistance and UI are still to do.
+*(Revision 10, int_subst: real discharge and `int_subst` have since landed, and
+P1.1 proves from the sheet's own goal. Regularity, `abs` and `diverges` remain.)*
 
 **Against revision 4's OCaml plan**, Python is simpler to write for exactly this
 shape of code — dictionaries of exponent tuples, pattern dispatch over a term
@@ -4339,6 +4536,10 @@ the change of language and deployment, and reopen Q7.
       lies in its domain and makes it false. F3 keeps full reach: a goal with
       no stated domain whose terms are undefined somewhere, such as
       `ln x * 0 ≐ ?A`, is refused. Stating `@ x > 0` is the learner's move.
+      *(Revision 10, int_subst review, E50: the candidates include the
+      rational roots of the obligation's one-variable polynomial pieces, so
+      a rational pole inside a range is refused. Irrational roots are still
+      missed, §5.3 and §5.4.)*
 
     The decided-false check can only refuse, so it is untrusted, beside E27.
     Misses of the bounded search stay admitted and tagged `none`.
@@ -4790,6 +4991,32 @@ passes 225 checks. What reached this document:
 The record is `PROOF_OF_LIFE.md`. **The pattern holds a fourth time:** building
 the kernel found two unsound rule statements that the design review, the
 encoding pass and the spikes had all passed.
+
+**Revision 10, continued — `int_subst`, 2026-09-24.** The substitution move was
+specified by hand before any code (`kernel/p1_expected.py` E36–E49, five of
+them the owner's answers), then built, then given to a skeptic. The skeptic
+found no false step. It did find one false theorem: a substitution created a
+rational pole that the counter-point search never tried (E50). The suite passes
+582 checks. What reached this document:
+- **§6.4** — `int_subst` as built: forward and reverse modes, where each
+  premise lives, endpoint equations decided in the step, the flip for a
+  decreasing φ, and an occurrence selector that follows `rewrite`'s rules.
+  Reading C¹ off `deriv` is sufficient, not necessary.
+- **§5.1** — x = a cos θ, the canonical reversed case, is accepted through the
+  flip.
+- **§8.1 / §8.6** — the worked example's wrong guess was never legal, because
+  its upper end does not map. The guess is now scaled, and the probe's value is
+  corrected to 0.6023.
+- **§8.4 / §8.5** — the chain-rule row is reverse-mode `int_subst`.
+- **§11.1** — P1.1 runs from the sheet's own goal, modulo 5 admissions, all of
+  them regularity. The endpoint line is two obligations, and `2 # 0` is listed.
+- **§5.3 / §5.4 / §6.8 / §18 Q22** — `sqrt_nonneg` for the linear method, and
+  rational roots as counter-points. Irrational poles stay admitted `none`, and
+  Sturm sequences are recorded as the exact method for them.
+
+**The pattern holds a fifth time, in a new place.** The flagship example's own
+wrong guess, which §8.1 builds its argument on, had been marked legal since it
+was written. Specifying the move was enough to find that.
 
 **This file is the whole design record.** The review document and the
 revision-1 draft were folded in and deleted on 2026-09-20, before the project
