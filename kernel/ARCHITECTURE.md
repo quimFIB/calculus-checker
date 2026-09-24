@@ -287,8 +287,11 @@ proceeds as follows, with refusals given in the order they are tested:
   optionally `"occurrence": int`. It follows REWRITE_RULE steps 1–11. The
   refusals, in order: an unknown or non-equation entry, or inst keys that are
   not the schema (`bad-args`); instantiation (`rpow-literal-exponent`); step 2
-  (`rewrite-target-not-found`); step 3 (`Int-or-D-not-normalisable` when
-  either argument holds an Int or D node, E26 (b); else
+  (`rewrite-target-not-found`); step 2a, E57 (`Int-or-D-not-normalisable`
+  when an inst value or the target holds an Int or D node, on every match
+  branch: `kernel._no_trees_erased`, a seam); step 3
+  (`Int-or-D-not-normalisable` when either argument holds an Int or D node,
+  E26 (b), now reached only through a seam; else
   `rewrite-lhs-mismatch`); step 6 per occurrence (`rewrite-scope`); step 9
   per occurrence (`rewrite-under-D-needs-open-domain`); then E25/E7 on the
   emissions; then `check_goal` on the new goal. Step 9 tests H and
@@ -664,7 +667,7 @@ closing check's code, so deleting the check fails the case.
 
 | BACKSTOPS key | Seam | The child's patch | Expected |
 |---|---|---|---|
-| `rewrite_closing_check_goal` | `field.ring_equal`, called by its module name in rewrite's step 3 | `lambda a, b: True` | `shadowing` on rewrite_inst_shadows |
+| `rewrite_closing_check_goal` | `field.ring_equal`, called by its module name in rewrite's step 3, and `kernel._no_trees_erased`, E57's step 2a (REVIEW2_CHANGES) | `lambda a, b: True` and a no-op | `shadowing` on rewrite_inst_shadows |
 | `ftc_closing_check_goal_Int_in_F` | `deriv.const_guard` | `lambda t: None` | `D11-bound-and-free` on ftc_F_holds_Int_binder |
 
 Two more, the suite's own **ISOLATED_SEAMS**, weaken each of E26 (b)'s
@@ -679,8 +682,11 @@ still stops to keep their refusal.
 | `norm_num_ignores_domain_only` | `field.norm_num_tree` | skip when `in_domain` | norm_num_refuses_Int_in_range_domain and its 1/x twin | norm_num_refuses_Int_in_domain, goal_hyp_holds_Int (the gate) |
 | `install_admits_hypothesis_trees` | `field.hypothesis_tree` | `lambda node: None` | goal_hyp_holds_Int, goal_hyp_holds_D | norm_num_refuses_Int_in_domain, norm_num_refuses_D_in_domain, norm_num_refuses_Int_in_range_domain (E7) |
 
-The kernel has no module-level cache a patched run could leave
-behind, and the unpatched run never imports `unittest.mock`.
+The kernel's one module-level cache is `kernel._ORDER_MEMO`, E56's
+orientation answers memoised per key (§12). Discharge is a function of the
+key and ENTRIES alone, a child process patches its seam before anything
+runs, so the memo starts empty there, and the unpatched run never imports
+`unittest.mock`.
 
 ## 8. What `proof_of_life.py` asserts (Done-when 1–6)
 
@@ -1018,12 +1024,33 @@ accordingly. Neither refuses `orientation-undecided`, one code for every
 step, replacing int_subst's `int-subst-orientation-undecided`. A proved
 order is never wrong, so the interval is never empty.
 
-`_positions` decides each Int's order as the walk reaches it, but defers an
-undecided one: the range stands as `[lo, hi]` and its `_IntScope` carries
-the refusal, which `_emit_at` raises, before emitting the key, when a key's
-domain uses that range. So an Int whose body owes nothing needs no order
-(INT_FLIP_ACCEPTS flip_reversed_symbolic_to_value's goal), and ftc and
-int_subst, whose premises always use their range, refuse at once.
+**Laziness and enclosing ranges** (E56_AMENDMENTS, the consolidation
+review). `_positions` decides no symbolic order: the range stands in the
+inner domain as a placeholder `[lo, hi]`, recognised by identity, and its
+`_IntScope` is marked pending. `kernel._decided(buf, dom, anc, goal_dom)` (a
+seam) is the only way a pending range is resolved: it decides every pending
+range a domain holds, outermost first, each at its own position domain (the
+items before it, already decided), by `_range_of`; it replaces the
+placeholder with the decided interval, emits the decided order (source
+`orient`), or refuses `orientation-undecided` naming that range. `_emit_at`
+calls it for every key with free variables (such a key holds the whole
+position domain), before emitting the key, and int_subst calls it on its
+position domain P at step 8, before any emission, since all its keys are at
+P or a domain extending it. Every other emission is on a domain that holds
+no placeholder (the goal's own, ftc's top-level range, int_subst's decided
+P and ranges). So no emitted key's domain holds an undecided interval, the
+enclosing Ints' ranges included (E56_REVIEW_CASES), and a range no emitted
+key uses is never decided: an Int whose body owes nothing needs no order
+(INT_FLIP_ACCEPTS flip_reversed_symbolic_to_value's goal, and the timing
+goal `Int[x = (a-1)^40 .. 0] sin 0`, which installs in under a millisecond,
+bound E56_TIMING_BOUND, where eager decisions took 30 s). Each orientation
+question is memoised per key (`kernel._ORDER_MEMO`).
+
+**E57** (`kernel._no_trees_erased`, rewrite's step 2a, a seam): an inst
+value or target holding an Int or D node is refused
+`Int-or-D-not-normalisable` on every match branch, since a tree-branch
+entry whose right side drops a schema variable (pyth) would erase it. It
+makes step 3's ring_nf refusal of such an argument unreachable from a move.
 
 **int_flip (E51)** is the sixth move. `_flip_select` is int_subst's
 selector without a variable (`int-flip-no-integral`, with the occurrence
@@ -1108,3 +1135,13 @@ name:
 | `atom_fact_any_entry` | `discharge._atom_fact` | any ENTRIES ordering with one schema variable |
 | `orientation_tries_one_order` | `kernel._range_of` | only `lo <= hi` tried |
 | `orientation_order_unproved` | `kernel._range_of` | `[hi, lo]`, owing `hi <= lo`, whenever `lo <= hi` is not proved |
+| `rewrite_tree_branch_skips_E57` (REVIEW2_PLANTED_BUGS) | `kernel._no_trees_erased` | the test only when the left side is an App |
+| `enclosing_range_undecided` (REVIEW2_PLANTED_BUGS) | `kernel._decided` | the domain returned as it is, nothing decided |
+
+Section 15 (REVIEW2_SWITCH) is asserted in item C: E57_PRINCIPLE names
+every move, E57_BAD_MOVES by code, E57_ACCEPTS with its close to a plain
+`Proved.`, E56_REVIEW_CASES' refused and decided int_subst cases, and the
+lazy install, whose goal_emits are compared and whose CPU time
+(`time.process_time`, so other processes' load does not count; one repeat
+over the bound, the smaller kept) must be within E56_TIMING_BOUND. Item 5's
+`1/(x - 1)^150` bound of 3 s is measured the same way.

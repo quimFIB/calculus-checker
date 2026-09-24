@@ -1413,6 +1413,7 @@ def refusal_coverage_problems():
     needs a case too, from DIRECT_REFUSALS when no move reaches it."""
     named = {c["refusal"] for c in BAD_MOVES + X.WRONG_ANSWERS + SUITE_BAD_MOVES
              + SUBST_BAD_MOVES + (X.INT_FLIP_BAD_MOVES + X.E56_BAD_MOVES
+                                  + X.E57_BAD_MOVES + X.E56_REVIEW_CASES["bad_moves"]
                                   if CONSOLIDATED else [])}
     if S0 is not None:
         named |= {c["refusal"] for c in S0.INT_SUBST_WRONG_ANSWERS
@@ -2226,8 +2227,11 @@ def clean_after_problems():
 # goal whose binder is also free (rewrite's inst Int shadowing the Int
 # around the target; ftc's F bringing an Int whose binder the rhs has free).
 BACKSTOPS = {
+    # REWRITE_RULE step 3, made lax, and E57's step 2a with it (REVIEW2_CHANGES):
+    # the case's Int reaches the rewrite through an inst value
     "rewrite_closing_check_goal": {
-        "case": "rewrite_inst_shadows", "seam": "field.ring_equal",  # REWRITE_RULE step 3, made lax
+        "case": "rewrite_inst_shadows",
+        "seam": "field.ring_equal and kernel._no_trees_erased",
         "refusal": "shadowing"},
     "ftc_closing_check_goal_Int_in_F": {
         "case": "ftc_F_holds_Int_binder", "seam": "deriv.const_guard",  # E12's guard, off
@@ -2239,9 +2243,15 @@ def backstop_patch(name, mock):
     """The child's patch for one BACKSTOPS case. The seam is asserted to
     exist first."""
     seam = BACKSTOPS[name]["seam"]
-    if seam == "field.ring_equal":
+    if seam == "field.ring_equal and kernel._no_trees_erased":
         assert callable(getattr(FD, "ring_equal", None)), "seam field.ring_equal is missing"
-        return mock.patch.object(FD, "ring_equal", lambda a, b: True)
+        assert callable(getattr(K, "_no_trees_erased", None)), \
+            "seam kernel._no_trees_erased is missing"
+        stack = contextlib.ExitStack()
+        stack.enter_context(mock.patch.object(FD, "ring_equal", lambda a, b: True))
+        stack.enter_context(mock.patch.object(K, "_no_trees_erased",
+                                              lambda lhs, inst, at: None))
+        return stack
     if seam == "deriv.const_guard":
         assert callable(getattr(DV, "const_guard", None)), "seam deriv.const_guard is missing"
         return mock.patch.object(DV, "const_guard", lambda t: None)
@@ -2477,13 +2487,36 @@ def mutation_results():
     return {n: f.result() for n, f in futures.items()}
 
 
-def mutation_problems(mutation, result):
+# DEFINEDNESS_MUTATIONS locations the rules no longer reach, each left
+# failing with its evidence until the data changes (a data_change_request).
+_E57_DCR = (
+    "data_change_request: E57_RULE's step 2a refuses "
+    "'Int-or-D-not-normalisable' when the target `at` holds an Int or D node, "
+    "before step 3's ring_nf runs; {case}'s target {at} holds one, so the case "
+    "is refused with its own code under this mutation too, and the location "
+    "cannot catch a ring_nf mutation any more. REVIEW2_CHANGES' 'nothing "
+    "changes' missed it: drop ('BAD_MOVES', '{case}') from {name}'s caught_by "
+    "(the mutation stays caught at its other locations)")
+MUTATION_DATA_CHANGE_REQUESTS = {
+    ("ring_reads_Int_as_atom", ("BAD_MOVES", "match_refuses_Int")): _E57_DCR.format(
+        case="match_refuses_Int", at="atan((Int[x = 0 .. oo] 1) - (Int[x = 0 .. oo] 1))",
+        name="ring_reads_Int_as_atom"),
+    ("ring_reads_D_as_atom", ("BAD_MOVES", "match_refuses_D")): _E57_DCR.format(
+        case="match_refuses_D", at="atan(D[x](abs x) - D[x](abs x))",
+        name="ring_reads_D_as_atom"),
+}
+
+
+def mutation_problems(mutation, result, name=None):
     data, out = result
     if data is None:
         return out
     found = data["mismatches"]
-    out += [f"not caught at {c}" for c in map(tuplify, mutation["caught_by"])
-            if c not in found]
+    for c in map(tuplify, mutation["caught_by"]):
+        if c not in found:
+            out.append(f"not caught at {c}")
+            if (name, c) in MUTATION_DATA_CHANGE_REQUESTS:
+                out.append(MUTATION_DATA_CHANGE_REQUESTS[(name, c)])
     if "admissions" in mutation and closed_admissions(data) != mutation["admissions"]:
         out.append(f"admissions {data['admissions']}, expected {mutation['admissions']}")
     return out + sheet_n_problems(data, mutation)
@@ -4359,8 +4392,9 @@ def subst_accept_problems(c, found=None, table="INT_SUBST_ACCEPTS"):
     # a case moved in by E56_CHANGES (reverse_symbolic_old_range_reversed)
     # gives no deriv row, and its deriv is then not asserted
     first = {"move": c["move"], "goal_after": c["goal_after"], "emits": c["emits"]}
-    if "deriv" in c:
-        first["deriv"] = c["deriv"]
+    for name in ("deriv", "occurrences"):
+        if name in c:
+            first[name] = c[name]
     steps = [first] + list(c.get("then", ()))
     for i, step in enumerate(steps):
         move, args = step["move"]
@@ -4369,6 +4403,9 @@ def subst_accept_problems(c, found=None, table="INT_SUBST_ACCEPTS"):
         want = None if step["goal_after"] is None else goal(step["goal_after"])
         if st.goal != want:
             miss(1, where + ("goal_after",), f"got {show(st.goal)}")
+        if "occurrences" in step and st.last.occurrences != step["occurrences"]:
+            miss(1, where + ("occurrences",),
+                 f"{st.last.occurrences}, expected {step['occurrences']}")
         if "deriv" in step:
             d = step["deriv"]
             for what, detail in deriv_problems(d["F"], st.last.trace, st.last.output, d):
@@ -4685,6 +4722,39 @@ def subst_planted_problems(name, result):
 
 FLIP_ACCEPTS, FLIP_BAD_MOVES = X.INT_FLIP_ACCEPTS, X.INT_FLIP_BAD_MOVES
 E56_ACCEPTS, E56_BAD_MOVES = X.E56_ACCEPTS, X.E56_BAD_MOVES
+# section 15 (the consolidation review, REVIEW2_SWITCH): E57's cases and
+# E56_AMENDMENTS' (the enclosing range refused and decided, and the lazy
+# install asserted by its time bound)
+E57_ACCEPTS, E57_BAD_MOVES = X.E57_ACCEPTS, X.E57_BAD_MOVES
+REVIEW_BAD = X.E56_REVIEW_CASES["bad_moves"]
+REVIEW_ACCEPTS = [c for c in X.E56_REVIEW_CASES["accepts"] if "move" in c]
+REVIEW_LAZY = [c for c in X.E56_REVIEW_CASES["accepts"] if "timing_bound" in c]
+
+
+def lazy_install_problems(c):
+    """E56_AMENDMENTS' laziness: the goal installs emitting its goal_emits
+    (nothing: no key uses the range, so no order is decided), within the
+    case's timing_bound of CPU time (_cpu_timed). The time is printed."""
+    r, secs = _cpu_timed(lambda: K.install(goal(c["goal"])), c["timing_bound"])
+    print(f"          installed in {secs:.4f} s of CPU time (bound {c['timing_bound']} s)")
+    if not isinstance(r, K.ProofState):
+        return [f"not installed: {describe(r)}"]
+    out = []
+
+    def miss(item, where, detail):
+        out.append(fmt(where, detail))
+
+    compare_emitted(miss, c["id"], "goal", c["goal_emits"], r.last.emitted,
+                    frozenset(), certs=case_certs(c))
+    if secs > c["timing_bound"]:
+        out.append(f"took {secs:.2f} s, more than {c['timing_bound']} s")
+    return out
+
+
+def e57_principle_problems():
+    """E57_PRINCIPLE checks every move: each of MOVES is named there."""
+    return [f"{m} is not checked against E57's principle" for m in K.MOVES
+            if m not in X.E57_PRINCIPLE]
 
 
 def e27_pyth_problems():
@@ -4751,6 +4821,24 @@ def consolidation_checks(suite):
     for b in E56_BAD_MOVES:
         suite.check("C", f"E56_BAD_MOVES {b['id']} -> {b['refusal']}",
                     lambda b=b: bad_move_problems(b))
+    print("\nThe consolidation review (section 15): E57 and E56's amendments")
+    suite.check("C", "E57_PRINCIPLE checks every move", e57_principle_problems)
+    for b in E57_BAD_MOVES:
+        suite.check("C", f"E57_BAD_MOVES {b['id']} -> {b['refusal']}",
+                    lambda b=b: bad_move_problems(b))
+    for c in E57_ACCEPTS:
+        suite.check("C", f"E57_ACCEPTS {c['id']} -> {c['report']!r}",
+                    lambda c=c: subst_accept_problems(c, table="E57_ACCEPTS"))
+    for b in REVIEW_BAD:
+        suite.check("C", f"E56_REVIEW_CASES {b['id']} -> {b['refusal']}",
+                    lambda b=b: bad_move_problems(b))
+    for c in REVIEW_ACCEPTS:
+        suite.check("C", f"E56_REVIEW_CASES {c['id']}",
+                    lambda c=c: subst_accept_problems(c, table="E56_REVIEW_CASES"))
+    for c in REVIEW_LAZY:
+        suite.check("C", f"E56_REVIEW_CASES {c['id']}: {c['goal']} installs emitting "
+                    f"nothing, within {c['timing_bound']} s (E56_TIMING_BOUND)",
+                    lambda c=c: lazy_install_problems(c))
 
 
 # CONSOLIDATION_PLANTED_BUGS and E56_PLANTED_BUGS, each in a child process
@@ -4761,14 +4849,15 @@ def consolidation_checks(suite):
 # cases beyond DISCHARGE_MUST_REJECT (their verdicts), and the property
 # test's families a bug's caught_by names.
 
-CONSOLIDATION_BUGS = {**X.CONSOLIDATION_PLANTED_BUGS, **X.E56_PLANTED_BUGS}
+CONSOLIDATION_BUGS = {**X.CONSOLIDATION_PLANTED_BUGS, **X.E56_PLANTED_BUGS,
+                      **X.REVIEW2_PLANTED_BUGS}
 
 
 def consolidation_seam_patch(name, mock):
     """The child's patch for one CONSOLIDATION_BUGS key: the mutation's own
     text, through the function that holds the rule."""
     import discharge as DC
-    atom_fact, range_of = DC._atom_fact, K._range_of
+    atom_fact, range_of, no_trees = DC._atom_fact, K._range_of, K._no_trees_erased
 
     def symbolic(lo, hi):
         """Neither end infinite, and not two rational literals: the ends E56
@@ -4822,6 +4911,10 @@ def consolidation_seam_patch(name, mock):
         "atom_fact_any_entry": (DC, "_atom_fact", any_entry),
         "orientation_tries_one_order": (K, "_range_of", one_order),
         "orientation_order_unproved": (K, "_range_of", order_unproved),
+        # REVIEW2_PLANTED_BUGS
+        "rewrite_tree_branch_skips_E57": (K, "_no_trees_erased", lambda lhs, inst, at: (
+            no_trees(lhs, inst, at) if isinstance(lhs, T.App) else None)),
+        "enclosing_range_undecided": (K, "_decided", lambda buf, dom, anc, goal_dom: dom),
     }
     if name not in patches:
         raise KeyError(f"no seam for consolidation planted bug {name!r}")
@@ -4854,7 +4947,13 @@ def consolidation_child(name):
                     ("E56_ACCEPTS", E56_ACCEPTS,
                      lambda c: subst_accept_problems(c, table="E56_ACCEPTS")),
                     ("E56_BAD_MOVES", E56_BAD_MOVES, bad_move_problems),
-                    ("DISCHARGE_BAD_MOVES_CHANGED", changed, bad_move_problems)):
+                    ("DISCHARGE_BAD_MOVES_CHANGED", changed, bad_move_problems),
+                    ("E57_BAD_MOVES", E57_BAD_MOVES, bad_move_problems),
+                    ("E57_ACCEPTS", E57_ACCEPTS,
+                     lambda c: subst_accept_problems(c, table="E57_ACCEPTS")),
+                    ("E56_REVIEW_CASES", REVIEW_BAD, bad_move_problems),
+                    ("E56_REVIEW_CASES", REVIEW_ACCEPTS,
+                     lambda c: subst_accept_problems(c, table="E56_REVIEW_CASES"))):
                 for c in cases:
                     try:
                         problems = fn(c)
@@ -4916,6 +5015,28 @@ def _timed(thunk):
     return r, time.perf_counter() - t
 
 
+def _cpu_timed(thunk, bound):
+    """(result, seconds) for thunk, the seconds being this process's CPU
+    time (time.process_time), which other processes' load does not add to,
+    unlike the wall clock. A run over `bound` is repeated once and the
+    smaller time kept, so a scheduling hiccup cannot fail a bound that the
+    code itself meets, while a regression (it costs its time on every run)
+    still fails it."""
+    import time
+    best, r = None, None
+    for _ in range(2):
+        t = time.process_time()
+        try:
+            r = thunk()
+        except Exception as e:  # noqa: BLE001 -- the failure being guarded against
+            r = e
+        secs = time.process_time() - t
+        best = secs if best is None else min(best, secs)
+        if best <= bound or isinstance(r, Exception):
+            break
+    return r, best
+
+
 def deep_input_problems():
     """A sum of 500 x's in a divisor installs, a close whose value holds a
     600-term divisor is refused close-not-evaluated, and 1/(x - 1)^300
@@ -4923,7 +5044,8 @@ def deep_input_problems():
     RecursionError to a rejection, _emit's steps (4)-(6) treat one as no
     rewrite, certificate or refutation, and the search's factorisations
     nest at most tagger.FACTOR_DEPTH deep. 1/(x - 1)^150 installs within 3 s
-    (it took 4.5 s before the bound)."""
+    of CPU time (_cpu_timed; it took 4.5 s before the bound, and 5.7 s in
+    the regression the review found)."""
     out = []
     r, _ = _timed(lambda: K.install(goal(DEEP_SUM)))
     if not isinstance(r, K.ProofState):
@@ -4935,7 +5057,8 @@ def deep_input_problems():
     if not (isinstance(r, K.Refusal) and r.code == "close-not-evaluated"):
         out.append(f"600-term close value: {describe(r)}")
     for n, limit in ((300, None), (150, 3.0)):
-        r, secs = _timed(lambda n=n: K.install(goal(f"1/(x - 1)^{n} == ?A @ x in (2, 3)")))
+        r, secs = _cpu_timed(lambda n=n: K.install(goal(f"1/(x - 1)^{n} == ?A @ x in (2, 3)")),
+                             limit if limit is not None else float("inf"))
         if not isinstance(r, (K.ProofState, K.Refusal)):
             out.append(f"1/(x - 1)^{n}: {describe(r)}")
         if limit is not None and secs > limit:
@@ -5305,7 +5428,7 @@ def main():
     results = mutation_results() if K is not None else {}
     for name, m in DEFINEDNESS_MUTATIONS.items():
         suite.check(3, f"{name}: {m['mutation']}; caught at {len(m['caught_by'])} "
-                    "location(s)", lambda n=name, m=m: mutation_problems(m, results[n]))
+                    "location(s)", lambda n=name, m=m: mutation_problems(m, results[n], n))
     print("\nDischarge planted bugs (each in a child process)")
     dresults = discharge_plant_results() if TD is not None else {}
     suite.check(3, "discharge control: the child, unpatched, finds nothing in the "

@@ -75,7 +75,8 @@ as 'Proved.'). Integral and Deriv nodes have no condition the kernel can
 state, and field.py refuses to normalise them instead (E26 (b)).
 
 **Seams** (ARCHITECTURE.md §7). `derivative_domain`, `_Tracker.add`,
-`NATURAL_DOMAINS`, `_encloses`, `_charge_formers` and `_range_of`,
+`NATURAL_DOMAINS`, `_encloses`, `_charge_formers`, `_range_of`, `_decided`
+and `_no_trees_erased`,
 int_subst's rule functions (`_select`, `_fresh`, `_subst_under_D`,
 `_new_orientation`, `_subst_deriv`, `_reverse_check`, `_endpoint`,
 `_forward_premises`, `_reverse_premises`, `_new_integrand`,
@@ -561,15 +562,17 @@ def _resolve_fact(state, obj):
 # position's domain is the goal's own domain, then the range of each
 # enclosing Int. A node's children are terms.children's, the one table.
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, eq=False)
 class _IntScope:
-    """An Int enclosing a position through its body: the Int, its range
-    Interval, its orientation key (None when E56 owes none), and, when E56
-    decided no order, the Refused that any key using the range raises."""
+    """An Int enclosing a position through its body: the Int and its range
+    Interval. `pending` is True when the ends are symbolic, so the order is
+    E56's to decide: `range` is then a placeholder [lo, hi], recognised by
+    identity in a domain, that _decided replaces by the decided interval
+    when a key whose domain holds it is emitted (E56_AMENDMENTS,
+    laziness). Otherwise `range` is the interval itself, owing no order."""
     integral: Integral
     range: Interval
-    orient: object
-    undecided: object = None
+    pending: bool = False
 
 
 def _subterms(t):
@@ -588,10 +591,28 @@ def _sides(g):
 ORIENTATION_UNDECIDED = "orientation-undecided"  # E56, every step's one code
 
 
+# E56_AMENDMENTS: each orientation question, memoised per key. Discharge is
+# a function of the key and ENTRIES alone (E32), so a repeated question has
+# the same answer; a child process that patches a seam starts with it
+# empty. Cleared when it grows past _ORDER_MEMO_BOUND keys.
+_ORDER_MEMO = {}
+_ORDER_MEMO_BOUND = 4096
+
+
 def _settles(key):
     """DISCHARGE_RULE's steps (3)-(5) alone, as E56 asks of an orientation
     candidate: norm_num, the exact values then norm_num, or a certificate
-    the trusted checker accepts. It never refutes and never emits."""
+    the trusted checker accepts. It never refutes and never emits. The
+    answer is memoised per key (_ORDER_MEMO)."""
+    if key in _ORDER_MEMO:
+        return _ORDER_MEMO[key]
+    if len(_ORDER_MEMO) >= _ORDER_MEMO_BOUND:
+        _ORDER_MEMO.clear()
+    _ORDER_MEMO[key] = said = _settles_uncached(key)
+    return said
+
+
+def _settles_uncached(key):
     try:
         said = FD.norm_num(key)
         if said is None:
@@ -651,6 +672,41 @@ def _range(integral, pos_dom):
     return _range_of(integral.var, integral.lo, integral.hi, pos_dom)
 
 
+def _symbolic(lo, hi):
+    """The ends E56 orders by discharge: neither infinite, and not two
+    rational literals. Only such a range has an order to decide."""
+    return (not any(isinstance(e, (PosInf, NegInf)) for e in (lo, hi))
+            and (FD.rational_value(lo) is None or FD.rational_value(hi) is None))
+
+
+def _decided(buf, dom, anc, goal_dom):
+    """E56_AMENDMENTS: `dom` with every pending range it holds decided,
+    outermost first, each at its own position domain (the items before it,
+    already decided), by _range_of: the placeholder is replaced by the
+    decided interval, and the decided order is emitted as its key (source
+    'orient'), or 'orientation-undecided' names that range. A key is only
+    ever emitted on a domain this returns, so no emitted key's domain holds
+    an undecided interval, the enclosing Ints' ranges of a position domain
+    included; and a range no emitted key's domain holds is never decided.
+
+    A seam (ARCHITECTURE.md §7): every caller looks it up by this global
+    name, and the planted bug enclosing_range_undecided replaces it."""
+    out, orients = list(dom), []
+    for a in anc:
+        if not (isinstance(a, _IntScope) and a.pending):
+            continue
+        at = next((i for i, item in enumerate(out) if item is a.range), None)
+        if at is None:
+            continue
+        it = a.integral
+        out[at], orient = _range_of(it.var, it.lo, it.hi, tuple(out[:at]))
+        orients.append(orient)
+    for orient in orients:
+        if orient is not None:
+            _emit(buf, orient, "orient", goal_dom)
+    return tuple(out)
+
+
 def _encloses(slot):
     """True when an Integral's child at `slot` is inside its binder's scope:
     its body only. Its lo and hi are outside (REWRITE_RULE step 2, GRAMMAR.md
@@ -666,24 +722,21 @@ def _positions(t, dom, anc=(), path=()):
     """Pre-order walk of one term, children in GRAMMAR.md §7's field order.
     For each subterm it yields (path, subterm, position domain, anc). An
     Int's range is built as the walk reaches it, so every Int of a walked
-    term is checked by E56. An undecided order is not refused here: the
-    range stands as [lo, hi] and its _IntScope carries the refusal, which
-    _emit_at raises when a key's domain uses that range, so an Int whose
-    body owes nothing never needs an order. rewrite (REWRITE_RULE steps 2,
-    6, 7, 9), int_subst's and int_flip's selectors and former charging (E6)
-    all use it."""
+    term has its range (infinite and literal ends, E4's, at once;
+    'range-same-infinity'). A symbolic range's order is not decided here
+    (E56_AMENDMENTS, laziness): the range stands as a placeholder [lo, hi]
+    in the inner domain, which _decided resolves when a key whose domain
+    holds it is emitted, so an Int whose body owes nothing never needs an
+    order. rewrite (REWRITE_RULE steps 2, 6, 7, 9), int_subst's and
+    int_flip's selectors and former charging (E6) all use it."""
     yield path, t, dom, anc
     inner_dom, inner_anc = dom, anc + ((t,) if isinstance(t, Deriv) else ())
     if isinstance(t, Integral):
-        try:
-            iv, orient = _range(t, dom)
-            undecided = None
-        except Refused as r:
-            if r.code != ORIENTATION_UNDECIDED:
-                raise
-            iv, orient, undecided = Interval(t.var, t.lo, True, t.hi, True), None, r
-        inner_dom = dom + (iv,)
-        inner_anc = anc + (_IntScope(t, iv, orient, undecided),)
+        if _symbolic(t.lo, t.hi):
+            scope = _IntScope(t, Interval(t.var, t.lo, True, t.hi, True), True)
+        else:
+            scope = _IntScope(t, _range(t, dom)[0])
+        inner_dom, inner_anc = dom + (scope.range,), anc + (scope,)
     for s, k in children(t):
         if not isinstance(k, Term):
             continue  # an infinite limit
@@ -801,20 +854,20 @@ def _frozen(x):
 
 
 def _emit_at(buf, prop, dom, anc, source, goal_dom, divisor=True):
-    """prop at a position (E5), then E56's orientation of each enclosing Int
-    whose range the key's domain now uses. A used range whose order E56
-    could not decide refuses 'orientation-undecided' first, before the key,
-    which would be stated on an interval nobody has shown to be the right
-    one."""
+    """prop at a position (E5). A key with no free variable has domain ()
+    and uses no range. Any other holds the whole position domain, so each
+    pending range there is decided first (_decided, outermost first, its
+    order emitted, or 'orientation-undecided' before the key is), and the
+    key is stated on the decided intervals."""
     key = with_domain(prop, dom)
-    used = [a for a in anc if isinstance(a, _IntScope) and a.range in key.dom]
-    for a in used:
-        if a.undecided is not None:
-            raise Refused(a.undecided.code, a.undecided.message)
+    if key.dom:
+        sub = {}
+        key = with_domain(prop, _decided(sub, dom, anc, goal_dom))
+        _emit(buf, key, source, goal_dom, divisor=divisor)
+        for k, ob in sub.items():  # the orders after the key, as E4 had them
+            buf[k] = _merged(buf.get(k), ob)
+        return
     _emit(buf, key, source, goal_dom, divisor=divisor)
-    for a in used:
-        if a.orient is not None:
-            _emit(buf, a.orient, "orient", goal_dom)
 
 
 # E26 (a): each partial builtin's natural domain, the set on which §6.9
@@ -936,12 +989,32 @@ def _open_in(h, x):
         for side in sides for s in _subterms(side))
 
 
+def _no_trees_erased(lhs, inst, at):
+    """REWRITE_RULE step 2a (E57): refuse 'Int-or-D-not-normalisable' when
+    any inst value, or the target `at`, holds an Integral or Deriv node,
+    whichever branch step 3 takes. Step 3's App branch refuses one through
+    ring_nf (E26 (b)), but its tree branch, for a left side that is not an
+    App (pyth's sum, pyth_cos's power), never normalises, and an entry
+    whose right side drops a schema variable (pyth's 1) would erase the
+    node, whose definedness nothing owes. No rule may erase an Int or D
+    node (E57_PRINCIPLE). `lhs` is the instantiated left side.
+
+    A seam (ARCHITECTURE.md §7): rewrite calls it by this global name; the
+    planted bug rewrite_tree_branch_skips_E57 and the BACKSTOPS case
+    rewrite_closing_check_goal replace it in a child process."""
+    for t in (*inst.values(), at):
+        if next(trees(t), None) is not None:
+            raise Refused("Int-or-D-not-normalisable", f"{_brief(t)} holds an "
+                          "Int or D node, which a rewrite could erase (E57)")
+
+
 def _rewrite(state, args, minted, buf):
-    """REWRITE_RULE steps 1–11, then check_goal on the new goal. That last
-    check is a backstop: an inst value carrying an Int into a same-named
-    Int's body lies in L's argument, which step 3's ring_nf refuses first
-    (E26 (b)). The suite reaches it through the field.ring_equal seam
-    (ARCHITECTURE.md §7, BACKSTOPS), so call it only as written here.
+    """REWRITE_RULE steps 1–11 with E57's step 2a, then check_goal on the
+    new goal. That last check is a backstop: an inst value carrying an Int
+    into a same-named Int's body is refused by step 2a (E57) and step 3's
+    ring_nf (E26 (b)) first. The suite reaches it through the
+    field.ring_equal and _no_trees_erased seams (ARCHITECTURE.md §7,
+    BACKSTOPS), so call it only as written here.
     Returns (new goal, None, occurrences)."""
     e, inst, at = ENTRIES.get(args["entry"]), args["inst"], args["at"]
     if e is None or e.statement.op != "==" or set(inst) != set(e.schema):
@@ -960,6 +1033,7 @@ def _rewrite(state, args, minted, buf):
     if not found:
         raise Refused("rewrite-target-not-found",
                       f"{show(at)} is not in the goal's non-?A side")
+    _no_trees_erased(lhs, inst, at)  # step 2a (E57)
     if isinstance(lhs, App):  # steps 3-5: congruence up to ring_nf
         ok = (isinstance(at, App) and at.fn == lhs.fn
               and FD.ring_equal(lhs.arg, at.arg))
@@ -1312,6 +1386,9 @@ def _int_subst(state, args, minted, buf):
     else:
         F = subst(body, {var: sub})
         eqs = ((subst(sub, {v: lo}), a), (subst(sub, {v: hi}), b))
+    # step 8, first (E56_AMENDMENTS): every key below is at P or a domain
+    # extending it, so P's enclosing ranges are decided now, outermost first
+    P = _decided(buf, P, anc, G)
     if reverse:  # step 8: the old range, owing its orientation
         old = _old_range(buf, it, P, G)
     for t in (lo, hi):

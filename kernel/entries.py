@@ -30,8 +30,11 @@ it for each sqrt atom of a key, as it reads pi_pos for pi (discharge.py's
 
 The last six are the consolidation's (p1_expected E54, E55), for
 Int_0^1 sqrt(1 - x^2) by x := cos theta. `pyth` is the identity as the owner
-states it; its left side is a sum, so neither rewrite nor field can use it
-as stated, and E27 (a) counts it. `pyth_cos` is pyth solved for (cos u)^2,
+states it. Its left side is a sum, so field cannot use it (a fact must be
+a^k == r); rewrite can, at a subterm tree-equal to (sin b)^2 + (cos b)^2 (a
+non-App left side is matched as a tree), turning it into 1, soundly for
+every real b, and E57 refuses a b holding an Int or D node, which that
+rewrite would erase. E27 (a) counts it. `pyth_cos` is pyth solved for (cos u)^2,
 differing from it by a ring identity: a rewrite at (cos b)^2 and a field
 fact in §6.2's a^k == r shape. `sin_nonneg_on` and `cos_nonneg_on` are
 sign facts whose hypotheses are real conditions on the argument, so they
