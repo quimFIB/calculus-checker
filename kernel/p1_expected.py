@@ -998,7 +998,10 @@ EVALUATED_RULE = (
 
     "(a) Entries. The entries in force are entries.ENTRIES at the time of "
     "the check. Those whose statement is an equation L == R take part "
-    "(today eleven: all but pi_pos, sqrt_pos and e_gt_one). Every subterm s "
+    "(today eleven: all but pi_pos, sqrt_pos and e_gt_one; thirteen once "
+    "cos_zero and sqrt_zero are pinned, E35: sqrt_zero immediately before "
+    "sqrt_sq, which makes it the first entry, and cos_zero appended last, "
+    "after exp_one). Every subterm s "
     "of the value is tested against each, in ENTRIES order, and the first "
     "that COUNTS at s is the one named. The matching notion is rewrite's, "
     "E1 steps 3 and 4: an application is matched through the ring normal "
@@ -1007,7 +1010,11 @@ EVALUATED_RULE = (
 
     "(a1) No schema variable, L = h(p), an application: ln_one, ln_e, "
     "exp_zero, exp_one, sin_zero, sin_pi_half, cos_pi_half, "
-    "atan_one_sqrt3. It counts at s exactly when E1 step 3 accepts: s is "
+    "atan_one_sqrt3, and, once pinned (E35), cos_zero and sqrt_zero. "
+    "Because sqrt_zero precedes sqrt_sq in ENTRIES, sqrt 0 (refused "
+    "already, by sqrt_sq's (a2) reading) is refused naming the direct "
+    "move sqrt_zero; cos 0 is refused naming cos_zero, the only entry "
+    "that counts there. It counts at s exactly when E1 step 3 accepts: s is "
     "h(b) for the same builtin h and ring_nf(b) == ring_nf(p). So "
     "exp(0^2), exp(1 - 1), exp(x - x), exp(0*x), exp(1^2) and "
     "ln(1/x - 1/x + 1) count, and ln(x/x) does not (MATCH_ACCEPTS "
@@ -1181,8 +1188,9 @@ EVALUATED_RULE = (
     "accepted. The ones worth knowing: ln 2 + ln 3 (ln 6 needs log_mul, "
     "which is not in force, and ln 2 and ln 3 are distinct atoms, so the "
     "sum is ring-irreducible); sqrt 8 (2*sqrt 2 needs a product law for "
-    "sqrt, not in force); cos 0 and any other builtin at a point with no "
-    "entry in force ('evaluated' is relative to ENTRIES, and tightens as "
+    "sqrt, not in force); any builtin at a point with no "
+    "entry in force (cos 0 was the example until cos_zero was pinned, "
+    "E35: it moves to the refused cases, DISCHARGE_E27_CHANGES) ('evaluated' is relative to ENTRIES, and tightens as "
     "§6.8's enumeration lands); sqrt(y^2) with y free (see (a2)); pi/pi "
     "and x/x (field's cancellation, (b3)); (1 + sqrt 3)^2 (4 + 2*sqrt 3 "
     "needs expansion, then the fact); pi/(3*sqrt 3) + pi*sqrt 3 / 9 (the "
@@ -1192,12 +1200,14 @@ EVALUATED_RULE = (
     "(product flattening stops at a Neg that is not a rational literal; "
     "-2*pi*3, the way D9 parses the usual spelling, is refused); and "
     "sqrt 3*sqrt 3, refused by b3 (v) with (b)'s message rather than "
-    "naming sqrt_sq_val. EVALUATED_ACCEPTS pins the first nine, and "
+    "naming sqrt_sq_val. EVALUATED_ACCEPTS pins the first nine (the "
+    "first eight once cos 0 moves, E35), and "
     "(2*pi)^2 for (b)'s factored forms. "
     "Added in review (each a missing §6.8 entry or a form the stated tests "
     "do not reach, not a change to the rule): exp(ln 2), ln(exp 2) and "
     "ln(e_const^2), since no inverse-pair or log-power entry is in force; "
-    "sin(pi), cos(pi), sin(pi/6), atan 0, atan 1, atan(sqrt 3) and cos 0, "
+    "sin(pi), cos(pi), sin(pi/6), atan 0, atan 1, atan(sqrt 3) and cos 0 "
+    "(cos 0 until cos_zero is pinned, E35), "
     "table values §6.8 enumerates but entries.py does not yet hold "
     "(atan 0 also shows that atan_odd needs a NONZERO argument: every "
     "coefficient of the zero polynomial is vacuously negative); "
@@ -3334,6 +3344,8 @@ BAD_MOVES = [
         "why": "b4: a Neg over a Neg. b2 passes first (the maximal sum "
                "has the one summand pi).",
     },
+    # Its expected clause changes to (a) at cos 0, naming cos_zero, when
+    # cos_zero is pinned: DISCHARGE_E27_CHANGES, E35.
     {
         "id": "e27_goal_lhs_before_close", "added": True,
         "goal": P1_1_GOAL, "state": ("P1.1", "s5"),
@@ -3547,6 +3559,9 @@ EVALUATED_ACCEPTS = [
      "value": "sqrt 8", "evaluated": "2*sqrt 2",
      "why": "8 is not a rational square, and no sqrt product law is in "
             "force."},
+    # Moves to the refused cases (BAD_MOVES e27_cos_zero) when cos_zero is
+    # pinned: DISCHARGE_E27_CHANGES, E35 (discharge spec 2026-09-24, owner
+    # answers). Asserted as accepted until then, since E27 reads ENTRIES.
     {"id": "e27_no_entry_in_force", "kind": "limitation", "value": "cos 0",
      "evaluated": "1",
      "why": "no cos_zero in ENTRIES: 'evaluated' is relative to the entries "
@@ -4847,6 +4862,136 @@ DECISIONS = {
            "bug; atan(-1/2) and pi*(1/sqrt 3) are refused as deliberate "
            "canonicalisation of sign and division, not evaluation "
            "(EVALUATED_RULE)",
+    # E28-E34: discharge spec 2026-09-24, written before any code (section
+    # 11, DISCHARGE_RULE, states each in full).
+    "E28": "discharge's trust split (§5.3, §7, §15.2 item 5, §15.4 item "
+           "1). An untrusted search, beside the tagger and in TAG_RULES' "
+           "order, builds one certificate per obligation; a small trusted "
+           "checker decides it, rebuilding from the key alone the "
+           "constraint set, the target and every sub-obligation's key, so "
+           "a certificate names constraints and supplies witnesses but "
+           "never a hypothesis. No fallback to a later method when the "
+           "checker refuses: a search bug shows as an admission with "
+           "REASON_REJECTED, never as a false discharge. Certificates per "
+           "method: hyp, a Γ item or a chain of them; range and linear, a "
+           "Farkas combination (E29); sign, c0 + sum ci*si^ki checked by "
+           "ring_equal, ci > 0, ki even, c0 > 0 (>= 0 on a non-strict "
+           "target, E20); sign product, c * f1...fn checked by ring_equal "
+           "with each factor's sign by its own certificate and the parity "
+           "checked, strict targets only; cite, a §6.8 entry, its "
+           "instantiation, its conclusion implying the proposition as "
+           "TAG_RULES says, and one certificate per hypothesis. Reason: "
+           "§7's claim for `domain` is true only if discharge emits "
+           "witnesses the kernel re-checks, and §15.2 moved Fourier-Motzkin "
+           "and the sign heuristic out of the trusted base on that "
+           "condition",
+    "E29": "method 3 is Fourier-Motzkin with a checked Farkas witness, in "
+           "stage 1, and method 2 is the same certificate over the range's "
+           "own items (owner's decision, 2026-09-24, settling §17 against "
+           "§5.3). The search's FM (the tagger's, which already finds the "
+           "irreducible combination) emits the non-negative multipliers; "
+           "the trusted check is: every label is in the key's constraint "
+           "set, every multiplier > 0, the negated goal's is present, and "
+           "the combination ring-normalises to a constant k with k < 0, or "
+           "k = 0 with a strict constraint used. §5.3's satisfiability "
+           "pre-check runs first, in the search, on the set without the "
+           "negated goal; an infeasible set skips methods 2-3. No interval "
+           "propagation is built. The owner's reason: §17's claim that "
+           "hypothesis closure, by-range, sign certificates and interval "
+           "propagation cover the target obligations did not survive the "
+           "proof-of-life (the linear tag is needed for 0 <= pi/2, "
+           "1 <= e_const and e_const > 0, and range for t >= 0 on "
+           "[0, pi/2]); an FM implementation already exists, untrusted, in "
+           "the tagger; and the trusted Farkas check is smaller and more "
+           "auditable than trusted interval propagation, which would add to "
+           "§15.2's list the strict/non-strict bookkeeping §15.2 names as "
+           "the error-prone part. DESIGN.md §17's stage-1 exclusion list "
+           "and stage 4 row, and §15.2 item 5, need updating to match",
+    "E30": "the checker checks what soundness needs and no more: not "
+           "§5.3 method 5's 'strictly lower degree' (the certificate is "
+           "finite, so the check terminates by structural recursion; the "
+           "degree rule stays the search's), not method 4's discriminant "
+           "(the certificate is always the completed square), and not "
+           "linearity (ring-normalising the combination is sound over any "
+           "polynomials in opaque atoms). A refusal met inside discharge "
+           "(ring on an Int or D node) counts as a rejected certificate, so "
+           "E7 stays the only place Int-or-D-not-normalisable is raised",
+    "E31": "§18 Q22's first step: before deciding, discharge rewrites the "
+           "key (proposition and domain) with §6.8's exact values, every "
+           "ENTRIES equation with no schema variable and no hypothesis "
+           "(EXACT_VALUE_ENTRIES), matched as rewrite matches (E1 steps "
+           "2-4), every occurrence, to a fixed point (each rewrite removes "
+           "an App node and adds none, so it terminates). Schema entries "
+           "(sqrt_sq, atan_odd, sqrt_sq_val) are not exact values: they "
+           "need an instantiation, and two owe hypotheses. The rewrite "
+           "preserves the key's truth, and its entries join the tag's "
+           "cites",
+    "E32": "discharge runs at emission, inside kernel._emit, after E7, on "
+           "the step's buffer: a refused step changes nothing (E13), and "
+           "Q22 wants the refusal 'at the step where it goes wrong'. A "
+           "status is decided once and never changes (discharge reads only "
+           "the key and ENTRIES), so the tracker records no admitted -> "
+           "discharged transition; _Tracker.add is unchanged. Obligation "
+           "gains `certificate`; `reason` becomes REASON_REG, REASON_NONE, "
+           "REASON_EMPTY or REASON_REJECTED for an admission. report() is "
+           "unchanged: 'Proved.' only when N = 0. With regularity unbuilt "
+           "every PROOFS and stage-0 proof reads 'Proved modulo 3 "
+           "admissions' (§5.4, WHAT.md item 3)",
+    "E33": "decided false (§18 Q22, settled 2026-09-24): a non-Reg "
+           "obligation refuses its step with the new code "
+           "'obligation-decided-false' when (F1) the exact values make it "
+           "literal and norm_num finds it false, (F2) it is closed, an "
+           "ordering, and its negation is discharged, or (F3) it has a free "
+           "variable and a rational point from COUNTERPOINT_CANDIDATES lies "
+           "in its domain (each item there discharged), keeps its terms "
+           "defined (each owed former there discharged) and makes it false "
+           "by F1 or F2. Nothing else is decided false; an obligation none "
+           "reaches stays admitted, tagged by E24. Messages are "
+           "DECIDED_FALSE_MESSAGES'. It can only refuse, so it is outside "
+           "the trusted base (§15.2's condition, as for E27). So "
+           "tan(pi/2) - tan(pi/2) is refused at installation (F1), "
+           "OCCURRENCE_CASE's t >= 0 @ [-1, 0] refuses the rewrite (F3, "
+           "t = -1), and x > 0 @ x < 0 refuses its goal (F3, x = -1); "
+           "with cos_zero and sqrt_zero pinned (E35), tan 0's cos 0 # 0 is "
+           "discharged (1 # 0, norm_num) and sqrt x # 0 @ [0, 1] is refused "
+           "(F3 at x = 0, where with sqrt_zero it reads 0 # 0); cos 1 # 0 "
+           "stays admitted none. F3 goes beyond Q22's example, which is "
+           "F1: Q22's reason ('a goal that can only be proved through a "
+           "false admission is a wrong goal') applies to any obligation "
+           "discharge can show false, and a counter-point is the checkable "
+           "form of 'false' for an obligation with a free variable. Its "
+           "full reach is the owner's decision (E35 (1))",
+    "E34": "the soundness property test (DISCHARGE_PROPERTY_TEST: every "
+           "accept holds at random rational points of the key's domain by "
+           "the test's own exact evaluation, with pi and e_const sampled in "
+           "their sign facts' regions; every refutation re-checked "
+           "independently; minimum sample counts so it cannot pass "
+           "vacuously; it must fail under each new checker planted bug), "
+           "and how the suite switches (DISCHARGE_SWITCH: checker and "
+           "search first, tested directly with nothing wired in; then "
+           "wiring and the DISCHARGE_* tables in one commit; the "
+           "pre-discharge tables kept as the record)",
+    # The owner's answers of 2026-09-24 to the discharge spec's five
+    # questions (discharge spec 2026-09-24, owner answers).
+    "E35": "the owner's answers, 2026-09-24. (1) F3 keeps its full reach: "
+           "a goal with no stated domain whose terms are undefined "
+           "somewhere (ln x * 0 == ?A) is refused, and D[x] Int[t = 0 .. x] "
+           "... needs @ 0 <= x. Reason (owner): it is E26 applied "
+           "consistently, a term owes its domain and the learner states "
+           "it. (2) The satisfiability pre-check stays untrusted, in the "
+           "search. Reason (owner): it can only withhold a discharge, an "
+           "empty domain makes obligations vacuously true, and E4 now "
+           "builds the range items correctly, which was the real danger. "
+           "(3) cos_zero : cos 0 == 1 and sqrt_zero : sqrt 0 == 0 are "
+           "pinned now, §6.8 equations with no schema variable and no "
+           "hypothesis (DISCHARGE_NEW_ENTRIES), so E31's exact values use "
+           "them and E27 refuses cos 0 and sqrt 0 in an answer "
+           "(DISCHARGE_E27_CHANGES); cos_nonzero_on waits. (4) One refusal "
+           "code, 'obligation-decided-false', whose message says how the "
+           "obligation was decided (DECIDED_FALSE_MESSAGES: after exact "
+           "values, by its negation, or at a point, and there how). (5) "
+           "The bounded counter-point search is accepted: a miss stays "
+           "admitted, tagged none (DISCHARGE_UNDECIDED)",
 }
 
 DESIGN_DEFECTS = [
@@ -4969,6 +5114,62 @@ DESIGN_DEFECTS = [
     "schema entry states its E27 reading; §16.3's refusal shape should say "
     "that 'close-not-evaluated' carries the offending subterm as its "
     "residual.",
+    # Added by the discharge spec 2026-09-24 (section 11, E28-E34).
+    "§17 excludes 'Fourier–Motzkin with its Farkas witnesses' from stage 1, "
+    "'replaced by hypothesis closure, by-range, sign certificates and "
+    "simple interval propagation', and lists FM under stage 4; §5.3 method "
+    "3 and WHAT.md's stage-1 list both have FM with its witness. The owner "
+    "decided on 2026-09-24 for §5.3: FM with a checked Farkas witness is in "
+    "stage 1 and no interval propagation is built (E29). §17's exclusion "
+    "list and its stage-4 row should drop FM, and should say why: the "
+    "proof-of-life needs the linear tag (0 <= pi/2, 1 <= e_const), the "
+    "search already exists untrusted in the tagger, and the trusted check "
+    "is smaller than interval propagation would be.",
+    "§15.2 item 5 lists as trusted 'method 1's reflexive-transitive "
+    "closure ..., method 2's by-range extension, and the satisfiability "
+    "check'. Under E28-E29 method 2 is a Farkas certificate over the "
+    "range's own items, checked like method 3, and the pre-check runs in "
+    "the untrusted search, since its verdict can only withhold a discharge "
+    "(DISCHARGE_RULE, the pre-check paragraph). Item 5 should read: the "
+    "tracker, the certificate checkers (hyp, Farkas, sign, sign product, "
+    "cite) and the exact-value rewrite (E31, which uses item 3's matcher "
+    "and item 7's entries). §15.2's list of untrusted code the kernel "
+    "calls should add the decided-false check (E33), which can only "
+    "refuse, beside the E27 check.",
+    "§5.3's paragraph 'Before Fourier–Motzkin is consulted, the constraint "
+    "set is checked satisfiable. This closes a class ...' places soundness "
+    "in the pre-check. With checked witnesses the class is closed by the "
+    "certificate check (an accepted witness proves the key on its domain, "
+    "vacuously if empty) together with E4, which owes a range's "
+    "non-emptiness as lo <= hi. The pre-check stays, by the owner's "
+    "decision, as what keeps the search from reaching for a vacuous "
+    "witness, and the checker demands a positive multiplier on the "
+    "negated goal. §5.3 should say which carries what.",
+    "§5.3 method 5 states 'strictly lower-degree factors' as a condition of "
+    "the method; method 4 states 'for a quadratic, positive leading "
+    "coefficient and negative discriminant'. Both are search rules, not "
+    "checks: the checker needs ring_equal of the factorisation (or of the "
+    "completed square) and the factors' signs, and terminates on a finite "
+    "certificate (E30). §5.3 should separate what the search tries from "
+    "what the kernel checks, as it already does for the factorisation's "
+    "source.",
+    "§5.4's revision-10 note says the kernel admits what it cannot "
+    "discharge 'with the reason discharge not built'. After discharge the "
+    "reasons are 'regularity not built', 'no method decides it', 'domain "
+    "inconsistent' and 'certificate not accepted' (E32), and an obligation "
+    "discharge decides false refuses the step instead of being admitted "
+    "(E33). §5.4 should list the reasons and say that an admission tagged "
+    "none may still be false (x - 5 # 0 @ [0, oo), DISCHARGE_UNDECIDED).",
+    "§18 Q22's settlement names the exact-value route (cos(pi/2) # 0 to "
+    "0 # 0). E33 also decides false a closed ordering whose negation is "
+    "discharged (the reversed range's pi/2 <= 0, which DOMAIN_RULES E4 "
+    "already said would be 'refused once discharge exists') and an "
+    "obligation with a free variable at a rational counter-point. The "
+    "second follows from Q22's text; the third extends it, and makes a "
+    "goal with no stated domain whose terms are undefined somewhere (ln x "
+    "* 0 == ?A; E4's 0 <= x for Int[t = 0 .. x]) refused rather than "
+    "admitted. The owner settled the full reading on 2026-09-24 (E35 "
+    "(1)); Q22 should record it.",
 ]
 
 # What was checked at build time, in scratch, with SymPy 1.14 and mpmath.
@@ -5120,6 +5321,49 @@ VERIFIED = (
     "subterm, entry and message as stated, accepts every "
     "EVALUATED_ACCEPTS value and every added limitation, and gives every "
     "earlier e27 case the outcome it already records",
+    # Added by the discharge spec 2026-09-24, SymPy 1.14, in the session's
+    # scratch directory, with kernel/terms.py's parser used only to read
+    # the strings (no kernel code decided anything).
+    "discharge spec 2026-09-24: an independent SymPy reading of "
+    "DISCHARGE_RULE's checker (targets, the constraint set and its labels, "
+    "Farkas sums ring-normalised with atoms opaque, sign identities, "
+    "products with parity and children, cites with the syntactic "
+    "implication, hyp member and chain, the norm_num leaf) accepts every "
+    "certificate in DISCHARGE_EXPECTED (P1 and problems/stage0), "
+    "DISCHARGE_MATCH_ACCEPTS, DISCHARGE_OCCURRENCE_CASE, the ln_true_by_hyp "
+    "and twin certificates and DISCHARGE_CHECKER_ACCEPTS, each with exactly "
+    "the tag given; rejects all 31 DISCHARGE_MUST_REJECT certificates, each "
+    "for the reason given; every discharged key is true on its domain "
+    "(solveset of the negation over the domain empty, pi and e real; the "
+    "two-variable keys on a rational grid); every Farkas key's set without "
+    "the goal is satisfiable; every must-reject 'truth' holds (the false "
+    "ones false at the point named, the true ones true); every F3 message's "
+    "point is the first of COUNTERPOINT_CANDIDATES, in order, lying in the "
+    "domain with its formers defined and the proposition literal and false "
+    "after the exact values (DISCHARGE_BAD_MOVES_CHANGED and _ADDED, "
+    "OCCURRENCE_CASE 'all', ln_false_on_goal_domain, the must-reject "
+    "'refused' outcomes, the planted-bug and mutation refusals); every "
+    "'admitted' outcome and every DISCHARGE_UNDECIDED key is false yet has "
+    "no such point; the reversed range's pi/2 <= 0 is false and its "
+    "negation's certificate is accepted with ('linear', ('pi_pos',)); "
+    "(x + pi)/(x + pi) - 1 cancels to 0; 0 <= pi/2 has no certificate "
+    "without pi_pos, and neither the halved multiplier nor the swapped end "
+    "is accepted; and the existing suite still passes 334 of 334 with both "
+    "data files extended",
+    # discharge spec 2026-09-24, owner answers
+    "owner answers (E35): the verifier re-run with cos_zero and sqrt_zero "
+    "among the exact values accepts and rejects exactly as before; every "
+    "F3 message's reading is the kernel-parsed proposition at the point "
+    "(terms.subst with terms.lit values, then the exact values), with the "
+    "entries listed and only those (it caught one written as a string, "
+    "fixed); sqrt x # 0 @ [0, 1] is refused at x = 0 reading 0 # 0 with "
+    "sqrt_zero, and has no other point first; cos 0 # 0 reads 1 # 0 with "
+    "cos_zero; cos 1 # 0 is true and undecided; cos 0 = 1 and sqrt 0 = 0; "
+    "e27_goal_lhs_before_close's value equals 2 and its only application "
+    "is cos 0; e27_goal_lhs_after_ftc's first application in pre-order is "
+    "still sin(pi/2); the new e27 values equal 1 and 0; no reference "
+    "proof's closing value and no other accepted value holds cos 0 or "
+    "sqrt 0",
 )
 
 # Changes to this file made after it was frozen. The first was adjudicated
@@ -5685,4 +5929,1730 @@ DATA_CHANGES = (
      "(b), plus the ordering case); EVALUATED_ACCEPTS 29 (5 answers, 12 "
      "accepts, 12 limitations)",
      "user decision 2026-09-24 (evaluated answers), review fix"),
+    # discharge spec 2026-09-24: written before any discharge code, from the
+    # rules and the data, without reading kernel.py, tagger.py or field.py.
+    # Nothing existing was deleted or changed in value; every entry adds.
+    ("DECISIONS E28-E34 (new)",
+     "the discharge design: the trust split and each method's certificate "
+     "(E28), Fourier-Motzkin with a checked Farkas witness in stage 1 "
+     "(E29), what the checker does not check (E30), exact values first "
+     "(E31), discharge at emission and how the tracker and verdict read "
+     "(E32), decided false with 'obligation-decided-false' (E33), the "
+     "property test and the switch (E34)",
+     "WHAT.md 'Start here' item 1 asks for the expected results before the "
+     "code, as the proof-of-life did",
+     "discharge spec 2026-09-24; E29 by the owner's decision of "
+     "2026-09-24 (FM into stage 1, after the pre-check, no interval "
+     "propagation); E33's F1 by §18 Q22 as settled; the rest decided on "
+     "the owner's behalf, with F3's reach left as an owner question"),
+    ("section 11 (new): OBLIGATION_DECIDED_FALSE, REFUSAL_CODES_DISCHARGE, "
+     "REASON_*, EXACT_VALUE_ENTRIES, DECIDED_FALSE_MESSAGES, T_RANGE_PI, "
+     "T_LINEAR_E, DISCHARGE_RULE, COUNTERPOINT_CANDIDATES, the certificate "
+     "helpers",
+     "the rule stated in full, one paragraph per point, the new refusal "
+     "code and its messages, the new admission reasons, and the candidate "
+     "order that makes F3's message deterministic",
+     "so that the tables below are checks of a stated rule and not fitted "
+     "to an implementation (as REWRITE_RULE and EVALUATED_RULE are)",
+     "discharge spec 2026-09-24"),
+    ("DISCHARGE_EXPECTED, DISCHARGE_OBLIGATIONS, DISCHARGE_FINAL_TRACKER, "
+     "DISCHARGE_ADMISSIONS, DISCHARGE_VERDICTS (new)",
+     "every P1 admission with a §5.3 tag becomes DISCHARGED with that tag "
+     "and the certificate given; N becomes 3 in all four proofs (6, 9, 14, "
+     "13 before), 'Proved modulo 3 admissions', the three being ftc's Reg "
+     "premises (REASON_REG). The per-step lists are derived from "
+     "EXPECTED_OBLIGATIONS by one rule and cross-checked at import against "
+     "the hand-written tracker",
+     "WHAT.md's target: 'every P1 and stage-0 admission tagged with a §5.3 "
+     "method becomes discharged', with regularity waiting for item 3",
+     "discharge spec 2026-09-24"),
+    ("DISCHARGE_MATCH_ACCEPTS, DISCHARGE_OCCURRENCE_CASE, "
+     "DISCHARGE_DEFINEDNESS_CASES, DISCHARGE_BAD_MOVES_CHANGED, "
+     "DISCHARGE_BAD_MOVES_ADDED, DISCHARGE_UNDECIDED (new)",
+     "the cases after discharge. Changed outcomes: OCCURRENCE_CASE 'all' is "
+     "refused (t >= 0 @ [-1, 0], F3 at t = -1); tan_pi_half is refused at "
+     "installation (F1, cos_pi_half); ln_false_on_goal_domain is refused "
+     "at installation (F3, x = -1); ln_true_by_hyp reports 'Proved.'; "
+     "BAD_MOVES rewrite_under_D_through_Int and field_zero_divisor are "
+     "refused at installation (F3, x = -1 and x = 1), each with a twin "
+     "that keeps its original refusal reachable. New: six Q22 refusals "
+     "(reversed range by F2, a false quadratic, a divisor after sin_zero, "
+     "the pole of 1/x^2 on [-1, 1], ln x with no stated domain, a close "
+     "value) and two false-but-undecided admissions",
+     "Q22's settlement makes a decided-false obligation refuse its step, "
+     "so every case that expected a false admission, or passed one on the "
+     "way to its own refusal, had to be re-traced; the pre-discharge "
+     "entries stay as the record",
+     "discharge spec 2026-09-24"),
+    ("DISCHARGE_MUST_REJECT, DISCHARGE_CHECKER_ACCEPTS (new)",
+     "31 certificates the trusted checker must refuse (the owner's four "
+     "Farkas cases: a negative multiplier, the strict/non-strict mix-up, "
+     "a combination that is no contradiction, a constraint not in the "
+     "set; and a forged sum of squares, x^2 - x - 1 > 0 on [0, 1], wrong "
+     "and infinite interval ends, a pi_pos cite for e_const, product "
+     "parity and closed-end children, unproved cite hypotheses, hyp "
+     "misuse), each with the obligation's truth and the kernel's outcome "
+     "if emitted; 9 nearest valid neighbours it must accept",
+     "item 3 of the task and the owner's list for the Farkas checker",
+     "discharge spec 2026-09-24; the Farkas four by the owner's decision "
+     "of 2026-09-24"),
+    ("DISCHARGE_PLANTED_BUGS, DISCHARGE_NEW_PLANTED_BUGS, "
+     "DISCHARGE_MUTATION_CHANGES (new)",
+     "the five planted bugs and 30 mutations re-traced under discharge "
+     "(most N become 3; ftc_derivative_premise_on_closed and "
+     "sqrt_open_at_0 now refuse proofs by F3; tracker_drops_one gains two "
+     "Reg keys so that N still catches it; pi_pos_not_in_constraint_set "
+     "raises N to 4 in P1.1 and the fallback), and 13 new planted bugs, "
+     "one per checker rule whose loss could give a false 'Proved', and one "
+     "in the search",
+     "a discharged key dropped or removed no longer moves N, so the "
+     "pre-discharge caught_by lists would silently weaken",
+     "discharge spec 2026-09-24"),
+    ("DISCHARGE_PROPERTY_TEST, DISCHARGE_SWITCH (new)",
+     "the soundness property test's requirements, and how the suite moves "
+     "to the DISCHARGE_* tables in two green commits",
+     "item 4 of the task, and E34",
+     "discharge spec 2026-09-24"),
+    ("DESIGN_DEFECTS, six entries appended; VERIFIED, one entry appended",
+     "§17's stage-1 exclusion of FM and §15.2 item 5 (to update for E29), "
+     "§5.3's pre-check paragraph and its method 4/5 preconditions, §5.4's "
+     "admission reasons, and §18 Q22's reach; the SymPy checks behind "
+     "section 11",
+     "the places this file records what DESIGN.md must change, and the "
+     "record of the checks",
+     "discharge spec 2026-09-24"),
+    # discharge spec 2026-09-24, owner answers: the owner's answers of
+    # 2026-09-24 to the spec's five questions, carried out by hand before
+    # any code. Existing pre-discharge values are unchanged; the E27 cases
+    # that the new entries change are staged in DISCHARGE_E27_CHANGES.
+    ("DECISIONS E35 (new); E33's text",
+     "the five answers recorded with the owner as source: F3 keeps full "
+     "reach; the pre-check stays untrusted; cos_zero and sqrt_zero pinned "
+     "now; one refusal code with a message saying how; the bounded search "
+     "accepted. E33 no longer calls F3's reach an owner question, and its "
+     "examples follow the new entries",
+     "owner answers of 2026-09-24",
+     "discharge spec 2026-09-24, owner answers"),
+    ("EXACT_VALUE_ENTRIES, DISCHARGE_NEW_ENTRIES (new), T_NORM_NUM_COS0 "
+     "(new)",
+     "cos_zero : cos 0 == 1 and sqrt_zero : sqrt 0 == 0 pinned in "
+     "NAMED_ENTRIES' shape for entries.py, appended after e_gt_one, and "
+     "added to the exact values (ten)",
+     "E35 (3)",
+     "discharge spec 2026-09-24, owner answers"),
+    ("DECIDED_FALSE_MESSAGES, _point and every F3 message",
+     "F3's template now says how the point decided it: 'where it reads "
+     "{reading}', 'where with {entries} it reads {reading}', or 'where its "
+     "negation ... holds (...)'; every F3 message in section 11 gained its "
+     "reading (and entries where used)",
+     "E35 (4): one code, the message saying how it was decided",
+     "discharge spec 2026-09-24, owner answers"),
+    ("DISCHARGE_DEFINEDNESS_CASES tan_zero_true; DISCHARGE_UNDECIDED; "
+     "DISCHARGE_BAD_MOVES_ADDED decided_false_sqrt_at_end (new); "
+     "DISCHARGE_MUST_REJECT cite_hypothesis_unproved's if_emitted",
+     "tan_zero_true: cos 0 # 0 DISCHARGED ('norm_num', ('cos_zero',)), "
+     "'Proved.' (was admitted none). sqrt x # 0 @ [0, 1] is decided false "
+     "by F3 at x = 0, where with sqrt_zero it reads 0 # 0, so "
+     "Int[x = 0 .. 1] 1/sqrt x is refused at installation (was an "
+     "undecided admission, now moved to the refusals); the true-undecided "
+     "example is now 0*tan 1's cos 1 # 0",
+     "E35 (3)",
+     "discharge spec 2026-09-24, owner answers"),
+    ("DISCHARGE_E27_CHANGES (new); comments at EVALUATED_ACCEPTS "
+     "e27_no_entry_in_force and BAD_MOVES e27_goal_lhs_before_close; "
+     "EVALUATED_RULE (a), (a1) and Known limitations, prose",
+     "staged for the commit that pins the entries: e27_no_entry_in_force "
+     "(cos 0 accepted) removed from EVALUATED_ACCEPTS; e27_goal_lhs_before_"
+     "close now refused at cos 0 naming cos_zero, clause a (was b2 at the "
+     "root); new e27_cos_zero ('cos 0 can still be evaluated (cos_zero)') "
+     "and e27_sqrt_zero ('sqrt 0 can still be evaluated (sqrt_sq)', "
+     "sqrt_sq preceding sqrt_zero in ENTRIES). The prose names the two "
+     "entries and moves cos 0 out of the limitations",
+     "E35 (3). Staged, not applied in place: E27 reads entries.ENTRIES, so "
+     "changing the asserted cases before entries.py holds cos_zero would "
+     "turn the suite red. No reference proof or accepted answer is "
+     "affected (VERIFIED)",
+     "discharge spec 2026-09-24, owner answers"),
+    ("DISCHARGE_SWITCH (1), DISCHARGE_PLANTED_BUGS "
+     "ftc_derivative_premise_on_closed's note, section 11b's settled-"
+     "question comments, two DESIGN_DEFECTS entries' wording",
+     "commit (1) also pins the entries and applies DISCHARGE_E27_CHANGES; "
+     "under the planted bug the fallback now has two refutable keys and x > "
+     "0, emitted first (ARCHITECTURE.md §4), is the one named; comments "
+     "that called F3's reach an owner question now cite E35 (1); the §5.4 "
+     "defect's false-but-undecided example is x - 5 # 0 @ [0, oo), and the "
+     "Q22 defect records the owner's settlement",
+     "E35",
+     "discharge spec 2026-09-24, owner answers"),
+    ("VERIFIED, one entry appended",
+     "the re-run SymPy checks for the owner's answers",
+     "the record of the checks",
+     "discharge spec 2026-09-24, owner answers"),
+    ("DISCHARGE_NEW_ENTRIES' positions, EXACT_VALUE_ENTRIES' order, "
+     "DISCHARGE_E27_CHANGES e27_sqrt_zero, EVALUATED_RULE (a) and (a1) "
+     "prose, DISCHARGE_SWITCH (1), DISCHARGE_ORDER_CHECK (new)",
+     "sqrt_zero is inserted immediately before sqrt_sq (so it is the first "
+     "entry) and cos_zero appended last, after exp_one; e27_sqrt_zero now "
+     "names sqrt_zero: 'sqrt 0 can still be evaluated (sqrt_zero)' (it "
+     "named sqrt_sq, which the earlier owner-answers entry recorded); "
+     "EXACT_VALUE_ENTRIES listed in the new ENTRIES order",
+     "the main session's choice, so that sqrt 0 names the direct move. "
+     "Re-checked by hand (DISCHARGE_ORDER_CHECK): no other E27 case, "
+     "exact-value rewrite or entries-order-dependent expectation changes",
+     "discharge spec 2026-09-24, owner answers"),
+)
+
+
+# ---------------------------------------------------------------------------
+# 11. Real discharge, specified before any code (discharge spec 2026-09-24)
+#
+# WHAT.md "Start here" item 1. DECISIONS E28-E34 give the design in brief,
+# with § references; DISCHARGE_RULE states it in full, one paragraph per
+# point, as REWRITE_RULE and EVALUATED_RULE do, so that every table below is
+# a check of a stated rule and not fitted to an implementation. Written from
+# DESIGN.md revision 10 (§5.3, §5.4, §6.8, §7, §14, §15.2-§15.4, §17, §18
+# Q22), ARCHITECTURE.md and the data files, without reading kernel.py,
+# tagger.py or field.py. The owner decided on 2026-09-24, while this was
+# being written, that Fourier-Motzkin with a checked Farkas witness comes
+# into stage 1 (E29).
+#
+# The pre-discharge tables above (EXPECTED_OBLIGATIONS, FINAL_TRACKER,
+# ADMISSIONS, VERDICTS, and the cases' statuses) are kept unchanged. They
+# are the record of the stub phase, and the suite asserts them until the
+# build switches over, which E34 describes. Nothing below changes any
+# goal_after, occurrence count, source, `new` flag or tag of a PROOFS
+# obligation: discharge changes statuses, adds a certificate and a reason to
+# each obligation, and adds one refusal code.
+
+OBLIGATION_DECIDED_FALSE = "obligation-decided-false"
+REFUSAL_CODES_DISCHARGE = {
+    OBLIGATION_DECIDED_FALSE:
+        "§18 Q22 (settled 2026-09-24), E33: discharge decided a "
+        "non-literal obligation false, after §6.8's exact values (F1), by "
+        "a certified negation of a closed obligation (F2), or at a "
+        "rational counter-point of its domain (F3). An obligation that is "
+        "literal as emitted keeps E7's obligation-refuted. Carries no "
+        "residual; the message is DECIDED_FALSE_MESSAGES' template",
+}
+
+# The reason an admission carries after discharge (ARCHITECTURE.md §2's
+# Obligation.reason; ADMISSION_REASON, 'discharge not built', is retired
+# with the switch, E34). A discharged obligation's reason is None.
+REASON_REG = "regularity not built"          # every Reg key (WHAT.md item 3)
+REASON_NONE = "no method decides it"         # tag ('none', ())
+REASON_REJECTED = "certificate not accepted"  # tag names a method, but the
+# trusted checker refused the search's certificate or none was produced.
+# Never expected in an unmutated run: it is what a search bug looks like.
+REASON_EMPTY = "domain inconsistent"  # §5.3's pre-check found the key's
+# constraint set infeasible, and no method that does not read it (1, 4-6)
+# closed the key. Vacuously true, and admitted rather than discharged.
+
+# §6.8's exact values as discharge reads them (E31): every ENTRIES equation
+# with no schema variable and no hypothesis. Their current value, for the
+# suite to check against entries.ENTRIES rather than as a second list the
+# kernel reads.
+# In ENTRIES order once the two E35 entries are in (sqrt_zero first,
+# cos_zero last); the suite compares it as a set, and E31's rewrite does
+# not depend on the order (see DISCHARGE_ORDER_CHECK).
+EXACT_VALUE_ENTRIES = ("sqrt_zero",  # E35 (3), before sqrt_sq
+                       "sin_pi_half", "cos_pi_half", "sin_zero", "ln_one",
+                       "atan_one_sqrt3", "ln_e", "exp_zero", "exp_one",
+                       "cos_zero")  # E35 (3), appended last
+
+# E33's messages, one code and a message that says how (E35 (4)). {key} is
+# terms.show of the obligation's judgement (so a
+# closed key prints without '@ true'), {rewritten} of the judgement after
+# the exact values, {negation} of the negated proposition, {tag} is the
+# method then its cites joined by ', ', {entries} the entries used joined
+# by ', ' in first-use order, and {point} is 'v = q' per variable, sorted by
+# name, joined by ', ', each q printed by terms.show(terms.lit(q)).
+DECIDED_FALSE_MESSAGES = {
+    # F1
+    "exact": "{key} is false: with {entries} it reads {rewritten}",
+    # F2
+    "negation": "{key} is false: its negation {negation} holds ({tag})",
+    # F3 (E35 (4), owner answers: the message says how it was decided).
+    # {reading} is terms.show of the proposition at the point, the point's
+    # values substituted as terms.lit(q) and the exact values applied, not
+    # evaluated further: a literal proposition norm_num finds false.
+    "point": "{key} is false at {point}, where it reads {reading}",
+    "point_exact": "{key} is false at {point}, where with {entries} it "
+                   "reads {reading}",
+    "point_negation": "{key} is false at {point}, where its negation "
+                      "{negation} holds ({tag})",
+}
+
+T_RANGE_PI = ("range", ("pi_pos",))
+T_NORM_NUM_COS0 = ("norm_num", ("cos_zero",))  # E31 then E7's norm_num
+T_LINEAR_E = ("linear", ("e_gt_one",))  # as problems/stage0 defines it
+
+DISCHARGE_RULE = (
+    "Scope. Discharge decides every obligation the kernel emits except a "
+    "Reg (regularity is item 3 of WHAT.md's stage 1, not built) and ftc's "
+    "derivative premise (discharged in-step, E9). It runs at emission, "
+    "inside kernel._emit, on the step's buffer, so a refused step changes "
+    "nothing (E13) and nothing reaches the tracker until the step has "
+    "succeeded (ARCHITECTURE.md §5).",
+
+    "Order at emission. (1) discharged_by given: DISCHARGED with that tag, "
+    "as now. (2) A Reg: ADMITTED, ('reg', ()), reason REASON_REG. (3) E7 "
+    "unchanged: norm_num decides a literal key (True: DISCHARGED, "
+    "('norm_num', ()); False: refused 'obligation-refuted'), and a key "
+    "holding an Int or D node is refused 'Int-or-D-not-normalisable' here "
+    "and nowhere later (E26 (b)). (4) Exact values (E31): the key is "
+    "rewritten with EXACT_VALUE_ENTRIES to a fixed point; if that changed "
+    "it and made it literal, norm_num decides it: True gives DISCHARGED "
+    "with ('norm_num', entries used), False refuses "
+    "'obligation-decided-false' (F1). (5) Certify: the untrusted search "
+    "proposes one certificate for the rewritten key, and the trusted "
+    "checker decides it; accepted gives DISCHARGED with the tag the "
+    "certificate determines, the exact-value entries used prepended to its "
+    "cites. (6) Refute (E33): F2 for a closed key, F3 for a key with a free "
+    "variable; found refuses 'obligation-decided-false'. (7) Otherwise "
+    "ADMITTED with tagger.tag(key, gamma) as now (E24 unchanged) and reason "
+    "REASON_EMPTY when the pre-check found the domain inconsistent, else "
+    "REASON_NONE when that tag is ('none', ()), else REASON_REJECTED.",
+
+    "The trust split (E28). The search is untrusted and lives beside the "
+    "tagger, whose feasibility checks it extends to build the witness they "
+    "already find (§7). It tries the methods in §5.3's order, exactly as "
+    "TAG_RULES orders them, and hands the checker the first certificate it "
+    "builds, with no fallback to a later method if the checker refuses it: "
+    "a search bug then shows as an admission with REASON_REJECTED, never as "
+    "a different discharge. The checker is trusted (§15.2 item 5) and "
+    "small. It never searches. It rebuilds from the key alone everything "
+    "it checks against (the constraint set, the target, each "
+    "sub-obligation's key), so a certificate can name constraints and "
+    "supply witnesses but can never supply a hypothesis. A certificate is "
+    "plain data: terms, rationals, labels and nested certificates, and a "
+    "field the checker does not know makes it reject. Acceptance implies "
+    "the obligation holds at every point of its domain where its terms are "
+    "defined; definedness is carried by the separate former keys (E6, "
+    "E26). Rejection only withholds a discharge.",
+
+    "Targets. A key's proposition is read as g REL 0 with g a term the "
+    "checker builds: a > b gives g = a - b, strict; a >= b gives a - b, "
+    "non-strict; a < b gives b - a, strict; a <= b gives b - a, "
+    "non-strict. e # 0 needs the certificate's sense: '>' reads it as "
+    "g = e, strict, '<' as g = -e, strict, and '#', for a sign product "
+    "only, keeps it as g = e # 0; a # 0 certificate without a fitting "
+    "sense is rejected. An equation (==) is never a discharge target: "
+    "only E7 or F1 decide one, and no P1 or stage-0 obligation is one "
+    "except ftc's premise.",
+
+    "The constraint set (methods 2 and 3). Each constraint is a pair "
+    "(h, strict) meaning h > 0 or h >= 0, built by the checker and named by "
+    "a label. ('goal',): the negated target, (-g, not strict) for a strict "
+    "target and (-g, strict) for a non-strict one. ('dom', i, 'lo') and "
+    "('dom', i, 'hi'): an Interval item i on v gives (v - lo, open at lo) "
+    "and (hi - v, open at hi), each only for a finite end. ('dom', i, "
+    "'rel'): a relation item i of the domain (Γ) read as a target is; a "
+    "NonZero or == item, and any index the domain does not have, is no "
+    "label. ('fact', name): an ENTRIES entry with no schema variable and no "
+    "hypothesis whose statement is an ordering between closed terms "
+    "(today pi_pos : pi > 0 and e_gt_one : e_const > 1), and only when a "
+    "constant it mentions occurs in the key's proposition or domain "
+    "(§5.3 rev 9's 'whenever it occurs', TAG_RULES). A label outside this "
+    "set rejects the certificate.",
+
+    "Farkas certificate (methods 2 and 3, E29). {'method': 'farkas', "
+    "'sense': ..., 'multipliers': {label: rational}}. The checker accepts "
+    "iff: every label is in the set; every multiplier is a rational > 0 "
+    "(zero is written by omission, a negative one rejects); the ('goal',) "
+    "multiplier is present; the sum over labels of multiplier * h, "
+    "ring-normalised (atoms and non-linear monomials opaque, as ring "
+    "always reads them), is a rational constant k; and that constant "
+    "contradicts the sum's relation: k < 0 (the sum is >= 0 or > 0 and "
+    "equals a negative number, '0 <= -c with c > 0'), or k = 0 and some "
+    "label with a positive multiplier is strict ('0 < 0'). Two non-strict "
+    "constraints summing to 0 are no contradiction. The tag is ('range', "
+    "cites) when some ('dom', ...) label has a positive multiplier, else "
+    "('linear', cites), cites being the facts used in the order pi_pos, "
+    "e_gt_one, as TAG_RULES reads them. Linearity is never checked: "
+    "ring-normalising the combination is the whole check, and it is sound "
+    "for any polynomials over opaque atoms (a positive combination of "
+    "non-negative quantities is non-negative). The suite compares the "
+    "multipliers exactly, scaled so that ('goal',) has 1; the combination "
+    "is an irreducible one (TAG_RULES), which fixes it up to that scale.",
+
+    "The satisfiability pre-check (§5.3, kept by the owner's decision of "
+    "2026-09-24, E29). Before Fourier-Motzkin is consulted for a key, the "
+    "search runs it on the key's constraint set without ('goal',). If that "
+    "set is infeasible, the key's domain is empty in the linear relaxation, "
+    "methods 2 and 3 are not attempted for it, and it goes on to methods "
+    "4-6 and then to refutation; if nothing closes it, it is admitted with "
+    "REASON_EMPTY and E24's tag (the tagger has no pre-check, so that tag "
+    "can be 'range'). The pre-check runs in the untrusted "
+    "search, because its verdict cannot make a false obligation "
+    "discharged: an accepted Farkas witness proves the key on every point "
+    "of its domain whatever the pre-check said, vacuously if the domain is "
+    "empty. The checker's demand for a positive ('goal',) multiplier "
+    "refuses a witness that ignores the proposition altogether; it cannot "
+    "refuse one that adds the negated goal to an empty domain's "
+    "contradiction, and need not, since that discharge is vacuously true. "
+    "What keeps a vacuous discharge from mattering is E4: a range's order is "
+    "owed as its own obligation lo <= hi, which is discharged, refuted "
+    "(F2) or admitted in its own right.",
+
+    "Hyp certificate (method 1). {'method': 'hyp', 'member': i} or "
+    "{'method': 'hyp', 'chain': (i1, ..., in)}. Only relation and NonZero "
+    "items of the key's domain count, never an Interval (a range is a "
+    "Farkas certificate's). member: the proposition is item i as a tree, "
+    "or it is e # 0 and item i is e > 0, e < 0, 0 < e or 0 > e with the "
+    "same e. chain: each item read as lo <= hi or lo < hi (a > b and "
+    "a >= b flipped to b < a and b <= a); consecutive items link by tree "
+    "equality of one's hi and the next's lo; the chain gives lo1 R hin with "
+    "R strict iff some link is; the proposition, read the same way, has "
+    "the same two ends as trees, and is strict only if R is. e # 0 is "
+    "closed by a strict chain from e to 0 or from 0 to e. Tag ('hyp', ()).",
+
+    "Sign certificate (method 4). {'method': 'sign', 'sense': ..., "
+    "'const': c0, 'squares': ((c1, s1, k1), ...)}. Accepted iff every ci "
+    "is a rational > 0, every ki an even integer >= 2, every si a term with "
+    "no MVar, oo, Int or D node, c0 a rational that is > 0 for a strict "
+    "target and >= 0 for a non-strict one (E20), and ring_equal(g, c0 + "
+    "sum ci*si^ki). The si may hold atoms g does not: the identity is a "
+    "polynomial identity over opaque atoms, so it holds whatever value an "
+    "atom takes. §5.3's quadratic with negative discriminant is a search "
+    "rule only: the certificate is its completed square, (x - 1/2)^2 + 3/4 "
+    "for x^2 - x + 1. 'The goal as written first' is also a search rule: "
+    "for 1 + ((2*x - 1)/sqrt 3)^2 the certificate is that sum itself. The "
+    "suite compares c0 exactly and the squares as a multiset of (ci, ki, "
+    "ring normal form of si up to sign). Tag ('sign', ()).",
+
+    "Sign product certificate (method 5). {'method': 'sign product', "
+    "'sense': ..., 'content': c, 'factors': ((f1, r1, cert1), ...)}. "
+    "Accepted iff the key is a >, < or # 0 key (a non-strict target "
+    "rejects, TAG_RULES), c is a rational other than 0, "
+    "ring_equal(g, c * f1 * ... * fn), and each fj's sub-obligation holds "
+    "by its own certificate: for a # 0 key the sense is '#', rj is '# 0', "
+    "and the "
+    "sub-obligation is fj # 0; otherwise rj is '>' or '<', the "
+    "sub-obligation is fj > 0 or fj < 0, and sign(c) times (-1) to the "
+    "number of '<' factors is +1. E18's content split is the one-factor "
+    "case. The checker does not check §5.3's 'strictly lower degree': "
+    "soundness does not need it, and the checker terminates by structural "
+    "recursion on a finite certificate; the degree rule stays the search's "
+    "termination rule. The suite compares c exactly and the factors as a "
+    "multiset of (ring normal form of fj, rj), each certificate "
+    "recursively. The tag is ('sign product', union of the factors' "
+    "cites).",
+
+    "Cite certificate (method 6). {'method': 'cite', 'entry': name, "
+    "'inst': {var: term}, 'hyps': ((prop, cert), ...)}. Accepted iff the "
+    "entry is in ENTRIES and its statement is an ordering or NonZero "
+    "judgement (an equation entry rejects); inst binds exactly its schema "
+    "variables and every one of them occurs in the conclusion; the "
+    "conclusion statement[inst] implies the proposition syntactically as "
+    "TAG_RULES defines it (the same tree, or `a > 0` or `0 < a` for a "
+    "proposition a # 0, a >= 0 or 0 <= a with the same a); and there is "
+    "exactly one child per instantiated hypothesis, in the entry's order, "
+    "each accepted at the key's domain. Because every schema variable "
+    "occurs in the conclusion and the conclusion is the proposition or its "
+    "strengthening, each inst value is a subterm of the proposition, whose "
+    "formers were charged where it entered (KEYING), so a cite charges no "
+    "former of its own (E10's rule, satisfied by construction). The tag is "
+    "('cite', (name,) + the children's cites).",
+
+    "Leaves and children. {'method': 'norm_num'} is accepted only for a "
+    "literal proposition that norm_num decides True. A child's key is "
+    "built by the checker as terms.with_domain(child proposition, the "
+    "parent's domain), so E5 applies (sqrt 3 > 0 has domain true) and a "
+    "child can never carry a domain its parent did not have. Children are "
+    "decided by the same dispatcher, with the same exact-value step, but "
+    "never refuted, and they are never tracker entries (TAG_RULES: "
+    "sub-obligations only decide whether the parent's check passes).",
+
+    "Refusals inside discharge. Neither the search nor the checker nor the "
+    "refutation raises a refusal of its own. A terms.Refused met inside "
+    "any of them (ring meeting an Int or D node, say) counts as a rejected "
+    "certificate or as no refutation. Only E7 refuses "
+    "Int-or-D-not-normalisable, so DEFINEDNESS_MUTATIONS' norm_num "
+    "mutations still show as a changed outcome and are not masked by a "
+    "second guard.",
+
+    "Tracker and verdict (E32). An obligation's status is decided once, at "
+    "emission, and never changes: no later step adds anything discharge "
+    "reads (its only inputs are the key and entries.ENTRIES), so there is "
+    "no admitted -> discharged transition to record. Obligation gains a "
+    "field `certificate`: the accepted certificate for methods 1-6, None "
+    "for norm_num, for the deriv+check premise and for every admission. "
+    "`reason` is REASON_REG, REASON_NONE or REASON_REJECTED for an "
+    "admission and None otherwise. _Tracker.add is unchanged: a re-emitted "
+    "key keeps the status it has, and because discharge is a function of "
+    "the key, the re-emission's own status in the step's list is the same "
+    "one. report() is unchanged: 'Proved.' exactly when no entry is "
+    "ADMITTED, else VERDICT with N the admitted count. With regularity "
+    "unbuilt, every proof in PROOFS and every stage-0 proof reads 'Proved "
+    "modulo 3 admissions', the three being ftc's Reg premises.",
+
+    "Decided false (§18 Q22, E33). A non-Reg obligation is decided false, "
+    "and its step refused 'obligation-decided-false', in exactly three "
+    "ways. F1: step (4)'s exact values made it literal and norm_num finds "
+    "it false (cos(pi/2) # 0 reads 0 # 0). F2: it is closed (no free "
+    "variable, domain true by E5), its proposition is an ordering, and its "
+    "negation (a > b to a <= b, a >= b to a < b, a < b to a >= b, a <= b to "
+    "a > b) is discharged by steps (3)-(5) at domain true (pi/2 <= 0, whose "
+    "negation pi/2 > 0 is linear with pi_pos). A closed e # 0 is decided "
+    "false only by F1, since its negation is an equation. F3: it has a "
+    "free variable and there is a rational point p, drawn from "
+    "COUNTERPOINT_CANDIDATES in their order, such that every domain item "
+    "at p (a closed proposition) is discharged by steps (3)-(5), every "
+    "former the proposition owes at p (kernel._owed over its subterms, "
+    "each closed) is discharged by steps (3)-(5), and the proposition at p "
+    "is decided false by F1 (literal after exact values, norm_num False) "
+    "or F2. The first such point in candidate order is the one named. "
+    "Nothing else is decided false: in particular, a certificate the "
+    "checker rejects decides nothing, and an obligation none of F1-F3 "
+    "reaches stays ADMITTED, tagged by E24, with its reason.",
+
+    "Decided false is outside the trusted base. It can only refuse a step, "
+    "and a refused step changes nothing (E13), so a bug in F1-F3 costs a "
+    "wrongly refused step, never a false 'Proved' (§15.2's condition for "
+    "trusted code calling untrusted code, argued as ARCHITECTURE.md §1 "
+    "argues schema.check_evaluated). It is still checked, so that a wrong "
+    "refusal is not a search accident either: each refutation is re-decided "
+    "at its point by exact rational evaluation and by the trusted "
+    "checkers, and the property test (DISCHARGE_PROPERTY_TEST) re-evaluates "
+    "every refutation independently.",
+)
+
+# E33 F3's candidate points. Stated so that the message names one point
+# deterministically; the search that walks them is untrusted.
+COUNTERPOINT_CANDIDATES = (
+    "Variables: every free variable of the key (proposition and domain), "
+    "sorted by name. Values for a variable v, in this order, a value kept "
+    "at its first occurrence only: (1) for each domain item in the "
+    "domain's order that bounds v alone against a rational literal c "
+    "(an Interval item on v with a rational end, lo before hi, or a "
+    "relation item v REL c or c REL v): c when that bound is closed or "
+    "non-strict; c + 1 for a strict lower bound and c - 1 for a strict "
+    "upper bound; (2) for each Interval item on v whose two ends are both "
+    "rational literals, their midpoint; (3) 0, 1, -1. Points: the "
+    "Cartesian product in lexicographic order, the first variable "
+    "slowest. Irrational or symbolic ends (pi/2, e_const) contribute no "
+    "value; the point must still satisfy them, which steps (3)-(5) decide "
+    "(0 <= pi^2/4 by sign).",
+)
+
+# Certificate helpers. Labels as DISCHARGE_RULE names them; rationals as
+# strings for fractions.Fraction; terms as GRAMMAR.md strings.
+GOAL = ("goal",)
+
+
+def LO(i):
+    return ("dom", i, "lo")
+
+
+def HI(i):
+    return ("dom", i, "hi")
+
+
+def REL(i):
+    return ("dom", i, "rel")
+
+
+def FACT(name):
+    return ("fact", name)
+
+
+def _farkas(mults, sense=None):
+    return {"method": "farkas", "sense": sense, "multipliers": dict(mults)}
+
+
+def _sos(const, squares, sense=None):
+    return {"method": "sign", "sense": sense, "const": const,
+            "squares": tuple(squares)}
+
+
+def _product(content, factors, sense=None):
+    return {"method": "sign product", "sense": sense, "content": content,
+            "factors": tuple(factors)}
+
+
+def _cite(entry, inst, hyps):
+    return {"method": "cite", "entry": entry, "inst": dict(inst),
+            "hyps": tuple(hyps)}
+
+
+def _member(i):
+    return {"method": "hyp", "member": i}
+
+
+def _chain(*items):
+    return {"method": "hyp", "chain": tuple(items)}
+
+
+NORM_NUM_LEAF = {"method": "norm_num"}
+
+# The certificates P1 needs, written once and reused where the same shape
+# recurs. Each was derived by hand from DISCHARGE_RULE and re-checked with
+# SymPy (VERIFIED).
+_RANGE_LO = _farkas({GOAL: "1", LO(0): "1"})           # v - lo against g
+_RANGE_LO_NZ = _farkas({GOAL: "1", LO(0): "1"}, ">")    # the same, for # 0
+_PI_HALF = _farkas({GOAL: "1", FACT("pi_pos"): "1/2"})  # pi/2 against pi > 0
+_PI_SQ = _sos("0", [("1/4", "pi", 2)])                  # (1/4)*pi^2, E20
+_QUAD = _sos("3/4", [("1", "x - 1/2", 2)])              # x^2 - x + 1
+_QUAD_NZ = _sos("3/4", [("1", "x - 1/2", 2)], ">")
+_SQRT3 = _cite("sqrt_pos", {"a": "3"}, [("3 > 0", NORM_NUM_LEAF)])
+_ONE_PLUS_X3 = _product("1", [("1 + x", "# 0", _RANGE_LO_NZ),
+                              ("x^2 - x + 1", "# 0", _QUAD_NZ)], "#")
+
+# DISCHARGE_EXPECTED[proof][(prop, dom)] = (tag, certificate), for every key
+# the pre-discharge FINAL_TRACKER admits with a §5.3 tag. Each becomes
+# DISCHARGED with that same tag: the search follows TAG_RULES' order, so
+# the method that discharges is the one the tagger named (E28). How each
+# was reached:
+#   * t >= 0, x >= 0, x > 0, 1 + x > 0 and their # 0 forms on a range with
+#     lower end 0: ('goal',) plus the lower end. For t >= 0 on [0, pi/2]:
+#     (0 - t, strict) + (t - 0, closed) = 0 with a strict constraint. For
+#     1 + x > 0 on [0, 1]: (0 - (1 + x), non-strict) + (x - 0) = -1.
+#   * 0 <= pi/2 and pi/2 >= 0: (0 - pi/2, strict) + (1/2)(pi, strict) = 0.
+#   * t^2 >= 0, 0 <= pi^2/4, pi^2/4 >= 0: non-strict, constant 0 (E20).
+#   * x^2 - x + 1: its completed square, 3/4 + (x - 1/2)^2.
+#   * 1 + x^3 # 0: 1 * (1 + x)(x^2 - x + 1), each factor # 0 by its own
+#     certificate on the same domain.
+#   * sqrt 3 # 0: sqrt_pos with a := 3, whose hypothesis 3 > 0 is literal.
+#   * 3*sqrt 3 # 0 and 2*sqrt x # 0: E18's content split, the factor's
+#     # 0 by sqrt_pos, whose hypothesis x > 0 on (0, pi^2/4) is range.
+#   * Every Farkas key passes the pre-check: [0, pi/2] with pi > 0 at
+#     t = 0, pi = 1; (0, pi^2/4) with pi^2 opaque; [0, 1] and (0, 1).
+DISCHARGE_EXPECTED = {
+    "P1.1": {
+        ("t^2 >= 0", "[0, pi/2]"): (T_SIGN, _sos("0", [("1", "t", 2)])),
+        ("0 <= pi/2", "true"): (T_LINEAR_PI, _PI_HALF),
+        ("t >= 0", "[0, pi/2]"): (T_RANGE, _RANGE_LO),
+    },
+    "P1.1-fallback": {
+        ("x >= 0", "[0, pi^2/4]"): (T_RANGE, _RANGE_LO),
+        ("0 <= pi^2/4", "true"): (T_SIGN, _PI_SQ),
+        ("x > 0", "(0, pi^2/4)"): (T_RANGE, _RANGE_LO),
+        ("2*sqrt x # 0", "(0, pi^2/4)"): (
+            T_PRODUCT_SQRT,
+            _product("2", [("sqrt x", "# 0",
+                            _cite("sqrt_pos", {"a": "x"},
+                                  [("x > 0", _RANGE_LO)]))], "#")),
+        ("pi^2/4 >= 0", "true"): (T_SIGN, _PI_SQ),
+        ("pi/2 >= 0", "true"): (T_LINEAR_PI, _PI_HALF),
+    },
+    "P1.2": {
+        ("1 + x^3 # 0", "[0, 1]"): (T_PRODUCT, _ONE_PLUS_X3),
+        ("sqrt 3 # 0", "true"): (T_SQRT_POS, _SQRT3),
+        ("1 + x > 0", "[0, 1]"): (T_RANGE, _RANGE_LO),
+        ("x^2 - x + 1 > 0", "[0, 1]"): (T_SIGN, _QUAD),
+        ("1 + x > 0", "(0, 1)"): (T_RANGE, _RANGE_LO),
+        ("x^2 - x + 1 > 0", "(0, 1)"): (T_SIGN, _QUAD),
+        ("1 + x # 0", "(0, 1)"): (T_RANGE, _RANGE_LO_NZ),
+        ("x^2 - x + 1 # 0", "(0, 1)"): (T_SIGN, _QUAD_NZ),
+        ("1 + ((2*x - 1)/sqrt 3)^2 # 0", "(0, 1)"): (
+            T_SIGN, _sos("1", [("1", "(2*x - 1)/sqrt 3", 2)], ">")),
+        ("1 + x^3 # 0", "(0, 1)"): (T_PRODUCT, _ONE_PLUS_X3),
+        ("3*sqrt 3 # 0", "true"): (
+            T_PRODUCT_SQRT, _product("3", [("sqrt 3", "# 0", _SQRT3)], "#")),
+    },
+}
+DISCHARGE_EXPECTED["P1.2-alt"] = {
+    k: v for k, v in DISCHARGE_EXPECTED["P1.2"].items()
+    if k != ("3*sqrt 3 # 0", "true")}
+# For a # 0 key the sense of a sign product is written '#': the target is
+# g # 0 and every factor's sub-obligation is fj # 0, each decided with its
+# own sense.
+
+
+def _after_discharge(ob, table):
+    """A pre-discharge per-step obligation under DISCHARGE_RULE: an
+    admission whose key DISCHARGE_EXPECTED lists becomes DISCHARGED, with
+    its tag unchanged (asserted below); everything else is unchanged."""
+    prop, dom, sources, status, tag, new = ob
+    if status == ADMITTED and (prop, dom) in table:
+        assert table[(prop, dom)][0] == tag, (prop, dom)
+        return (prop, dom, sources, DISCHARGED, tag, new)
+    return ob
+
+
+# The per-step lists after discharge, derived by that one rule from the
+# hand-written EXPECTED_OBLIGATIONS. They are cross-checked against
+# DISCHARGE_FINAL_TRACKER, which is written out by hand.
+DISCHARGE_OBLIGATIONS = {
+    proof: {sid: [_after_discharge(ob, DISCHARGE_EXPECTED[proof])
+                  for ob in obs]
+            for sid, obs in steps.items()}
+    for proof, steps in EXPECTED_OBLIGATIONS.items()}
+
+DISCHARGE_FINAL_TRACKER = {
+    "P1.1": [
+        ("2 # 0", "true", DISCHARGED, T_NORM_NUM),
+        ("t^2 >= 0", "[0, pi/2]", DISCHARGED, T_SIGN),
+        ("t >= 0", "[0, pi/2]", DISCHARGED, T_RANGE),
+        ("0 <= pi/2", "true", DISCHARGED, T_LINEAR_PI),
+        ("2*sin t - 2*t*cos t in C^0([0, pi/2])", "[0, pi/2]", ADMITTED,
+         T_REG),
+        ("2*sin t - 2*t*cos t in C^1((0, pi/2))", "(0, pi/2)", ADMITTED,
+         T_REG),
+        ("D[t](2*sin t - 2*t*cos t) == sin t * (2*t)", "(0, pi/2)",
+         DISCHARGED, T_DERIV_RING),
+        ("sin t * (2*t) in C^0([0, pi/2])", "[0, pi/2]", ADMITTED, T_REG),
+    ],
+    "P1.1-fallback": [
+        ("4 # 0", "true", DISCHARGED, T_NORM_NUM),
+        ("x >= 0", "[0, pi^2/4]", DISCHARGED, T_RANGE),
+        ("0 <= pi^2/4", "true", DISCHARGED, T_SIGN),
+        ("2*sin(sqrt x) - 2*sqrt x * cos(sqrt x) in C^0([0, pi^2/4])",
+         "[0, pi^2/4]", ADMITTED, T_REG),
+        ("2*sin(sqrt x) - 2*sqrt x * cos(sqrt x) in C^1((0, pi^2/4))",
+         "(0, pi^2/4)", ADMITTED, T_REG),
+        ("D[x](2*sin(sqrt x) - 2*sqrt x * cos(sqrt x)) == sin(sqrt x)",
+         "(0, pi^2/4)", DISCHARGED, T_DERIV_FIELD),
+        ("sin(sqrt x) in C^0([0, pi^2/4])", "[0, pi^2/4]", ADMITTED, T_REG),
+        ("x > 0", "(0, pi^2/4)", DISCHARGED, T_RANGE),
+        ("2*sqrt x # 0", "(0, pi^2/4)", DISCHARGED, T_PRODUCT_SQRT),
+        ("pi^2/4 >= 0", "true", DISCHARGED, T_SIGN),
+        ("0 >= 0", "true", DISCHARGED, T_NORM_NUM),
+        ("pi/2 >= 0", "true", DISCHARGED, T_LINEAR_PI),
+        ("2 # 0", "true", DISCHARGED, T_NORM_NUM),
+    ],
+    "P1.2": [
+        ("1 + x^3 # 0", "[0, 1]", DISCHARGED, T_PRODUCT),
+        ("3 # 0", "true", DISCHARGED, T_NORM_NUM),
+        ("6 # 0", "true", DISCHARGED, T_NORM_NUM),
+        ("sqrt 3 # 0", "true", DISCHARGED, T_SQRT_POS),
+        ("3 >= 0", "true", DISCHARGED, T_NORM_NUM),
+        ("1 + x > 0", "[0, 1]", DISCHARGED, T_RANGE),
+        ("x^2 - x + 1 > 0", "[0, 1]", DISCHARGED, T_SIGN),
+        (P1_2_F + " in C^0([0, 1])", "[0, 1]", ADMITTED, T_REG),
+        (P1_2_F + " in C^1((0, 1))", "(0, 1)", ADMITTED, T_REG),
+        ("D[x](" + P1_2_F + ") == 1/(1 + x^3)", "(0, 1)", DISCHARGED,
+         T_DERIV_FIELD_FACT),
+        ("1/(1 + x^3) in C^0([0, 1])", "[0, 1]", ADMITTED, T_REG),
+        ("1 + x > 0", "(0, 1)", DISCHARGED, T_RANGE),
+        ("x^2 - x + 1 > 0", "(0, 1)", DISCHARGED, T_SIGN),
+        ("1 + x # 0", "(0, 1)", DISCHARGED, T_RANGE),
+        ("x^2 - x + 1 # 0", "(0, 1)", DISCHARGED, T_SIGN),
+        ("1 + ((2*x - 1)/sqrt 3)^2 # 0", "(0, 1)", DISCHARGED, T_SIGN),
+        ("1 + x^3 # 0", "(0, 1)", DISCHARGED, T_PRODUCT),
+        ("1 + 1 > 0", "true", DISCHARGED, T_NORM_NUM),
+        ("1^2 - 1 + 1 > 0", "true", DISCHARGED, T_NORM_NUM),
+        ("1 + 0 > 0", "true", DISCHARGED, T_NORM_NUM),
+        ("0^2 - 0 + 1 > 0", "true", DISCHARGED, T_NORM_NUM),
+        ("3*sqrt 3 # 0", "true", DISCHARGED, T_PRODUCT_SQRT),
+        ("2 > 0", "true", DISCHARGED, T_NORM_NUM),
+    ],
+}
+DISCHARGE_FINAL_TRACKER["P1.2-alt"] = (
+    [ob for ob in DISCHARGE_FINAL_TRACKER["P1.2"] if ob[0] != "3*sqrt 3 # 0"]
+    + [("9 # 0", "true", DISCHARGED, T_NORM_NUM)])
+
+# N after discharge: only ftc's three Reg premises remain, in every proof.
+DISCHARGE_ADMISSIONS = {
+    "P1.1": 3,           # three regularity (was 6)
+    "P1.1-fallback": 3,  # three regularity (was 9)
+    "P1.2": 3,           # three regularity (was 14)
+    "P1.2-alt": 3,       # three regularity (was 13)
+}
+DISCHARGE_VERDICTS = {name: VERDICT.format(n=n)
+                      for name, n in DISCHARGE_ADMISSIONS.items()}
+# Every remaining admission's reason is REASON_REG, and no admission is
+# tagged none: the no-none assertion over PROOFS runs still holds.
+
+# The data cross-checks itself when imported, as the E26 source check does.
+for _p, _rows in DISCHARGE_FINAL_TRACKER.items():
+    _pre = {(r[0], r[1]): r for r in FINAL_TRACKER[_p]}
+    assert set(_pre) == {(r[0], r[1]) for r in _rows}, _p
+    for _r in _rows:
+        _old = _pre[(_r[0], _r[1])]
+        assert _r[3] == _old[3], (_p, _r)          # tags unchanged
+        if _old[2] == ADMITTED and _old[3] != T_REG:
+            assert _r[2] == DISCHARGED and (_r[0], _r[1]) in \
+                DISCHARGE_EXPECTED[_p], (_p, _r)
+        else:
+            assert _r[2] == _old[2], (_p, _r)
+    assert sum(r[2] == ADMITTED for r in _rows) == \
+        DISCHARGE_ADMISSIONS[_p], _p
+    assert all(r[3] == T_REG for r in _rows if r[2] == ADMITTED), _p
+    for _sid, _obs in DISCHARGE_OBLIGATIONS[_p].items():
+        for _ob in _obs:
+            _fin = [r for r in _rows if (r[0], r[1]) == (_ob[0], _ob[1])]
+            assert _fin and _fin[0][2] == _ob[3], (_p, _sid, _ob)
+del _p, _rows, _pre, _r, _old, _sid, _obs, _ob, _fin
+
+# ---------------------------------------------------------------------------
+# 11b. The cases after discharge: what changes in MATCH_ACCEPTS,
+#      OCCURRENCE_CASE, DEFINEDNESS_CASES and BAD_MOVES
+#
+# A case not named here keeps every expected value, with each admission it
+# lists that DISCHARGE_* names below turned DISCHARGED. Every BAD_MOVES and
+# SUITE_BAD_MOVES case was traced for an installation or earlier emission
+# that F1-F3 would now refute before the case's own refusal: two BAD_MOVES
+# cases change (DISCHARGE_BAD_MOVES_CHANGED), and each gets a twin that
+# keeps its original refusal reachable (DISCHARGE_BAD_MOVES_ADDED). The
+# suite's own cases in proof_of_life.py (read, not edited) are literal or
+# true where they emit, and none changes.
+
+# A refusal expected from discharge: (template key, parts) filled per
+# DECIDED_FALSE_MESSAGES. Keys and terms are GRAMMAR.md strings, printed by
+# the suite with terms.show after parsing, never compared as raw strings.
+def _point(key, reading, entries=(), **values):
+    """An F3 refusal: at the point, `reading` is the literal proposition
+    norm_num finds false, after the exact values `entries` (E35 (4))."""
+    parts = {"key": key, "point": dict(sorted(values.items())),
+             "reading": reading}
+    if entries:
+        parts["entries"] = tuple(entries)
+        return ("point_exact", parts)
+    return ("point", parts)
+
+
+def _exact(key, entries, rewritten):
+    return ("exact", {"key": key, "entries": tuple(entries),
+                      "rewritten": rewritten})
+
+
+def _negation(key, negation, tag):
+    return ("negation", {"key": key, "negation": negation, "tag": tag})
+
+
+DISCHARGE_MATCH_ACCEPTS = {
+    # every listed key becomes DISCHARGED with its tag, no other change
+    "ring_cancels_inv_atom": {
+        ("x # 0", "[1, 2]"): (T_RANGE, _RANGE_LO_NZ),
+        # ring-normalised, the negated goal alone is (-1, non-strict): k < 0
+        ("1/x - 1/x + 1 > 0", "[1, 2]"): (T_LINEAR, _farkas({GOAL: "1"})),
+    },
+    "rewrite_under_infinite_range": {
+        ("x^2 >= 0", "[0, oo)"): (T_SIGN, _sos("0", [("1", "x", 2)])),
+        # the infinite end gives no constraint; the lower end is enough
+        ("x >= 0", "[0, oo)"): (T_RANGE, _RANGE_LO),
+    },
+    "rewrite_R_former_at_position": {
+        ("x > 0", "[1, 2]"): (T_RANGE, _RANGE_LO),
+    },
+    "rewrite_R_former_at_goal_and_range": {
+        # (0 - (x + y), non-strict) + (y, strict) + (x - 1) = -1
+        ("x + y > 0", "y > 0, x in [1, 2]"): (
+            T_RANGE, _farkas({GOAL: "1", REL(0): "1", LO(1): "1"})),
+    },
+    "limit_former_at_outer_domain": {
+        ("y >= 0", "y >= 0"): (T_HYP, _member(0)),
+    },
+}
+
+DISCHARGE_OCCURRENCE_CASE = {
+    # installation's two t^2 >= 0 keys, not asserted before, now asserted
+    "goal_emits": [
+        ("t^2 >= 0", "[0, 1]", (S_FORMER,), DISCHARGED, T_SIGN, True),
+        ("t^2 >= 0", "[-1, 0]", (S_FORMER,), DISCHARGED, T_SIGN, True)],
+    "goal_certificates": {
+        ("t^2 >= 0", "[0, 1]"): _sos("0", [("1", "t", 2)]),
+        ("t^2 >= 0", "[-1, 0]"): _sos("0", [("1", "t", 2)])},
+    # Without `occurrence` the rewrite emits t >= 0 on both ranges, in
+    # pre-order: [0, 1] is discharged by range, then [-1, 0] is decided
+    # false by F3 at its closed lower end, so the step is REFUSED and the
+    # state is unchanged. Before discharge it was accepted with the false
+    # key admitted and tagged none: §5.3's own example of 'not a
+    # simplification, a rejected step' is now rejected.
+    "all": {"refusal": OBLIGATION_DECIDED_FALSE,
+            "message": _point("t >= 0 @ [-1, 0]", "-1 >= 0", t="-1")},
+    "one": {"emits": [("t >= 0", "[0, 1]", (S_SQRT_SQ,), DISCHARGED,
+                       T_RANGE, True)],
+            "certificates": {("t >= 0", "[0, 1]"): _RANGE_LO}},
+}
+
+DISCHARGE_DEFINEDNESS_CASES = {
+    # Q22's own case: installation is refused (F1), so the close never runs.
+    # 2 # 0 is emitted first and discharged; the refusal emits nothing.
+    "tan_pi_half": {"refusal": OBLIGATION_DECIDED_FALSE, "at": "install",
+                    "message": _exact("cos(pi/2) # 0", ["cos_pi_half"],
+                                      "0 # 0"),
+                    "was": VERDICT.format(n=1)},
+    # E35 (3), owner answers: with cos_zero pinned, step (4) rewrites
+    # cos 0 # 0 to the literal 1 # 0, which norm_num discharges, citing
+    # cos_zero. No certificate (norm_num). The report becomes 'Proved.'.
+    # (Before the owner's answer it was true and still undecided; the
+    # true-and-undecided example is now DISCHARGE_UNDECIDED's tan 1.)
+    "tan_zero_true": {"goal_emits": [("cos 0 # 0", "true", (S_FORMER,),
+                                      DISCHARGED, T_NORM_NUM_COS0, True)],
+                      "final": [("cos 0 # 0", "true", DISCHARGED,
+                                 T_NORM_NUM_COS0)],
+                      "report": PROVED,
+                      "was": VERDICT.format(n=1)},
+    # F3 at the first candidate, x = -1 (the strict upper bound 0, less 1)
+    "ln_false_on_goal_domain": {
+        "refusal": OBLIGATION_DECIDED_FALSE, "at": "install",
+        "message": _point("x > 0 @ x < 0", "-1 > 0", x="-1"),
+        "was": VERDICT.format(n=1)},
+    # hyp now closes it: the report becomes 'Proved.'
+    "ln_true_by_hyp": {"goal_emits": [("x > 0", "x > 0", (S_FORMER,),
+                                       DISCHARGED, T_HYP, True)],
+                       "certificates": {("x > 0", "x > 0"): _member(0)},
+                       "final": [("x > 0", "x > 0", DISCHARGED, T_HYP)],
+                       "report": PROVED,
+                       "was": VERDICT.format(n=1)},
+    # sqrt_closed_end, asin_closed_ends, acos_closed_ends, acosh_closed_end
+    # and atanh_interior are literal (E7) and unchanged: 'Proved.'.
+}
+
+DISCHARGE_BAD_MOVES_CHANGED = {
+    # Installation owes t^2 >= 0 on t in [0, x] (sign, discharged) and the
+    # orientation 0 <= x @ true, which is false at x = -1 (F3, the third
+    # default candidate). Refused before the rewrite runs. The goal states
+    # no domain, and E4's orientation of Int[t = 0 .. x] is false for
+    # x < 0: E33 makes the learner state @ 0 <= x (the owner's decision,
+    # E35 (1)). The twin below keeps step 9 (b) reachable.
+    "rewrite_under_D_through_Int": {
+        "refusal": OBLIGATION_DECIDED_FALSE, "at": "install",
+        "message": _point("0 <= x", "0 <= -1", x="-1"),
+        "was": "rewrite-under-D-needs-open-domain"},
+    # Installation's x/x - 1 # 0 @ [1, 2] was admitted none; F3 decides it
+    # false at x = 1 (the closed lower end): 1/1 - 1 # 0 owes 1 # 0, true,
+    # and reads 0 # 0. The twin keeps field's own E25 test reachable.
+    "field_zero_divisor": {
+        "refusal": OBLIGATION_DECIDED_FALSE, "at": "install",
+        "message": _point("x/x - 1 # 0 @ [1, 2]", "1/1 - 1 # 0", x="1"),
+        "was": "divisor-normalises-to-zero"},
+}
+
+# New cases, in BAD_MOVES' shape, each with the installation's emissions
+# where they are new information.
+DISCHARGE_BAD_MOVES_ADDED = [
+    {"id": "rewrite_under_D_through_Int_stated",
+     "twin_of": "rewrite_under_D_through_Int",
+     "goal": "D[x](Int[t = 0 .. x] sqrt(t^2)) == ?A @ 0 <= x",
+     "setup": [],
+     "move": ("rewrite", {"entry": "sqrt_sq", "inst": {"u": "t"},
+                          "at": "sqrt(t^2)"}),
+     "refusal": "rewrite-under-D-needs-open-domain",
+     "goal_emits": [
+         ("t^2 >= 0", "0 <= x, t in [0, x]", (S_FORMER,), DISCHARGED,
+          T_SIGN, True),
+         ("0 <= x", "0 <= x", (S_ORIENT,), DISCHARGED, T_HYP, True)],
+     "certificates": {("t^2 >= 0", "0 <= x, t in [0, x]"):
+                      _sos("0", [("1", "t", 2)]),
+                      ("0 <= x", "0 <= x"): _member(0)},
+     "why": "the stated domain makes the orientation hyp, so installation "
+            "succeeds, and step 9 (b) still refuses: the range [0, x] is "
+            "closed in x below D[x] whatever Γ says"},
+    {"id": "field_zero_divisor_opaque",
+     "twin_of": "field_zero_divisor",
+     "goal": "Int[x = 1 .. 2] 1/((x + pi)/(x + pi) - 1) == ?A",
+     "setup": [],
+     "move": ("ftc", {"F": "x", "check": "field", "facts": []}),
+     "refusal": "divisor-normalises-to-zero",
+     "goal_emits": [
+         # (0 - (x + pi), non-strict) + (x - 1) + (pi, strict) = -1
+         ("x + pi # 0", "[1, 2]", (S_FORMER,), DISCHARGED, T_RANGE_PI, True),
+         # ring_nf is x*inv(x + pi) + pi*inv(x + pi) - 1, nonzero, so E25
+         # installs it; no method closes it (TAG_RULES: none), and F3 finds
+         # no point: at every candidate in [1, 2] the proposition keeps pi,
+         # is not literal after exact values, and is a # 0, so F2 does not
+         # apply. Admitted none, as field_zero_divisor's divisor was.
+         ("(x + pi)/(x + pi) - 1 # 0", "[1, 2]", (S_FORMER,), ADMITTED,
+          T_NONE, True)],
+     "certificates": {("x + pi # 0", "[1, 2]"):
+                      _farkas({GOAL: "1", LO(0): "1", FACT("pi_pos"): "1"},
+                              ">")},
+     "reasons": {("(x + pi)/(x + pi) - 1 # 0", "[1, 2]"): REASON_NONE},
+     "why": "field's divisor test finds the numerator of (x + pi)/(x + pi) "
+            "- 1 zero (SymPy: cancel gives 0), so ftc is refused "
+            "divisor-normalises-to-zero, never ftc-check-failed (E25), "
+            "with an opaque atom where F3 cannot evaluate"},
+    # §18 Q22's refusals, one per way of deciding false and per place a
+    # term enters.
+    {"id": "decided_false_reversed_range",
+     "goal": "Int[t = pi/2 .. 0] sqrt(t^2) == ?A",
+     "setup": [], "move": ("install", {}),
+     "refusal": OBLIGATION_DECIDED_FALSE,
+     "message": _negation("pi/2 <= 0", "pi/2 > 0", T_LINEAR_PI),
+     "why": "F2. DOMAIN_RULES E4 said a non-literal reversed range's "
+            "orientation is 'refused once discharge exists'. Installation "
+            "discharges 2 # 0 (E7) and t^2 >= 0 @ [pi/2, 0] (sign, which "
+            "does not read the domain; the pre-check finds that domain "
+            "empty, so no Farkas certificate is attempted for it), then "
+            "emits pi/2 <= 0: closed, no certificate, and its negation "
+            "pi/2 > 0 is linear, (0 - pi/2, non-strict) + (1/2)(pi, strict) "
+            "= 0 with a strict constraint"},
+    {"id": "decided_false_quadratic",
+     "goal": "Int[x = 0 .. 1] ln(x^2 - x - 1) == ?A",
+     "setup": [], "move": ("install", {}),
+     "refusal": OBLIGATION_DECIDED_FALSE,
+     "message": _point("x^2 - x - 1 > 0 @ [0, 1]", "0^2 - 0 - 1 > 0", x="0"),
+     "why": "F3 at the first candidate: -1 > 0. The same key as "
+            "DISCHARGE_MUST_REJECT sign_false_quadratic, reached through a "
+            "move: no search certificate exists (discriminant 5), and a "
+            "forged one is rejected there"},
+    {"id": "decided_false_after_exact_value",
+     "goal": "Int[x = 0 .. 1] 1/sin x == ?A",
+     "setup": [], "move": ("install", {}),
+     "refusal": OBLIGATION_DECIDED_FALSE,
+     "message": _point("sin x # 0 @ [0, 1]", "0 # 0",
+                       entries=("sin_zero",), x="0"),
+     "why": "F3 composed with F1: at x = 0 the proposition sin 0 # 0 "
+            "reads 0 # 0 with sin_zero. ring_nf(sin x) is nonzero, so E25 "
+            "installs the divisor"},
+    {"id": "decided_false_pole",
+     "goal": "Int[x = -1 .. 1] 1/x^2 == ?A",
+     "setup": [], "move": ("install", {}),
+     "refusal": OBLIGATION_DECIDED_FALSE,
+     "message": _point("x^2 # 0 @ [-1, 1]", "0^2 # 0", x="0"),
+     "why": "F3 at the range's midpoint, after its two ends pass: the "
+            "integrand's divisor is zero inside the range. This is the "
+            "FTC-across-a-pole trap stage 0b found HolPy's kernel passing "
+            "(§17), refused where the goal is installed, before any ftc. "
+            "TAG_RULES tags the key none (x^2 is opaque to FM, has constant "
+            "0 on a strict target, and x * x needs x # 0 on [-1, 1])"},
+    {"id": "decided_false_sqrt_at_end",
+     "goal": "Int[x = 0 .. 1] 1/sqrt x == ?A",
+     "setup": [], "move": ("install", {}),
+     "refusal": OBLIGATION_DECIDED_FALSE,
+     "message": _point("sqrt x # 0 @ [0, 1]", "0 # 0",
+                       entries=("sqrt_zero",), x="0"),
+     "why": "F3, with F1 at the point (E35 (3), owner answers): at x = 0, "
+            "the first candidate (the closed lower end), the domain holds, "
+            "the proposition owes sqrt 0's 0 >= 0 (literal, true), and "
+            "sqrt 0 # 0 reads 0 # 0 with sqrt_zero. The method search has "
+            "nothing (cite sqrt_pos needs x > 0 on [0, 1], itself none). "
+            "Installation's other key, x >= 0 @ [0, 1], is discharged by "
+            "range; the refusal emits nothing. Before sqrt_zero this key "
+            "was admitted none (DISCHARGE_UNDECIDED)"},
+    {"id": "decided_false_no_stated_domain",
+     "goal": "ln x * 0 == ?A",
+     "setup": [], "move": ("install", {}),
+     "refusal": OBLIGATION_DECIDED_FALSE,
+     "message": _point("x > 0", "0 > 0", x="0"),
+     "why": "F3: ln x owes x > 0 at the goal's domain, true, and x = 0 is "
+            "the first default candidate. Before discharge this installed "
+            "and closed modulo 1 admission tagged none. A goal whose terms "
+            "are undefined on part of its stated domain is a wrong goal "
+            "(Q22's reason); kept by the owner's decision, E35 (1)"},
+    {"id": "decided_false_at_close",
+     "goal": "0 == ?A", "setup": [],
+     "move": ("close", {"value": "0*sqrt x", "check": "ring",
+                        "facts": []}),
+     "refusal": OBLIGATION_DECIDED_FALSE,
+     "message": _point("x >= 0", "-1 >= 0", x="-1"),
+     "why": "F3 on close's value: the scope check, the whitelist and E7 "
+            "pass, and the value's sqrt x owes x >= 0 at G, false at -1 "
+            "(0 and 1 pass). Charged before the check, so it is not "
+            "close-check-failed"},
+]
+
+# Obligations discharge decides neither way: admitted, tagged none, with
+# REASON_NONE. Each is installed and its installation list asserted; none
+# is closed.
+DISCHARGE_UNDECIDED = [
+    # (undecided_false_sqrt_at_end moved to DISCHARGE_BAD_MOVES_ADDED as
+    # decided_false_sqrt_at_end once sqrt_zero was pinned, E35 (3).)
+    {"id": "undecided_true_tan_one",
+     "goal": "0*tan 1 == ?A",
+     "goal_emits": [
+         ("cos 1 # 0", "true", (S_FORMER,), ADMITTED, T_NONE, True)],
+     "reasons": {("cos 1 # 0", "true"): REASON_NONE},
+     "why": "true (cos 1 = 0.5403...), and no rule decides it: no entry "
+            "evaluates cos 1 or concludes its sign (cos_nonzero_on waits, "
+            "E35 (3)), FM sees an opaque atom, and a closed # 0 has no F2. "
+            "The true-but-undecided example tan_zero_true was before "
+            "cos_zero"},
+    {"id": "undecided_false_unbounded_candidates",
+     "goal": "Int[x = 0 .. oo] 1/(x - 5) == ?A",
+     "goal_emits": [
+         ("x - 5 # 0", "[0, oo)", (S_FORMER,), ADMITTED, T_NONE, True)],
+     "reasons": {("x - 5 # 0", "[0, oo)"): REASON_NONE},
+     "why": "false at x = 5, but COUNTERPOINT_CANDIDATES gives x only 0, "
+            "1 and -1 (the lower end 0 and the defaults), none of them 5: "
+            "F3 is a bounded search and says so. The divisor's ring_nf is "
+            "nonzero, so E25 installs it"},
+]
+
+# ---------------------------------------------------------------------------
+# 11c. Must-reject: the trusted checker called directly
+#
+# Each case hands the checker a key and a certificate, as the search would.
+# 'expected' is the checker's verdict, 'rejects_because' the first rule of
+# DISCHARGE_RULE the certificate breaks, and 'truth' whether the obligation
+# holds on its domain (('false', point) with a point where it fails, or
+# ('true',)): a rejected certificate of a true obligation shows the checker
+# does not accept a bad witness even for a good claim. 'if_emitted' is the
+# kernel's outcome if the same key were emitted, the search offering its
+# own certificate: a rejected forged certificate never refuses anything,
+# and what happens is decided by the rules, not by the forgery.
+DISCHARGE_MUST_REJECT = [
+    # Farkas: the owner's four, then the label and end rules.
+    {"id": "farkas_negative_multiplier",
+     "key": ("x <= 0", "[0, 1]"),
+     "cert": _farkas({GOAL: "1", LO(0): "-1"}),
+     "rejects_because": "a multiplier is negative",
+     "note": "(x - 0, strict) - (x - 0) = 0 with a strict constraint: "
+             "accepted if the sign of multipliers were not checked",
+     "truth": ("false", {"x": "1"}),
+     "if_emitted": ("refused", _point("x <= 0 @ [0, 1]", "1 <= 0", x="1"))},
+    {"id": "farkas_nonstrict_pair",
+     "key": ("x > 0", "[0, 1]"),
+     "cert": _farkas({GOAL: "1", LO(0): "1"}),
+     "rejects_because": "k = 0 and no used constraint is strict",
+     "note": "the strict/non-strict mix-up: (0 - x, non-strict) + (x - 0, "
+             "closed end) = 0 is 0 >= 0, no contradiction. The same "
+             "certificate is accepted for x > 0 @ (0, 1) (DISCHARGE_"
+             "CHECKER_ACCEPTS farkas_open_end)",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("refused", _point("x > 0 @ [0, 1]", "0 > 0", x="0"))},
+    {"id": "farkas_constant_not_contradiction",
+     "key": ("x >= 1", "[0, 1]"),
+     "cert": _farkas({GOAL: "1", LO(0): "1"}),
+     "rejects_because": "k = 1 > 0 is no contradiction",
+     "note": "(1 - x, strict) + (x - 0) = 1. A checker that read the lower "
+             "end with the upper end's value, x - 1 >= 0, would sum to 0 "
+             "with a strict constraint and accept a false claim",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("refused", _point("x >= 1 @ [0, 1]", "0 >= 1", x="0"))},
+    {"id": "farkas_not_constant",
+     "key": ("t >= 0", "[0, pi/2]"),
+     "cert": _farkas({GOAL: "1", HI(0): "1"}),
+     "rejects_because": "the combination pi/2 - 2*t is not a constant",
+     "note": "the wrong end of a true obligation's range",
+     "truth": ("true",),
+     "if_emitted": ("discharged", T_RANGE)},
+    {"id": "farkas_label_not_in_set",
+     "key": ("x > 0", "x > -1"),
+     "cert": _farkas({GOAL: "1", REL(1): "1"}),
+     "rejects_because": "the domain has no item 1",
+     "note": "the witness a buggy search builds from the claim itself: "
+             "with x > 0 as item 1, (0 - x) + (x, strict) = 0 would pass",
+     "truth": ("false", {"x": "-1/2"}),
+     "if_emitted": ("refused", _point("x > 0 @ x > -1", "0 > 0", x="0"))},
+    {"id": "farkas_fact_not_in_set",
+     "key": ("e_const > 0", "true"),
+     "cert": _farkas({GOAL: "1", FACT("pi_pos"): "1"}),
+     "rejects_because": "pi does not occur in the key, so pi_pos is not in "
+                        "its set",
+     "note": "the Farkas form of 'a cite of pi_pos for e_const'",
+     "truth": ("true",),
+     "if_emitted": ("discharged", T_LINEAR_E)},
+    {"id": "farkas_non_fact_entry",
+     "key": ("0 <= pi/2", "true"),
+     "cert": _farkas({GOAL: "1", FACT("sqrt_pos"): "1/2"}),
+     "rejects_because": "sqrt_pos has a schema variable and a hypothesis, "
+                        "so it is no constraint",
+     "truth": ("true",),
+     "if_emitted": ("discharged", T_LINEAR_PI)},
+    {"id": "farkas_infinite_end",
+     "key": ("x <= 5", "[0, oo)"),
+     "cert": _farkas({GOAL: "1", HI(0): "1"}),
+     "rejects_because": "an infinite end gives no constraint",
+     "truth": ("false", {"x": "6"}),
+     # the candidates for x are 0, 1 and -1, and 6 is not among them
+     "if_emitted": ("admitted", T_NONE, REASON_NONE)},
+    {"id": "farkas_nonzero_item",
+     "key": ("x > 0", "x # 0"),
+     "cert": _farkas({GOAL: "1", REL(0): "1"}),
+     "rejects_because": "a NonZero item gives no constraint",
+     "truth": ("false", {"x": "-1"}),
+     # x = 0 is not in the domain, 1 satisfies the claim, -1 refutes it
+     "if_emitted": ("refused", _point("x > 0 @ x # 0", "-1 > 0", x="-1"))},
+    {"id": "farkas_nonzero_without_sense",
+     "key": ("1 + x # 0", "[0, 1]"),
+     "cert": _farkas({GOAL: "1", LO(0): "1"}),
+     "rejects_because": "a # 0 target needs a sense",
+     "truth": ("true",),
+     "if_emitted": ("discharged", T_RANGE)},
+    {"id": "farkas_goal_unused",
+     "key": ("x > 5", "x >= 1, x <= 0"),
+     "cert": _farkas({REL(0): "1", REL(1): "1"}),
+     "rejects_because": "no ('goal',) multiplier",
+     "note": "(x - 1) + (0 - x) = -1 proves only that the domain is empty, "
+             "which the pre-check exists to catch (§5.3)",
+     "truth": ("true",),  # vacuously: the domain is empty
+     # The pre-check finds the domain infeasible, so no Farkas certificate
+     # is attempted; x - 5 is no sign form or product; no counter-point is
+     # in the empty domain. E24's tagger, which has no pre-check, finds the
+     # full set infeasible through the two domain items alone: 'range'.
+     "if_emitted": ("admitted", T_RANGE, REASON_EMPTY)},
+    # Sign certificates
+    {"id": "sign_false_quadratic",
+     "key": ("x^2 - x - 1 > 0", "[0, 1]"),
+     "cert": _sos("-5/4", [("1", "x - 1/2", 2)]),
+     "rejects_because": "c0 = -5/4 is not > 0",
+     "note": "ring_equal holds: (x - 1/2)^2 - 5/4 = x^2 - x - 1",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("refused", _point("x^2 - x - 1 > 0 @ [0, 1]", "0^2 - 0 - 1 > 0", x="0"))},
+    {"id": "sign_false_quadratic_forged",
+     "key": ("x^2 - x - 1 > 0", "[0, 1]"),
+     "cert": _sos("5/4", [("1", "x - 1/2", 2)]),
+     "rejects_because": "ring_equal fails: the sum is x^2 - x + 3/2",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("refused", _point("x^2 - x - 1 > 0 @ [0, 1]", "0^2 - 0 - 1 > 0", x="0"))},
+    {"id": "sign_forged_square",
+     "key": ("x^2 - x + 1 > 0", "[0, 1]"),
+     "cert": _sos("3/4", [("1", "x + 1/2", 2)]),
+     "rejects_because": "ring_equal fails: the sum is x^2 + x + 1",
+     "note": "a forged decomposition of a true claim",
+     "truth": ("true",),
+     "if_emitted": ("discharged", T_SIGN)},
+    {"id": "sign_odd_power",
+     "key": ("x^3 + 1 > 0", "[-2, 0]"),
+     "cert": _sos("1", [("1", "x", 3)]),
+     "rejects_because": "k = 3 is odd",
+     "truth": ("false", {"x": "-2"}),
+     "if_emitted": ("refused", _point("x^3 + 1 > 0 @ [-2, 0]", "(-2)^3 + 1 > 0", x="-2"))},
+    {"id": "sign_negative_coefficient",
+     "key": ("1 - x^2 > 0", "[-2, 2]"),
+     "cert": _sos("1", [("-1", "x", 2)]),
+     "rejects_because": "c1 = -1 is not > 0",
+     "truth": ("false", {"x": "2"}),
+     "if_emitted": ("refused", _point("1 - x^2 > 0 @ [-2, 2]", "1 - (-2)^2 > 0", x="-2"))},
+    {"id": "sign_zero_constant_strict",
+     "key": ("t^2 > 0", "[0, pi/2]"),
+     "cert": _sos("0", [("1", "t", 2)]),
+     "rejects_because": "c0 = 0 on a strict target (E20 is for >= only)",
+     "truth": ("false", {"t": "0"}),
+     # t = 0 is in [0, pi/2] because 0 <= pi/2 is discharged (linear)
+     "if_emitted": ("refused", _point("t^2 > 0 @ [0, pi/2]", "0^2 > 0", t="0"))},
+    # Sign product
+    {"id": "product_forged_factorisation",
+     "key": ("1 + x^3 # 0", "[0, 1]"),
+     "cert": _product("1", [("1 + x", "# 0", _RANGE_LO_NZ),
+                            ("x^2 + x + 1", "# 0",
+                             _sos("3/4", [("1", "x + 1/2", 2)], ">"))], "#"),
+     "rejects_because": "ring_equal fails: (1 + x)(x^2 + x + 1) is "
+                        "x^3 + 2*x^2 + 2*x + 1",
+     "note": "both factors' certificates are valid: only the product is "
+             "wrong",
+     "truth": ("true",),
+     "if_emitted": ("discharged", T_PRODUCT)},
+    {"id": "product_nonstrict_target",
+     "key": ("x^2 >= 0", "[-1, 1]"),
+     "cert": _product("1", [("x", ">", _farkas({GOAL: "1", LO(0): "1"})),
+                            ("x", ">", _farkas({GOAL: "1", LO(0): "1"}))]),
+     "rejects_because": "sign product never closes a non-strict target",
+     "truth": ("true",),
+     "if_emitted": ("discharged", T_SIGN)},
+    {"id": "product_parity",
+     "key": ("x^2 - 1 > 0", "(-1, 1)"),
+     "cert": _product("1", [("x - 1", "<", _farkas({GOAL: "1", HI(0): "1"})),
+                            ("x + 1", ">", _farkas({GOAL: "1", LO(0): "1"}))]),
+     "rejects_because": "one '<' factor and content +1 give a negative "
+                        "product for a positive target",
+     "note": "both children are valid on (-1, 1): the parity rule alone "
+             "stops a false claim",
+     "truth": ("false", {"x": "0"}),
+     # candidates: the open ends give -1 + 1 = 0 and 1 - 1 = 0, so x = 0
+     "if_emitted": ("refused", _point("x^2 - 1 > 0 @ (-1, 1)", "0^2 - 1 > 0", x="0"))},
+    {"id": "product_child_at_closed_end",
+     "key": ("1 - x^2 > 0", "[-1, 1]"),
+     "cert": _product("1", [("1 - x", ">", _farkas({GOAL: "1", HI(0): "1"})),
+                            ("1 + x", ">", _farkas({GOAL: "1", LO(0): "1"}))]),
+     "rejects_because": "the child 1 - x > 0 @ [-1, 1]: (x - 1) + (1 - x) = "
+                        "0 with no strict constraint",
+     "note": "§5.3's d_asin factorisation on the closed interval, where it "
+             "is false; accepted on the open one (DISCHARGE_CHECKER_"
+             "ACCEPTS product_open_interval)",
+     "truth": ("false", {"x": "1"}),
+     "if_emitted": ("refused", _point("1 - x^2 > 0 @ [-1, 1]", "1 - (-1)^2 > 0", x="-1"))},
+    # Cite
+    {"id": "cite_pi_pos_for_e_const",
+     "key": ("e_const > 0", "true"),
+     "cert": _cite("pi_pos", {}, []),
+     "rejects_because": "the conclusion pi > 0 does not imply e_const > 0",
+     "truth": ("true",),
+     "if_emitted": ("discharged", T_LINEAR_E)},
+    {"id": "cite_wrong_instance",
+     "key": ("sqrt 3 # 0", "true"),
+     "cert": _cite("sqrt_pos", {"a": "2"}, [("2 > 0", NORM_NUM_LEAF)]),
+     "rejects_because": "the conclusion sqrt 2 > 0 does not imply "
+                        "sqrt 3 # 0",
+     "truth": ("true",),
+     "if_emitted": ("discharged", T_SQRT_POS)},
+    {"id": "cite_hypothesis_unproved",
+     "key": ("sqrt x # 0", "[0, 1]"),
+     "cert": _cite("sqrt_pos", {"a": "x"}, [("x > 0", _RANGE_LO)]),
+     "rejects_because": "the hypothesis x > 0 @ [0, 1]: (0 - x) + (x - 0) "
+                        "= 0 with no strict constraint",
+     "truth": ("false", {"x": "0"}),
+     # decided_false_sqrt_at_end's key (E35 (3))
+     "if_emitted": ("refused", _point("sqrt x # 0 @ [0, 1]", "0 # 0",
+                                      entries=("sqrt_zero",), x="0"))},
+    {"id": "cite_hypothesis_missing",
+     "key": ("sqrt 3 # 0", "true"),
+     "cert": _cite("sqrt_pos", {"a": "3"}, []),
+     "rejects_because": "sqrt_pos has one hypothesis and no child is given",
+     "truth": ("true",),
+     "if_emitted": ("discharged", T_SQRT_POS)},
+    {"id": "cite_not_syntactic",
+     "key": ("pi/2 >= 0", "true"),
+     "cert": _cite("pi_pos", {}, []),
+     "rejects_because": "pi > 0 gives pi # 0, pi >= 0 and 0 <= pi, not "
+                        "pi/2 >= 0 (TAG_RULES' syntactic implication)",
+     "truth": ("true",),
+     "if_emitted": ("discharged", T_LINEAR_PI)},
+    {"id": "cite_equation_entry",
+     "key": ("sqrt 4 # 0", "true"),
+     "cert": _cite("sqrt_sq", {"u": "2"}, [("2 >= 0", NORM_NUM_LEAF)]),
+     "rejects_because": "sqrt_sq is an equation, not an ordering or "
+                        "NonZero statement",
+     "truth": ("true",),
+     # TAG_RULES: sqrt 4 is opaque to FM, no sign form, content 1, and
+     # sqrt_pos with a := 4 has the literal hypothesis 4 > 0
+     "if_emitted": ("discharged", T_SQRT_POS)},
+    # Hyp
+    {"id": "hyp_not_member",
+     "key": ("x > 0", "x >= 0"),
+     "cert": _member(0),
+     "rejects_because": "x >= 0 is not x > 0, and a strict claim is no "
+                        "weakening of a non-strict item",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("refused", _point("x > 0 @ x >= 0", "0 > 0", x="0"))},
+    {"id": "hyp_chain_broken",
+     "key": ("x < z", "x < y, w < z"),
+     "cert": _chain(0, 1),
+     "rejects_because": "the link y, w is not one tree",
+     "truth": ("false", {"w": "-1", "x": "0", "y": "1", "z": "0"}),
+     "if_emitted": ("refused", _point("x < z @ x < y, w < z", "0 < 0", w="-1",
+                                      x="0", y="1", z="0"))},
+    {"id": "hyp_interval_item",
+     "key": ("x >= 0", "[0, 1]"),
+     "cert": _member(0),
+     "rejects_because": "an Interval item is a range, not a hypothesis",
+     "truth": ("true",),
+     "if_emitted": ("discharged", T_RANGE)},
+    # Leaf
+    {"id": "norm_num_leaf_not_literal",
+     "key": ("x > 0", "(0, 1)"),
+     "cert": NORM_NUM_LEAF,
+     "rejects_because": "the proposition is not literal",
+     "truth": ("true",),
+     "if_emitted": ("discharged", T_RANGE)},
+]
+
+# The contrasts: certificates the checker must accept, each the nearest
+# valid neighbour of a must-reject case or a form no proof exercises.
+DISCHARGE_CHECKER_ACCEPTS = [
+    {"id": "farkas_open_end", "key": ("x > 0", "(0, 1)"),
+     "cert": _RANGE_LO, "tag": T_RANGE},
+    {"id": "product_open_interval", "key": ("1 - x^2 > 0", "(-1, 1)"),
+     "cert": _product("1", [("1 - x", ">", _farkas({GOAL: "1", HI(0): "1"})),
+                            ("1 + x", ">", _farkas({GOAL: "1", LO(0): "1"}))]),
+     "tag": T_PRODUCT},  # §5.3's d_asin case
+    {"id": "product_two_negative", "key": ("x^2 - 1 > 0", "(-3, -1)"),
+     "cert": _product("1", [("x - 1", "<", _farkas({GOAL: "1", HI(0): "1"})),
+                            ("x + 1", "<", _farkas({GOAL: "1", HI(0): "1"}))]),
+     "tag": T_PRODUCT},  # two '<' factors, content +1: positive
+    {"id": "hyp_chain", "key": ("x < z", "x < y, y <= z"),
+     "cert": _chain(0, 1), "tag": T_HYP},
+    {"id": "hyp_chain_flipped", "key": ("0 <= x", "x > 0"),
+     "cert": _chain(0), "tag": T_HYP},  # x > 0 read as 0 < x, weakened
+    {"id": "hyp_nonzero", "key": ("x # 0", "x < 0"),
+     "cert": _member(0), "tag": T_HYP},
+    {"id": "sign_negative_sense", "key": ("-1 - x^2 # 0", "true"),
+     "cert": _sos("1", [("1", "x", 2)], "<"), "tag": T_SIGN},
+    {"id": "farkas_gamma_only", "key": ("x + 1 > 0", "x > 0"),
+     "cert": _farkas({GOAL: "1", REL(0): "1"}), "tag": T_RANGE},
+    {"id": "cite_with_range_hyp", "key": ("sqrt x # 0", "(0, 1)"),
+     "cert": _cite("sqrt_pos", {"a": "x"}, [("x > 0", _RANGE_LO)]),
+     "tag": T_SQRT_POS},
+]
+
+# ---------------------------------------------------------------------------
+# 11d. Planted bugs and mutations after discharge
+#
+# The existing PLANTED_BUGS and DEFINEDNESS_MUTATIONS, re-traced by hand
+# under DISCHARGE_RULE. 'admissions' is N per proof, omitted for a proof
+# the mutation refuses; 'caught_by' replaces the pre-discharge list where
+# given. A refused installation is (proof, "goal", "refused").
+_D3 = {"P1.1": 3, "P1.1-fallback": 3, "P1.2": 3, "P1.2-alt": 3}
+DISCHARGE_PLANTED_BUGS = {
+    # the missing keys were discharged anyway: N does not move, the step
+    # lists catch it as before
+    "d_ln_emits_nothing": {"admissions": dict(_D3), "caught_by": "unchanged"},
+    # the fallback's d_sqrt x > 0 moves to [0, pi^2/4], false at x = 0:
+    # F3 refuses s1 (0 <= pi^2/4 decided by sign). With sqrt_zero (E35
+    # (3)) field's 2*sqrt x # 0 on [0, pi^2/4] is refutable too (2*0 # 0),
+    # but ftc emits deriv's side conditions before the check's divisors
+    # (ARCHITECTURE.md §4), so x > 0 is the one named. P1.2's moved keys
+    # are true on [0, 1] and discharged.
+    "ftc_derivative_premise_on_closed": {
+        "admissions": {"P1.1": 3, "P1.2": 3, "P1.2-alt": 3},
+        "refused": {"P1.1-fallback": ("s1", _point("x > 0 @ [0, pi^2/4]",
+                                                   "0 > 0", x="0"))},
+        "caught_by": [
+            ("P1.1", "s2", "D[t](2*sin t - 2*t*cos t) == sin t * (2*t)",
+             "(0, pi/2)"),
+            ("P1.1-fallback", "s1", "refused"),
+            ("P1.2", "s2", "D[x](" + P1_2_F + ") == 1/(1 + x^3)", "(0, 1)"),
+            ("P1.2-alt", "s2", "D[x](" + P1_2_F + ") == 1/(1 + x^3)",
+             "(0, 1)")]},
+    # Both drop_keys are discharged, so N no longer moves. The switch
+    # replaces them by a key that stays admitted in each proof family, each
+    # emitted once (s2, new, never re-emitted), so N still catches it.
+    "tracker_drops_one": {
+        "drop_keys": (
+            ("sin t * (2*t) in C^0([0, pi/2])", "[0, pi/2]"),
+            ("1/(1 + x^3) in C^0([0, 1])", "[0, 1]"),
+            ("t >= 0", "[0, pi/2]"),
+            ("1 + x^3 # 0", "[0, 1]"),
+        ),
+        "admissions": {"P1.1": 2, "P1.1-fallback": 3, "P1.2": 2,
+                       "P1.2-alt": 2},
+        "caught_by": [
+            ("FINAL_TRACKER", "P1.1", ("t >= 0", "[0, pi/2]")),
+            ("FINAL_TRACKER", "P1.1",
+             ("sin t * (2*t) in C^0([0, pi/2])", "[0, pi/2]")),
+            ("FINAL_TRACKER", "P1.2", ("1 + x^3 # 0", "[0, 1]")),
+            ("FINAL_TRACKER", "P1.2", ("1/(1 + x^3) in C^0([0, 1])",
+                                       "[0, 1]")),
+            ("FINAL_TRACKER", "P1.2-alt", ("1 + x^3 # 0", "[0, 1]")),
+            ("FINAL_TRACKER", "P1.2-alt", ("1/(1 + x^3) in C^0([0, 1])",
+                                           "[0, 1]")),
+            ("N", "P1.1"), ("N", "P1.2"), ("N", "P1.2-alt")]},
+    "tracker_drops_reemitted": {"admissions": dict(_D3),
+                                "caught_by": "unchanged"},
+    # The seam is the untrusted search's sign facts; the trusted checker
+    # reads entries.ENTRIES and is untouched. Without pi_pos the search has
+    # no certificate for 0 <= pi/2 or pi/2 >= 0, and none for their
+    # negations (so no F2): both stay ADMITTED, tagged none, REASON_NONE.
+    # A search bug costs admissions, never a false discharge (E28).
+    "pi_pos_not_in_constraint_set": {
+        "admissions": {"P1.1": 4, "P1.1-fallback": 4, "P1.2": 3,
+                       "P1.2-alt": 3},
+        "retagged": {"P1.1": [("0 <= pi/2", "true", ADMITTED, T_NONE)],
+                     "P1.1-fallback": [("pi/2 >= 0", "true", ADMITTED,
+                                        T_NONE)]},
+        "caught_by": [("P1.1", "goal", "0 <= pi/2", "tag"),
+                      ("P1.1", "s1", "0 <= pi/2", "tag"),
+                      ("P1.1", "s2", "0 <= pi/2", "tag"),
+                      ("P1.1-fallback", "s2", "pi/2 >= 0", "tag"),
+                      ("P1.1", "goal", "0 <= pi/2", "status"),
+                      ("P1.1-fallback", "s2", "pi/2 >= 0", "status"),
+                      ("N", "P1.1"), ("N", "P1.1-fallback")]},
+}
+
+# New planted bugs for the build to add, one per rule of the trusted
+# checker whose loss could produce a false 'Proved', and one in the search.
+# The seams are the architecture's to name (ARCHITECTURE.md §7); the
+# data fixes only the mutation and what must catch it.
+DISCHARGE_NEW_PLANTED_BUGS = {
+    "farkas_ignores_strictness": {
+        "mutation": "the Farkas check accepts k = 0 whatever the strictness",
+        "caught_by": [("DISCHARGE_MUST_REJECT", "farkas_nonstrict_pair"),
+                      ("PROPERTY", "farkas")]},
+    "farkas_allows_negative_multiplier": {
+        "mutation": "the Farkas check does not test the multipliers' sign",
+        "caught_by": [("DISCHARGE_MUST_REJECT", "farkas_negative_multiplier"),
+                      ("PROPERTY", "farkas")]},
+    "farkas_swaps_interval_ends": {
+        "mutation": "('dom', i, 'lo') is built from the interval's hi end "
+                    "and ('dom', i, 'hi') from its lo end",
+        # every range certificate using a lower end is then rejected, so
+        # each proof's range keys fall back to admissions
+        "caught_by": [("DISCHARGE_MUST_REJECT",
+                       "farkas_constant_not_contradiction"),
+                      ("N", "P1.1"), ("N", "P1.1-fallback"), ("N", "P1.2"),
+                      ("PROPERTY", "farkas")]},
+    "farkas_closed_as_open": {
+        "mutation": "a closed interval end is read as strict",
+        "caught_by": [("DISCHARGE_MUST_REJECT", "farkas_nonstrict_pair"),
+                      ("DISCHARGE_MUST_REJECT", "product_child_at_closed_end"),
+                      ("PROPERTY", "farkas")]},
+    "farkas_any_fact": {
+        "mutation": "a ('fact', name) label is accepted for any ENTRIES name",
+        "caught_by": [("DISCHARGE_MUST_REJECT", "farkas_non_fact_entry")]},
+    "farkas_no_goal_needed": {
+        "mutation": "the ('goal',) multiplier may be absent",
+        "caught_by": [("DISCHARGE_MUST_REJECT", "farkas_goal_unused")]},
+    "sign_skips_ring": {
+        "mutation": "the sign check does not run ring_equal",
+        "caught_by": [("DISCHARGE_MUST_REJECT", "sign_false_quadratic_forged"),
+                      ("DISCHARGE_MUST_REJECT", "sign_forged_square"),
+                      ("PROPERTY", "sign")]},
+    "sign_zero_constant_strict": {
+        "mutation": "c0 = 0 is accepted on a strict target",
+        "caught_by": [("DISCHARGE_MUST_REJECT", "sign_zero_constant_strict"),
+                      ("PROPERTY", "sign")]},
+    "sign_any_exponent": {
+        "mutation": "odd exponents and non-positive coefficients are "
+                    "accepted",
+        "caught_by": [("DISCHARGE_MUST_REJECT", "sign_odd_power"),
+                      ("DISCHARGE_MUST_REJECT", "sign_negative_coefficient"),
+                      ("PROPERTY", "sign")]},
+    "product_skips_parity": {
+        "mutation": "the sign product ignores '<' factors",
+        "caught_by": [("DISCHARGE_MUST_REJECT", "product_parity"),
+                      ("PROPERTY", "sign product")]},
+    "product_skips_children": {
+        "mutation": "the sign product does not check its factors' "
+                    "certificates",
+        "caught_by": [("DISCHARGE_MUST_REJECT", "product_child_at_closed_end"),
+                      ("PROPERTY", "sign product")]},
+    "cite_skips_hypotheses": {
+        "mutation": "a cite's hypotheses are not checked",
+        "caught_by": [("DISCHARGE_MUST_REJECT", "cite_hypothesis_unproved"),
+                      ("DISCHARGE_MUST_REJECT", "cite_hypothesis_missing")]},
+    "search_scales_wrongly": {
+        "mutation": "the untrusted search halves every Farkas multiplier of "
+                    "a fact label",
+        # 0 <= pi/2 and pi/2 >= 0 then sum to -pi/4: rejected, admitted
+        # with REASON_REJECTED, tag unchanged; nothing is refuted
+        "admissions": {"P1.1": 4, "P1.1-fallback": 4, "P1.2": 3,
+                       "P1.2-alt": 3},
+        "caught_by": [("P1.1", "goal", "0 <= pi/2", "status"),
+                      ("P1.1-fallback", "s2", "pi/2 >= 0", "status"),
+                      ("N", "P1.1"), ("N", "P1.1-fallback")]},
+}
+
+# DEFINEDNESS_MUTATIONS after discharge. Every mutation's admissions become
+# _D3 (every obligation it removes or weakens in P1 was, or stays,
+# discharged), except where given. caught_by: the pre-discharge list with
+# the entries in 'drop' removed and those in 'add' added. Every other
+# location still catches it, re-traced: a removed former's install-time
+# refusal becomes an install, a removed key is missing from a list, and a
+# case expected refused (DISCHARGE_DEFINEDNESS_CASES) now installs.
+DISCHARGE_MUTATION_CHANGES = {
+    # ln's removed keys were discharged, so N no longer moves
+    "no_ln_former": {"drop": [("N", "P1.2"), ("N", "P1.2-alt")]},
+    "no_sqrt_former": {"drop": [("N", "P1.1"), ("N", "P1.1-fallback")]},
+    # Under ln u owes u >= 0, ln_false_on_goal_domain is refused either
+    # way, by F3 at x = -1; only the message's key differs (x >= 0 @ x < 0),
+    # so the suite must assert the message, not only the code.
+    "ln_closed_at_0": {"note": "caught at ln_false_on_goal_domain by its "
+                               "message"},
+    # u > 0 for sqrt: t^2 > 0 @ [0, pi/2] and x > 0 @ [0, pi^2/4] are false
+    # at 0, and F3 refuses both installations; P1.2's sqrt 3 owes 3 > 0,
+    # literal, so P1.2 still completes with its 3 >= 0 keys changed
+    "sqrt_open_at_0": {
+        "admissions": {"P1.2": 3, "P1.2-alt": 3},
+        "drop": [("P1.1", "goal", "t^2 >= 0", "[0, pi/2]"),
+                 ("P1.1-fallback", "s1", "refused")],
+        "add": [("P1.1", "goal", "refused"),
+                ("P1.1-fallback", "goal", "refused")]},
+    # charged at the goal's domain, R's x > 0 @ true is refuted by F3 at
+    # x = 0 and the rewrite is refused; the cases still fail
+    "rewrite_R_former_at_goal_domain": {"note": "caught_by unchanged: the "
+                                                "MATCH_ACCEPTS rewrites are "
+                                                "now refused (F3)"},
+    "rewrite_R_former_on_ranges_only": {"note": "caught_by unchanged: "
+                                                "x + y > 0 @ x in [1, 2] is "
+                                                "refused at x = 1, y = -1"},
+}
+
+# ---------------------------------------------------------------------------
+# 11e. The soundness property test (E34), for kernel/test_discharge.py
+
+DISCHARGE_PROPERTY_TEST = (
+    "The property. For each trusted checker (farkas, hyp, sign, sign "
+    "product, cite, the norm_num leaf, and the dispatcher that applies the "
+    "exact values first): whenever it accepts a (key, certificate) pair, "
+    "the key's proposition holds at every sampled rational point of the "
+    "key's domain at which the proposition's terms are defined, by exact "
+    "evaluation. For each refutation (F1-F3): the refuted proposition is "
+    "false at the named point (F3) or false outright (F1, F2), by an "
+    "evaluation independent of the kernel's.",
+
+    "Exact evaluation. fractions.Fraction throughout, the evaluator the "
+    "test's own (never field.rational_value or the kernel's rewriting), so "
+    "that a shared bug cannot hide. Variables take rational values. An atom "
+    "the checker treats as opaque is evaluated honestly where exact "
+    "evaluation exists (sqrt of a rational perfect square, the exact "
+    "values' own points) and the point is otherwise skipped, except as "
+    "follows. pi and e_const are replaced by random rationals with pi > 0 "
+    "and e_const > 1: the Farkas, sign and product checkers know nothing "
+    "of either constant beyond pi_pos and e_gt_one, so an accept must hold "
+    "for every such value, the real ones among them (§5.3's argument for "
+    "treating them as free). For the sign checker alone, every atom may "
+    "also be given an independent random rational: its accept is a "
+    "polynomial identity over atoms, so it must hold for any assignment.",
+
+    "Undefined points. A point where a divisor evaluates to 0, a sqrt, ln, "
+    "asin, acos, acosh or atanh argument is outside its natural domain "
+    "(E26's table), or an atom cannot be evaluated exactly, is skipped, "
+    "and skips are counted. Each run must report, per checker, at least 50 "
+    "accepted certificates and 1000 evaluated (non-skipped) points; fewer "
+    "fails the test, so it cannot pass vacuously.",
+
+    "Generation. Keys: polynomials of degree <= 3 in one or two variables "
+    "(x, y) with small rational coefficients, over domains made of one "
+    "Interval (rational ends, each end open or closed at random, one end "
+    "infinite with probability 1/8) and zero to two Γ relations v REL c; "
+    "one key in eight mentions pi or e_const in a coefficient or an end. "
+    "Certificates: (a) the search's own, (b) the search's with one field "
+    "mutated at random (a multiplier's sign or value, a label's end or "
+    "index, a square's term, coefficient or exponent, c0, a factor, a "
+    "child, the sense), and (c) random well-formed certificates. Sampled "
+    "points: the domain's closed ends with probability 1/4 each (open/closed "
+    "errors live there), else uniform rationals inside it with "
+    "denominators up to 12.",
+
+    "Refutations. Every F3 refusal's point is checked in the domain and "
+    "the proposition false there with the test's evaluator; every F1 or F2 "
+    "refusal of a closed key is checked false with a math-module float "
+    "evaluation at 1e-9 margin as a second, independent reading (the "
+    "values involved are pi, e and literals).",
+
+    "Reproducibility and failure. A fixed seed, printed; stdlib only "
+    "(fractions, random, math), no SymPy (§15.5 keeps it out of kernel/). "
+    "A failure prints the key, the certificate and the point. The test "
+    "must fail under each of DISCHARGE_NEW_PLANTED_BUGS' checker mutations "
+    "whose caught_by names PROPERTY, run through the same child-process "
+    "seam mechanism as PLANTED_BUGS (ARCHITECTURE.md §7).",
+)
+
+# ---------------------------------------------------------------------------
+# 11f. How the suite switches (E34)
+
+DISCHARGE_SWITCH = (
+    "Two commits, the suite green after each. (1) The trusted checker "
+    "module and the untrusted search; DISCHARGE_NEW_ENTRIES pinned in "
+    "entries.py at the positions it states (sqrt_zero immediately before "
+    "sqrt_sq, cos_zero last), with DISCHARGE_E27_CHANGES applied to the asserted E27 "
+    "cases in the same commit (E27 reads ENTRIES, so the two cannot land "
+    "apart without a red suite; any suite count of ENTRIES goes from 14 to "
+    "16); and kernel/test_discharge.py: "
+    "DISCHARGE_MUST_REJECT, DISCHARGE_CHECKER_ACCEPTS and every certificate "
+    "in DISCHARGE_EXPECTED, DISCHARGE_MATCH_ACCEPTS, DISCHARGE_OCCURRENCE_"
+    "CASE, DISCHARGE_DEFINEDNESS_CASES, DISCHARGE_BAD_MOVES_ADDED and "
+    "problems/stage0's DISCHARGE_EXPECTED, each handed to the checker "
+    "directly; the search's own certificate for each of those keys, "
+    "compared as DISCHARGE_RULE says; and DISCHARGE_PROPERTY_TEST. Nothing "
+    "is wired into kernel._emit, so items 1-7 still assert the "
+    "pre-discharge tables.",
+
+    "(2) Wiring into kernel._emit, and in the same commit the suite "
+    "asserts, for both data files: DISCHARGE_OBLIGATIONS in place of "
+    "EXPECTED_OBLIGATIONS, DISCHARGE_FINAL_TRACKER for FINAL_TRACKER, "
+    "DISCHARGE_ADMISSIONS and DISCHARGE_VERDICTS for ADMISSIONS and "
+    "VERDICTS; each obligation's reason (REASON_REG for every remaining "
+    "admission) and certificate (DISCHARGE_EXPECTED); the case changes "
+    "(DISCHARGE_MATCH_ACCEPTS, DISCHARGE_OCCURRENCE_CASE, DISCHARGE_"
+    "DEFINEDNESS_CASES, DISCHARGE_BAD_MOVES_CHANGED, DISCHARGE_BAD_MOVES_"
+    "ADDED, DISCHARGE_UNDECIDED), every 'obligation-decided-false' refusal "
+    "by its code and by its message filled from DECIDED_FALSE_MESSAGES; "
+    "the planted bugs and mutations as DISCHARGE_PLANTED_BUGS, DISCHARGE_"
+    "NEW_PLANTED_BUGS and DISCHARGE_MUTATION_CHANGES give them; "
+    "REFUSAL_CODES_DISCHARGE in the refusal-code coverage check; and that "
+    "EXACT_VALUE_ENTRIES is exactly the ENTRIES equations with no schema "
+    "variable and no hypothesis. The no-none assertion over PROOFS runs and "
+    "every E24 tag assertion stay as they are.",
+
+    "The switch is one constant in proof_of_life.py, never in a kernel "
+    "file, and no kernel file imports either data file (as now). The "
+    "pre-discharge tables stay in both files as the stub phase's record and "
+    "are no longer asserted; retiring them later is a DATA_CHANGES entry, "
+    "not a silent deletion. ADMISSION_REASON ('discharge not built') is "
+    "then no longer produced by the kernel.",
+)
+
+# ---------------------------------------------------------------------------
+# 11g. The owner's answers (E35, discharge spec 2026-09-24, owner answers):
+#      two §6.8 entries pinned now, and what they change in E27's cases
+
+# E35 (3). Pinned for entries.py in NAMED_ENTRIES' shape, as problems/
+# stage0's NEW_ENTRIES was for its four. Insertion positions in ENTRIES
+# (discharge spec 2026-09-24, owner answers; the main session's choice for
+# sqrt_zero): sqrt_zero IMMEDIATELY BEFORE sqrt_sq, so it becomes the
+# first entry and E27 (a) names the direct move at sqrt 0; cos_zero
+# appended at the end, after exp_one. cos_zero's position is immaterial:
+# at cos b only it and cos_pi_half can count, never both at one subterm
+# (their arguments normalise to 0 and to pi/2). Neither has a schema variable or a hypothesis,
+# so a rewrite by either owes nothing (E1 steps 8 and 10: R is a literal),
+# and each is an exact value (E31). Before them the fallback closed sqrt 0
+# by sqrt_sq with u := 0 and ring removed 2*0*cos 0 (NAMED_ENTRIES' note);
+# those routes still work, and no reference proof changes.
+DISCHARGE_NEW_ENTRIES = {
+    "cos_zero": {
+        "statement": "cos 0 == 1",
+        "schema": (),
+        "lhs": "cos 0",
+        "rhs": "1",
+        "hyps": (),
+        "use": "rewrite; exact value (E31)",
+        "cite": "§6.8 table row 'cos 0' (the owner's decision, E35 (3))",
+        "used_in": ("DISCHARGE_DEFINEDNESS_CASES tan_zero_true (cos 0 # 0 "
+                    "reads 1 # 0)",
+                    "DISCHARGE_E27_CHANGES (cos 0 refused in an answer)"),
+    },
+    "sqrt_zero": {
+        "statement": "sqrt 0 == 0",
+        "schema": (),
+        "lhs": "sqrt 0",
+        "rhs": "0",
+        "hyps": (),
+        "use": "rewrite; exact value (E31)",
+        "cite": "§6.8 table row 'sqrt 0' (the owner's decision, E35 (3))",
+        "used_in": ("DISCHARGE_BAD_MOVES_ADDED decided_false_sqrt_at_end "
+                    "(sqrt x # 0 @ [0, 1] at x = 0 reads 0 # 0)",
+                    "DISCHARGE_E27_CHANGES e27_sqrt_zero"),
+    },
+}
+
+# What pinning the two entries changes in the E27 cases the suite asserts,
+# applied in DISCHARGE_SWITCH's first commit, together with the entries.
+# Traced against every reference proof, every accepted value and every
+# e27 case: cos 0 and sqrt 0 occur in P1.1's and the fallback's goals
+# (never in a closing value: both close with 2), in e27_goal_lhs_after_ftc
+# and e27_goal_lhs_before_close's values, in sqrt_closed_end's goal (closed
+# with 0) and in the limitation row below. Only the two entries marked
+# change; e27_goal_lhs_after_ftc keeps sin(pi/2), which comes first in
+# pre-order. No reference proof and no accepted answer is refused.
+DISCHARGE_E27_CHANGES = {
+    "EVALUATED_ACCEPTS_remove": ("e27_no_entry_in_force",),
+    "BAD_MOVES_replace": {
+        "e27_goal_lhs_before_close": {
+            "e27": {"clause": "a", "at": "cos 0", "entry": "cos_zero",
+                    "message": "cos 0 can still be evaluated (cos_zero)"},
+            "why": "with cos_zero in force, (a) finds cos 0, the only "
+                   "application left in the value, before (b)'s root "
+                   "offence (2*(pi/2)*0 a zero summand), which it used to "
+                   "name. The refusal code is unchanged",
+        },
+    },
+    "BAD_MOVES_add": [
+        {"id": "e27_cos_zero", "added": True,
+         "goal": "cos 0 == ?A", "setup": [],
+         "move": ("close", {"value": "cos 0", "check": "ring",
+                            "facts": []}),
+         "refusal": "close-not-evaluated",
+         "e27": {"clause": "a", "at": "cos 0", "entry": "cos_zero",
+                 "message": "cos 0 can still be evaluated (cos_zero)"},
+         "evaluated": "1",
+         "why": "refl passes (ring), cos is total so nothing is owed, and "
+                "(a1) counts cos_zero at cos 0. It was the limitation "
+                "e27_no_entry_in_force, accepted while no cos_zero was in "
+                "force"},
+        {"id": "e27_sqrt_zero", "added": True,
+         "goal": "sqrt 0 == ?A", "setup": [],
+         "move": ("close", {"value": "sqrt 0", "check": "ring",
+                            "facts": []}),
+         "refusal": "close-not-evaluated",
+         "e27": {"clause": "a", "at": "sqrt 0", "entry": "sqrt_zero",
+                 "message": "sqrt 0 can still be evaluated (sqrt_zero)"},
+         "evaluated": "0",
+         "why": "already refused before sqrt_zero, naming sqrt_sq ((a2) "
+                "counts it at sqrt 0: 0 is 0*0, closed). Both count at "
+                "sqrt 0 now, and sqrt_zero is named because it precedes "
+                "sqrt_sq in ENTRIES (DISCHARGE_NEW_ENTRIES' insertion "
+                "position): the direct move, owing nothing. The goal and "
+                "the value owe sqrt 0's 0 >= 0, literal, discharged (E7)"},
+    ],
+}
+
+# The hand re-check behind the ENTRIES positions (discharge spec 2026-09-24,
+# owner answers). What reads ENTRIES in order, and what the new positions
+# change:
+DISCHARGE_ORDER_CHECK = (
+    "E27 (a) is the only rule that reads ENTRIES in order (the first entry "
+    "that counts at a subterm is named; subterms in pre-order). A new "
+    "position changes a named entry only at a subterm where two entries "
+    "count. sqrt_zero and sqrt_sq both count exactly at sqrt b with "
+    "ring_nf(b) = 0: sqrt 0, and any sqrt of an argument normalising to 0 "
+    "(sqrt(0^2), sqrt(x - x)). The only such case is e27_sqrt_zero, whose "
+    "message becomes 'sqrt 0 can still be evaluated (sqrt_zero)'. No other "
+    "e27 case, EVALUATED_ACCEPTS value or reference proof holds such a "
+    "sqrt (the e27 sqrt cases are sqrt 4, sqrt(pi^2/4) and powers of "
+    "sqrt 2 and sqrt 3; the fallback's sqrt 0 is a rewrite target, not a "
+    "closing value). cos_zero shares no subterm with another counting "
+    "entry. Everything else is order-free: E31 rewrites every occurrence "
+    "to a fixed point and each exact value's left side is a distinct "
+    "application with a distinct argument normal form, so the result, and "
+    "the set of entries used, do not depend on the order (the cites list "
+    "them in first-use order, and no obligation here uses two); rewrite "
+    "names its entry; TAG_RULES' cite looks for an ordering conclusion, "
+    "which neither new entry has; and the suite reads ENTRIES as a set "
+    "(proof_of_life.py's entries checks), so moving sqrt_sq from first to "
+    "second position changes no assertion. No other expectation changes.",
 )

@@ -757,6 +757,25 @@ DECISIONS = {
             "offending subterm, not lhs - rhs, so it is compared as a tree "
             "('tree'), and each names its entry and message. None of the "
             "eight was asked for, and each is labelled",
+    # discharge spec 2026-09-24
+    "PF17": "Discharge for the problem files follows p1_expected's "
+            "section 11 (DISCHARGE_RULE, E28-E34) unchanged. S3's six "
+            "non-Reg admissions become DISCHARGED with the tags PF11 and "
+            "PF12 gave: the four x > 0 and x # 0 keys by a Farkas "
+            "certificate on the lower end 1 (range, no cite), 1 <= e_const "
+            "and e_const > 0 by one with e_gt_one (linear). S1 and S2 "
+            "admitted only regularity. So every stage-0 proof reads 'Proved "
+            "modulo 3 admissions', S3 from 9 and S3-ring from 8, and "
+            "e_gt_one does its work exactly where PF11 placed it. No "
+            "WRONG_ANSWERS outcome changes: each refused step emits only "
+            "true obligations before its refusal, so no decided-false "
+            "refusal comes first. The owner's answers of 2026-09-24 "
+            "(p1_expected E35) change nothing here: no S1-S3 goal, step, "
+            "obligation or value holds cos 0 or sqrt 0, so the two new "
+            "exact values (cos_zero, sqrt_zero, pinned in p1_expected's "
+            "DISCHARGE_NEW_ENTRIES, not here) touch no stage-0 key and no "
+            "E27 case; and no stage-0 obligation is refuted, so the new "
+            "message form has no instance",
 }
 
 # ---------------------------------------------------------------------------
@@ -881,6 +900,12 @@ VERIFIED = (
     "E27_MESSAGES' (a) template filled with it, checked with a throwaway "
     "scratch reading of E27 over terms.py's parser and printer, not kernel "
     "code; both strings parse and round-trip",
+    # Added by the discharge spec 2026-09-24.
+    "discharge spec 2026-09-24: p1_expected's scratch SymPy reading of "
+    "DISCHARGE_RULE accepts each S3 certificate with its tag ((0 - x) + "
+    "(x - 1) = -1 on both ranges, (1 - e) + (e - 1) = 0 strict, (0 - e) + "
+    "(e - 1) = -1), each key is true on its domain with e real, and each "
+    "Farkas key's set without the goal is satisfiable (x = 3/2, e = 2)",
 )
 
 # ---------------------------------------------------------------------------
@@ -953,4 +978,204 @@ CHANGES = (
      "the SymPy and scratch checks behind S2-W3 and S3-W3",
      "user decision 2026-09-24 (evaluated answers)",
      "scratch run 2026-09-24, SymPy 1.14"),
+    # discharge spec 2026-09-24: additions only, no existing value changed.
+    ("section 11 (new): DISCHARGE_EXPECTED, DISCHARGE_OBLIGATIONS, "
+     "DISCHARGE_FINAL_TRACKER, DISCHARGE_ADMISSIONS, DISCHARGE_VERDICTS, "
+     "DISCHARGE_S0_SEAMS",
+     "every admission reason 'discharge not built', and S3's six non-Reg "
+     "keys admitted",
+     "S3's six keys DISCHARGED with their certificates and unchanged tags; "
+     "N = 3 for S1, S2, S3 and S3-ring; the two stage-0 seams move no N",
+     "WHAT.md 'Start here' item 1: the expected results written before the "
+     "discharge code, under p1_expected's DISCHARGE_RULE",
+     "derived by hand from DISCHARGE_RULE and PF11/PF12's traces; the "
+     "import-time cross-check against FINAL_TRACKER passes; scratch SymPy "
+     "check (VERIFIED)"),
+    ("DECISIONS PF17 (new), VERIFIED (one entry appended)",
+     "none",
+     "PF17 records how discharge reads the problem files; VERIFIED the "
+     "checks behind it",
+     "discharge spec 2026-09-24",
+     "scratch run 2026-09-24, SymPy 1.14"),
+    ("DECISIONS PF17, one sentence appended",
+     "silent on the owner's answers",
+     "records that p1_expected E35 changes no stage-0 value: no S1-S3 "
+     "goal, step, obligation or value holds cos 0 or sqrt 0, and the new "
+     "entries are pinned in p1_expected's DISCHARGE_NEW_ENTRIES",
+     "discharge spec 2026-09-24, owner answers",
+     "grep of S1.json-S3.json and this file for cos 0 and sqrt 0: none; "
+     "the verifier re-run passes with the entries in force"),
 )
+
+# ---------------------------------------------------------------------------
+# 11. Real discharge, specified before any code (discharge spec 2026-09-24)
+#
+# p1_expected's section 11 states the rule (DISCHARGE_RULE, E28-E34); this
+# is S1-S3's data under it, derived by hand the same way and without reading
+# kernel.py, tagger.py or field.py. The pre-discharge tables above are kept
+# as the record and asserted until the suite switches (p1_expected
+# DISCHARGE_SWITCH). Nothing here changes a goal, a step, a source, a `new`
+# flag or a tag: statuses change, and each obligation gains a reason and a
+# certificate. WRONG_ANSWERS are unchanged: every obligation they emit
+# before their refusal is true, so discharge refuses nothing earlier.
+#
+# Restated from p1_expected so this file stands alone (the values are
+# p1_expected's, verbatim).
+REASON_REG = "regularity not built"
+REASON_NONE = "no method decides it"
+
+GOAL = ("goal",)
+
+
+def LO(i):
+    return ("dom", i, "lo")
+
+
+def FACT(name):
+    return ("fact", name)
+
+
+def _farkas(mults, sense=None):
+    return {"method": "farkas", "sense": sense, "multipliers": dict(mults)}
+
+
+# The certificates. For x > 0 and x # 0 on a range whose lower end is 1:
+# (0 - x, non-strict) + (x - 1, the lower end) = -1, whatever the end's
+# openness, and e_gt_one's multiplier is zero, so it is not cited (PF11).
+# For 1 <= e_const: (1 - e_const, strict) + (e_const - 1, strict) = 0 with a
+# strict constraint. For e_const > 0: (0 - e_const, non-strict) +
+# (e_const - 1, strict) = -1. Each Farkas key passes the pre-check:
+# [1, e_const] and (1, e_const) with e_const > 1 hold at x = 3/2,
+# e_const = 2.
+_RANGE_LO = _farkas({GOAL: "1", LO(0): "1"})
+_RANGE_LO_NZ = _farkas({GOAL: "1", LO(0): "1"}, ">")
+_E_FACT = _farkas({GOAL: "1", FACT("e_gt_one"): "1"})
+
+DISCHARGE_EXPECTED = {
+    "S1": {},   # nothing but regularity was ever admitted
+    "S2": {},
+    "S3": {
+        ("x # 0", "[1, e_const]"): (T_RANGE, _RANGE_LO_NZ),
+        ("x > 0", "[1, e_const]"): (T_RANGE, _RANGE_LO),
+        ("1 <= e_const", "true"): (T_LINEAR_E, _E_FACT),
+        ("x > 0", "(1, e_const)"): (T_RANGE, _RANGE_LO),
+        ("x # 0", "(1, e_const)"): (T_RANGE, _RANGE_LO_NZ),
+        ("e_const > 0", "true"): (T_LINEAR_E, _E_FACT),
+    },
+}
+DISCHARGE_EXPECTED["S3-ring"] = {
+    k: v for k, v in DISCHARGE_EXPECTED["S3"].items()
+    if k != ("x # 0", "(1, e_const)")}
+
+
+def _after_discharge(ob, table):
+    """p1_expected's rule: an admission DISCHARGE_EXPECTED lists becomes
+    DISCHARGED with its tag unchanged; everything else is unchanged."""
+    prop, dom, sources, status, tag, new = ob
+    if status == ADMITTED and (prop, dom) in table:
+        assert table[(prop, dom)][0] == tag, (prop, dom)
+        return (prop, dom, sources, DISCHARGED, tag, new)
+    return ob
+
+
+DISCHARGE_OBLIGATIONS = {
+    proof: {sid: [_after_discharge(ob, DISCHARGE_EXPECTED[proof])
+                  for ob in obs]
+            for sid, obs in steps.items()}
+    for proof, steps in EXPECTED_OBLIGATIONS.items()}
+
+# Written out by hand.
+DISCHARGE_FINAL_TRACKER = {
+    "S1": [
+        ("x^3 + x^2 in C^0([0, 1])", "[0, 1]", ADMITTED, T_REG),
+        ("x^3 + x^2 in C^1((0, 1))", "(0, 1)", ADMITTED, T_REG),
+        ("D[x](x^3 + x^2) == 3*x^2 + 2*x", "(0, 1)", DISCHARGED,
+         T_DERIV_RING),
+        ("3*x^2 + 2*x in C^0([0, 1])", "[0, 1]", ADMITTED, T_REG),
+    ],
+    "S2": [
+        ("2 # 0", "true", DISCHARGED, T_NORM_NUM),
+        ("exp(x^2)/2 in C^0([0, 1])", "[0, 1]", ADMITTED, T_REG),
+        ("exp(x^2)/2 in C^1((0, 1))", "(0, 1)", ADMITTED, T_REG),
+        ("D[x](exp(x^2)/2) == x*exp(x^2)", "(0, 1)", DISCHARGED,
+         T_DERIV_RING),
+        ("x*exp(x^2) in C^0([0, 1])", "[0, 1]", ADMITTED, T_REG),
+    ],
+    "S3": [
+        ("x # 0", "[1, e_const]", DISCHARGED, T_RANGE),
+        ("x > 0", "[1, e_const]", DISCHARGED, T_RANGE),
+        ("1 <= e_const", "true", DISCHARGED, T_LINEAR_E),
+        ("2 # 0", "true", DISCHARGED, T_NORM_NUM),
+        ("(ln x)^2/2 in C^0([1, e_const])", "[1, e_const]", ADMITTED, T_REG),
+        ("(ln x)^2/2 in C^1((1, e_const))", "(1, e_const)", ADMITTED, T_REG),
+        ("ln x / x in C^0([1, e_const])", "[1, e_const]", ADMITTED, T_REG),
+        ("x > 0", "(1, e_const)", DISCHARGED, T_RANGE),
+        ("x # 0", "(1, e_const)", DISCHARGED, T_RANGE),
+        ("D[x]((ln x)^2/2) == ln x / x", "(1, e_const)", DISCHARGED,
+         T_DERIV_FIELD),
+        ("e_const > 0", "true", DISCHARGED, T_LINEAR_E),
+        ("1 > 0", "true", DISCHARGED, T_NORM_NUM),
+    ],
+    "S3-ring": [
+        ("x # 0", "[1, e_const]", DISCHARGED, T_RANGE),
+        ("x > 0", "[1, e_const]", DISCHARGED, T_RANGE),
+        ("1 <= e_const", "true", DISCHARGED, T_LINEAR_E),
+        ("2 # 0", "true", DISCHARGED, T_NORM_NUM),
+        ("(ln x)^2/2 in C^0([1, e_const])", "[1, e_const]", ADMITTED, T_REG),
+        ("(ln x)^2/2 in C^1((1, e_const))", "(1, e_const)", ADMITTED, T_REG),
+        ("ln x / x in C^0([1, e_const])", "[1, e_const]", ADMITTED, T_REG),
+        ("x > 0", "(1, e_const)", DISCHARGED, T_RANGE),
+        ("D[x]((ln x)^2/2) == ln x / x", "(1, e_const)", DISCHARGED,
+         T_DERIV_RING),
+        ("e_const > 0", "true", DISCHARGED, T_LINEAR_E),
+        ("1 > 0", "true", DISCHARGED, T_NORM_NUM),
+    ],
+}
+
+# N after discharge: ftc's three Reg premises, in every proof. Each
+# remaining admission's reason is REASON_REG, and none is tagged none.
+DISCHARGE_ADMISSIONS = {
+    "S1": 3,       # three regularity (unchanged)
+    "S2": 3,       # three regularity (unchanged)
+    "S3": 3,       # three regularity (was 9)
+    "S3-ring": 3,  # three regularity (was 8)
+}
+DISCHARGE_VERDICTS = {name: VERDICT.format(n=n)
+                      for name, n in DISCHARGE_ADMISSIONS.items()}
+
+# The data cross-checks itself when imported, as p1_expected's does.
+for _p, _rows in DISCHARGE_FINAL_TRACKER.items():
+    _pre = {(r[0], r[1]): r for r in FINAL_TRACKER[_p]}
+    assert set(_pre) == {(r[0], r[1]) for r in _rows}, _p
+    for _r in _rows:
+        _old = _pre[(_r[0], _r[1])]
+        assert _r[3] == _old[3], (_p, _r)
+        if _old[2] == ADMITTED and _old[3] != T_REG:
+            assert _r[2] == DISCHARGED and (_r[0], _r[1]) in \
+                DISCHARGE_EXPECTED[_p], (_p, _r)
+        else:
+            assert _r[2] == _old[2], (_p, _r)
+    assert sum(r[2] == ADMITTED for r in _rows) == \
+        DISCHARGE_ADMISSIONS[_p], _p
+    assert all(r[3] == T_REG for r in _rows if r[2] == ADMITTED), _p
+    for _sid, _obs in DISCHARGE_OBLIGATIONS[_p].items():
+        for _ob in _obs:
+            _fin = [r for r in _rows if (r[0], r[1]) == (_ob[0], _ob[1])]
+            assert _fin and _fin[0][2] == _ob[3], (_p, _sid, _ob)
+del _p, _rows, _pre, _r, _old, _sid, _obs, _ob, _fin
+
+# The two stage-0 seams (ARCHITECTURE.md §9, S0_SEAMS) after discharge:
+# no_ln_former removes S3's x > 0 @ [1, e_const] and e_const > 0 and 1 > 0,
+# all discharged, so S3's N stays 3 and only the lists catch it;
+# d_ln_emits_nothing removes x > 0 @ (1, e_const), discharged, the same.
+# S1 and S2 are untouched by both, as before.
+DISCHARGE_S0_SEAMS = {
+    "no_ln_former": {"admissions": {"S1": 3, "S2": 3, "S3": 3,
+                                    "S3-ring": 3},
+                     "caught_by": "the obligation lists only; N no longer "
+                                  "moves"},
+    "d_ln_emits_nothing": {"admissions": {"S1": 3, "S2": 3, "S3": 3,
+                                          "S3-ring": 3},
+                           "caught_by": "the obligation lists only; N no "
+                                        "longer moves"},
+}
