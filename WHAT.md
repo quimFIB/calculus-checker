@@ -5,8 +5,9 @@ one way, course to tool (§18 Q6, settled revision 6). The course problems are a
 separable package `./calc` loads, not part of the tool, which is §1's
 replaceability test made operational.
 
-A design, two spikes, and **a headless kernel that proves readiness P1 and
-stage 0's S1–S3, with obligations discharged by checked certificates**
+A design, two spikes, and **a headless kernel that proves readiness P1 from
+the sheet's own goal, and stage 0's S1–S3, with obligations discharged by
+checked certificates**
 (`kernel/`, 2026-09-24). The tool a learner would use is not
 built yet: there is no API, UI or assistance tier, and regularity is still
 admitted.
@@ -76,21 +77,26 @@ kill it. Nothing else is required reading before stage 1; Waterproof's course
 evaluations are optional, since adoption evidence for the class is not this
 tool's falsifier.
 
-## Start here: the rest of stage 1, `int_subst` next
+## Start here: a small consolidation step, then regularity
 
-The kernel proves readiness P1 and stage 0's S1–S3, and discharge is built.
-`python3 kernel/proof_of_life.py` passes 481 checks (`PROOF_OF_LIFE.md`).
-Every proof reads *Proved modulo 3 admissions*, and the three left are
-always `ftc`'s regularity premises. Stage 1 has two pieces left:
+The kernel proves readiness P1 **from the sheet's own goal**, and stage 0's
+S1–S3. Discharge and `int_subst` are built. `python3 kernel/proof_of_life.py`
+passes 582 checks (`PROOF_OF_LIFE.md`). Every proof reads *Proved modulo N
+admissions*, and every one of those admissions is a regularity premise: 3
+for `ftc`, plus 2 per substitution.
 
-1. **`int_subst` (§6.4), next.** P1.1 then starts from the sheet's own goal,
-   ∫₀^{π²/4} sin √x, rather than from the goal after the substitution x = t².
-   The move owes the substitution's regularity, the endpoint map (0² = 0,
-   (π/2)² = π²/4) and the composed integrand's continuity (§11.1).
-   Discharge closes the endpoint obligations, and the regularity ones wait
-   for piece 2.
+1. **Consolidation, next.** These are small items found along the way:
+   - **P1.1 from the sheet's goal joins the main proof set.** It is staged
+     today. This means re-tracing the planted bugs and mutations against it.
+   - **The sign-product method closes non-strict goals.** `1 − x² ≥ 0` on
+     [0, 1] is (1 − x)(1 + x), each factor ≥ 0.
+   - **Two new entries:** `pyth` (sin² + cos² = 1), and a sign fact for cos
+     on [0, π/2].
+
+   Together these let ∫₀¹ √(1 − x²) finish by x := cos θ. The substitution
+   is accepted today, but the goal owes `1 − x² ≥ 0`, which nothing closes.
 2. **The C⁰/C¹ subset of regularity (§6.9)** that `ftc` and `int_subst`
-   need. This closes the `reg` admissions and gives the first plain
+   need. This closes every remaining admission and gives the first plain
    `Proved.`. It is also where `Int` and `D` get their definedness. §18 Q23
    is settled (2026-09-24): they become formers, like `/` and `ln`.
    `Int[x = a .. b] f` owes f integrable on [a, b], and `D[x] e` owes e
@@ -103,6 +109,10 @@ Each piece works as before:
 - build against them;
 - have a skeptic try to break it;
 - keep the regression suite green throughout.
+
+**Pushing:** commits land locally. Push to `origin`
+(`github.com/quimFIB/calculus-checker`) only with the owner's explicit
+approval, each time.
 
 **After stage 1:** the in-process `step` becomes §16.3's API, then the
 recognizer table scored on a held-out set (revision 8), then the UI.
@@ -185,6 +195,20 @@ recognizer table scored on a held-out set (revision 8), then the UI.
    about 2,700 fuzzed obligations, and its findings are fixed: a crash on
    deep terms, one wrong refusal, mutable certificates, and slow
    refutation.
+8. **`int_subst`, substitution in an integral (§6.4) — done 2026-09-24.**
+   - **Both modes:** forward x := φ(t), and reverse u := g(x) (the learner's
+     "let u = x²"), where the kernel checks integrand ≐ f(g(x))·g′(x).
+   - **Endpoints and orientation:** the endpoints are decided in the step.
+     A decreasing φ with symbolic ends becomes the flipped, oriented
+     integral.
+   - **Occurrence selector:** the same one `rewrite` uses.
+   - **A √ sign fact** for the linear method.
+   - **P1.1:** it now proves from the sheet's own goal, modulo 5
+     admissions, all regularity.
+   - **Problem files:** SUB1, S2R and SUB2 in `kernel/problems/stage1/`.
+   - **Review:** a skeptic found no false substitution step. It did expose
+     a missed pole, now refused by trying rational roots as counter-points
+     (E50), and two crashes, now fixed.
 
 **Stage 0b is closed** (2026-09-21 and 2026-09-22; setup and notes in
 `_scratch/holpy-trial/` — outside this tool, and a dangling pointer if it is ever published; findings in §4.2). Its verdict: reimplement the core

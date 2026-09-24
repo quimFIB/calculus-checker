@@ -14,8 +14,9 @@ lives only once.
 `PASS: 225 of 225 checks passed` for items 1–6, exit 0. The unit tests
 (`python3 -m unittest discover -s kernel`) pass 69 of 69. Both were re-run
 independently after the last change, on 2026-09-24. Since then the suite has
-grown to 481: item 7 added the problem files, E27 the evaluated-answer
-cases, and discharge its certificate checks.
+grown to 582: item 7 added the problem files, E27 the evaluated-answer
+cases, discharge its certificate checks, and `int_subst` its moves and
+files.
 
 | Proof | Verdict |
 |---|---|
@@ -351,6 +352,52 @@ kernel runs. Its findings are fixed, in `ec3f693`:
 
 The suite is at 481 of 481.
 
+## Since: `int_subst`, substitution in an integral (2026-09-24)
+
+The substitution move in §6.4, with decisions E36–E50 in `p1_expected.py`.
+Where the owner decided, it is noted:
+- **Forward mode**, x := φ(t). φ′ comes from `deriv`, never from the
+  learner. The endpoint equations are decided in the step, and a mismatch
+  is refused with its residual, for example "pi^2 == pi^2/4 fails at the
+  upper limit".
+- **Reverse mode**, u := g(x) (owner). The learner supplies f, and the
+  kernel checks the integrand ≐ f(g(x))·g′(x) by `ring` or `field`. S2 goes
+  through as u := x².
+- **Decreasing φ with symbolic ends** (owner). When discharge decides the
+  order, the step emits the flipped, oriented integral, by §5.1's
+  definition. Otherwise it is refused.
+- **Occurrence selector** (owner), the same one `rewrite` uses, so the
+  move acts on any integral in the goal.
+- **The √ sign fact** (owner). `sqrt a ≥ 0` is read by the linear method,
+  which makes ∫₀⁴ 1/(1+√x) provable.
+
+| Proof | Verdict |
+|---|---|
+| P1.1 from the sheet's goal, ∫₀^{π²/4} sin √x ≐ 2 | Proved modulo 5 admissions (2 from the substitution, 3 from `ftc`, all regularity) |
+| SUB1 ∫₀¹ x√(1−x) ≐ 4/15, by a decreasing φ | Proved modulo 5 admissions |
+| S2R, S2 by u := x² | Proved modulo 4 admissions |
+| SUB2 ∫₀⁴ 1/(1+√x) ≐ 4 − 2 ln 3 | Proved modulo 5 admissions |
+
+**The review.** A skeptic could not make a substitution step prove a
+false equation from true obligations. It did produce a false theorem
+reported *Proved modulo 9 admissions*. There, x := 5/(2t − 5) created a pole
+at t = 5/2, and the false `2t − 5 # 0` was admitted, tagged `none`, among
+the regularity admissions. `ftc` alone had the same hole.
+- **The fix, E50:** F3 now also tries the rational roots of an
+  obligation's one-variable polynomial pieces. That case is refused at the
+  substitution.
+- **Still undecided:** irrational poles such as `t² − 2 # 0` stay admitted,
+  tagged `none`. Sturm sequences are the future exact method.
+- **Also fixed:** a crash on huge literal powers (`t^20000`), and one on
+  very deep substitutions. The iterative `subst` agrees with the old one on
+  all 1,010 cases of a differential test.
+
+**Design errors found**, folded into `DESIGN.md`:
+- §8.1's worked example `x := sin t`, marked "✓ legal", is refused, since
+  its endpoint gives 1 ≠ π²/4. §8.6's probe value for it was wrong too.
+- §6.4 did not say where φ′'s side conditions live.
+- §11.1's endpoint obligation is two obligations, not one.
+
 ## What is in `kernel/`
 
 | File | Role |
@@ -364,6 +411,7 @@ The suite is at 481 of 481.
 | `tagger.py`, `search.py`, `refute.py`, `residual.py`, `schema.py` | untrusted: admission tags, certificate search, decided-false, residual rendering, the closed whitelist and E27 |
 | `proof_of_life.py` | the done script and regression suite (items 1–6 for P1, item 7 for the problem files) |
 | `loader.py` | untrusted: reads a §16.4 problem file and drives its reference proof through `step()` |
+| `problems/stage1/` | SUB1, S2R and SUB2, the substitution problem files |
 | `problems/stage0/` | S1–S3 as problem files, and `expected.py`, their hand-written expected results |
 | `test_field.py`, `test_grammar.py` | unit and property tests |
 
