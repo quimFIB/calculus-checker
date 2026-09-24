@@ -1001,7 +1001,12 @@ A goal may first be `field`-normalised. Then, **in the order tried**:
    constant, zero included, also serves as the constant term: a non-negative
    combination of even powers is ≥ 0. Neither strict form reaches the
    fallback route's `0 ≤ pi^2/4`, which ring-normalises to `(1/4)*pi^2` with
-   constant 0. *(Revision 10, E20.)*
+   constant 0. *(Revision 10, E20.)* *(Discharge, E28–E30: the quadratic and
+   discriminant conditions are rules for the untrusted **search**, not checks.
+   The trusted checker needs only three things. The written decomposition must
+   `ring`-equal the goal, every coefficient must be positive with every
+   exponent even, and the constant must be positive, or non-negative on a
+   non-strict goal.)*
 5. **by sign product** — the goal is ring-normalised, a factorisation into
    strictly lower-degree factors is supplied, and the sign of the whole follows
    from the signs of the parts. **The factorisation is emitted and re-checked
@@ -1009,6 +1014,10 @@ A goal may first be `field`-normalised. Then, **in the order tried**:
    ordinary obligation and goes back through this same list, terminating
    because the factors are of strictly lower degree. It closes `> 0`, `< 0`
    and `# 0` goals alike — for `#` it is enough that every factor is nonzero.
+   *(Discharge, E30: "strictly lower degree" is the search's rule. The
+   checker checks the factorisation by `ring`, each factor's own certificate
+   and the sign parity, and it terminates because every certificate is
+   finite.)*
    The factorisation itself is untrusted input, from the learner or from
    §8.2's factoriser; the kernel checks it and never searches for it.
    **It may also split off a nonzero rational content**, c·p with p of the
@@ -1051,7 +1060,14 @@ in §8.2's factoriser costs a rejected step, never a false `Proved`, which is
 **Before Fourier–Motzkin is consulted, the constraint set is checked
 satisfiable.** This closes a class rather than an instance: *any* discharge
 path that can consult an inconsistent constraint set proves everything, and the
-reversed-limit exploit of §5.1 was one instance of it.
+reversed-limit exploit of §5.1 was one instance of it. *(Discharge, E28–E29,
+owner's decision 2026-09-24: with checked witnesses, what carries soundness
+has moved. An accepted Farkas certificate proves its obligation on its
+domain, vacuously if the domain is empty. The danger was a wrongly built
+constraint set, and E4 closes that by owing every range's `lo ≤ hi`. The
+pre-check stays, **untrusted**, inside the search, so that the search never
+reaches for a vacuous witness. It can only withhold a discharge. The checker
+also demands a positive multiplier on the negated goal.)*
 
 Methods 3, 4 and 5 emitting certificates — the Farkas combination, the
 sum-of-squares decomposition, the factorisation — is what makes §7's claim true
@@ -1088,7 +1104,14 @@ proof:
   discharge is built, the kernel itself admits every obligation it cannot
   discharge, with the reason `discharge not built` and a tag naming the §5.3
   method expected to close it, or `none` if no method can. The proof-of-life's
-  verdicts all read `Proved modulo N admissions`.)*
+  verdicts all read `Proved modulo N admissions`.)* *(Discharge, E32–E33: the
+  kernel now discharges at emission. It admits an obligation for one of four
+  reasons: `regularity not built`, `no method decides it`,
+  `domain inconsistent`, or `certificate not accepted`. An obligation
+  discharge decides false refuses the step with `obligation-decided-false`
+  instead of being admitted. An admission tagged `none` may still be false,
+  such as `x − 5 # 0` on [0, ∞), which the bounded counter-point search
+  misses.)*
 
 A proof with admissions reports `Proved modulo 3 admissions`, listing them,
 and never `Proved`. This is `Admitted` from Rocq, and it is what makes the
@@ -3242,10 +3265,14 @@ whether or not it looks like a kernel.
 4. **`ring`, `field` and `norm_num`** — the three reflective procedures, with
    `field`'s divisor obligations and its reduction modulo facts (§6.2) the
    soundness-bearing behaviour.
-5. **The obligation tracker**, and those parts of §5.3's discharge that are not
-   certificate-emitting: method 1's reflexive-transitive closure over the
-   ordering hypotheses, method 2's by-range extension, and the satisfiability
-   check.
+5. **The obligation tracker, the certificate checkers and the exact-value
+   rewrite.** The checkers are hypothesis, Farkas (methods 2 and 3), sign,
+   sign product and cite. The exact-value rewrite (E31) uses item 3's matcher
+   and item 7's entries. *(Discharge, E28–E29: by-range is now a Farkas
+   certificate over the range's own items, checked like method 3. The
+   satisfiability pre-check runs in the untrusted search, because its
+   verdict can only withhold a discharge. Every search, including
+   Fourier–Motzkin, is untrusted, and only its witness is checked.)*
 6. **The certified-enclosure library** (§10), and MPFR if adopted.
 7. **The `cite` library file** (§6.8), whose entries carry provenance tags.
 8. **The parser and pretty-printer.**
@@ -3276,7 +3303,13 @@ theorem, because the kernel's verdict does not depend on their being right. A
 tag decides no obligation's status, a wrong whitelist can at worst accept an
 answer of the wrong shape, and a residual is display. That is the condition
 under which trusted code may call untrusted code, and each new callee has to
-be argued the same way.
+be argued the same way. *(Since revision 10 three more have been argued the
+same way.*
+- *E27's evaluated-answer check and E33's decided-false check can only
+  refuse a step.*
+- *The discharge search, including Fourier–Motzkin and the satisfiability
+  pre-check, only proposes a certificate that trusted code then checks. A
+  search bug costs an admission, never a discharge.)*
 
 Everything else — tactics, UI, problem files and **the whole of §8** — is
 untrusted and cannot produce a wrong `Proved`.
@@ -4295,6 +4328,20 @@ the change of language and deployment, and reopen Q7.
     obligation that discharge can decide neither way stays admitted and
     tagged `none`, so it is still visible. Refusing every `none` would also
     refuse obligations that are true but out of the methods' reach.
+
+    **The reading settled with discharge (E33, owner's answers of
+    2026-09-24):** an obligation is decided false in three ways, all under one
+    code, `obligation-decided-false`:
+    - **F1:** it is a false literal after exact values;
+    - **F2:** it is closed and its negation is discharged, like the reversed
+      range's `pi/2 ≤ 0`;
+    - **F3:** a rational counter-point from a fixed, bounded candidate set
+      lies in its domain and makes it false. F3 keeps full reach: a goal with
+      no stated domain whose terms are undefined somewhere, such as
+      `ln x * 0 ≐ ?A`, is refused. Stating `@ x > 0` is the learner's move.
+
+    The decided-false check can only refuse, so it is untrusted, beside E27.
+    Misses of the bounded search stay admitted and tagged `none`.
 23. **How will `Int` and `D` state their definedness?** *(Revision 10.)*
     `ring`, `field` and `norm_num` refuse them today, because an opaque atom
     is assumed to denote and nothing yet shows that these do (§5.1). Once
