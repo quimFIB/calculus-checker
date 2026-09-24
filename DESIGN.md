@@ -1,8 +1,9 @@
 # A calculus proof checker
 
-**Status: design, revision 10, 2026-09-24. The tool is not built, but its
-kernel's first milestone is:** `WHAT.md`'s proof-of-life in `kernel/`, a
-headless kernel that proves readiness P1. Two spikes sit beside it: stage 0c's
+**Status: design, revision 10, 2026-09-25. The tool is not built, but stage
+1's kernel is:** `kernel/`, the headless kernel that began as `WHAT.md`'s
+proof-of-life, proves readiness P1 and eight problem files with nothing
+admitted (§13, §17). Two spikes sit beside it: stage 0c's
 `ring`/`field` in `spike/ring/`, and the recognizer in `spike/recognizer/`
 (§8.5, §17). This proposes a
 system, states exactly what it would and would not guarantee, tests the design
@@ -137,7 +138,11 @@ forgeries. Building it found:
   partial builtin is now a former that owes its natural domain, and `ring`,
   `field` and `norm_num` refuse integrals and derivatives, whose definedness
   cannot be stated yet (§5.1, §6.2). §14's claim that the total and partial
-  readings agree had silently depended on both.
+  readings agree had silently depended on both. *(Regularity replaced that
+  refusal for every integral with finite limits and every derivative: each
+  now owes its own definedness where it enters, and is then an atom. An
+  improper integral, or one with an `Int` or `D` in a limit, is still
+  refused, §5.1.)*
 - **`D[x]` is not a plain binder** (§5.1). It binds inside its body and is
   evaluated at x, so x stays free.
 - **Ten underspecified points, each now decided**: when `/` is charged, which
@@ -795,7 +800,7 @@ limits and is never empty. An integral's value, by this paragraph's
 definition, and its definedness depend only on the integrand on that set, so
 every obligation stated on it is the right one for either order. Both gaps
 above are closed too: ∫₀¹ √(1−x²) by x = cos θ now finishes, `Proved modulo 5
-admissions` (§13).)*
+admissions` (§13), and since regularity a plain `Proved.`.)*
 
 **Inverse hyperbolics are in.** Separable ODEs with quadratic drag integrate
 to `artanh`, and §8.5's recognizer row √(x²+a²) → x = a sinh u needs `asinh` to
@@ -824,7 +829,11 @@ exactly like `sin u`, and every fact about it enters through a rule. Nothing in
 `abs_nonneg` and `abs_neg` in §6.8, and a regularity entry in §6.9 saying `abs`
 preserves C⁰ and gives C¹ only where its argument is nonzero. Note that
 `d_abs` needs no `sign` former — `D[x](abs u) ≐ (u / abs u) * D[x]u @ u # 0`
-is written in the grammar as it stands.
+is written in the grammar as it stands. *(Revision 10, regularity: the
+regularity entry is built, §6.9. `d_abs`, the two rewrites and `int_split`
+are not. So `abs` parses, owes nothing and is C⁰ everywhere, but `deriv`
+cannot differentiate it and nothing yet splits an integral at its kink,
+§17.)*
 
 **`∫₋₁¹ |x| dx` becomes statable, and still does not close in one step** —
 which is the right outcome rather than a shortfall. F = |x|·x/2 is C⁰ on [−1,1]
@@ -904,15 +913,61 @@ reported `Proved.`. A former is charged at its term's *position* domain, so
 `ln(1 + x)` under `Int[x = 0 .. 1]` owes `1 + x > 0 @ [0, 1]`, which is a
 different obligation from `d_ln`'s `1 + x > 0 @ (0, 1)`.
 
-**`Int` and `D[x]` subterms have no statable definedness condition** until
-§6.9's regularity and §5.2's `diverges` are built. So `ring`, `field` and
-`norm_num` refuse any side that contains one, rather than treat it as an atom
-that denotes (§6.2). No P1 step needs otherwise: `ftc` consumes the top-level
-integral, and its derivative premise is decided on `deriv`'s output. *(Found
-by the proof-of-life, `kernel/p1_expected.py` E6 and E26. One consequence to
-know: `tan(pi/2) − tan(pi/2) ≐ ?A` now reads `Proved modulo 1 admissions`,
-owing `cos(pi/2) # 0`, which is false and which no §5.3 method can decide. **An
-admission tagged `none` may be false**, which is what the tag is for.)*
+**`Int` and `D[x]` subterms had no statable definedness condition** until
+§6.9's regularity was built. So `ring`, `field` and `norm_num` refused any
+side that contained one, rather than treat it as an atom that denotes (§6.2).
+No P1 step needed otherwise: `ftc` consumes the top-level integral, and its
+derivative premise is decided on `deriv`'s output. *(Found by the
+proof-of-life, `kernel/p1_expected.py` E6 and E26. One consequence to know:
+`tan(pi/2) − tan(pi/2) ≐ ?A` read `Proved modulo 1 admissions`, owing
+`cos(pi/2) # 0`, which is false and which no §5.3 method could decide. **An
+admission tagged `none` may be false**, which is what the tag is for. Since
+discharge the step is refused, because `cos_pi_half` decides it false,
+§18 Q22.)*
+
+**Since regularity, a statable `Int` and every `D[x]` are formers**
+*(revision 10, regularity, E64 and E66, settling §18 Q23 as the owner
+chose; the shapes below decided by the main session on the owner's
+delegation)*. An `Int` is **statable** when neither limit is `oo` or `-oo`
+and neither holds an `Int` or `D` node.
+- **`Int[x = a .. b] f` owes `f ∈ C⁰` on its closed range**, at the node's
+  position domain, the range built from the proved order as every range is
+  (§6.4). Continuity on a closed bounded interval gives Riemann
+  integrability, so this is the sufficient, statable form of "f integrable
+  on [a, b]". It is also exactly `ftc`'s `f ∈ C⁰([a,b])` premise, so a
+  top-level integral's former and that premise are one key.
+- **`D[x] e` owes `e ∈ C¹` at its position domain**, which gives e
+  differentiable at x at every point there. `D[x] x^2 ≐ ?A` owes
+  `x^2 ∈ C¹(⊤)`.
+- **They are charged wherever a term enters, after every other former of
+  that term**, outer node first. So no earlier refusal changes its cause:
+  `Int[x = -1 .. 1] 1/x^2` is still refused by its `/` former. A step that
+  only rewrites inside an existing node does not charge it again, since the
+  step proves the old body equal to the new one where the old one was owed.
+- **Every statable integral's order is now decided when it enters** (E68),
+  because its former uses its range. A goal whose range has an undecided
+  symbolic order is refused `orientation-undecided` at installation, even if
+  its body owes nothing.
+
+**Once owed, they are atoms.** `ring` and `field` read a statable `Int` and
+every `D` node as an opaque atom, keyed by its tree exactly: no
+alpha-equivalence and no normalisation under the binder, which is
+incomplete and never unsound. So 2I − I − I ≐ 0 closes for I = ∫₀^π eˣ sin x
+(§18 Q23). Three things are unchanged:
+- **An unstatable `Int` owes nothing and is still refused**,
+  `Int-or-D-not-normalisable`, wherever `ring_nf` runs. What it owes is
+  convergence, which is not continuity (§18 Q23).
+- **No obligation may hold an `Int` or `D` node, and neither may a goal
+  hypothesis** (E7 and the install gate; E66 (2), main session, on the
+  owner's delegation). No target needs otherwise, and it keeps tree atoms
+  out of discharge's search and refutation, whose point evaluation cannot
+  read them.
+- **`deriv`'s `d_const` still refuses** an x-free subterm holding one.
+
+**A `D` whose body is not C¹ is admitted, not refused.**
+`D[x](abs x) − D[x](abs x) ≐ ?A` closes to 0 as `Proved modulo 1
+admissions`, owing `abs x ∈ C¹(⊤)`. That is false at 0, where neither side
+exists, and it is tagged `none`. §6.9 says why regularity cannot refute it.
 
 ### 5.2 Judgements
 
@@ -934,6 +989,31 @@ The kernel proves these forms and no others:
 
 Γ is a list of named hypotheses of these same forms, plus variable and function
 declarations.
+
+**What `e ∈ Cᵏ(D)` means** *(revision 10, regularity, E59, decided by the
+main session on the owner's delegation)*. The form was declared without
+saying what it means on a domain with several variables or with closed ends.
+Let S be the set of points, over all the judgement's free variables, where
+every item of D holds.
+- **C⁰(D):** e is defined at every point of S and continuous on S, in the
+  relative topology.
+- **C¹(D):** every point of S has an open neighbourhood on which e is
+  defined and continuously differentiable, jointly in the free variables.
+- **k is 0 or 1 in stage 1.** C² and up, and C^ω, are refused
+  `class-not-built` (§6.9).
+
+No variable is distinguished. Joint regularity gives regularity in the
+integration variable with the others fixed, which is all that `ftc`,
+`int_subst` and §5.1's `Int` and `D` formers use, and every closure rule
+proves the joint form. **Open and closed ends are the domain's business, not
+the class's.** `ftc`'s C¹ premise sits on (a, b), so √'s C¹ side u > 0 is
+asked only inside, while its C⁰ premises and `int_subst`'s premises sit on
+the closed range. On a closed range the neighbourhood reading of C¹ is
+stronger than §6.4's one-sided C¹([a, b]), and sufficient for it. The cost
+is completeness only, and §6.4's x := t·√t is the case that shows it. The
+reason for this reading: it is the one under which every closure rule is a
+textbook theorem with its side conditions stated pointwise on D, so each
+side is an ordinary §5.2 obligation at D.
 
 **A goal is a list of these, proved conjunct by conjunct.** Every goal in §11
 and §12 carries a top-level ∧ and none of them was a judgement form in revision
@@ -964,6 +1044,15 @@ diverges and the claim is **contradicted**. That is precisely the trap §4.2
 found HolPy putting through its kernel and returning `-2` for, and the trap
 their own paper holds against Maple; having no way to say so was a hole in this
 document's own story about why it is different.
+
+*(Revision 10, regularity: `diverges` is not built, and was deferred on the
+owner's delegation, §18 Q23. What the kernel does meanwhile is refuse the
+trap where it is installed, naming the point. `∫₋₁¹ dx/x² ≐ ?A` is refused
+`obligation-decided-false`, because its `/` former `x^2 # 0` fails at 0. If
+that former were ever lost, the integral's own former
+`1/x^2 ∈ C⁰([−1, 1])` would be refuted at the same point (§6.9). A refusal that
+names where the term is undefined is more than "I cannot prove this". It is
+still less than *contradicted*, which waits for `diverges`.)*
 
 Two consequences in §13 soften accordingly: `check` on a wrong answer can now
 reject in the divergence cases rather than always yielding `Stuck` (§18 Q20),
@@ -1121,6 +1210,10 @@ A goal may first be `field`-normalised. Then, **in the order tried**:
 6. **by `cite`** — a named library fact (§6.8), with its own hypotheses
    emitted as obligations.
 
+*(Revision 10, regularity, E60: a regularity judgement goes to none of these
+six. It is discharged by §6.9's checked derivation, and every side condition
+of that derivation comes back through this list as an ordinary obligation.)*
+
 **Method 5 is new, and it regularises a move this document was already
 making.** §11.2 closes `1 + x^3 # 0` as "a **product** of the two facts already
 established above it, with `ring` certifying the factorisation" — which is
@@ -1232,7 +1325,14 @@ proof:
   message changes. **An admission tagged `none` may be false exactly when no
   candidate refutes it.** The misses that remain are irrational roots, roots
   beyond the bound, and pieces in more than one variable. §5.3 names the
-  exact method that would close the first.)*
+  exact method that would close the first.)* *(Revision 10, regularity,
+  E60: `regularity not built` is retired, and no reference proof, P1's or a
+  problem file's, admits anything. A regularity judgement is discharged by
+  a checked derivation (§6.9). One that is not is admitted `no method
+  decides it`, when some node
+  of its term has no rule or some side has no certificate, or `certificate
+  not accepted`, which no unmutated run produces. `abs x ∈ C¹(⊤)`, owed by
+  `D[x](abs x)`, is the first kind, and it is false.)*
 
 A proof with admissions reports `Proved modulo 3 admissions`, listing them,
 and never `Proved`. This is `Admitted` from Rocq, and it is what makes the
@@ -1308,7 +1408,10 @@ route at all. For a term continuous on an open domain, the set where it is
 does not mention x does not count against the rule. A hypothesis mentioning x
 must still avoid the non-open partial formers (`sqrt`, `asin`, `acos`,
 `acosh`) and `Int` or `D` subterms, and so must anything the rewrite charges at the position
-(`kernel/p1_expected.py` E11).
+(`kernel/p1_expected.py` E11). *(Revision 10, regularity, E66: that includes
+the `Int` and `D` formers the rewrite charges from its right side. One whose
+proposition or domain mentions x counts as not open in x, since a
+regularity judgement is not an open inequality.)*
 
 **Rewriting under `Int` owes the range's orientation (revision 10).** The range
 domain `a ≤ t ≤ b` is only the range once `a ≤ b` is known; with the limits
@@ -1344,25 +1447,46 @@ first equation entry whose right side drops its schema variable. So
 `(sin(D[x](abs x)))^2 + (cos(D[x](abs x)))^2 ≐ ?A` rewrote to `1`, owing
 nothing, and `close 1` reported a plain `Proved.`, though |x|′ does not exist
 at 0. With u := `Int[x = 1 .. oo] 1`, a divergent integral, it went the same
-way. Until §18 Q23's formers land, nothing states when such a node denotes,
-so "unless its definedness is owed" means never, except where the rule's own
-premises owe it, as `ftc`'s do for the integral it consumes.
-- **`rewrite` refuses at a new step 2a, on every match branch.** If any
-  instance value, or the target position itself, holds an `Int` or `D` node,
-  the step is refused `Int-or-D-not-normalisable` before anything is
+way. Until §18 Q23's formers landed, nothing stated when such a node
+denotes, so "unless its definedness is owed" meant never, except where the
+rule's own premises owed it, as `ftc`'s do for the integral it consumes.
+- **`rewrite` refused at a new step 2a, on every match branch.** If any
+  instance value, or the target position itself, held an `Int` or `D` node,
+  the step was refused `Int-or-D-not-normalisable` before anything was
   matched. `(sin z)^2 + (cos z)^2` still rewrites to 1 and proves, owing
   nothing, which is right.
 - **Every other move was checked against the principle, and complies.**
   `close`'s whitelist refuses such a value, and its check's `ring` or `field`
-  refuses any side holding one. `int_subst` and `int_flip` carry a nested
-  node into the new body and drop nothing. A `fact` whose instance holds one
-  keeps it in its conclusion, and every use refuses it. Field facts, exact
-  values and every certificate checker go through `ring_nf`, which refuses
+  refused any side holding one. `int_subst` and `int_flip` carry a nested
+  node into the new body and drop nothing. A `fact` whose instance held one
+  kept it in its conclusion, and every use refused it. Field facts, exact
+  values and every certificate checker go through `ring_nf`, which refused
   the node.
 - **A limit holding an `Int` or `D` node is refused outright by `ftc`,
   `int_subst` and `int_flip`** *(second review)*. Such a limit has no
   definedness the kernel can state, and each move would carry it into the
-  goal (§6.4).
+  goal (§6.4). Regularity leaves this unchanged: an `Int` with a tree in a
+  limit is unstatable (§5.1).
+
+**Since regularity, the principle holds by the owing, and step 2a refuses
+only what cannot be owed** *(revision 10, regularity, E66 (3))*. A statable
+`Int` or a `D` node in the target was owed where it entered (§5.1), and one
+that the right side R carries in is charged with R's formers. So erasing
+one drops nothing that was not already paid for, and step 2a now refuses
+only an **unstatable** `Int` in an instance value or the target. The other
+moves' compliance above reads the same way: where they relied on `ring_nf`
+refusing the node, it is now an atom whose definedness was owed, and
+`ring_nf` still refuses an unstatable one. The last review's reproducers
+show all three cases:
+- `(sin(D[x](abs x)))^2 + (cos(D[x](abs x)))^2 ≐ ?A` rewrites to 1 and
+  closes, but reads `Proved modulo 1 admissions`. It owes
+  `abs x ∈ C¹(⊤)`, tagged `none` and false at 0, so the debt stays in the
+  verdict instead of vanishing with the node.
+- With u := `Int[x = 1 .. oo] 1` it is still refused, since that integral
+  is unstatable.
+- With u := `Int[x = 0 .. 1] x` it is a plain `Proved.`, owing
+  `x ∈ C⁰([0, 1])`, which regularity discharges. The identity holds for the
+  integral's value, ½.
 
 ### 6.2 Algebra — the three places a normal form is allowed
 
@@ -1390,10 +1514,13 @@ never claims to know anything about `sin`.
   careless implementation becomes unsound, and it is the one to review
   hardest.
 - **`norm_num`** — closes goals over rational literals exactly.
-- **All three refuse a side containing `Int` or `D[x]`** (revision 10, §5.1).
-  An opaque atom is assumed to denote, and neither of those can be shown to
-  until regularity and `diverges` exist, so `ring` may not cancel
-  `Int[…] - Int[…]` to 0.
+- **All three refused a side containing `Int` or `D[x]`** (revision 10,
+  §5.1). An opaque atom is assumed to denote, and neither of those could be
+  shown to before regularity, so `ring` could not cancel `Int[…] - Int[…]`
+  to 0. **Since regularity, `ring` and `field` read a statable `Int` and
+  every `D[x]` as an opaque atom, keyed by its tree**, because each now owes
+  its own definedness where it enters (§5.1, E64, E66). An unstatable `Int`
+  is still refused by all three, since what it owes is convergence.
 
 **Why "every divisor" and not "every denominator it cancels".** Revisions
 1–6 said the latter, and stage 0c found it cannot be implemented as a
@@ -1621,7 +1748,8 @@ limits. Equal limits make both orders provable and give the same point. The
 order key is still emitted, so what a proof relied on stays in its tracker.
 So `Int[x = pi/2 .. 0] 2*x` closes to −π²/4 by `ftc` alone, and
 `Int[t = pi/2 .. 0] sqrt(t^2)` to −π²/8 through `sqrt_sq` under the reversed
-integral, both modulo their 3 regularity admissions.
+integral. Both read `Proved modulo 3 admissions`, all regularity, until
+§6.9's subset was built, and both are now a plain `Proved.`.
 
 **No tree in a limit** *(revision 10, second review, E57 amended)*. `ftc`,
 `int_subst` and `int_flip` test the limits of the integral they act on, and
@@ -1784,12 +1912,13 @@ mode and the old one in reverse.
   there, because f(g(x))·g′(x) is x·√(x²), and that is −x² for x < 0.
 
 **What it owes, and where each premise lives.**
-- **φ ∈ C¹ and f(φ(t)) ∈ C⁰ on [a, b], closed.** Both are admitted as
-  `regularity not built` until §6.9 exists, so a proof through k
-  substitutions and one `ftc` reads `Proved modulo 3 + 2k admissions`. In
-  reverse mode they are g ∈ C¹ and f(g(x)) ∈ C⁰ on the old range. By the
-  closed-map argument above, that is f continuous on g([a, b]), so g need not
-  be monotone and nothing is refused for it.
+- **φ ∈ C¹ and f(φ(t)) ∈ C⁰ on [a, b], closed.** Both were admitted as
+  `regularity not built` until §6.9's subset was built, so a proof through k
+  substitutions and one `ftc` read `Proved modulo 3 + 2k admissions`. Both
+  are now discharged by checked derivations, and such a proof reads a plain
+  `Proved.` (§11.1). In reverse mode they are g ∈ C¹ and f(g(x)) ∈ C⁰ on
+  the old range. By the closed-map argument above, that is f continuous on
+  g([a, b]), so g need not be monotone and nothing is refused for it.
 - **`deriv`'s side conditions for φ′, also on the closed [a, b]**, not on an
   open interval as `ftc`'s are. The theorem asks φ ∈ C¹([a, b]), and φ′
   stands in the new integrand, which must be defined at the ends.
@@ -1806,7 +1935,10 @@ mode and the old one in reverse.
   pass, since `ln 1` is an atom to `ring`.
 - **The composed integrand's formers**, charged on [a, b] when the new goal
   enters, as every new goal's are (§5.1). That is where §11.1's nested
-  `t^2 ≥ 0` comes from. The new variable must be fresh in the goal.
+  `t^2 ≥ 0` comes from. The new variable must be fresh in the goal. *(Since
+  regularity they include the new integral's own former,
+  f(φ(t))·φ′(t) ∈ C⁰ on [a, b], charged after the premises above. For a
+  flipped integral it is on −(f(φ(t))·φ′(t)).)*
 - **The orientation of each range**, below.
 
 **Reading C¹ off `deriv` is sufficient, not necessary.** x := t·√t over [0, 1]
@@ -1814,7 +1946,15 @@ is C¹, with φ′ = (3/2)√t continuous on the closed range. But `d_sqrt` owes
 t > 0 on [0, 1], which is false at 0, so the step is refused. That is a
 completeness limit and not a soundness one. It goes away only with §6.9's
 regularity rules, which can state C¹ without differentiating through the
-root.
+root. *(Revision 10, regularity: that last sentence is not true of the
+subset built. Its √ rule gives C¹ only where u > 0, so t·√t ∈ C¹([0, 1])
+fails at 0 in any reading of the rule, and E59's neighbourhood reading
+asks for more than the one-sided C¹ the textbook asks at a closed end
+(§5.2). Lifting the limit would need a one-sided rule at a closed end, or
+t^(3/2) as a real power, which `kernel/GRAMMAR.md` D17 refuses as a literal
+exponent and whose rule would owe t > 0 anyway. `deriv`'s `d_sqrt` refuses
+the step first in any case, so this is recorded as a limit of the subset,
+not as something regularity fixed.)*
 
 **A decreasing φ keeps the correspondence by end, not by order.** The new
 lower limit is the preimage of the old lower limit, so a decreasing φ gives
@@ -1902,7 +2042,14 @@ because `f ∈ C⁰([a,b])` fails with f unbounded at 0. `int_improper` remains
 required. **The line the corrected rule draws is exactly: F may misbehave at an
 endpoint; f may not** — which is why the f-side premise stayed on the closed
 interval when the F-side ones moved to the open one. *(Stage 0's second pass,
-`STAGE0.md` S30.)*
+`STAGE0.md` S30.)* *(Revision 10, regularity: the line is now drawn by
+checked derivations, and the kernel draws it at installation. f = 1/(2√x)
+on [0, 1] is refused where it enters, because its `/` former `2*sqrt x # 0`
+fails at 0, and regularity would refute its former f ∈ C⁰([0, 1]) at the
+same point if that were lost. P1.1's fallback, F = 2 sin √x − 2√x cos √x,
+is the accepted twin: its C⁰ premise on [0, π²/4] and its C¹ premise on
+(0, π²/4) are both certified, and F ∈ C¹ on the closed range is not
+certifiable.)*
 
 ### 6.5 Differential equations
 
@@ -2172,7 +2319,9 @@ stating:
 - `pyth : (sin u)^2 + (cos u)^2 ≐ 1` — the identity as the owner states it,
   and the parent of the next. `rewrite` can use it at a subterm that is that
   sum as a tree, turning it into 1, soundly for every real b, and refuses a b
-  holding an `Int` or `D` node, which the rewrite would erase (§6.1, E57).
+  holding an unstatable `Int`, which the rewrite would erase (§6.1, E57). A
+  statable `Int` or a `D` in b has owed its definedness where it entered,
+  so erasing it is sound, and the owed debt stays in the verdict (E66).
   `field` cannot, since a fact must be a^k ≐ r (§6.2).
 - `pyth_cos : (cos u)^2 ≐ 1 − (sin u)^2` — `pyth` solved for (cos u)^2. It
   is a rewrite at (cos b)^2 and a `field` fact in §6.2's shape, and it is the
@@ -2212,7 +2361,9 @@ rule whose conclusion was a Cᵏ judgement at all**. §7 makes `reg` an untruste
 tactic, so it had nothing to emit, and §5.3's methods are stated for
 inequalities and nonvanishing and cannot conclude regularity. The five `by reg`
 ticks in revision 1's worked examples were unjustifiable, and §11.1's "Proved.
-0 admissions" was not reachable as written.
+0 admissions" was not reachable as written. *(Revision 10, regularity: it is
+reached now. The subset below is built, and §11.1 from the sheet's goal is a
+plain `Proved.`.)*
 
 This is a completeness gap rather than a soundness hole — a `reg` with no rules
 yields `Stuck` — but it breaks every worked example in the document.
@@ -2242,6 +2393,91 @@ derivative; and C⁰ for `abs` is not reachable from derivative rules at all.
 base is rejected.** It would move ~25 machine-checkable lemmas out of §14's
 report and add unverified code to §15's list — exactly the wrong direction for
 a project whose verification is deferred (§15.4).
+
+**The C⁰/C¹ subset is built, as a certificate-checked discharge method**
+*(revision 10, regularity, E60–E62)*. It is what `ftc`, `int_subst` and
+§5.1's `Int` and `D` formers need, with §5.2's reading of Cᵏ(D), and it
+splits exactly as §5.3 does: an untrusted search proposes, and a trusted
+checker checks.
+- **The certificate is a derivation that mirrors the term.** Each node names
+  its rule, carries one child per subterm the rule consumes, and one pair
+  per side condition, a proposition and its §5.3 certificate. It is plain
+  data, like every certificate, and it never names a subterm, because the
+  checker walks the term and the certificate together.
+- **The rule comes from the term's head, never from the certificate.** The
+  structural rules are const, var, neg, add, mul, div, `pow` for n ≥ 0,
+  `pow_neg` for n < 0 and `rpow`, and each builtin has one rule. That is
+  twenty-five, the "roughly 25" above. An `Int`, a `D`, a declared symbol
+  and a metavariable have none, and are rejected `no-rule`. The
+  certificate's rule name must equal the one the head gives, so that a
+  derivation is readable and §14's provenance count can be read off it, but
+  nothing dispatches on it.
+- **Every side condition is rebuilt from the term, then decided.** The
+  certificate's propositions must match the rebuilt ones in number and as
+  trees. Each is decided by discharge's own checkers, exact values first,
+  on exactly the regularity judgement's domain. Nothing is appended to that
+  domain: not the side itself, nor an earlier side. E5 alone may shorten it,
+  to ⊤ for a closed side. So a certificate can never supply a domain
+  (`REG_SIDE_KEY_RULE`, the review's rule).
+- **The sides come from one table, never a transcription.** A builtin's C⁰
+  sides are its row of §5.1's natural-domain table, the one the formers
+  read, held once in trusted `kernel/domains.py`. Its C¹ sides are the same
+  row made strict, every ≥ to > and every ≤ to <, plus the one row
+  regularity adds: `abs`, u # 0. So √ is C⁰ on u ≥ 0 and C¹ on u > 0, and
+  asin and acos are C⁰ on [−1, 1] and C¹ on (−1, 1). The structural sides
+  are `div`'s b # 0, `pow_neg`'s a # 0 and `rpow`'s a > 0, at both classes.
+  That is §14's "a rule's condition is one datum", and it makes the
+  sentence above, that the C⁰ sets are exactly the formers' domains, true
+  by construction.
+
+The tag is `('reg', cites)`, the side certificates' cites in pre-order.
+§11.1's `sin t * (2*t) ∈ C⁰([0, π/2])` has no side at all. §11.2's F cites
+`sqrt_pos`, for its `sqrt 3 # 0`. A derivation deeper than the stack means
+no certificate, so the judgement is admitted rather than crashing the
+kernel (§15.2).
+
+**Each rule is a standard theorem, with its hypotheses as the side
+conditions at D** (E62). Every rule has one shape: if the children are Cᵏ
+on D and the sides hold on D, the node is Cᵏ on D.
+
+| Rule | The theorem it cites |
+|---|---|
+| const, var | a constant and a coordinate function are C^∞ |
+| neg, add, mul | sums and products of continuous (C¹) functions are continuous (C¹), the product rule giving (uv)′ |
+| div | u/v is continuous where v # 0. For C¹: v # 0 at p and v continuous give v # 0 near p, and (u/v)′ = (u′v − uv′)/v² is continuous there |
+| pow, pow_neg | uⁿ is repeated multiplication, and u⁻ⁿ is 1/uⁿ with u # 0 |
+| rpow | u^w = exp(w·ln u) with u > 0, which is `ln`'s side |
+| a builtin f(u) | C⁰: f is continuous on its natural domain A, and the sides put u(S) inside A. C¹: f is C¹, indeed analytic, on A's interior O, except `abs` at 0, and the strict sides put u(p) in O, hence u near p in O, so the chain rule applies |
+
+The strict C¹ sides are what make §5.2's neighbourhood reading work: a
+strict condition true at a point of S stays true near it, by continuity.
+
+**Refutation reads only the C⁰ sides** *(E63, extending §18 Q22)*. A
+regularity judgement is refused `obligation-decided-false` when a C⁰ side
+of its derivation, at its domain, is decided false by F1, F2 or F3. Those
+sides are exactly the term's definedness conditions, and a term undefined
+at a point of S is Cᵏ for no k. **A failed C¹-only side decides nothing**,
+because the rules are sufficient, not necessary. √x is not C¹ at 0, but
+x·|x| is C¹ although its `abs` fails u # 0. So `abs x ∈ C¹(⊤)`, which
+`D[x](abs x)` owes, is admitted `none`, never refused. The review pinned
+one consequence as intended *(main session, on the owner's delegation)*. A
+judgement on an empty domain is still refused when a closed side is false,
+since E5 keys a closed side at ⊤: `sqrt(-1) + x ∈ C⁰(x > 1, x < 0)` is
+vacuously true and is refused through −1 ≥ 0. That is E7's treatment of a
+closed former, wherever it enters. No move emits a judgement on an empty
+domain anyway, since every range is built from a proved order (§6.4).
+
+**What has no rule is admitted `none`, not refused**, unless a C⁰ side
+elsewhere in its term is decided false: a term holding an `Int` node
+(FTC-1 or Leibniz would give a rule), a `D` node (that needs C²), or a
+declared symbol (the hypothesis form above waits for §12.1). A class above
+C¹ is rejected by the checker, `class-not-built`, and no move emits one.
+
+**The checker is trusted, and it is not the reflective procedure rejected
+above.** It decides nothing itself. It checks one rule instance per node
+against a table, and every side is an ordinary obligation decided by the
+checkers §15.2 already lists. Its one datum of its own is `abs`'s u # 0,
+and its C⁰ sides are §5.1's former table itself.
 
 ---
 
@@ -2666,7 +2902,8 @@ equations are decided in the step (§6.4). So for `int_subst` the probe's catch
 repeats a refusal and adds the size of the error. A changed value the kernel
 does not refuse can now come only through an admission: a regularity premise,
 or an obligation tagged `none` that is false, such as a pole the counter-point
-search misses (§5.4).)*
+search misses (§5.4). Since regularity, a regularity premise is admitted
+only when its term has no derivation, §6.9.)*
 
 **It is explicitly not evidence, and the UI marks it `~` rather than `✓`.**
 The v1 probe is ordinary floating-point adaptive quadrature. It can be wrong in
@@ -3096,6 +3333,7 @@ problem readiness.P1.1
        obl  4 # 0                                      by norm_num     ✓
        obl  0 ≤ pi^2/4                                 by sign         ✓
        obl  x ≥ 0  @ [0, pi^2/4]                       by range        ✓
+       obl  sin(sqrt x) ∈ C⁰([0, pi^2/4])              by reg          ✓
 
 proof
   step subst (x := t^2) over t in [0, pi/2]
@@ -3106,6 +3344,7 @@ proof
        obl  t^2 ∈ C¹([0, pi/2])                        by reg          ✓
        obl  sin(sqrt(t^2)) ∈ C⁰([0, pi/2])             by reg          ✓
        obl  t^2 ≥ 0  @ [0, pi/2]                       by sign         ✓
+       obl  sin(sqrt(t^2)) * (2*t) ∈ C⁰([0, pi/2])     by reg          ✓
   ⊢ Int[t = 0 .. pi/2] sin(sqrt(t^2)) * (2*t)  ≐  ?A
 
   step rewrite sqrt_sq
@@ -3157,6 +3396,19 @@ it. The proof that starts from the substituted goal stays, as the proof of
 that goal. The `0 ≤ pi/2` line is now the orientation key of §6.4's
 decision, discharged the same way.)*
 
+*(Revision 10, regularity, E69: **the kernel now reports what this listing
+has always shown, a plain `Proved.` with 0 admissions**, from the sheet's
+own goal. The proof from the substituted goal and the fallback F do too.
+Every `reg` line is a checked derivation (§6.9). The only sides are √'s
+domain, `x ≥ 0` by range on the goal's integrand and `t^2 ≥ 0` by sign on
+the substituted one, and F's derivations have none. Two lines are new, the
+formers of the two integrals (§5.1). The goal's integral owes
+`sin(sqrt x) ∈ C⁰([0, pi^2/4])` where it is installed, and the substituted
+one owes its integrand ∈ C⁰([0, pi/2]) where it enters. The rewrite under
+it does not charge it again. `ftc`'s own f premise is a different key,
+since it is on the rewritten integrand. The kernel's integrand carries
+`deriv`'s `2*t^1*1`, shown tidied as before.)*
+
 Three things to notice, and one correction from revision 1. *(Revision 9
 brought the `ftc` premises up to §6.4's split form, named `pi_pos` beside
 by-range, dropped `cos_zero`, which `ring` makes unnecessary since
@@ -3187,7 +3439,10 @@ why §8.2 can be as heuristic as it likes.
 `sin(sqrt x) ∈ C⁰([0, pi^2/4])`, where the image, the endpoint interval and the
 goal's integration range all coincide — so the worked example did not show the
 real obligation. It is on the composed integrand (§6.4), and the nested `t² ≥ 0`
-is what `reg` needs from §6.9's `sqrt` entry.
+is what `reg` needs from §6.9's `sqrt` entry. *(Since regularity,
+`sin(sqrt x) ∈ C⁰([0, pi^2/4])` is owed after all, but as the goal
+integral's own former, §5.1, not as the substitution's premise, which stays
+on the composed integrand.)*
 
 ### 11.2 Part (2), compressed
 
@@ -3196,6 +3451,7 @@ problem readiness.P1.2
   answer schema  closed
   goal  Int[x = 0 .. 1] 1/(1 + x^3)  ≐  ?A
        obl  1 + x^3 # 0          @ [0,1]     by product (F's ln domains; ring) ✓
+       obl  1/(1+x^3) ∈ C⁰([0,1])            by reg                         ✓
 
 proof
   step ftc  F := (1/3)*ln(1+x) - (1/6)*ln(x^2 - x + 1)
@@ -3213,7 +3469,7 @@ proof
             ⤷ obl  1 + ((2*x - 1)/sqrt 3)^2 # 0
                                         @ (0,1)  (field)  by sign (as written) ✓
             ⤷ obl  1 + x^3 # 0          @ (0,1)  (field)  by product        ✓
-       obl  1/(1+x^3) ∈ C⁰([0,1])            by reg                         ✓
+       obl  1/(1+x^3) ∈ C⁰([0,1])            (the goal's former, again)     ✓
   step rewrite [ln_one, atan_one_sqrt3, atan_odd]
   step close  ?A := (1/3)*ln 2 + pi/(3*sqrt 3)            by field          ✓
        obl  3*sqrt 3 # 0                     by product (sqrt_pos)          ✓
@@ -3288,6 +3544,15 @@ on (0, 1) were missing, with only the `atan` denominator listed. The goal's own
 which were previously implicit. The answer's other accepted form,
 ⅓ ln 2 + π√3/9, closes only as `close … by field [sqrt_sq_val 3]`, and owes no
 `3*sqrt 3 # 0`, so its count is 13.
+
+*(Revision 10, regularity, E69: both forms now report a plain `Proved.`,
+with nothing admitted. The goal's integral owes `1/(1+x^3) ∈ C⁰([0,1])`
+where it is installed (§5.1), and `ftc`'s f premise is that same key, so it
+is not new there. Its one side is the goal's own `1 + x^3 # 0`. F's two
+regularity judgements are certified with the sides §6.9's table gives: the
+coefficients' `3 # 0` and `6 # 0`, `1 + x > 0` by range,
+`x^2 - x + 1 > 0` by sign, `sqrt 3 # 0` by `sqrt_pos`, and √3's own `3 ≥ 0`,
+or `3 > 0` on the open interval.)*
 
 ---
 
@@ -3444,20 +3709,24 @@ it is measurable.
 substitution costs** *(revision 10, consolidation, E55)*. ∫₀¹ √(1−x²) dx =
 π/4 by x = cos θ is §5.1's canonical reversed case, and §8.5's second
 recognizer row with cos for sin. It is
-`kernel/problems/consolidation/QC1.json`, and it proves `Proved modulo 5
-admissions`, all regularity:
+`kernel/problems/consolidation/QC1.json`, and it proved `Proved modulo 5
+admissions`, all regularity. *(Revision 10, regularity: it is now a plain
+`Proved.`. Its two integrals' formers are new, and the five `reg` lines
+are checked derivations, the listing below as the kernel now runs it.)*
 
 ```
 problem consolidation.QC1
   goal  Int[x = 0 .. 1] sqrt(1 - x^2)  ≐  ?A
        obl  1 - x^2 ≥ 0  @ [0, 1]                 by sign product      ✓
+       obl  sqrt(1 - x^2) ∈ C⁰([0, 1])            by reg               ✓
 
 proof
   step int_subst (x := cos θ) over θ from pi/2 to 0
        obl  0 ≤ pi/2                              by linear, pi_pos    ✓
        obl  cos(pi/2) ≐ 0,  cos 0 ≐ 1             exact values, in step ✓
-       obl  cos θ ∈ C¹,  sqrt(1 - (cos θ)^2) ∈ C⁰  on [0, pi/2]   by reg
+       obl  cos θ ∈ C¹,  sqrt(1 - (cos θ)^2) ∈ C⁰  on [0, pi/2]   by reg ✓
        obl  1 - (cos θ)^2 ≥ 0  @ [0, pi/2]        by sign product, cos bounds ✓
+       obl  the new integrand ∈ C⁰([0, pi/2])     by reg, cos bounds   ✓
   ⊢ Int[θ = 0 .. pi/2] −(sqrt(1 - (cos θ)^2) * (−sin θ))  ≐  ?A
 
   step rewrite pyth_cos at (cos θ)^2
@@ -3468,13 +3737,16 @@ proof
   fact h := pyth_cos (u := θ)
   step ftc  F := (θ - sin θ * cos θ)/2
        obl  D[θ] F ≐ −(sin θ * (−sin θ))  @ (0, pi/2)   by deriv; field [h] ✓
-       obl  F ∈ C⁰, F ∈ C¹, the integrand ∈ C⁰    by reg
+       obl  F ∈ C⁰, F ∈ C¹, the integrand ∈ C⁰    by reg               ✓
   step rewrite [sin_pi_half, cos_pi_half, sin_zero]
   step close  ?A := pi/4                          by ring              ✓
 ```
 
 Integrands are shown tidied, as in §11.1, and the literal divisors' `# 0`
-lines are left out. The five `reg` judgements are the admissions. The
+lines are left out. The five `reg` judgements were the admissions. *(Since
+regularity they are discharged, with the two formers. The √ of
+1 − (cos θ)² has the side 1 − (cos θ)² ≥ 0, the same sign product as the
+line above it, so those derivations cite the cos bounds.)* The
 substitution flips, because x = cos θ is decreasing and `0 ≤ pi/2` is
 proved (§6.4). Three things are the point. **Both sign products are non-strict** (§5.3 method 5), and
 before the consolidation both were admitted `none`. **`pyth_cos` is used
@@ -3485,6 +3757,35 @@ until the fact reduces cos²θ to 1 − sin²θ. **Nothing large was needed**: n
 Two wrong moves are in the suite. Dropping the fact refuses `ftc` with the
 residual, and applying `sqrt_sq` before `pyth_cos` is refused as a
 left-hand-side mismatch.
+
+**Stage 1's kernel is complete, and this is what it covers** *(revision 10,
+regularity, 2026-09-25)*. Every reference proof reads a plain `Proved.`,
+with nothing admitted, thirteen in all:
+- **readiness P1.1** from the sheet's goal, from the substituted goal, and
+  by the fallback F;
+- **readiness P1.2** in both accepted forms;
+- **stage 0's S1–S3**, and S3 again with its `ftc` checked by `ring`;
+- **the substitution files** SUB1, S2R and SUB2;
+- **QC1**, ∫₀¹ √(1 − x²) = π/4.
+
+The kernel behind them is headless and in-process. Its moves are `rewrite`,
+`fact`, `ftc`, `close`, `int_subst` in both modes and `int_flip`. Every
+former is charged at entry, the partial builtins' (§5.1) and the `Int` and
+`D` formers. Every obligation is discharged by a checked certificate: §5.3's
+six methods, and §6.9's regularity. An obligation decided false refuses the
+step (§18 Q22), and every range is built from a proved order (§6.4). `ring`
+and `field` take facts and read statable integrals and derivatives as atoms
+(§6.2). `python3 kernel/proof_of_life.py` passes 882 checks.
+
+**Deliberately out of it**, each recorded where it is decided:
+- **convergence and improper integrals**: `conv`, `diverges`, their rules
+  and `int_improper` (§18 Q23, E65);
+- **`int_parts`** (§18 Q23, E67);
+- **`trig_norm`** (§8.9);
+- **`abs`'s full treatment**: `d_abs`, `abs_nonneg`, `abs_neg` and
+  `int_split` (§5.1);
+- **Sturm sequences**, the exact method for irrational poles (§5.3);
+- **§16.3's JSON API, the UI and the recognizer table** (§17).
 
 ### The limits that remain, all of them technical
 
@@ -3515,7 +3816,9 @@ scalar term language genuinely runs out.
   drives (06 P7, P9, every Green's-function problem) cannot be stated, and
   neither can a function patched at a point (03 P1–P2).
 - **`abs` has no rules** and appears only in side conditions and domains
-  (§5.1). Unit 00 P7 is the casualty.
+  (§5.1). Unit 00 P7 is the casualty. *(Revision 6 admitted `abs` to goals.
+  In the kernel as built it has only its regularity entry, so the casualty
+  stands until `d_abs` and `int_split` land, §17.)*
 - **Functions as objects are out of the term language.** Uniform convergence
   arguments, inner-product spaces, P7's justification of differentiating under
   the integral sign. `leibniz` exists but its uniform-domination obligation
@@ -3677,7 +3980,10 @@ because those rules carry their definedness conditions on the source side.
 *(Revision 10: until then this was false of `ring` and `field`, which cancelled
 atoms such as `ln(-1)` and so proved `0*ln(-1) ≐ 0` with nothing owed. It holds
 now because §5.1's partial builtins are formers and the normalisers refuse
-`Int` and `D`.)* The
+`Int` and `D`.)* *(Revision 10, regularity: it holds since then because a
+statable `Int` and every `D` owe their own definedness where they enter,
+before the normalisers read them as atoms, and an unstatable `Int` is still
+refused, §5.1.)* The
 Rocq statement must carry them too, with `D[x] e ≐ f` going through
 `is_derive` and never `Derive`, `Int[...]` through `is_RInt` and never `RInt`,
 `lim[x -> a^s]` through `is_lim`. The last is sharpest, since Coquelicot's
@@ -3759,13 +4065,19 @@ whether or not it looks like a kernel.
    exact-value table (§6), including §6.9's regularity rules, and — while
    `ftc` accepts `deriv`'s output without a re-deriving kernel step, as the
    proof-of-life does — `deriv`'s output forms and side conditions (§6.3).
+   *(Revision 10, regularity: this includes §5.1's natural-domain table,
+   now held once in `kernel/domains.py`, and regularity's one added datum,
+   `abs`'s u # 0. The formers and the regularity checker read that one
+   object, so a side condition is never transcribed, §6.9.)*
 3. **The rule matcher and instantiator.** §11.1's `rewrite sqrt_sq` binds the
    schema's `u` to a bound `t`; "capture-avoidance is a solved problem" is a
    claim about the term language, not about the implementation.
    *(Revision 10, consolidation review, E57: it is also what bound `pyth`'s
    u to `D[x](abs x)`, a term that does not denote everywhere, and the
    entry's right side then erased it. `rewrite` now refuses any instance
-   value or target holding an `Int` or `D` node, §6.1.)*
+   value or target holding an `Int` or `D` node, §6.1. Since regularity,
+   only an unstatable `Int`: a statable one, or a `D`, has owed its own
+   definedness where it entered.)*
 4. **`ring`, `field` and `norm_num`** — the three reflective procedures, with
    `field`'s divisor obligations and its reduction modulo facts (§6.2) the
    soundness-bearing behaviour.
@@ -3777,9 +4089,23 @@ whether or not it looks like a kernel.
    satisfiability pre-check runs in the untrusted search, because its
    verdict can only withhold a discharge. Every search, including
    Fourier–Motzkin, is untrusted, and only its witness is checked.)*
+   *(Revision 10, regularity, E60: and the regularity checker, §6.9. It
+   walks a derivation against the term, takes each rule from the term's
+   head, rebuilds each side from item 2's table and decides it with the
+   checkers above, on exactly the judgement's domain. It is trusted and it
+   is not reflective, since it decides nothing itself. A derivation deeper
+   than the stack, met while searching, checking or freezing a certificate,
+   means no certificate, so the judgement is admitted rather than crashing
+   the kernel.)*
 6. **The certified-enclosure library** (§10), and MPFR if adopted.
 7. **The `cite` library file** (§6.8), whose entries carry provenance tags.
-8. **The parser and pretty-printer.**
+8. **The parser and pretty-printer.** *(Revision 10, regularity review:
+   a 200-deep parenthesised `sin(…)` raised a stack overflow out of the
+   parser, a crash in trusted code through which every goal enters. The
+   parser now converts its own overflow into the refusal
+   `nesting-too-deep` (`kernel/GRAMMAR.md` §1; main session, on the owner's
+   delegation). Converting the overflow, rather than imposing a fixed depth
+   bound, keeps the juxtaposed forms that parse at depth 350 working.)*
 9. **The quadrature engine, but only in proofs that use `quad_verified`**
    (§8.6). Revision 1 said this in prose beside a list that read as exhaustive.
 
@@ -3813,7 +4139,9 @@ same way.*
   refuse a step.*
 - *The discharge search, including Fourier–Motzkin and the satisfiability
   pre-check, only proposes a certificate that trusted code then checks. A
-  search bug costs an admission, never a discharge.)*
+  search bug costs an admission, never a discharge. Since regularity that
+  includes the search that proposes a derivation, and E63's refuter, which
+  reads only definedness sides and can only refuse.)*
 
 Everything else — tactics, UI, problem files and **the whole of §8** — is
 untrusted and cannot produce a wrong `Proved`.
@@ -3893,6 +4221,9 @@ meantime is three things, and they are not equally strong:
    be believed, because the kernel re-checks their witnesses with `ring` and
    `norm_num` (§5.3). This is the strongest of the three, and it is
    *structural*: it does not depend on anyone having read anything.
+   *(Revision 10: every §5.3 method now emits its certificate, and since
+   regularity so does every Cᵏ judgement, §6.9. What stays believed is the
+   checkers and the table they read, which is §15.2.)*
 2. **The adversarial falsifier bank** (§17), generated mechanically — one case
    per rule side condition from the rule table — and run in both directions, with
    correct answers that must be accepted as well as wrong ones that must be
@@ -4423,6 +4754,19 @@ P1.1 proves from the sheet's own goal. Regularity, `abs` and `diverges` remain.)
 *(Revision 10, consolidation: so have `int_flip`, one orientation rule for
 every step and the non-strict sign product, and ∫₀¹ √(1−x²) by x = cos θ
 proves, §13. The list that remains is unchanged.)*
+*(Revision 10, regularity, 2026-09-25: **stage 1's kernel is complete.**
+The C⁰/C¹ regularity subset is built as a checked discharge method (§6.9),
+§18 Q23's formers with it, and every reference proof reads a plain
+`Proved.`. §13 lists what it covers. Two items of the kernel list above are
+not in it. `diverges` and its rules wait for convergence and
+`int_improper`, because continuity is not convergence: the main session's
+decision, on the owner's delegation (§18 Q23, E65). And `abs` has its
+regularity entry but not `d_abs` or `int_split` (§5.1). Also out, and
+recorded: `int_parts` (E67, the same delegation), `trig_norm`, which is on
+the assistance list, and Sturm sequences (§5.3). What remains of stage 1 is
+the assistance and UI lists. The next step is §16.3's JSON API
+over the in-process `step`, then the recognizer table scored on a held-out
+set (revision 8), then the UI.)*
 
 **Against revision 4's OCaml plan**, Python is simpler to write for exactly this
 shape of code — dictionaries of exponent tuples, pattern dispatch over a term
@@ -4899,6 +5243,39 @@ the change of language and deployment, and reopen Q7.
     §6.1. The refusal in the normalisers was not enough on its own: a
     `rewrite` that never normalised erased one.)*
 
+    **Built, 2026-09-25** (E64–E67; §5.1 states the formers, §6.9 the
+    regularity that discharges them). "f integrable on [a, b]" is stated in
+    its sufficient form, f ∈ C⁰ on the closed range, which is `ftc`'s own
+    premise, and "e differentiable at x" as e ∈ C¹ at the node's position.
+    Each is owed by a statable node only (§5.1). How the three cases stand:
+    - **The first is built, short of the parts step.** On
+      I = `Int[x = 0 .. pi] exp x * sin x` the atom algebra closes:
+      `2*I - I - I ≐ 0`, and `((exp pi + 1) - I + I)/2 ≐ (exp pi + 1)/2`,
+      the goal an `int_parts` step would leave, are each a plain `Proved.`,
+      with I's `exp x * sin x ∈ C⁰([0, pi])` owed at installation and
+      discharged. **`int_parts` itself is out of this step** *(E67, main
+      session, on the owner's delegation)*. It is a rule around `ftc`, not
+      one of stage 1's pieces, and it needs its own premises, u and v in C¹
+      on the range, and its own specification. What Q23 needed of this step
+      was that the integral is an atom whose definedness is owed and
+      discharged, so that solving for I is `ring`'s algebra. Both goals are
+      hand-built to show it.
+    - **The second waits for convergence** *(E65, main session, on the
+      owner's delegation)*. An integral with an infinite limit owes
+      convergence, and **convergence is not continuity**: 1/x is C⁰ on
+      [1, ∞) and its integral diverges, so stating that former as a
+      regularity judgement would be unsound. So I − I ≐ 0 for
+      I = ∫₁^∞ 1/x still stops at the blanket refusal, an unstatable `Int`
+      that `ring` will not read. The refusal "for the right reason", at the
+      owed convergence decided false, comes with `conv`, `diverges` and
+      `int_improper`, whose target is readiness P5. No stage-1 target needs
+      them.
+    - **The third is statable and would not yet be discharged.**
+      `D[x] y(x)` owes `y(x) ∈ C¹` by the D former. A declared symbol has
+      no regularity rule until §6.9's hypothesis form arrives with §12.1,
+      so by the stated rule that obligation is admitted `none`. No stage-1
+      target has an unknown function, and no reference proof exercises it.
+
 ---
 
 ## What the review established, and how much to trust it
@@ -5030,7 +5407,10 @@ guesses. And the milestone's review and attack rounds never came back clean:
 each upheld findings, and the last round's fixes were applied and re-run but not
 reviewed again. The late findings were almost all bugs planted to test the
 suite that it failed to catch, fixed by adding tests without changing what the
-kernel does.
+kernel does. *(Since then discharge and regularity check every obligation's
+truth by a certificate, so the stubbed half of this paragraph no longer
+holds. The review half still does, and the two paragraphs below are the
+record of it.)*
 
 **A false `Proved.` reached the committed kernel, and review caught it before
 any push** *(revision 10, consolidation review, 2026-09-24)*. The
@@ -5049,6 +5429,39 @@ what was specified, and nobody had specified that a rewrite may not drop a
 term. The adversarial review is what found it. **A green suite is evidence
 about the cases written down, and a clean adversarial review is the stronger
 signal**, however large the count of checks.
+
+**The regularity review found no false `Proved.`, and two major findings,
+both fixed** *(revision 10, regularity review, 2026-09-25)*. A skeptic was
+given the regularity build with its suite green at 874 checks. Before the
+build, SymPy had confirmed every one of the specification's 144 certified
+one-variable regularity claims true in §5.2's reading. The two majors:
+- **A crash on deep certificates.** Installing a goal whose integrand is a
+  400-term sum, or `sin` nested 350 deep, raised a stack overflow out of
+  installation, trusted code crashing rather than refusing. Freezing a
+  certificate is now iterative, and an overflow while searching, checking
+  or freezing one means no certificate, so the judgement is admitted
+  instead. Both goals now install, as does a 300-deep control that never
+  crashed, and on this machine all three discharge.
+- **A test gap: a soundness mutation survived the suite.** No must-reject
+  certificate cited an item of the judgement's domain, so a checker that
+  decided each side on the domain *plus the side itself*, assuming what it
+  was asked to prove, passed all 874 checks. The rule it broke is now
+  stated and asserted over all 144 certificates: every side is decided on
+  exactly the judgement's domain (§6.9). Two must-reject cases cite the
+  item one past the domain, and the mutation is a planted bug the suite
+  catches.
+
+Its one minor, the refusal of a vacuously true judgement through a false
+closed side, is pinned as intended (§6.9), and a note beside the review
+found the parser crash that §15.2 item 8 records. The suite passes 882
+checks. **This round's lesson is the last one's, seen from the other
+side.** Last time the suite was green on a kernel that could prove a
+falsehood. This time the kernel was right, but the suite could not have
+told if it were wrong, since it never tested that one line of the checker.
+A count of checks says how many cases were written down, not which
+mutations they kill, and only the adversarial reading measured the second.
+The fixes were specified before the code and the suite re-run. This record
+holds no second review of them.
 
 **One thing worth reading, and it is optional.** Waterproof (TU Eindhoven,
 arXiv:2606.01875) is the closest existing artefact to the *interaction* §16
@@ -5399,6 +5812,54 @@ rounds found their unsound steps while specifying or building, or found a
 false value behind an admission (E50). This one found a plain `Proved.` for a
 falsehood in code already committed with every check green, and what found
 it was a reader trying to break it.
+
+**Revision 10, continued — regularity and §18 Q23, 2026-09-25: stage 1's
+kernel is complete.** Regularity and Q23's formers were specified by hand
+before any code (`kernel/p1_expected.py` E59–E70). The owner had settled Q23
+as option A and delegated the open questions to the main session, which took
+the sound, minimal option each time: E59's reading, the formers' shapes,
+convergence deferred, `int_parts` out, and the gates kept. The spec was
+built and given to a skeptic, whose findings were specified and built in
+turn. Every reference proof now reads a plain `Proved.`, with 0 admissions,
+and the suite passes 882 checks. What reached this document:
+- **§5.2** — what `e ∈ Cᵏ(D)` means: k is 0 or 1, C¹ is C¹ on a
+  neighbourhood of every point, and open or closed ends come from the domain
+  (E59).
+- **§6.9 / §5.3 / §5.4** — the C⁰/C¹ subset as a certificate-checked
+  discharge method. The rule comes from the term's head, and every side is
+  rebuilt from §5.1's natural-domain table, made strict for C¹ plus `abs`'s
+  u # 0, and decided on exactly the judgement's domain. Each rule cites its
+  standard theorem, only C⁰ sides refute, and `regularity not built` is
+  retired (E60–E63).
+- **§5.1 / §6.1 / §6.2 / §14** — §18 Q23 built. A statable `Int` owes f ∈ C⁰
+  on its range, `D[x] e` owes e ∈ C¹ at its position, and `ring` and `field`
+  then read both as atoms keyed by their tree. Improper integrals are still
+  refused, E57 now refuses only an unstatable `Int`, and every blanket "Int
+  and D are refused" is now past tense or narrowed (E64, E66, E68).
+- **§6.4** — the claim that regularity removes the x := t·√t limit is
+  corrected: this subset does not. Proofs through `int_subst` and `ftc` read
+  a plain `Proved.`.
+- **§11 / §13** — P1.1 from the sheet's goal is a plain `Proved.`, as the
+  listing always claimed, and so are P1.2 and QC1. Each gains its integrals'
+  formers. §13 lists what stage 1's kernel covers and what is deliberately
+  out.
+- **§15.2 / §15.4** — the regularity checker among the trusted checkers,
+  `domains.py` in the rule table's item, and the parser's `nesting-too-deep`
+  refusal.
+- **§17 / §18 Q23** — stage 1's kernel complete. Q23's first case shown on
+  hand-built goals, its second waiting for convergence (E65), `int_parts`
+  deferred (E67).
+- **How much to trust** — the review found no false `Proved.` and two
+  majors, a crash on deep certificates and a soundness mutation that
+  survived the suite, both fixed.
+
+**The pattern holds a seventh time, in the suite rather than the kernel.**
+The earlier rounds each found a wrong or unreachable step. This one found
+none, and found
+instead a checker line the suite never tested, one mutation away from
+assuming what it proves. What the adversarial reading measures is not only
+whether the kernel is right, but whether the checks would notice if it were
+not.
 
 **This file is the whole design record.** The review document and the
 revision-1 draft were folded in and deleted on 2026-09-20, before the project
