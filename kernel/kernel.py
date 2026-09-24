@@ -38,21 +38,28 @@ boundary, not built in this milestone, replaces in-process states with
 ids, so that no state crosses it.
 
 **Obligations** (§5.4). Each obligation is keyed by its Judgement, domain
-included (E8), and has one of three statuses. Discharge is stubbed (WHAT.md),
-so a side condition that norm_num does not close becomes an admission when
-it is emitted. Its reason is ADMISSION_REASON, and its tag comes from the
-untrusted tagger. 'open' is a status the tracker knows and this milestone
-never produces.
+included (E8), and has one of three statuses, decided once, at emission
+(p1_expected E32, DISCHARGE_RULE's order): E7's norm_num; the exact values
+then norm_num (E31); a certificate the untrusted search proposes and the
+trusted checker (discharge.py) accepts; otherwise the untrusted refuter may
+decide it false, which refuses the step 'obligation-decided-false' (E33),
+and failing that it is admitted with a reason (REASON_REG, REASON_NONE,
+REASON_EMPTY or REASON_REJECTED) and the untrusted tagger's tag. 'open' is
+a status the tracker knows and this milestone never produces.
 
 **refl, trans and cong** (§6.1) are not moves (E16). trans is the linear
 proof state: each accepted step replaces the goal by one proved equal to it.
 cong is the matcher's congruence step (REWRITE_RULE step 5), so it inherits
 the D[x] restriction. refl is `close` proving lhs == value by its check.
 
-**Untrusted imports.** There are three, and none of them can yield a
+**Untrusted imports.** There are five, and none of them can yield a
 theorem: tagger (tags are relied on for nothing), residual (it renders the
-residual of a refused step) and schema (the closed whitelist, which only
-sets how strong a statement is, §9).
+residual of a refused step), schema (the closed whitelist, which only sets
+how strong a statement is, §9, and E27's check, which only refuses),
+search (it proposes a certificate, and only discharge.check's acceptance
+discharges; a search bug costs an admission, E28) and refute (decided
+false, which can only refuse a step, and a refused step changes nothing,
+E13, E33).
 
 **Definedness** (p1_expected E6, E26 (a)). A former owes its condition
 where its term enters the proof: '/' and negative powers their divisor
@@ -77,8 +84,11 @@ from types import MappingProxyType
 
 import deriv as DV
 import field as FD
+import discharge
+import refute
 import residual
 import schema
+import search
 import tagger
 from entries import ENTRIES
 from terms import (NEG_INF, POS_INF, Add, App, Deriv, Div, Integral,
@@ -97,14 +107,22 @@ from terms import (NEG_INF, POS_INF, Add, App, Deriv, Div, Integral,
 # must match this one, since the script compares them.
 HANDLES_IN_FORCE = "handles for facts, sentinel for proof states"
 DISCHARGED, ADMITTED, OPEN = "discharged", "admitted", "open"
-ADMISSION_REASON = "discharge not built"  # WHAT.md, Stubbed
+# An admission's reason (p1_expected E32; 'discharge not built' is retired).
+REASON_REG = "regularity not built"          # every Reg key (WHAT.md item 3)
+REASON_NONE = "no method decides it"         # tagged ('none', ())
+REASON_REJECTED = "certificate not accepted"  # a method is named, but the
+# checker refused the search's certificate, or none was built
+REASON_EMPTY = "domain inconsistent"  # §5.3's pre-check found the domain
+# infeasible and nothing else closed the key: vacuously true, admitted
+DECIDED_FALSE = "obligation-decided-false"  # E33
 VERDICT = "Proved modulo {n} admissions"
 MOVES = ("rewrite", "fact", "ftc", "close")
 
 # The documented public API. No name here returns a ProofState from a str,
 # bytes or dict (FORGERIES json_roundtrip_state, no_loader).
 __all__ = ("HANDLES_IN_FORCE", "DISCHARGED", "ADMITTED", "OPEN",
-           "ADMISSION_REASON", "VERDICT", "MOVES", "Refusal", "Obligation",
+           "REASON_REG", "REASON_NONE", "REASON_REJECTED", "REASON_EMPTY",
+           "DECIDED_FALSE", "VERDICT", "MOVES", "Refusal", "Obligation",
            "StepRecord", "Handle", "ProofState", "install", "step", "report",
            "derivative_domain")
 
@@ -129,13 +147,17 @@ class Obligation:
     status   DISCHARGED or ADMITTED (OPEN is never produced here)
     tag      (method, cites): the procedure that closed it, or the tagger's
              proposal for an admission
-    reason   ADMISSION_REASON for an admission, else None
+    reason   REASON_REG, REASON_NONE, REASON_EMPTY or REASON_REJECTED for
+             an admission, else None
+    certificate  the certificate discharge.check accepted (methods 1-6),
+             else None (norm_num, ftc's premise, every admission)
     """
     key: object
     sources: frozenset
     status: str
     tag: tuple
     reason: object = None
+    certificate: object = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -583,16 +605,15 @@ def _put(t, path, new):
 
 def _emit(buf, key, source, goal_dom, discharged_by=None, divisor=True):
     """Add one emission to the step buffer (key -> Obligation), deciding its
-    status (ARCHITECTURE.md §5). A key already in the buffer only gains the
-    source. Otherwise: a NonZero divisor whose expression ring-normalises
-    to zero refuses 'divisor-normalises-to-zero' (E25); `divisor` is False
-    only for tan's cos u # 0, a domain and not a divisor (E26), which E25
-    does not test. If discharged_by is given, the obligation is DISCHARGED
-    with that tag. If field.norm_num says True, it is DISCHARGED with
-    ('norm_num', ()), and False refuses 'obligation-refuted' (E7); norm_num
-    refuses 'Int-or-D-not-normalisable' a key holding an Int or D node in
-    its proposition or its domain (E26 (b)). Otherwise, a Reg included, it
-    is ADMITTED with ADMISSION_REASON and tagger.tag(key, gamma). gamma,
+    status in DISCHARGE_RULE's order (ARCHITECTURE.md §5). A key already in
+    the buffer only gains the source. Otherwise: a NonZero divisor whose
+    expression ring-normalises to zero refuses 'divisor-normalises-to-zero'
+    (E25); `divisor` is False only for tan's cos u # 0, a domain and not a
+    divisor (E26), which E25 does not test. Then (1) discharged_by given:
+    DISCHARGED with that tag; (2) a Reg: ADMITTED ('reg', ()), REASON_REG;
+    (3) field.norm_num True is DISCHARGED ('norm_num', ()), False refuses
+    'obligation-refuted' (E7), and a key holding an Int or D node refuses
+    'Int-or-D-not-normalisable' (E26 (b)); (4)-(7) _discharge. gamma,
     TAG_RULES' Γ, is the goal's own domain when the key kept its domain,
     else ()."""
     if key in buf:
@@ -601,17 +622,54 @@ def _emit(buf, key, source, goal_dom, discharged_by=None, divisor=True):
     if divisor and isinstance(key, NonZero) and FD.ring_is_zero(key.e):
         raise Refused("divisor-normalises-to-zero",
                       f"the divisor {show(key.e)} is zero in ring (E25)")
-    said = None if discharged_by or isinstance(key, Reg) else FD.norm_num(key)
-    if said is False:
-        raise Refused("obligation-refuted", f"norm_num: {show(key)} is false")
-    if discharged_by or said:
-        ob = Obligation(key, frozenset((source,)), DISCHARGED,
-                        discharged_by or ("norm_num", ()))
+    sources = frozenset((source,))
+    if discharged_by:
+        ob = Obligation(key, sources, DISCHARGED, discharged_by)
+    elif isinstance(key, Reg):
+        ob = Obligation(key, sources, ADMITTED, tagger.tag(key), REASON_REG)
     else:
-        ob = Obligation(key, frozenset((source,)), ADMITTED,
-                        tagger.tag(key, goal_dom if key.dom else ()),
-                        ADMISSION_REASON)
+        said = FD.norm_num(key)
+        if said is False:
+            raise Refused("obligation-refuted", f"norm_num: {show(key)} is false")
+        if said:
+            ob = Obligation(key, sources, DISCHARGED, ("norm_num", ()))
+        else:
+            ob = _discharge(key, sources, goal_dom if key.dom else ())
     buf[key] = ob
+
+
+def _discharge(key, sources, gamma):
+    """DISCHARGE_RULE's steps (4)-(7) for a key E7 did not decide. (4) The
+    exact values (E31): if they change the key and make it literal,
+    norm_num decides it, True DISCHARGED ('norm_num', entries used), False
+    refused 'obligation-decided-false' (F1); a Refused inside the rewrite
+    changes nothing. (5) The untrusted search proposes one certificate and
+    the trusted checker decides it on the key as emitted, the exact values
+    applied inside, so its tag already cites them. (6) The untrusted
+    refuter: F2 or F3 refuses 'obligation-decided-false'. (7) ADMITTED with
+    the tagger's tag (E24) and a reason."""
+    try:
+        new, used = discharge.exact_values(key)
+    except Refused:
+        new, used = key, ()
+    said = FD.norm_num(new) if new != key else None
+    if said:
+        return Obligation(key, sources, DISCHARGED, ("norm_num", used))
+    if said is False:
+        found = refute.exact_false(key)  # F1's message; the verdict is norm_num's
+        raise Refused(DECIDED_FALSE, found.message if found else
+                      f"{show(key)} is false: it reads {show(new)}")
+    cert = search.propose(key)
+    tag = None if cert is None else discharge.check(key, cert)
+    if tag is not None:
+        return Obligation(key, sources, DISCHARGED, tag, None, cert)
+    found = refute.refute(key, _owed)
+    if found is not None:
+        raise Refused(DECIDED_FALSE, found.message)
+    tag = tagger.tag(key, gamma)
+    reason = (REASON_EMPTY if search.domain_empty(key) else
+              REASON_NONE if tag == ("none", ()) else REASON_REJECTED)
+    return Obligation(key, sources, ADMITTED, tag, reason)
 
 
 def _emit_at(buf, prop, dom, anc, source, goal_dom, divisor=True):

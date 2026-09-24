@@ -40,7 +40,7 @@ tests alone: `python3 -m unittest discover -s kernel`.
 | `poly.py` | trusted | 4: copied from `spike/ring/poly.py` | stdlib |
 | `field.py` | trusted | 4: `ring`, `field`, `norm_num` | poly, terms |
 | `deriv.py` | trusted | 2: §6.3's entries, applied | terms |
-| `kernel.py` | trusted | 2, 3, 5: rules, E6 and E26's formers, matcher, tracker, handles, `step` | terms, entries, field, deriv, tagger, residual, schema (poly only through field) |
+| `kernel.py` | trusted | 2, 3, 5: rules, E6 and E26's formers, matcher, tracker, handles, `step`, discharge at emission (§5) | terms, entries, field, deriv, discharge, tagger, search, refute, residual, schema (poly only through field) |
 | `discharge.py` | trusted | 5: the certificate checkers (hyp, Farkas, sign, sign product, cite, the norm_num leaf) and the exact-value rewrite (E28–E31) | terms, entries, field, poly |
 | `tagger.py` | untrusted | none (§7, E24): computes admission tags; its Fourier–Motzkin keeps its Farkas witness (`refutation`) | terms, poly, field, residual, entries |
 | `search.py` | untrusted | none (E28): proposes one certificate per obligation | terms, poly, field, entries, tagger, discharge |
@@ -85,9 +85,12 @@ deriv's output forms and side conditions *are* the rule table (§15.2 item 2).
 The planted bug `d_ln_emits_nothing` is the proof. Emitting per-rule steps
 is later work.
 
-**Trusted code imports untrusted code in three places, and none can
+**Trusted code imports untrusted code in five places, and none can
 produce a theorem.** `tagger.tag` names the method expected to close an
-admission, and nothing relies on it (E24). `residual.residual_term` renders
+admission, and nothing relies on it (E24). `search.propose` proposes a
+certificate, and only `discharge.check`'s acceptance discharges (E28).
+`refute.exact_false` and `refute.refute` decide an obligation false, which
+can only refuse a step, and a refused step changes nothing (E13, E33). `residual.residual_term` renders
 the residual on a refusal, and a refused step changes nothing (E13).
 `schema.closed_ok` filters on statement strength (§9), and
 `schema.check_evaluated` (E27) can only refuse a close whose value the
@@ -134,8 +137,11 @@ nor `poly.py` formats anything: the spike's `to_str`, `divide_exact` and
 - **`Obligation`** (`kernel.py`, frozen and slotted): `key`, `sources`
   (frozenset of p1_expected SOURCES codes, or the kernel-local source codes
   listed in §6), `status` (`"discharged"`, `"admitted"`, or
-  `"open"`, which is never produced here), `tag` (`(method, cites)`) and
-  `reason` (`"discharge not built"` for an admission, otherwise None). The
+  `"open"`, which is never produced here), `tag` (`(method, cites)`),
+  `reason` (for an admission `REASON_REG`, `REASON_NONE`, `REASON_EMPTY` or
+  `REASON_REJECTED`, otherwise None; 'discharge not built' is retired, E32)
+  and `certificate` (the certificate `discharge.check` accepted for methods
+  1–6, otherwise None: norm_num, ftc's premise and every admission). The
   tracker's entries and each step's emission list use this one class. In a
   step's list, `sources` holds only that step's sources.
 - **`StepRecord`** (frozen and slotted) is what produced a state. It holds `move`
@@ -239,6 +245,7 @@ Refutation(how, message, point)             # how a DECIDED_FALSE_MESSAGES key; 
 settled(key) -> tag | None                  # DISCHARGE_RULE's steps (3)-(5)
 # kernel.py
 NATURAL_DOMAINS: Mapping[str, u -> props]  # read-only; E26 (a)'s table; a seam (§7)
+REASON_REG, REASON_NONE, REASON_EMPTY, REASON_REJECTED;  DECIDED_FALSE   # E32, E33
 install(goal) -> ProofState | Refusal
 step(state, move, args) -> ProofState | Refusal
 report(state) -> str
@@ -415,7 +422,7 @@ succeeded. Status is decided in this order:
 1. `discharged_by` is given (only ftc's premise), so the status is DISCHARGED
    with that tag.
 2. The key is a `Reg`, so it is ADMITTED with `tagger.tag(key)`, which gives
-   `("reg", ())`.
+   `("reg", ())`, and reason `REASON_REG` (regularity is not built).
 3. `field.norm_num(key)` returns True, so the status is DISCHARGED with
    `("norm_num", ())`. If it returns False, the step is refused with
    `obligation-refuted`. A key holding an Int or D node in its proposition
@@ -425,8 +432,26 @@ succeeded. Status is decided in this order:
    domain that install already checked for Int and D nodes, or is extended
    by an Int's range whose orientation (or, in ftc, whose F's formers and
    check) passes through norm_num or field first.
-4. Otherwise the key is ADMITTED, with reason `"discharge not built"` and tag
-   `tagger.tag(key, gamma)`.
+4. The exact values (E31): `discharge.exact_values(key)`; if they changed
+   the key and made it literal, norm_num decides it, True DISCHARGED with
+   `("norm_num", entries used)`, False refused `obligation-decided-false`
+   with `refute.exact_false`'s message (F1). A `terms.Refused` inside the
+   rewrite (an RPow exponent made literal) is no change.
+5. The untrusted `search.propose(key)` offers one certificate and the
+   trusted `discharge.check(key, cert)` decides it, on the key as emitted,
+   applying the exact values itself, so the accepted tag already cites
+   them: DISCHARGED with that tag and `certificate`.
+6. The untrusted `refute.refute(key, _owed)`: F2 for a closed ordering, F3
+   at a counter-point for a key with a free variable; found refuses
+   `obligation-decided-false` with its message.
+7. Otherwise ADMITTED with `tagger.tag(key, gamma)` (E24) and a reason:
+   `REASON_EMPTY` when `search.domain_empty(key)` (§5.3's pre-check),
+   else `REASON_NONE` when the tag is `('none', ())`, else
+   `REASON_REJECTED`, which no unmutated run produces.
+
+A status is decided once, at emission, and never changes: discharge reads
+only the key and ENTRIES, so a re-emitted key would get the same status
+and `add` keeps the first (E32).
 
 `gamma` is the goal-domain part of the key's domain, which is what TAG_RULES
 calls Γ. Every divisor goes through E25 (`field.ring_is_zero`) before it is
@@ -546,15 +571,13 @@ patches that one function with `patch.object`:
 
 Each runs as `--discharge-plant NAME` (the control as
 `--discharge-control`). The child reports every DISCHARGE_MUST_REJECT
-certificate the patched checker accepts, every
-DISCHARGE_EXPECTED key whose search certificate it refuses, and, for a bug
+certificate the patched checker accepts and, for a bug
 whose caught_by names PROPERTY, each named checker the property test then
 finds unsound, running those key families only (item D's unpatched run of
-every family is the property test's own control). The parent requires the
-caught_by locations commit (1) can observe (DISCHARGE_MUST_REJECT and
-PROPERTY) and, for search_scales_wrongly, the suite's own DISCHARGE_EXPECTED
-locations; the N and status locations
-need discharge in `kernel._emit` and are commit (2)'s.
+every family is the property test's own control). It also runs every
+proof in PROOFS under the patch, as a planted bug's child does. The parent
+requires every caught_by location, the proofs' N and status ones included,
+and N where the data gives it.
 
 `proof_of_life.py` runs each bug as `[sys.executable, __file__, "--plant",
 name]`, and each mutation with `--mutate` in place of `--plant`. The
@@ -609,14 +632,15 @@ enough for states (§2). For each proof in PROOFS, the script
 echoes `show_goal` of the installed tree before s1, checks ECHO and
 `ECHO_NONCANONICAL`, and asserts:
 - each step's `goal_after` as a tree;
-- `last.emitted` against EXPECTED_OBLIGATIONS as a set of keys, with per-key
-  sources, status and tag, and with `new` computed from the previous
-  state's keys;
+- `last.emitted` against DISCHARGE_OBLIGATIONS as a set of keys, with
+  per-key sources, status, tag, reason and certificate, and with `new`
+  computed from the previous state's keys;
 - `occurrences`, and the fact step's `conclusion(h)`;
 - for ftc, `last.trace` as a multiset of `(rule, subterm)`, and `last.output`
   and the emissions, against DERIV;
-- the final `obligations()` against FINAL_TRACKER, and N against ADMISSIONS;
-- `report(st) == VERDICTS[p]`, and `theorem`;
+- the final `obligations()` against DISCHARGE_FINAL_TRACKER, and N against
+  DISCHARGE_ADMISSIONS;
+- `report(st) == DISCHARGE_VERDICTS[p]`, and `theorem`;
 - that no admission is tagged `none`.
 
 The alternative form of P1.2 is `P1.2-alt`. Every refusal the script checks,
@@ -741,12 +765,13 @@ P1 planted-bug and mutation children still run P1's proofs only. Item 1's
 entries check asks only that P1's entries are present, and item 7 pins
 stage 0's, so a broken stage-0 import fails item 7 alone.
 
-## 10. Discharge: the checkers, the search and refutation (DISCHARGE_SWITCH (1))
+## 10. Discharge: the checkers, the search and refutation
 
-p1_expected's section 11 (E28–E35, DISCHARGE_RULE) specifies discharge,
-and this commit builds it in three modules, tested directly with nothing
-wired into `kernel._emit`: items 1–7 still assert the pre-discharge tables,
-and commit (2) wires discharge in and switches them.
+p1_expected's section 11 (E28–E35, DISCHARGE_RULE) specifies discharge. It
+is built in three modules and runs at emission, inside `kernel._emit` (§5,
+steps 4–7). DISCHARGE_SWITCH took two commits: the modules, tested directly
+(item D), and then the wiring, with the suite switched to the post-discharge
+tables by one constant, `DISCHARGE_WIRED` in `proof_of_life.py` (below).
 
 **The trust split (E28).** `search.propose(key)` is untrusted and proposes
 one certificate, trying §5.3's methods in TAG_RULES' order and reusing the
@@ -754,7 +779,7 @@ tagger's feasibility checks: `tagger.refutation` is the tagger's own
 Fourier–Motzkin with each derived row's multipliers kept, and `_feasible`
 is now `refutation(...) is None`. The search runs §5.3's satisfiability
 pre-check first and attempts no Farkas certificate on an infeasible domain
-(`domain_empty` is what commit (2) reads for REASON_EMPTY). It builds its
+(`domain_empty` is what `_emit` reads for REASON_EMPTY). It builds its
 labelled constraint set itself, from `tagger.SIGN_FACTS`, apart from the
 checker's, so that neither hides the other's mistake.
 `discharge.verdict(key, cert)` is trusted and small. It applies the exact
@@ -774,17 +799,24 @@ closed ordering whose negation `settled` discharges) and F3 (the first
 COUNTERPOINT_CANDIDATES point where every domain item and every former
 owed is settled and the proposition is false by F1 or F2). Its messages are
 DECIDED_FALSE_MESSAGES'. `owed` is passed in (`kernel._owed`) so that it
-does not import the kernel, which will import it.
+does not import the kernel, which imports it.
 
-**What commit (2) wires.** `kernel._emit` gains DISCHARGE_RULE's steps
-(4)–(7) after E7: `discharge.exact_values` and norm_num (step 4, F1 by
-`refute.exact_false`), `search.propose` then `discharge.check` (step 5),
-`refute.refute(key, _owed)` (step 6), and the admission with its reason
-(step 7). `test_discharge.outcome` is that order as the tests read it.
-Obligation gains `certificate`; `reason` becomes REASON_REG, REASON_NONE,
-REASON_EMPTY or REASON_REJECTED. Every call must treat `terms.Refused` from
-`exact_values` (an RPow whose exponent the rewrite makes literal) as no
-change of status, as `verdict` and `settled` do.
+**The switch** (`proof_of_life.py`, `DISCHARGE_WIRED`). Items 1–7 assert
+DISCHARGE_OBLIGATIONS, DISCHARGE_FINAL_TRACKER, DISCHARGE_ADMISSIONS and
+DISCHARGE_VERDICTS, and stage 0's counterparts (PF17); each admission's
+reason and each discharged obligation's certificate against the data's
+(DISCHARGE_EXPECTED and the cases' certificates), compared as
+DISCHARGE_RULE says; section 11b's cases (MATCH_ACCEPTS turned discharged,
+DEFINEDNESS_CASES and OCCURRENCE_CASE with their refusals and new lists,
+BAD_MOVES with DISCHARGE_BAD_MOVES_CHANGED and _ADDED, DISCHARGE_UNDECIDED),
+every `obligation-decided-false` refusal by its code and by its message
+filled from DECIDED_FALSE_MESSAGES; PLANTED_BUGS, DEFINEDNESS_MUTATIONS and
+stage 0's seams as DISCHARGE_PLANTED_BUGS, DISCHARGE_MUTATION_CHANGES and
+DISCHARGE_S0_SEAMS re-trace them; and REFUSAL_CODES_DISCHARGE in the
+refusal-code coverage check. FORGERY_STATE's tracker is derived from
+DISCHARGE_FINAL_TRACKER exactly as p1_expected derives
+TRACKER_AT_FORGERY_STATE from FINAL_TRACKER. `test_discharge.outcome`
+reads DISCHARGE_RULE's order apart from `_emit`, for item D.
 
 **Item D** (`proof_of_life.py`, one check per case, from
 `test_discharge.py`): the pinned entries; every certificate in

@@ -28,11 +28,11 @@ mirroring the implementation.
      the suite's own cases for what P1's data masks: field's divisors in
      atom arguments, ftc's charge of F's formers, emission placement, and
      TAG_RULES read both ways;
-  3  each PLANTED_BUGS mutation, and each DEFINEDNESS_MUTATIONS one,
-     patched into a child process through the seams of ARCHITECTURE.md §7,
-     is caught at every `caught_by` location, with N as the data gives it;
-     and each DISCHARGE_NEW_PLANTED_BUGS one at the locations commit (1)
-     of DISCHARGE_SWITCH can observe (DISCHARGE_MUST_REJECT, PROPERTY);
+  3  each PLANTED_BUGS mutation, each DEFINEDNESS_MUTATIONS one (both as
+     DISCHARGE_PLANTED_BUGS and DISCHARGE_MUTATION_CHANGES re-trace them),
+     and each DISCHARGE_NEW_PLANTED_BUGS one, patched into a child process
+     through the seams of ARCHITECTURE.md §7, is caught at every
+     `caught_by` location, with N as the data gives it;
   4  each WRONG_ANSWERS move is refused, its residual equal to the expected
      one under `compare` and not zero; deriv's trace on W1, and on the
      divisor-owing rules P1 never reaches;
@@ -65,14 +65,20 @@ mirroring the implementation.
      S3-W3's E27 residual compared as a tree, with its message). Also the four
      stage-0 entries pinned in entries.py, and the tagger's sign facts
      against ENTRIES.
-  D  discharge (p1_expected section 11, DISCHARGE_SWITCH (1)), called
-     directly, with nothing wired into kernel._emit: the pinned sqrt_zero
+  D  discharge's parts (p1_expected section 11), called directly as well
+     as through kernel._emit: the pinned sqrt_zero
      and cos_zero, every certificate the data gives accepted with its tag
      and proposed by the search, every must-reject certificate rejected for
      its reason, every must-accept neighbour, every decided-false message,
      every undecided admission, and DISCHARGE_PROPERTY_TEST, all from
      test_discharge.py. The E27 cases are asserted as DISCHARGE_E27_CHANGES
      switches them, since entries.py now holds cos_zero and sqrt_zero.
+
+Discharge is wired into kernel._emit (DISCHARGE_SWITCH (2), the constant
+DISCHARGE_WIRED below): items 1-7 assert the post-discharge tables, each
+obligation's reason and certificate, the re-traced cases (decided-false
+refusals by code and message) and the re-traced planted bugs and mutations.
+The pre-discharge tables stay in the data files as the stub phase's record.
 
 It also runs the unit tests (test_field.py, test_grammar.py,
 test_discharge.py) in a child process, as one check of its own beside items 1-6: field's planted bugs
@@ -142,9 +148,9 @@ except Exception as e:  # noqa: BLE001 -- reported by every item-7 check
     LD = S0 = STAGE0_DIR = None
     STAGE0_ERROR = "".join(traceback.format_exception_only(type(e), e)).strip()
 
-# The discharge checks of DISCHARGE_SWITCH's commit (1): test_discharge.py
-# holds them, and this script runs them one case at a time (item D) and
-# plants the discharge bugs through its seams (item 3). Imported apart, so
+# The discharge checks called directly: test_discharge.py holds them, and
+# this script runs them one case at a time (item D), and its property test
+# under the discharge planted bugs (item 3). Imported apart, so
 # that items 1-7 run whatever it does.
 try:
     import test_discharge as TD
@@ -162,8 +168,7 @@ ITEMS = {
     5: "refuses bad moves and forgeries",
     6: "round-trips the parser, echoes each goal",
     7: "problem files S1-S3 as stage0/expected.py states them",
-    "D": "discharge's checkers, search and refutation, called directly "
-         "(DISCHARGE_SWITCH (1))",
+    "D": "discharge's checkers, search and refutation, called directly",
 }
 UNIT, UNIT_TEXT = "unit", ("unit tests: test_field.py, test_grammar.py, "
                            "test_discharge.py")  # beside 1-6
@@ -187,6 +192,117 @@ def _e27_switched():
 
 
 BAD_MOVES, EVALUATED_ACCEPTS = _e27_switched()
+
+# DISCHARGE_SWITCH (2): the one constant. With discharge wired into
+# kernel._emit, the suite asserts p1_expected's and stage 0's post-discharge
+# tables (DISCHARGE_OBLIGATIONS, DISCHARGE_FINAL_TRACKER, DISCHARGE_ADMISSIONS,
+# DISCHARGE_VERDICTS), each obligation's reason and certificate, and the
+# re-traced cases, planted bugs and mutations. The pre-discharge tables stay
+# in both data files as the stub phase's record and are no longer asserted.
+DISCHARGE_WIRED = True
+if DISCHARGE_WIRED:
+    OBLIGATIONS, FINAL = X.DISCHARGE_OBLIGATIONS, X.DISCHARGE_FINAL_TRACKER
+    ADMISSIONS, VERDICTS = X.DISCHARGE_ADMISSIONS, X.DISCHARGE_VERDICTS
+else:
+    OBLIGATIONS, FINAL = X.EXPECTED_OBLIGATIONS, X.FINAL_TRACKER
+    ADMISSIONS, VERDICTS = X.ADMISSIONS, X.VERDICTS
+# FORGERY_STATE's tracker, derived from FINAL exactly as p1_expected derives
+# TRACKER_AT_FORGERY_STATE from FINAL_TRACKER: P1.2's final tracker without
+# the two keys s9 mints.
+TRACKER_AT_FORGERY_STATE = [ob for ob in FINAL["P1.2"]
+                            if ob[0] not in ("3*sqrt 3 # 0", "2 > 0")]
+
+
+def _turn(obs, table):
+    """A per-step list (6-tuples) or final tracker (4-tuples) with each key
+    `table` names given its (status, tag): section 11b's rule, "a case not
+    named here keeps every expected value, with each admission it lists
+    that DISCHARGE_* names turned DISCHARGED"."""
+    out = []
+    for ob in obs:
+        hit = table.get((ob[0], ob[1]))
+        if hit is None:
+            out.append(ob)
+        elif len(ob) == 6:
+            out.append((ob[0], ob[1], ob[2], hit[0], hit[1], ob[5]))
+        else:
+            out.append((ob[0], ob[1], hit[0], hit[1]))
+    return out
+
+
+def _cases_switched():
+    """MATCH_ACCEPTS, DEFINEDNESS_CASES, OCCURRENCE_CASE and the BAD_MOVES
+    additions as section 11b re-traces them under DISCHARGE_RULE. Each case
+    gains `certificates` ({(prop, dom): certificate}, the data's, where a
+    key discharged by a §5.3 method needs one) and `reasons` where the data
+    names an admission's reason. A refused case gains `refusal`, `at` and
+    `message` (DECIDED_FALSE_MESSAGES' template and parts)."""
+    match, defn = [], []
+    for c in X.MATCH_ACCEPTS:
+        table = X.DISCHARGE_MATCH_ACCEPTS.get(c["id"], {})
+        turned = {pd: (X.DISCHARGED, tag) for pd, (tag, _) in table.items()}
+        match.append(dict(c, goal_emits=_turn(c["goal_emits"], turned),
+                          emits=_turn(c["emits"], turned),
+                          certificates={pd: cert for pd, (_, cert) in table.items()}))
+    for c in X.DEFINEDNESS_CASES:
+        d = X.DISCHARGE_DEFINEDNESS_CASES.get(c["id"])
+        if d is None:  # literal where it emits (E7), and unchanged
+            defn.append(dict(c, certificates={}))
+        elif "refusal" in d:
+            defn.append(dict(c, refusal=d["refusal"], at=d["at"], message=d["message"]))
+        else:
+            turned = {(o[0], o[1]): (o[3], o[4]) for o in d["goal_emits"]}
+            turned.update({(f[0], f[1]): (f[2], f[3]) for f in d["final"]})
+            defn.append(dict(c, goal_emits=d["goal_emits"],
+                             emits=_turn(c["emits"], turned), final=d["final"],
+                             report=d["report"],
+                             certificates=d.get("certificates", {})))
+    oc, doc = X.OCCURRENCE_CASE, X.DISCHARGE_OCCURRENCE_CASE
+    occurrence = dict(oc, goal_emits=doc["goal_emits"],
+                      goal_certificates=doc["goal_certificates"],
+                      all=dict(oc["all"], refusal=doc["all"]["refusal"],
+                               message=doc["all"]["message"]),
+                      one=dict(oc["one"], emits=doc["one"]["emits"],
+                               certificates=doc["one"]["certificates"]))
+    return match, defn, occurrence
+
+
+if DISCHARGE_WIRED:
+    MATCH_ACCEPTS, DEFINEDNESS_CASES, OCCURRENCE_CASE = _cases_switched()
+    BAD_MOVES = [dict(b, **{k: X.DISCHARGE_BAD_MOVES_CHANGED[b["id"]][k]
+                            for k in ("refusal", "at", "message")})
+                 if b["id"] in X.DISCHARGE_BAD_MOVES_CHANGED else b
+                 for b in BAD_MOVES] + list(X.DISCHARGE_BAD_MOVES_ADDED)
+    UNDECIDED = list(X.DISCHARGE_UNDECIDED)
+    REFUSAL_CODES = {**X.REFUSAL_CODES, **X.REFUSAL_CODES_DISCHARGE}
+else:
+    MATCH_ACCEPTS, DEFINEDNESS_CASES = X.MATCH_ACCEPTS, X.DEFINEDNESS_CASES
+    OCCURRENCE_CASE, UNDECIDED, REFUSAL_CODES = X.OCCURRENCE_CASE, [], X.REFUSAL_CODES
+CASES = {"BAD_MOVES": BAD_MOVES, "DEFINEDNESS_CASES": DEFINEDNESS_CASES,
+         "MATCH_ACCEPTS": MATCH_ACCEPTS}
+
+
+def case_certs(case, name="certificates"):
+    """A case's certificates as certificate_problem reads them, or None
+    before the switch."""
+    return cert_table(case.get(name, {}).items()) if DISCHARGE_WIRED else None
+
+
+def case_reasons(case):
+    return {key(p, d): r for (p, d), r in case.get("reasons", {}).items()}
+
+
+def refusal_problems_of(r, case):
+    """A Refusal against a case's `refusal` code and, when it gives one, its
+    decided-false `message`, filled from DECIDED_FALSE_MESSAGES."""
+    if not isinstance(r, K.Refusal):
+        return [f"not refused: {describe(r)}"]
+    out = [] if r.code == case["refusal"] else [f"refused {r.code}: {r.message}"]
+    if "message" in case:
+        want = TD.expected_message(case["message"])
+        if r.message != want:
+            out.append(f"message {r.message!r}, expected {want!r}")
+    return out
 
 
 # ---------------------------------------------------------------- data to calls
@@ -306,13 +422,49 @@ def keys_of(state):
 
 # ---------------------------------------------------------------- comparisons
 
-def compare_emitted(miss, proof, sid, expected, emitted, prev_keys, keyf=None):
+def expected_reason(status, tag, k, reasons=None):
+    """An admission's reason under the switch (E32): the case's own where it
+    names one, else REASON_REG for a Reg, REASON_NONE for a key tagged
+    none, and REASON_REJECTED otherwise, which no unmutated run produces."""
+    if status != X.ADMITTED:
+        return None
+    if not DISCHARGE_WIRED:
+        return X.ADMISSION_REASON
+    if reasons and k in reasons:
+        return reasons[k]
+    return (X.REASON_REG if tag == X.T_REG else
+            X.REASON_NONE if tag == X.T_NONE else X.REASON_REJECTED)
+
+
+def certificate_problem(ob, k, certs):
+    """The obligation's certificate against the data's (DISCHARGE_EXPECTED
+    and the cases' certificates), compared as DISCHARGE_RULE says; a key the
+    data gives no certificate for must carry none. `certs` None: nothing to
+    compare."""
+    if not DISCHARGE_WIRED or certs is None:
+        return None
+    want = certs.get(k)
+    if want is None:
+        return None if ob.certificate is None else \
+            f"{ob.certificate!r}, expected no certificate"
+    return "; ".join(TD.cert_differences(ob.certificate, TD.cert_of(want))) or None
+
+
+def cert_table(rows):
+    """{key: spec certificate} from ((prop, dom), certificate) pairs."""
+    return {key(p, d): c for (p, d), c in rows}
+
+
+def compare_emitted(miss, proof, sid, expected, emitted, prev_keys, keyf=None,
+                    certs=None, reasons=None):
     """One step's `last.emitted` against its expected list, as a set of keys
     (KEYING). `new` is computed here from the previous state's tracker, never
     taken from the kernel. The locations are PLANTED_BUGS' caught_by shapes:
     (proof, step, prop, dom) for an absent key, (proof, step, prop, what)
     for a key present with a wrong field. `keyf` parses an expected (prop,
-    dom); it is `key` unless another data file supplies its own."""
+    dom); it is `key` unless another data file supplies its own. `certs`
+    and `reasons` are the data's certificates and admission reasons for its
+    keys (expected_reason, certificate_problem)."""
     keyf = keyf or key
     got = {}
     for ob in emitted:
@@ -336,10 +488,13 @@ def compare_emitted(miss, proof, sid, expected, emitted, prev_keys, keyf=None):
                  f"{ob.status}, expected {status}")
         if tag_of(ob) != tag:
             miss(2, (proof, sid, prop, "tag"), f"{tag_of(ob)}, expected {tag}")
-        reason = X.ADMISSION_REASON if status == X.ADMITTED else None
+        reason = expected_reason(status, tag, k, reasons)
         if ob.status == status and ob.reason != reason:
             miss(2, (proof, sid, prop, "reason"),
                  f"{ob.reason!r}, expected {reason!r}")
+        bad = certificate_problem(ob, k, certs) if ob.status == status else None
+        if bad:
+            miss(2, (proof, sid, prop, "certificate"), bad)
         if (k not in prev_keys) != new:
             miss(2, (proof, sid, prop, "new"),
                  f"new is {k not in prev_keys}, expected {new}")
@@ -349,7 +504,8 @@ def compare_emitted(miss, proof, sid, expected, emitted, prev_keys, keyf=None):
                  f"{ob.status} {tag_of(ob)} from {sorted(ob.sources)}")
 
 
-def tracker_problems(obs, expected, sources=None, keyf=None):
+def tracker_problems(obs, expected, sources=None, keyf=None, certs=None,
+                     reasons=None):
     """obligations() against a FINAL_TRACKER-shaped list of (prop, dom,
     status, tag). Returns (location suffix, detail) pairs. An absent key's
     suffix is ((prop, dom),), which is caught_by's FINAL_TRACKER shape.
@@ -372,9 +528,13 @@ def tracker_problems(obs, expected, sources=None, keyf=None):
             out.append((((prop, dom), "status"), f"{ob.status}, expected {status}"))
         if tag_of(ob) != tag:
             out.append((((prop, dom), "tag"), f"{tag_of(ob)}, expected {tag}"))
-        reason = X.ADMISSION_REASON if status == X.ADMITTED else None
+        reason = expected_reason(status, tag, k, reasons)
         if ob.reason != reason:
-            out.append((((prop, dom), "reason"), f"{ob.reason!r}"))
+            out.append((((prop, dom), "reason"), f"{ob.reason!r}, expected "
+                        f"{reason!r}"))
+        bad = certificate_problem(ob, k, certs) if ob.status == status else None
+        if bad:
+            out.append((((prop, dom), "certificate"), bad))
         # A key no step's list names has no expected sources: reported, not
         # raised, so the rest of the comparison still prints.
         want_src = frozenset(sources.get(k, ())) if sources is not None else None
@@ -389,7 +549,7 @@ def tracker_problems(obs, expected, sources=None, keyf=None):
 
 def expected_sources(proof):
     out = {}
-    for obs in X.EXPECTED_OBLIGATIONS[proof].values():
+    for obs in OBLIGATIONS[proof].values():
         for prop, dom, sources, *_ in obs:
             out.setdefault(key(prop, dom), set()).update(sources)
     return out
@@ -449,6 +609,13 @@ class Run:
         self.found.append((item, where, detail))
 
 
+def proof_certs(name):
+    """The certificates DISCHARGE_EXPECTED gives for a proof's keys."""
+    if not DISCHARGE_WIRED:
+        return None
+    return cert_table((pd, c) for pd, (_, c) in X.DISCHARGE_EXPECTED[name].items())
+
+
 def run_proof(name, strict=True, out=print):
     """Install PROOFS[name], echo it, run its steps, and compare everything
     with p1_expected. `strict` adds what holds only of an unmutated run: the
@@ -465,7 +632,8 @@ def run_proof(name, strict=True, out=print):
 
 def _run_proof(run, strict, out):
     name, p = run.name, X.PROOFS[run.name]
-    exp = X.EXPECTED_OBLIGATIONS[name]
+    exp = OBLIGATIONS[name]
+    certs = proof_certs(name)
     installed = goal(p["goal"])
     st = install(p["goal"], (name, "goal"))
     run.state = st
@@ -483,7 +651,7 @@ def _run_proof(run, strict, out):
     if st.last.move != "install":
         run.miss(1, (name, "goal", "move"), f"last.move is {st.last.move!r}")
     compare_emitted(run.miss, name, "goal", exp["goal"], st.last.emitted,
-                    frozenset())
+                    frozenset(), certs=certs)
     seen = list(st.last.emitted)
     handles = {}
     for s in p["steps"]:
@@ -492,11 +660,11 @@ def _run_proof(run, strict, out):
         run.state = st
         _check_step(run, s, prev, st)
         compare_emitted(run.miss, name, s["id"], exp[s["id"]], st.last.emitted,
-                        keys_of(prev))
+                        keys_of(prev), certs=certs)
         seen += st.last.emitted
     obs = st.obligations()
-    for suffix, detail in tracker_problems(obs, X.FINAL_TRACKER[name],
-                                           expected_sources(name)):
+    for suffix, detail in tracker_problems(obs, FINAL[name],
+                                           expected_sources(name), certs=certs):
         run.miss(2, ("FINAL_TRACKER", name) + suffix, detail)
     if strict:  # WHAT.md: an admission tagged none fails the milestone
         nones = {T.show(o.key) for o in seen + list(obs)
@@ -506,11 +674,11 @@ def _run_proof(run, strict, out):
     if st.goal is not None:
         raise Mismatch(1, (name, "closed"), f"goal still open: {show(st.goal)}")
     run.n = sum(o.status == X.ADMITTED for o in obs)
-    if run.n != X.ADMISSIONS[name]:
-        run.miss(1, ("N", name), f"{run.n} admissions, expected {X.ADMISSIONS[name]}")
+    if run.n != ADMISSIONS[name]:
+        run.miss(1, ("N", name), f"{run.n} admissions, expected {ADMISSIONS[name]}")
     verdict = K.report(st)
-    if verdict != X.VERDICTS[name]:
-        run.miss(1, ("VERDICT", name), f"{verdict!r}, expected {X.VERDICTS[name]!r}")
+    if verdict != VERDICTS[name]:
+        run.miss(1, ("VERDICT", name), f"{verdict!r}, expected {VERDICTS[name]!r}")
     if st.theorem != goal(p["theorem"]):
         run.miss(1, ("THEOREM", name), f"got {show(st.theorem)}")
     if T.instantiate(installed, term(X.ANSWERS[name])) != goal(p["theorem"]):
@@ -634,34 +802,47 @@ def match_problems(case):
     def miss(item, where, detail):
         out.append(fmt(where, detail))
 
+    certs = case_certs(case)
     st = install(case["goal"], (case["id"], "goal"))
     compare_emitted(miss, case["id"], "goal", case["goal_emits"], st.last.emitted,
-                    frozenset())
+                    frozenset(), certs=certs)
     move, args = case["move"]
     st2 = take(st, move, args, {}, (case["id"], move))
     if st2.goal != goal(case["goal_after"]):
         out.append(f"goal_after: got {show(st2.goal)}")
     compare_emitted(miss, case["id"], move, case["emits"], st2.last.emitted,
-                    keys_of(st))
+                    keys_of(st), certs=certs)
     return out
 
 
 def occurrence_problems(which):
-    c = X.OCCURRENCE_CASE[which]
+    """OCCURRENCE_CASE: installation's list where the data gives it, then the
+    rewrite, accepted with its lists or refused with its message."""
+    c = OCCURRENCE_CASE[which]
     out = []
 
     def miss(item, where, detail):
         out.append(fmt(where, detail))
 
-    st = install(X.OCCURRENCE_CASE["goal"], ("OCCURRENCE_CASE", "goal"))
+    st = install(OCCURRENCE_CASE["goal"], ("OCCURRENCE_CASE", "goal"))
+    if "goal_emits" in OCCURRENCE_CASE:
+        compare_emitted(miss, "OCCURRENCE_CASE", "goal", OCCURRENCE_CASE["goal_emits"],
+                        st.last.emitted, frozenset(),
+                        certs=case_certs(OCCURRENCE_CASE, "goal_certificates"))
     move, args = c["move"]
+    if "refusal" in c:
+        before = st.obligations()
+        out += refusal_problems_of(K.step(st, move, build_args(args, {})), c)
+        if st.obligations() != before:
+            out.append("the refused step changed the state (E13)")
+        return out
     st2 = take(st, move, args, {}, ("OCCURRENCE_CASE", which))
     if st2.last.occurrences != c["occurrences"]:
         out.append(f"occurrences {st2.last.occurrences}, expected {c['occurrences']}")
     if st2.goal != goal(c["goal_after"]):
         out.append(f"goal_after: got {show(st2.goal)}")
     compare_emitted(miss, "OCCURRENCE_CASE", which, c["emits"], st2.last.emitted,
-                    keys_of(st))
+                    keys_of(st), certs=case_certs(c))
     return out
 
 
@@ -676,21 +857,39 @@ def definedness_problems(case):
     def miss(item, where, detail):
         out.append(fmt(where, detail))
 
+    if case.get("at") == "install":  # decided false at installation (E33)
+        return refusal_problems_of(K.install(goal(case["goal"])), case)
+    certs = case_certs(case)
     st = install(case["goal"], (case["id"], "goal"))
     compare_emitted(miss, case["id"], "goal", case["goal_emits"], st.last.emitted,
-                    frozenset())
+                    frozenset(), certs=certs)
     move, args = case["move"]
     st2 = take(st, move, args, {}, (case["id"], move))
     compare_emitted(miss, case["id"], move, case["emits"], st2.last.emitted,
-                    keys_of(st))
+                    keys_of(st), certs=certs)
     out += [fmt((case["id"], "final") + sfx, d)
-            for sfx, d in tracker_problems(st2.obligations(), case["final"])]
+            for sfx, d in tracker_problems(st2.obligations(), case["final"],
+                                           certs=certs)]
     if st2.goal is not None:
         out.append(f"the goal is still open: {show(st2.goal)}")
     if K.report(st2) != case["report"]:
         out.append(f"report {K.report(st2)!r}, expected {case['report']!r}")
     if st2.theorem != goal(case["theorem"]):
         out.append(f"theorem {show(st2.theorem)}, expected {case['theorem']}")
+    return out
+
+
+def undecided_problems(case):
+    """DISCHARGE_UNDECIDED: installed, its installation list asserted with
+    each admission's tag and reason; not closed."""
+    out = []
+
+    def miss(item, where, detail):
+        out.append(fmt(where, detail))
+
+    st = install(case["goal"], (case["id"], "goal"))
+    compare_emitted(miss, case["id"], "goal", case["goal_emits"], st.last.emitted,
+                    frozenset(), certs={}, reasons=case_reasons(case))
     return out
 
 
@@ -997,7 +1196,7 @@ def refusal_coverage_problems():
     named |= {c for _, _, c in DIRECT_REFUSALS}
     named |= {r[-1] for r in X.PARSE_REFUSALS + X.PARSE_REFUSALS_JUDGEMENT}
     named |= {r[-1] for rows in SUITE_PARSE_REFUSALS.values() for r in rows}
-    return [f"{c}: no case asserts it" for c in X.REFUSAL_CODES
+    return [f"{c}: no case asserts it" for c in REFUSAL_CODES
             if c not in named] + [
         f"{c} (kernel-local): no case asserts it" for c in KERNEL_LOCAL_CODES
         if c not in named] + [
@@ -1021,8 +1220,13 @@ def unminted_finished_problems():
 
 
 def bad_move_problems(b):
+    """One BAD_MOVES case: refused with its code (and, for a decided-false
+    refusal, its message), the state unchanged. A case decided false at
+    installation (move install, or at: install) is refused there; a case
+    with goal_emits asserts installation's list first, with its
+    certificates and reasons."""
     move, args = b["move"]
-    if move == "install":
+    if move == "install" or b.get("at") == "install":
         try:
             g = goal(b["goal"])
         except T.ParseError as e:  # parse_goal is part of installing
@@ -1030,22 +1234,28 @@ def bad_move_problems(b):
         r = K.install(g)
         if isinstance(r, K.ProofState):
             return ["installed"]
-        return [] if r.code == b["refusal"] else [f"refused {r.code}: {r.message}"]
+        return refusal_problems_of(r, b)
     out = []
+
+    def miss(item, where, detail):
+        out.append(fmt(where, detail))
+
     if "state" in b:
         st, handles = replay(*b["state"])
         if st.original != goal(b["goal"]):
             out.append("the state's original goal is not the entry's goal")
     else:
         st, handles = install(b["goal"], (b["id"], "goal")), {}
+        if "goal_emits" in b:
+            compare_emitted(miss, b["id"], "goal", b["goal_emits"], st.last.emitted,
+                            frozenset(), certs=case_certs(b), reasons=case_reasons(b))
         for s in b["setup"]:
             st = take(st, s["move"], s["args"], handles, (b["id"], s["id"]))
     before, before_goal = st.obligations(), st.goal
     r = K.step(st, move, build_args(args, handles))
     if isinstance(r, K.ProofState):
         return out + ["accepted"]
-    if r.code != b["refusal"]:
-        out.append(f"refused {r.code}: {r.message}")
+    out += refusal_problems_of(r, b)
     if st.obligations() != before or st.goal != before_goal:
         out.append("the refused step changed the state (E13)")
     if "e27" in b:
@@ -1163,11 +1373,11 @@ class Slot:
 
     def post(self):
         out = [fmt(("TRACKER_AT_FORGERY_STATE",) + sfx, d) for sfx, d in
-               tracker_problems(self.state.obligations(), X.TRACKER_AT_FORGERY_STATE)]
+               tracker_problems(self.state.obligations(), TRACKER_AT_FORGERY_STATE)]
         outcome, r = self.attempt(self.h)
         if outcome != "accepted":
             out.append(f"the genuine h_sqrt3 no longer closes the slot: {outcome}")
-        elif K.report(r) != X.VERDICTS["P1.2-alt"]:
+        elif K.report(r) != VERDICTS["P1.2-alt"]:
             out.append(f"after the genuine close the report is {K.report(r)!r}")
         return out
 
@@ -1223,7 +1433,7 @@ def forge_fabricated_id(slot, case):
     if not isinstance(st2, K.ProofState):
         return [("(a) fact sqrt_sq_val 3", "refused", describe(st2))], slot.post()
     post += [fmt(("after fact h_victim",) + sfx, d) for sfx, d in
-             tracker_problems(st2.obligations(), X.TRACKER_AT_FORGERY_STATE)]
+             tracker_problems(st2.obligations(), TRACKER_AT_FORGERY_STATE)]
     victim = st2.last.handle
     new_id = victim.id + 1
 
@@ -1277,8 +1487,8 @@ def tracker_write(st):
 
 def p1_1_post(st):
     out = [fmt(("FINAL_TRACKER", "P1.1") + sfx, d) for sfx, d in
-           tracker_problems(st.obligations(), X.FINAL_TRACKER["P1.1"])]
-    if K.report(st) != X.VERDICTS["P1.1"]:
+           tracker_problems(st.obligations(), FINAL["P1.1"])]
+    if K.report(st) != VERDICTS["P1.1"]:
         out.append(f"the report is {K.report(st)!r}")
     return out
 
@@ -1338,7 +1548,7 @@ def forge_print_proved(case):
         text = K.report(st)
         reports.append(text)
         attempts.append(("(c) report after a tracker write",
-                         "refused" if text == X.VERDICTS["P1.1"] else "returned",
+                         "refused" if text == VERDICTS["P1.1"] else "returned",
                          repr(text)))
         # (d) a script-side tactic's result object claiming the goal closed
         fake = types.SimpleNamespace(goal=None, theorem=st.theorem, closed=True,
@@ -1355,8 +1565,8 @@ def forge_print_proved(case):
                              "refused" if isinstance(r, K.Refusal) else "accepted",
                              describe(r)))
         reports.append(K.report(st))
-    post = [f"a report is {t!r}, not {X.VERDICTS['P1.1']!r}" for t in reports
-            if t != X.VERDICTS["P1.1"]]
+    post = [f"a report is {t!r}, not {VERDICTS['P1.1']!r}" for t in reports
+            if t != VERDICTS["P1.1"]]
     post += [f"a report contains 'Proved.': {t!r}" for t in reports
              if "Proved." in str(t)]
     post += [f"{f.__name__}(state) contains 'Proved.'" for f in (str, repr)
@@ -1410,7 +1620,7 @@ def forge_json(slot, case):
     detail = f"json.dumps {'raised' if dump_raises else 'worked'}; loaders " \
              f"{sorted(set(loaders)) or 'none'} among {len(callables)} public names"
     post = [fmt(("TRACKER_AT_FORGERY_STATE",) + sfx, d) for sfx, d in
-            tracker_problems(st.obligations(), X.TRACKER_AT_FORGERY_STATE)]
+            tracker_problems(st.obligations(), TRACKER_AT_FORGERY_STATE)]
     return [("serialise the state and load it back", outcome, detail)], post
 
 
@@ -1439,6 +1649,49 @@ def forgery_problems(case):
 
 
 # ---------------------------------------------------------------- planted bugs
+
+
+def _planted_switched():
+    """PLANTED_BUGS as DISCHARGE_PLANTED_BUGS re-traces them: its admissions,
+    drop_keys, retagged (with statuses) and refused replace the old, and its
+    caught_by does unless it says 'unchanged'."""
+    out = {}
+    for name, bug in X.PLANTED_BUGS.items():
+        d = X.DISCHARGE_PLANTED_BUGS.get(name, {}) if DISCHARGE_WIRED else {}
+        b = dict(bug, **{k: d[k] for k in ("admissions", "drop_keys", "retagged",
+                                           "refused") if k in d})
+        if isinstance(d.get("caught_by"), list):
+            b["caught_by"] = d["caught_by"]
+        out[name] = b
+    return out
+
+
+def _mutations_switched():
+    """DEFINEDNESS_MUTATIONS as DISCHARGE_MUTATION_CHANGES re-traces them:
+    caught_by less 'drop' plus 'add', and admissions the change's or, by
+    default, 3 in every proof."""
+    out = {}
+    for name, m in X.DEFINEDNESS_MUTATIONS.items():
+        if not DISCHARGE_WIRED:
+            out[name] = m
+            continue
+        ch = X.DISCHARGE_MUTATION_CHANGES.get(name, {})
+        drop = {tuplify(c) for c in ch.get("drop", ())}
+        out[name] = dict(m, caught_by=[c for c in map(tuplify, m["caught_by"])
+                                       if c not in drop]
+                         + [tuplify(c) for c in ch.get("add", ())],
+                         admissions=ch.get("admissions", dict(X._D3)))
+    return out
+
+
+PLANTED_BUGS = _planted_switched()
+DEFINEDNESS_MUTATIONS = _mutations_switched()
+
+
+def closed_admissions(data):
+    """The child's N per proof, a proof it refused left out, which is how
+    the data writes a mutation's admissions."""
+    return {p: n for p, n in data["admissions"].items() if n is not None}
 #
 # ARCHITECTURE.md §7. The trusted code has no bug switch. Each bug is patched
 # in through its seam, in a child process that runs nothing else, so the
@@ -1450,9 +1703,9 @@ def reemitted_key():
     must match exactly one expected obligation there, re-emitted (new False),
     and the step before must have minted it (new True), or the mutation
     would not be the one the data describes."""
-    (proof, sid, prop, flag), = X.PLANTED_BUGS["tracker_drops_reemitted"][
+    (proof, sid, prop, flag), = PLANTED_BUGS["tracker_drops_reemitted"][
         "caught_by"]
-    steps = X.EXPECTED_OBLIGATIONS[proof]
+    steps = OBLIGATIONS[proof]
     hits = [ob for ob in steps[sid] if ob[0] == prop]
     assert flag == "new" and len(hits) == 1 and hits[0][5] is False, hits
     k = key(prop, hits[0][1])
@@ -1480,7 +1733,7 @@ def seam_patch(name, mock):
             "seam kernel._Tracker.add is missing"
         orig = K._Tracker.add
         if name == "tracker_drops_one":
-            drop = {key(p, d) for p, d in X.PLANTED_BUGS[name]["drop_keys"]}
+            drop = {key(p, d) for p, d in PLANTED_BUGS[name]["drop_keys"]}
             first_only = False
         else:  # the key its catch names, dropped the first time only
             drop, first_only = {reemitted_key()}, True
@@ -1512,7 +1765,7 @@ def case_failures():
     crash and propagates."""
     out = []
     for table, fn in CASE_TABLES:
-        for c in (BAD_MOVES if table == "BAD_MOVES" else getattr(X, table)):
+        for c in CASES[table]:
             try:
                 problems = globals()[fn](c)
             except Mismatch as m:
@@ -1537,11 +1790,13 @@ def child(name, kind="plant"):
         else:
             from unittest import mock
             ctx = (seam_patch if kind == "plant" else mutation_patch)(name, mock)
-        found, admissions, final = [], {}, {}
+        found, admissions, final, refusals = [], {}, {}, {}
         with ctx:
             for p in X.PROOFS:
                 run = run_proof(p, strict=False, out=lambda line: None)
                 found += [where for _, where, _ in run.found]
+                refusals.update({"/".join(where): detail for _, where, detail
+                                 in run.found if where[-1] == "refused"})
                 admissions[p] = run.n
                 final[p] = None if run.n is None else [
                     [T.show(o.key), o.status, o.tag[0], list(o.tag[1])]
@@ -1551,7 +1806,8 @@ def child(name, kind="plant"):
     except Exception:  # noqa: BLE001 -- a crash, not a catch
         traceback.print_exc()
         return 2
-    print(json.dumps({"mismatches": found, "admissions": admissions, "final": final}))
+    print(json.dumps({"mismatches": found, "admissions": admissions, "final": final,
+                      "refusals": refusals}))
     return 0
 
 
@@ -1579,8 +1835,13 @@ def planted_problems(name, bug):
     found = data["mismatches"]
     out += [f"not caught at {c}" for c in map(tuplify, bug["caught_by"])
             if c not in found]
-    if data["admissions"] != bug["admissions"]:
+    if closed_admissions(data) != bug["admissions"]:
         out.append(f"admissions {data['admissions']}, expected {bug['admissions']}")
+    for proof, (sid, msg) in bug.get("refused", {}).items():
+        got = data.get("refusals", {}).get(f"{proof}/{sid}/refused")
+        want = f"refused {X.OBLIGATION_DECIDED_FALSE}: {TD.expected_message(msg)}"
+        if got != want:
+            out.append(f"{proof} {sid}: {got!r}, expected {want!r}")
     for proof, js in bug.get("missing", {}).items():
         rows = final_rows(data, proof)
         out += [f"{proof}: {j} is still in the final tracker" for j in js
@@ -1591,10 +1852,11 @@ def planted_problems(name, bug):
                 if T.show(key(p, d)) in rows]
     for proof, retags in bug.get("retagged", {}).items():
         rows = final_rows(data, proof)
-        for p, d, tag in retags:
+        for row in retags:  # (prop, dom, tag), or (prop, dom, status, tag)
+            p, d, tag = row[0], row[1], row[-1]
             got = rows.get(T.show(key(p, d)))
-            if got is None or got[1] != tag:
-                out.append(f"{proof}: {p} @ {d} is {got}, expected tag {tag}")
+            if got is None or got[1] != tag or (len(row) == 4 and got[0] != row[2]):
+                out.append(f"{proof}: {p} @ {d} is {got}, expected {row[2:]}")
     if bug.get("step_lists_changed") is False:
         out += [f"a step list changed: {m}" for m in found if m[0] in X.PROOFS]
     for proof in bug.get("affects", ()):
@@ -1611,7 +1873,7 @@ def control_problems():
     if data is None:
         return out
     out += [f"unpatched child found {m}" for m in sorted(data["mismatches"], key=str)]
-    if data["admissions"] != X.ADMISSIONS:
+    if data["admissions"] != ADMISSIONS:
         out.append(f"unpatched admissions {data['admissions']}")
     return out
 
@@ -1623,7 +1885,7 @@ def clean_after_problems():
     for p in X.PROOFS:
         run = run_proof(p, out=lambda line: None)
         out += [f"{p}: {fmt(w, d)}" for _, w, d in run.found]
-        if run.n != X.ADMISSIONS[p]:
+        if run.n != ADMISSIONS[p]:
             out.append(f"{p}: N = {run.n}")
     if "unittest.mock" in sys.modules:
         out.append("unittest.mock is imported in the unmutated process")
@@ -1889,7 +2151,7 @@ def mutation_results():
     (data, problems), as spawn returns them."""
     from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=max(2, min(8, os.cpu_count() or 2))) as ex:
-        futures = {n: ex.submit(spawn, "--mutate", n) for n in X.DEFINEDNESS_MUTATIONS}
+        futures = {n: ex.submit(spawn, "--mutate", n) for n in DEFINEDNESS_MUTATIONS}
     return {n: f.result() for n, f in futures.items()}
 
 
@@ -1900,7 +2162,7 @@ def mutation_problems(mutation, result):
     found = data["mismatches"]
     out += [f"not caught at {c}" for c in map(tuplify, mutation["caught_by"])
             if c not in found]
-    if "admissions" in mutation and data["admissions"] != mutation["admissions"]:
+    if "admissions" in mutation and closed_admissions(data) != mutation["admissions"]:
         out.append(f"admissions {data['admissions']}, expected {mutation['admissions']}")
     return out
 
@@ -2016,7 +2278,14 @@ def placement_close(g, value, check, want):
     return run
 
 
-# (label, problem function). Every P1 rhs is ?A, no P1 key inside a
+# (label, problem function). Since discharge (E33) refuses a step whose
+# obligation is decided false, each case's goal emits only keys that hold:
+# five were changed for that when discharge was wired in, each keeping the
+# placement it tests (the second range [-1, 0], not [-3, 0]; a stated
+# y > 0 for x*y/y; the reversed literal range [2, 1], not [1, 0]; the
+# divisor y^2 + 1, not y, on the empty domain; tan 1, not tan(pi/2), in the
+# fact's inst, whose cos 1 # 0 is true and undecided).
+# Every P1 rhs is ?A, no P1 key inside a
 # non-literal Int body is x-dependent, P1's one fact hypothesis is closed,
 # every P1 orientation is closed (E5 gives it domain ()), no P1 goal nests
 # Ints, has a -oo limit, or holds a negative Pow or an RPow, and none holds
@@ -2024,10 +2293,10 @@ def placement_close(g, value, check, want):
 # placements or formers shows in P1's data.
 EMISSION_PLACEMENT = [
     ("one former at two position domains in one term gives two keys (E6, E26)",
-     placement_install("(Int[x=0..1] ln(x+2)) - (Int[x=-3..0] ln(x+2)) == ?A",
-                       {"x + 2 > 0 @ [0, 1]": ["former"], "x + 2 > 0 @ [-3, 0]": ["former"]})),
+     placement_install("(Int[x=0..1] ln(x+2)) - (Int[x=-1..0] ln(x+2)) == ?A",
+                       {"x + 2 > 0 @ [0, 1]": ["former"], "x + 2 > 0 @ [-1, 0]": ["former"]})),
     ("install charges both sides' formers when the rhs is not ?A (E6)",
-     placement_install("x == x*y/y", {"y # 0": ["former"]})),
+     placement_install("x == x*y/y @ y > 0", {"y # 0 @ y > 0": ["former"]})),
     ("a closed key uses no range, so no orientation (ARCHITECTURE.md §4)",
      placement_install("Int[x=0..pi] 1/sqrt 3 == ?A",
                        {"sqrt 3 # 0": ["former"], "3 >= 0": ["former"]})),
@@ -2047,7 +2316,7 @@ EMISSION_PLACEMENT = [
     ("NegInf is the lower end whichever limit it was written as (E4)",
      placement_install("Int[x=-1..-oo] 1/x == ?A", {"x # 0 @ (-oo, -1]": ["former"]})),
     ("literal ends are ordered into [min, max], with no orientation (E4)",
-     placement_install("Int[x=1..0] 1/x == ?A", {"x # 0 @ [0, 1]": ["former"]})),
+     placement_install("Int[x=2..1] 1/x == ?A", {"x # 0 @ [1, 2]": ["former"]})),
     ("each enclosing Int's orientation is owed, not only the innermost (E4, E6)",
      placement_install("Int[y=1..pi] (Int[x=1..y] 1/(x*y)) == ?A",
                        {"x*y # 0 @ y in [1, pi], x in [1, y]": ["former"],
@@ -2059,15 +2328,15 @@ EMISSION_PLACEMENT = [
     ("a goal hypothesis's former is charged at the hypotheses before it (E6, E26)",
      placement_install("x == ?A @ x > 0, ln x > 0", {"x > 0 @ x > 0": ["former"]})),
     ("the first hypothesis's former owes on the empty domain (E6)",
-     placement_install("x == ?A @ 1/y > 0", {"y # 0": ["former"]})),
+     placement_install("x == ?A @ 1/(y^2 + 1) > 0", {"y^2 + 1 # 0": ["former"]})),
     ("an interval hypothesis's ends are charged too (E6, E26)",
      placement_install("x == ?A @ y > 0, x in [0, sqrt y]", {"y >= 0 @ y > 0": ["former"]})),
     ("a fact's inst former lands on the using step's domain (E10, E26)",
      placement_fact_inst("atan(-x) == ?A @ x > 1", "atan_odd", {"u": "x + 0*ln x"},
                          "-atan(x)", {"x > 0 @ x > 1": ["former"]})),
     ("a fact's inst tan u owes cos u # 0 when the fact is used (E10, E26)",
-     placement_fact_inst("atan(-3) == ?A", "atan_odd", {"u": "3 + 0*tan(pi/2)"},
-                         "-atan(3)", {"cos(pi/2) # 0": ["former"], "2 # 0": ["former", "field_div"]})),
+     placement_fact_inst("atan(-3) == ?A", "atan_odd", {"u": "3 + 0*tan 1"},
+                         "-atan(3)", {"cos 1 # 0": ["former"]})),
     ("ftc charges a fact's inst former on the check's domain, not the goal's (E10, E26)",
      placement_fact_inst_ftc),
     ("close charges the value's formers at the goal's domain (E6, E26, §9)",
@@ -2682,6 +2951,19 @@ def occurrence_k_problems():
 
     st = install(X.OCCURRENCE_CASE["goal"], ("occurrence 1", "goal"))
     move, args = X.OCCURRENCE_CASE["one"]["move"]
+    if DISCHARGE_WIRED:
+        # The second Int's range [-1, 0] makes t >= 0 false (F3 at t = -1),
+        # so the rewrite is refused naming that range: the refusal shows
+        # occurrence 1 chose the second Int, as occurrence 0's accepted
+        # rewrite of [0, 1] (OCCURRENCE_CASE one) shows it chose the first.
+        before = st.obligations()
+        r = K.step(st, move, build_args(dict(args, occurrence=1), {}))
+        out += refusal_problems_of(r, {
+            "refusal": X.OBLIGATION_DECIDED_FALSE,
+            "message": X._point("t >= 0 @ [-1, 0]", "-1 >= 0", t="-1")})
+        if st.obligations() != before:
+            out.append("the refused step changed the state (E13)")
+        return out
     st2 = take(st, move, dict(args, occurrence=1), {}, ("occurrence 1", move))
     if st2.last.occurrences != 1:
         out.append(f"occurrences {st2.last.occurrences}, expected 1")
@@ -2875,6 +3157,26 @@ def s0_key(prop, dom):
     return T.parse_judgement(S0.judgement_string(prop, dom), S0.SIG)
 
 
+# (before the switch, after it): expected.py's names for each table
+_S0_TABLES = {
+    "OBLIGATIONS": ("EXPECTED_OBLIGATIONS", "DISCHARGE_OBLIGATIONS"),
+    "FINAL": ("FINAL_TRACKER", "DISCHARGE_FINAL_TRACKER"),
+    "ADMISSIONS": ("ADMISSIONS", "DISCHARGE_ADMISSIONS"),
+    "VERDICTS": ("VERDICTS", "DISCHARGE_VERDICTS")}
+
+
+def s0_table(name):
+    """Stage 0's table under DISCHARGE_SWITCH: expected.py's DISCHARGE_*
+    counterpart once discharge is wired (PF17)."""
+    return getattr(S0, _S0_TABLES[name][DISCHARGE_WIRED])
+
+
+def s0_certs(proof):
+    if not DISCHARGE_WIRED:
+        return None
+    return {s0_key(p, d): c for (p, d), (_, c) in S0.DISCHARGE_EXPECTED[proof].items()}
+
+
 def s0_file(proof):
     """(Problem, the loader's name for the proof) for an S0.PROOF_FILES row."""
     where = S0.PROOF_FILES[proof]
@@ -2884,7 +3186,7 @@ def s0_file(proof):
 
 def s0_sources(proof):
     out = {}
-    for obs in S0.EXPECTED_OBLIGATIONS[proof].values():
+    for obs in s0_table("OBLIGATIONS")[proof].values():
         for prop, dom, sources, *_ in obs:
             out.setdefault(s0_key(prop, dom), set()).update(sources)
     return out
@@ -2975,7 +3277,8 @@ def s0_run(proof):
 
 def _s0_run(run):
     proof, base = run.name, s0_base(run.name)
-    exp, steps = S0.EXPECTED_OBLIGATIONS[proof], S0.STEPS[proof]
+    exp, steps = s0_table("OBLIGATIONS")[proof], S0.STEPS[proof]
+    certs = s0_certs(proof)
     if S0.EXPECTED_REFUSALS:
         raise Mismatch(1, (proof, "EXPECTED_REFUSALS"),
                        "names refusals, which this check does not replay")
@@ -2999,7 +3302,7 @@ def _s0_run(run):
         run.miss(1, (proof, "goal", "installed"), f"got {show(st.goal)}, "
                  f"last.move {st.last.move!r}")
     compare_emitted(run.miss, proof, "goal", exp["goal"], st.last.emitted,
-                    frozenset(), keyf=s0_key)
+                    frozenset(), keyf=s0_key, certs=certs)
     seen = list(st.last.emitted)
     for s, (sid, st) in zip(steps, results[1:]):
         prev, where, last = run.state, (proof, sid), st.last
@@ -3019,11 +3322,12 @@ def _s0_run(run):
             for what, detail in deriv_problems(d["F"], last.trace, last.output, d):
                 run.miss(2, where + (what,), detail)
         compare_emitted(run.miss, proof, sid, exp[sid], last.emitted,
-                        keys_of(prev), keyf=s0_key)
+                        keys_of(prev), keyf=s0_key, certs=certs)
         seen += last.emitted
     obs = st.obligations()
-    for suffix, detail in tracker_problems(obs, S0.FINAL_TRACKER[proof],
-                                           s0_sources(proof), keyf=s0_key):
+    for suffix, detail in tracker_problems(obs, s0_table("FINAL")[proof],
+                                           s0_sources(proof), keyf=s0_key,
+                                           certs=certs):
         run.miss(2, ("FINAL_TRACKER", proof) + suffix, detail)
     nones = {T.show(o.key) for o in seen + list(obs)
              if o.status == K.ADMITTED and o.tag[0] == "none"}
@@ -3032,10 +3336,12 @@ def _s0_run(run):
     if st.goal is not None:
         raise Mismatch(1, (proof, "closed"), f"goal still open: {show(st.goal)}")
     run.n = sum(o.status == K.ADMITTED for o in obs)
-    if run.n != S0.ADMISSIONS[proof]:
-        run.miss(1, ("N", proof), f"{run.n} admissions, expected {S0.ADMISSIONS[proof]}")
-    if K.report(st) != S0.VERDICTS[proof]:
-        run.miss(1, ("VERDICT", proof), f"{K.report(st)!r}, expected {S0.VERDICTS[proof]!r}")
+    if run.n != s0_table("ADMISSIONS")[proof]:
+        run.miss(1, ("N", proof), f"{run.n} admissions, expected "
+                 f"{s0_table('ADMISSIONS')[proof]}")
+    if K.report(st) != s0_table("VERDICTS")[proof]:
+        run.miss(1, ("VERDICT", proof), f"{K.report(st)!r}, expected "
+                 f"{s0_table('VERDICTS')[proof]!r}")
     theorem = T.parse_goal(S0.THEOREMS[proof], S0.SIG)
     if st.theorem != theorem:
         run.miss(1, ("THEOREM", proof), f"got {show(st.theorem)}")
@@ -3254,7 +3560,18 @@ def s0_seam_child(name):
     return 0
 
 
+def s0_seam_switched(name, case):
+    """S0_SEAMS under DISCHARGE_SWITCH: every key either seam removes was
+    discharged, so N no longer moves (DISCHARGE_S0_SEAMS): the N locations
+    go, the list locations stay, and the admissions are expected.py's."""
+    if not DISCHARGE_WIRED:
+        return case
+    return dict(case, caught_by=[c for c in case["caught_by"] if c[0] != "N"],
+                admissions=S0.DISCHARGE_S0_SEAMS[name]["admissions"])
+
+
 def s0_seam_problems(name, case):
+    case = s0_seam_switched(name, case)
     data, out = spawn("--s0-seam", name)
     if data is None:
         return out
@@ -3297,8 +3614,8 @@ def s0_checks(suite):
             continue
         suite.record(7, f"{proof}: the goal is echoed as ECHO", by_item(run, 6))
         suite.record(7, f"{proof}: {len(S0.STEPS[proof])} steps accepted, closes with "
-                     f"?A := {S0.ANSWERS[proof]}, N = {S0.ADMISSIONS[proof]}, "
-                     f"'{S0.VERDICTS[proof]}'", by_item(run, 1))
+                     f"?A := {S0.ANSWERS[proof]}, N = {s0_table('ADMISSIONS')[proof]}, "
+                     f"'{s0_table('VERDICTS')[proof]}'", by_item(run, 1))
         suite.record(7, f"{proof}: every step's obligations (sources, status, tag, "
                      "new), deriv's trace, the final tracker, no tag none",
                      by_item(run, 2))
@@ -3321,11 +3638,10 @@ def s0_checks(suite):
 
 # ---------------------------------------------------------------- discharge (item D)
 #
-# DISCHARGE_SWITCH (1): discharge.py's trusted checkers, search.py's
-# untrusted search and refute.py's untrusted decided-false check, called
-# directly through test_discharge.py, one case per check. Nothing is wired
-# into kernel._emit yet, so items 1-7 still assert the pre-discharge tables;
-# commit (2) switches them.
+# discharge.py's trusted checkers, search.py's untrusted search and
+# refute.py's untrusted decided-false check, called directly through
+# test_discharge.py, one case per check, beside items 1-7, which assert
+# them through kernel._emit.
 
 def discharge_checks(suite):
     """Item D's rows."""
@@ -3371,19 +3687,10 @@ def discharge_property_problems():
 
 # DISCHARGE_NEW_PLANTED_BUGS, each patched into a child process through a
 # seam of discharge.py or search.py (ARCHITECTURE.md §7), as PLANTED_BUGS
-# are. Commit (1) can observe the DISCHARGE_MUST_REJECT and PROPERTY
-# locations; the N and status locations need discharge wired into
-# kernel._emit, and are commit (2)'s. search_scales_wrongly's data
-# locations are all commit (2)'s, so it gets locations of the suite's own:
-# the search's certificate for a DISCHARGE_EXPECTED key is refused.
-DISCHARGE_OBSERVABLE = ("DISCHARGE_MUST_REJECT", "PROPERTY")
-DISCHARGE_PLANT_EXTRA = {
-    "search_scales_wrongly": [
-        ("DISCHARGE_EXPECTED", "P1.1", "0 <= pi/2", "true"),
-        ("DISCHARGE_EXPECTED", "P1.1-fallback", "pi/2 >= 0", "true"),
-        ("stage0 DISCHARGE_EXPECTED", "S3", "1 <= e_const", "true"),
-        ("stage0 DISCHARGE_EXPECTED", "S3", "e_const > 0", "true")],
-}
+# are. The child runs every proof in PROOFS under the patch, as a planted
+# bug's child does, and the must-reject cases and, for a bug whose caught_by
+# names PROPERTY, the property test's families it names; every caught_by
+# location is required, and N where the data gives it.
 
 
 def discharge_seam_patch(name, mock):
@@ -3434,14 +3741,14 @@ def discharge_seam_patch(name, mock):
 
 def discharge_child(name):
     """Under one DISCHARGE_NEW_PLANTED_BUGS patch (name None: the control),
-    print {"mismatches": [...]}: each must-reject case accepted, each
-    DISCHARGE_EXPECTED key whose search certificate is refused, and, for a
-    bug whose caught_by names PROPERTY, each of those checkers the property
-    test finds unsound, running those families only. The property test's
-    own control is item D's unpatched run of every family. A crash exits
-    2."""
-    if TD is None:
-        print(DISCHARGE_ERROR, file=sys.stderr)
+    run every proof in PROOFS and print {"mismatches": [...], "admissions":
+    {proof: N}}: the proofs' mismatches in caught_by's shapes, each
+    must-reject case the checker accepts, and, for a bug whose caught_by
+    names PROPERTY, each of those checkers the property test finds unsound,
+    running those families only (item D's unpatched run of every family is
+    the property test's own control). A crash exits 2."""
+    if TD is None or K is None:
+        print(DISCHARGE_ERROR or KERNEL_ERROR, file=sys.stderr)
         return 2
     try:
         if name is None:
@@ -3451,15 +3758,20 @@ def discharge_child(name):
             ctx = discharge_seam_patch(name, mock)
             families = [c[1] for c in X.DISCHARGE_NEW_PLANTED_BUGS[name]["caught_by"]
                         if c[0] == "PROPERTY"]
+        found, admissions = [], {}
         with ctx:
-            found = TD.must_reject_accepted() + TD.search_rejected()
+            for p in X.PROOFS:
+                run = run_proof(p, strict=False, out=lambda line: None)
+                found += [list(where) for _, where, _ in run.found]
+                admissions[p] = run.n
+            found += TD.must_reject_accepted()
             if families:
                 results = TD.property_results(families=families)
                 found += [["PROPERTY", n] for n, st in results.items() if st.violations]
     except Exception:  # noqa: BLE001 -- a crash, not a catch
         traceback.print_exc()
         return 2
-    print(json.dumps({"mismatches": found}))
+    print(json.dumps({"mismatches": found, "admissions": admissions}))
     return 0
 
 
@@ -3474,25 +3786,37 @@ def discharge_plant_results():
     return {n: f.result() for n, f in futures.items()}
 
 
-def discharge_observable(bug):
-    caught = [tuplify(c) for c in bug["caught_by"]]
-    return ([c for c in caught if c[0] in DISCHARGE_OBSERVABLE],
-            [c for c in caught if c[0] not in DISCHARGE_OBSERVABLE])
-
-
 def discharge_planted_problems(name, result):
     data, out = result
     if data is None:
         return out
     found = data["mismatches"]
     if name is None:
-        return out + [f"unpatched child found {m}" for m in sorted(found, key=str)]
-    now, _ = discharge_observable(X.DISCHARGE_NEW_PLANTED_BUGS[name])
-    return out + [f"not caught at {c}" for c in now + DISCHARGE_PLANT_EXTRA.get(name, [])
-                  if c not in found]
+        out += [f"unpatched child found {m}" for m in sorted(found, key=str)]
+        if data["admissions"] != ADMISSIONS:
+            out.append(f"unpatched admissions {data['admissions']}")
+        return out
+    bug = X.DISCHARGE_NEW_PLANTED_BUGS[name]
+    out += [f"not caught at {c}" for c in map(tuplify, bug["caught_by"])
+            if c not in found]
+    if "admissions" in bug and closed_admissions(data) != bug["admissions"]:
+        out.append(f"admissions {data['admissions']}, expected {bug['admissions']}")
+    return out
 
 
 # ---------------------------------------------------------------- main
+
+def kernel_constant_problems():
+    pairs = [("HANDLES_IN_FORCE", "HANDLES_IN_FORCE"), ("VERDICT", "VERDICT"),
+             ("REASON_REG", "REASON_REG"), ("REASON_NONE", "REASON_NONE"),
+             ("REASON_REJECTED", "REASON_REJECTED"), ("REASON_EMPTY", "REASON_EMPTY"),
+             ("DECIDED_FALSE", "OBLIGATION_DECIDED_FALSE")]
+    out = [f"{k} is {getattr(K, k, None)!r}, expected {getattr(X, x)!r}"
+           for k, x in pairs if getattr(K, k, None) != getattr(X, x)]
+    if hasattr(K, "ADMISSION_REASON"):
+        out.append(f"ADMISSION_REASON {K.ADMISSION_REASON!r} is still defined")
+    return out
+
 
 def by_item(run, item):
     return [fmt(w, d) for i, w, d in run.found if i == item]
@@ -3510,11 +3834,9 @@ def main():
           "finished state is only ever produced by step(), and §15.3's realistic "
           "threat, a buggy tactic building a result object, is refused; §16.3's API "
           "boundary, not built here, will replace in-process states with ids")
-    suite.check(1, "the kernel imports, and its HANDLES_IN_FORCE, VERDICT and "
-                "ADMISSION_REASON are p1_expected's",
-                lambda: [f"{n} is {getattr(K, n)!r}" for n in
-                         ("HANDLES_IN_FORCE", "VERDICT", "ADMISSION_REASON")
-                         if getattr(K, n) != getattr(X, n)])
+    suite.check(1, "the kernel imports, its HANDLES_IN_FORCE, VERDICT, admission "
+                "reasons and decided-false code are p1_expected's, and 'discharge "
+                "not built' is retired", kernel_constant_problems)
     suite.check(1, "the §6.8 entries are pinned as NAMED_ENTRIES states them",
                 entries_problems)
 
@@ -3533,8 +3855,8 @@ def main():
         suite.record(6, f"{name}: the goal is echoed from the installed tree "
                      "before s1", by_item(run, 6))
         suite.record(1, f"{name}: {len(p['steps'])} steps accepted, closes with "
-                     f"?A := {X.ANSWERS[name]}, N = {X.ADMISSIONS[name]}, "
-                     f"'{X.VERDICTS[name]}'", by_item(run, 1))
+                     f"?A := {X.ANSWERS[name]}, N = {ADMISSIONS[name]}, "
+                     f"'{VERDICTS[name]}'", by_item(run, 1))
         suite.record(2, f"{name}: every step's obligations (sources, status, tag, "
                      "new), deriv's trace, the final tracker, no tag none",
                      by_item(run, 2))
@@ -3542,14 +3864,21 @@ def main():
                     lambda name=name: numeric_problems(name), needs_kernel=False)
 
     print("\nMatching, occurrences and deriv")
-    for m in X.MATCH_ACCEPTS:
+    for m in MATCH_ACCEPTS:
         suite.check(2, f"MATCH_ACCEPTS {m['id']}", lambda m=m: match_problems(m))
-    for c in X.DEFINEDNESS_CASES:
-        suite.check(2, f"DEFINEDNESS_CASES {c['id']}: {c['goal']} -> {c['report']!r}",
+    for c in DEFINEDNESS_CASES:
+        want = c["refusal"] + " at install" if "refusal" in c else repr(c["report"])
+        suite.check(2, f"DEFINEDNESS_CASES {c['id']}: {c['goal']} -> {want}",
                     lambda c=c: definedness_problems(c))
     for which in ("all", "one"):
-        suite.check(2, f"OCCURRENCE_CASE {which}: {X.OCCURRENCE_CASE[which]['occurrences']}"
-                    " occurrence(s)", lambda w=which: occurrence_problems(w))
+        c = OCCURRENCE_CASE[which]
+        want = (c["refusal"] if "refusal" in c else
+                f"{c['occurrences']} occurrence(s)")
+        suite.check(2, f"OCCURRENCE_CASE {which}: {want}",
+                    lambda w=which: occurrence_problems(w))
+    for c in UNDECIDED:
+        suite.check(2, f"DISCHARGE_UNDECIDED {c['id']}: admitted, tagged none",
+                    lambda c=c: undecided_problems(c))
     suite.check(2, "OCCURRENCE_CASE one with occurrence 1 rewrites the second Int",
                 occurrence_k_problems)
 
@@ -3682,31 +4011,27 @@ def main():
     print("\nProblem files: stage 0's S1-S3 through the loader (item 7)")
     s0_runs = s0_checks(suite) if K is not None else {}
 
-    print("\nDischarge, called directly (item D; DISCHARGE_SWITCH (1), nothing wired "
-          "into kernel._emit)")
+    print("\nDischarge's parts, called directly (item D)")
     discharge_checks(suite)
 
     print("\nPlanted bugs (each in a child process)")
     suite.check(3, "control: the child, unpatched, finds nothing", control_problems)
-    for name, bug in X.PLANTED_BUGS.items():
+    for name, bug in PLANTED_BUGS.items():
         suite.check(3, f"{name}: caught at {len(bug['caught_by'])} location(s)",
                     lambda n=name, b=bug: planted_problems(n, b))
     print("\nDefinedness mutations (E26; each in a child process)")
     results = mutation_results() if K is not None else {}
-    for name, m in X.DEFINEDNESS_MUTATIONS.items():
+    for name, m in DEFINEDNESS_MUTATIONS.items():
         suite.check(3, f"{name}: {m['mutation']}; caught at {len(m['caught_by'])} "
                     "location(s)", lambda n=name, m=m: mutation_problems(m, results[n]))
-    print("\nDischarge planted bugs (each in a child process; the N and status "
-          "locations are commit (2)'s)")
+    print("\nDischarge planted bugs (each in a child process)")
     dresults = discharge_plant_results() if TD is not None else {}
-    suite.check(3, "discharge control: the child, unpatched, finds nothing",
+    suite.check(3, "discharge control: the child, unpatched, finds nothing in the "
+                "proofs or the must-reject cases",
                 lambda: discharge_planted_problems(None, dresults[None]))
     for name, bug in X.DISCHARGE_NEW_PLANTED_BUGS.items():
-        now, later = discharge_observable(bug)
-        extra = len(DISCHARGE_PLANT_EXTRA.get(name, ()))
-        suite.check(3, f"{name}: {bug['mutation']}; caught at {len(now)} location(s)"
-                    + (f" and {extra} of the suite's" if extra else "")
-                    + (f", {len(later)} deferred to commit (2)" if later else ""),
+        suite.check(3, f"{name}: {bug['mutation']}; caught at "
+                    f"{len(bug['caught_by'])} location(s)",
                     lambda n=name: discharge_planted_problems(n, dresults[n]))
     suite.check(3, "the unmutated run is clean afterwards", clean_after_problems)
 

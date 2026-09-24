@@ -1,8 +1,8 @@
 """The admission tagger: which §5.3 method should close each admission.
 
-Untrusted (DESIGN.md §7; p1_expected E24). With discharge stubbed, every
-undischarged obligation is admitted, and this module names the method
-expected to close it, plus the §6.8 entries that method would cite. The
+Untrusted (DESIGN.md §7; p1_expected E24). An obligation discharge does
+not close is admitted (E32), and this module names the method expected to
+close it, plus the §6.8 entries that method would cite. The
 kernel records the tag and relies on it for nothing. A tag of
 ('none', ()) on an admission in an unmutated PROOFS run fails the milestone
 (WHAT.md), and that is how the π gap of revision 9 would have shown up.

@@ -1,9 +1,10 @@
-"""Discharge, commit (1) of DISCHARGE_SWITCH: the trusted checkers
-(discharge.py), the untrusted search (search.py) and the untrusted
-decided-false check (refute.py), called directly, against p1_expected's
-section 11 and problems/stage0/expected.py's. Nothing here goes through
-kernel.step: discharge is not wired into kernel._emit yet, and items 1-7 of
-proof_of_life.py still assert the pre-discharge tables.
+"""Discharge's parts called directly: the trusted checkers (discharge.py),
+the untrusted search (search.py) and the untrusted decided-false check
+(refute.py), against p1_expected's section 11 and
+problems/stage0/expected.py's. Nothing here goes through kernel.step;
+proof_of_life.py's items 1-7 assert discharge through it, wired into
+kernel._emit (DISCHARGE_SWITCH (2)), and this file tests the parts apart,
+where a must-reject certificate or a random key can be handed to them.
 
 Run: python3 -m unittest -v test_discharge (in kernel/), or python3
 test_discharge.py. proof_of_life.py also calls the `*_problems` functions
@@ -272,8 +273,8 @@ REJECT_REASONS = {
 
 def outcome(k):
     """DISCHARGE_RULE's order at emission, steps (3)-(7), for a key that is
-    neither a Reg nor ftc's premise: the test's reading of what commit (2)
-    wires into kernel._emit. ('discharged', tag, certificate), ('refused',
+    neither a Reg nor ftc's premise, read from the rule apart from
+    kernel._emit, which implements it. ('discharged', tag, certificate), ('refused',
     code, message) or ('admitted', tag, reason). Γ is the key's non-Interval
     items, as a goal's own domain would give them."""
     try:
@@ -362,20 +363,6 @@ def must_reject_accepted():
     checker accepts (none, unless a seam is patched)."""
     return [["DISCHARGE_MUST_REJECT", c["id"]] for c in X.DISCHARGE_MUST_REJECT
             if DC.check(key(*c["key"]), cert_of(c["cert"])) is not None]
-
-
-def search_rejected():
-    """The DISCHARGE_EXPECTED keys (P1 and stage 0) whose search certificate
-    the checker does not accept with the expected tag (none, unless a seam
-    is patched): where the planted bug search_scales_wrongly shows before
-    commit (2) wires discharge in."""
-    out = []
-    for where, k, tag, _ in expected_certificates():
-        if where[0].endswith("DISCHARGE_EXPECTED"):
-            mine = SR.propose(k)
-            if mine is None or show_tag(DC.check(k, mine)) != tag:
-                out.append(list(where))
-    return out
 
 
 # ---------------------------------------------------------------- decided false, undecided
