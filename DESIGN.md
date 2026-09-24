@@ -3820,11 +3820,24 @@ it is a script against the API that stays as the regression suite.
 **What is deliberately *not* in stage 1**, and each of these was in revision 1's:
 `auto` and `solve` (§2 — the decision is pedagogical); the bespoke integrator
 (§8.2); certified numerics (§10 — replaced in v1 by the floating-point
-speculative probe of §8.6); Fourier–Motzkin with its Farkas witnesses (replaced
-by hypothesis closure, by-range, sign certificates and simple interval
-propagation, which cover the obligations the target problems actually raise);
-the full §6.9 regularity table (only the C⁰/C¹ subset `ftc` needs); dimensions
+speculative probe of §8.6); the full §6.9 regularity table (only the C⁰/C¹ subset `ftc` needs); dimensions
 and `buckingham`; and the series and limit rules.
+
+**Fourier–Motzkin with its Farkas witnesses is back in stage 1** (owner's
+decision, 2026-09-24). Revisions up to 10 deferred it to stage 4, on the
+claim that hypothesis closure, by-range, sign certificates and simple
+interval propagation "cover the obligations the target problems actually
+raise". The proof-of-life refuted that claim. The `linear` method is what
+closes `0 ≤ pi/2` from `pi_pos`, `1 ≤ e_const` from `e_gt_one`, and
+`t ≥ 0` on [0, π/2] from the range and π's sign together. An FM
+implementation already exists, untrusted, in the tagger. So stage 1 builds
+§5.3 method 3 as written:
+- the untrusted FM searches and emits the Farkas combination;
+- a small trusted checker verifies it, after the constraint set's
+  satisfiability pre-check.
+
+That check is smaller and easier to audit than the interval propagation it
+replaces, which is no longer planned.
 
 ### Size
 
@@ -3881,7 +3894,7 @@ the spike, and property-tested against exact rational evaluation.)*
 |---|---|
 | **2. Certified numbers** | `enclose()` over MPFR, precision policy, interval extension and composition, `approx`, the certified probe and `quad_verified`, series and limit rules, dimensions and `buckingham`. Target: **unit 00 complete**, and readiness P1 including its five significant figures |
 | **3. The integrator, then `auto` and `solve`** | table, derivative patterns, substitution heuristics, parts with cycle detection, the rational tier reusing stage 1's factoriser; then the search layers §2 prepared for |
-| **4. Kernel completion** | Fourier–Motzkin with Farkas witnesses, the full §6.9 table, the ODE solver (§8.3) |
+| **4. Kernel completion** | the full §6.9 table, the ODE solver (§8.3) |
 | **V. Machine-checked rules** | *deferred and unbound from any prover* (§14) — the rule table stated and proved in a prover, provenance tags, the assumption whitelist. 80–110 lemmas, most of them `cited`. **(A) only**; a verified kernel is §18 Q19 and is not planned |
 
 Stage V is conditional spend, not planned spend, and the library install and
