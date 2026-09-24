@@ -5481,6 +5481,195 @@ DECISIONS = {
            "checks n != 0 on the literal), which is incompleteness, not "
            "unsoundness. Pinned by E58_ACCEPTS; for GRAMMAR.md and DESIGN.md "
            "§5.1 to state (the main session edits them)",
+    # regularity spec 2026-09-24 (section 17). Decisions marked 'main
+    # session, delegated by the owner 2026-09-24' were open questions the
+    # owner delegated; each takes the sound, minimal option.
+    "E59": "what e in C^k(D) means (§5.2, §6.4, §6.9; main session, "
+           "delegated by the owner 2026-09-24). k is 0 or 1; C^2 and up and "
+           "C^omega are not built (REG_CHECK_RULE rejects them). S is the "
+           "set of points, over all the judgement's free variables, where "
+           "every item of D holds. C^0(D): e is defined at every point of S "
+           "and continuous on S (relative topology). C^1(D): every point of "
+           "S has an open neighbourhood on which e is defined and "
+           "continuously differentiable, jointly in the free variables. No "
+           "variable is distinguished: joint regularity implies regularity "
+           "in the integration variable with the others fixed, which is "
+           "what ftc, int_subst and the Int and D formers use, and every "
+           "closure rule of REG_RULES proves joint regularity. Open and "
+           "closed intervals are the domain's own business: ftc's C^1 "
+           "premise sits on the open (a, b), so sqrt's C^1 side u > 0 is "
+           "only asked inside; its C^0 premises and int_subst's premises sit "
+           "on the closed range. On a closed range the neighbourhood reading "
+           "of C^1 is stronger than §6.4's one-sided C^1([a, b]) and "
+           "sufficient for it; its cost is completeness only (x := t*sqrt t "
+           "over [0, 1], which deriv's d_sqrt refuses first anyway, "
+           "REG_NOT_COVERED). Reason: the one reading under which every rule "
+           "is a textbook theorem with its side condition stated pointwise "
+           "on D, so each side is an ordinary §5.2 obligation at D",
+    "E60": "regularity is a discharge method for Reg keys (§5.3's list "
+           "extended, §6.9, §15.2 item 5; WHAT.md 'Start here'). The "
+           "untrusted search proposes a derivation by term structure "
+           "(REG_CERTIFICATE), the trusted checker in discharge.py checks "
+           "it rule by rule (REG_CHECK_RULE), and each side condition is an "
+           "ordinary obligation at D decided by discharge's own checkers, "
+           "never refuted. At emission a Reg now goes through "
+           "REG_DISCHARGE_ORDER in place of DISCHARGE_RULE's step (2): "
+           "certificate, then E63's decided-false, then admission with "
+           "REASON_NONE (tag none) or REASON_REJECTED (tag reg). "
+           "REASON_REG ('regularity not built') is retired. Status is still "
+           "decided once, at emission (E32): a Reg's verdict reads only the "
+           "key, ENTRIES and the natural-domain table. §6.9's rejection of "
+           "'a reflective procedure inside the trusted base' is respected: "
+           "the checker decides nothing, it checks one rule instance per "
+           "node against a table, which is exactly §14's 'rule table as "
+           "data, a rule's condition one datum'",
+    "E61": "the rules (REG_RULES), the C^0/C^1 subset ftc and int_subst "
+           "need (§6.9, WHAT.md). Structural: const (Num, pi, e_const), var "
+           "(any variable), neg, add, mul, div (side b # 0), pow (n >= 0), "
+           "pow_neg (n < 0, side a # 0), rpow (side a > 0, both children), "
+           "and one rule per builtin applied to one argument. The C^0 sides "
+           "of a builtin ARE its row of E26's natural-domain table "
+           "(kernel.NATURAL_DOMAINS today), read by the checker, never "
+           "transcribed (§6.9: 'the C^0 sets above are exactly the domains "
+           "§5.1's partial formers owe'; §14 item 2). The C^1 sides are the "
+           "same row with every >= made > and every <= made < (the "
+           "interior), plus REG_C1_EXTRA's one row, abs: u # 0. So sqrt is "
+           "C^0 on u >= 0 and C^1 on u > 0, ln on u > 0, tan on cos u # 0, "
+           "asin/acos C^0 on [-1, 1] and C^1 on (-1, 1), atanh on (-1, 1), "
+           "acosh C^0 on u >= 1 and C^1 on u > 1, abs C^0 everywhere and C^1 "
+           "where u # 0, and exp, sin, cos, atan, sinh, cosh, tanh, asinh "
+           "everywhere. No rule, so no derivation (REG_NOT_COVERED): a "
+           "declared symbol (§6.9's hypothesis form waits for §12.1), an Int "
+           "node (FTC-1 and Leibniz), a D node (C^2), an MVar",
+    "E62": "soundness, per rule (REG_SOUNDNESS; §14 (A)): each rule is a "
+           "standard theorem of real analysis, stated with its hypotheses "
+           "as the side conditions at D, in E59's reading. Continuity is "
+           "preserved by sums, products, quotients where the divisor is "
+           "nonzero and composition with a function continuous on a set "
+           "containing the inner values (relative topology); each builtin "
+           "is continuous on its natural domain. C^1 near a point is "
+           "preserved likewise, with the chain rule, because each strict "
+           "side condition holds at the point of S and so, by continuity, "
+           "on a neighbourhood; each builtin is C^1 (indeed analytic) on the "
+           "interior of its natural domain, except abs at 0",
+    "E63": "decided false for a Reg (§18 Q22 extended; untrusted, beside "
+           "F1-F3, E33): a Reg is refused 'obligation-decided-false' when "
+           "one of the C^0 sides of its derivation (REG_RULES at every node "
+           "that has a rule, not descending into one that has none), at its "
+           "domain, is decided false by F1, F2 or F3. The C^0 sides are "
+           "exactly the term's definedness conditions (every '/', negative "
+           "power, real power and partial builtin), and a term undefined at "
+           "a point of S is C^k on D for no k. The C^1-only sides (sqrt's "
+           "u > 0, abs's u # 0, the strict ends) never refute: sqrt x is "
+           "not C^1 at 0, but x*abs x is C^1 though its abs fails u # 0, "
+           "so failing a sufficient condition decides nothing. Message "
+           "DECIDED_FALSE_MESSAGES_REG['reg_undefined']. This is what "
+           "refuses the FTC-across-a-pole integrand by regularity as well "
+           "as by its former (REG_BAD_MOVES, REG_PLANTED_BUGS "
+           "former_div_dropped)",
+    "E64": "§18 Q23's formers (the owner's option A, settled; the shapes "
+           "decided by the main session, delegated by the owner "
+           "2026-09-24). An Int node is STATABLE when neither limit is oo "
+           "or -oo and neither holds an Int or D node. A statable "
+           "Int[x = a .. b] f owes Reg(f, 0, P + I): f in C^0 on its "
+           "closed range I, built by E56 from the order discharge proves, "
+           "at the node's position domain P. Continuity on a closed "
+           "bounded interval implies Riemann integrability, so this is the "
+           "sufficient, statable form of 'f integrable on [a, b]', and it "
+           "is exactly ftc's f premise, so a top-level integral's former "
+           "and ftc's ftc_f_C0 are one key. D[x] e owes Reg(e, 1, P) at its "
+           "position domain (D10: x is free in the node, and P is where it "
+           "is evaluated), which implies e differentiable at x at every "
+           "point of P. Source 'former'. They are charged wherever a term "
+           "enters (installation, a rewrite's R, a new goal, int_subst's "
+           "and int_flip's new integral, a fact's inst values), AFTER every "
+           "E6/E26 former of the entering term, in pre-order among "
+           "themselves, so no existing refusal changes its cause. An "
+           "unstatable Int owes nothing and stays what E26 (b) made it "
+           "(E65). A rewrite under an Int does not recharge the enclosing "
+           "Int: the rewrite proves old body == new body on the range, so "
+           "the new integrand is integrable where the old one was owed to "
+           "be (§6.1's congruence), and ftc emits its own f premise on the "
+           "new body anyway",
+    "E65": "improper integrals and `diverges` are deferred, not in this step "
+           "(main session, delegated by the owner 2026-09-24). An Int with "
+           "an infinite limit owes convergence, and convergence is not "
+           "C^0: 1/x is C^0 on [1, oo) and its integral diverges, so "
+           "stating it as a Reg would be unsound. conv and diverges are "
+           "§5.2 judgements the grammar defers (GRAMMAR.md D2), with their "
+           "own rules (§6.4's div_limit, div_compare, div_power, div_pole, "
+           "and int_improper) and no stage-1 target needs them; they come "
+           "with int_improper, whose target is readiness P5. Until then an "
+           "unstatable Int is refused exactly as now by ring, field and "
+           "norm_num (E26 (b)), E57 refuses erasing it, and ftc, int_subst "
+           "and int_flip refuse acting on it (E9, E36, SECOND_REVIEW_RULE). "
+           "Consequence, a DESIGN.md §18 Q23 conflict to fold in: Q23's "
+           "second case (I = Int_1^oo 1/x, I - I == 0) stops at the "
+           "blanket refusal, not yet at 'the owed 1/x integrable on "
+           "[1, oo), which is false'",
+    "E66": "how E26 (b) and E57 change (Q23: 'from then on ring and field "
+           "read each one as an ordinary atom'). (1) ring and field "
+           "(every entry point: rewrite's match, E25's divisor test, field's "
+           "divisor test and facts, the moves' checks, the exact values, the "
+           "certificate checkers) read a statable Int and every D node as an "
+           "opaque atom, identified by its tree exactly (no alpha "
+           "equivalence and no normalisation under the binder: incomplete, "
+           "never unsound). An unstatable Int is still refused "
+           "'Int-or-D-not-normalisable'. (2) UNCHANGED: E7's refusal of an "
+           "obligation holding any Int or D node, install's hypothesis gate, "
+           "and deriv's d_const guard (main session, delegated by the owner "
+           "2026-09-24). Reason: none of them is needed by a target; each "
+           "keeps Int and D atoms out of discharge's search and refutation, "
+           "whose point evaluation cannot read them (terms.subst refuses "
+           "under D); and an F holding one could never have its Reg "
+           "premises certified (E61), so deriv's refusal says so at once. "
+           "(3) E57's step 2a refuses only an unstatable Int in an inst "
+           "value or the target: a statable Int or a D node in the target "
+           "was owed where it entered, and R's are now charged at step 10 "
+           "(E64), so the principle 'no rule erases an Int or D node unless "
+           "its definedness is owed' holds by the owing. REWRITE_RULE step "
+           "9 (a) counts a Reg charged from R that mentions x as not open. "
+           "(4) SECOND_REVIEW_RULE unchanged. The pyth reproducers: "
+           "u := D[x](abs x) is now accepted and closes 'Proved modulo 1 "
+           "admissions', owing the false abs x in C^1(true), admitted none; "
+           "u := Int[x = 1 .. oo] 1 is still refused",
+    "E67": "int_parts is out of this step (main session, delegated by the "
+           "owner 2026-09-24): it is §6.4's rule 'around ftc', not one of "
+           "stage 1's four pieces, and it needs its own premises (u and v "
+           "in C^1 on the range) and its own spec; what Q23 needs of THIS "
+           "step is that the integral is an atom whose definedness is owed "
+           "and discharged, so the solve-for-I algebra is ring's. "
+           "REG_Q23_CASES shows it on I = Int[x = 0 .. pi] exp x * sin x: "
+           "2*I - I - I closes to 0, and ((exp pi + 1) - I + I)/2, the "
+           "goal an int_parts step would leave, closes to (exp pi + 1)/2, "
+           "each a plain 'Proved.' with I's integrability discharged",
+    "E68": "every statable Int's order is now decided when it enters, "
+           "because its own former uses its range (E56 unchanged; its "
+           "laziness no longer spares any statable Int). A goal whose Int "
+           "has an undecided symbolic order and a body that owes nothing, "
+           "which used to install, is now refused 'orientation-undecided' "
+           "at installation. E56_REVIEW_CASES lazy_unused_range_installs "
+           "now decides 0 <= (a - 1)^40; E56_TIMING_BOUND stays (main "
+           "session, delegated by the owner 2026-09-24), and the untrusted "
+           "search must fail the first attempt, (a - 1)^40 <= 0, within it. "
+           "The committed search takes 29.7 s on the equivalent "
+           "Int[x = (a-1)^40 .. 0] sqrt(x^2) (measured 2026-09-24), so the "
+           "build must make that failure cheap; any bound it puts on the "
+           "search can only cost admissions, never a discharge (E28), and "
+           "must leave every expectation in both data files unchanged",
+    "E69": "verdicts: with regularity every proof in PROOFS and every "
+           "problem-file proof reads 'Proved.' (REG_VERDICTS, problems "
+           "REG_VERDICTS), none with an admission, so the no-none assertion "
+           "over PROOFS runs is kept. N catches of planted bugs that relied "
+           "on an admitted Reg key (tracker_drops_one) now rely on the "
+           "tracker comparison alone; FORGERIES' two admission-bearing "
+           "cases move to a finished state that still has one "
+           "(REG_FORGERY_STATE)",
+    "E70": "staging (REG_SWITCH, the discharge precedent E34): two commits, "
+           "the checker and search with item D first, then the wiring, the "
+           "formers and the atoms with every asserted table switched by one "
+           "constant in proof_of_life.py. Nothing in section 17 is asserted "
+           "until then",
 }
 
 DESIGN_DEFECTS = [
@@ -5789,6 +5978,44 @@ DESIGN_DEFECTS = [
     "== -(Int[x = b .. a] f); the kernel's form is Int[x = b .. a] -(f), "
     "so that ftc, which acts on a top-level integral, can run after it. "
     "§6.4 should state the move in that form, or give ftc a position.",
+    # regularity spec 2026-09-24
+    "§5.2 and §6.9 declare e in C^k(D) without saying what it means on a "
+    "domain with several variables or with closed ends. E59 fixes it: C^0 "
+    "is continuity on the domain's point set (relative topology), C^1 is "
+    "C^1 on an open neighbourhood of every point, both jointly in the free "
+    "variables. §6.4's int_subst premise phi in C^1([a, b]) is one-sided "
+    "in the textbook; the neighbourhood reading is stronger and "
+    "sufficient.",
+    "§6.4 says the x := t*sqrt t completeness limit 'goes away only with "
+    "§6.9's regularity rules, which can state C^1 without differentiating "
+    "through the root'. The C^0/C^1 subset built here does not: sqrt's C^1 "
+    "side t > 0 fails at 0 in any reading of the rule, and a one-sided "
+    "rule, or a real power t^(3/2) (which D17 refuses as a literal "
+    "exponent), would be needed. int_subst's deriv refuses the step "
+    "first in any case (REG_NOT_COVERED).",
+    "§18 Q23's second deciding case (I = Int_1^oo 1/x, I - I == 0 'stops "
+    "at the owed 1/x integrable on [1, oo), which is false') is not what "
+    "this step does: convergence is not C^0 (1/x is C^0 on [1, oo)), so "
+    "an improper integral's former cannot be a Reg, and conv/diverges are "
+    "deferred (E65). The blanket refusal stands for improper integrals.",
+    "§5.1 ('Int and D[x] subterms have no statable definedness condition "
+    "until §6.9's regularity and §5.2's diverges are built'), §6.1's E57 "
+    "paragraph ('means never') and §6.2 ('all three refuse a side "
+    "containing Int or D[x]') are superseded for statable integrals and "
+    "for D nodes by E64-E66; they stand for improper integrals and for "
+    "integrals with a tree in a limit. E7's refusal and install's "
+    "hypothesis gate are kept (E66 (2)), which §5.1 should say.",
+    "§6.9 rejects 'a reflective procedure inside the trusted base'. The "
+    "regularity checker is trusted code (§15.2 item 5 should list it with "
+    "the other certificate checkers), but it is not reflective: it decides "
+    "nothing, and checks one REG_RULES instance per node, with each side "
+    "condition an ordinary checked obligation. §15.2 item 2 gains "
+    "REG_C1_EXTRA (abs's u # 0) as the one datum regularity adds; the C^0 "
+    "sides are §5.1's former table itself.",
+    "§5.4's admission reasons lose 'regularity not built' (E60); §11.1's "
+    "'Proved. 0 admissions', never reachable as written (§6.9's own "
+    "admission), is now what the kernel reports for P1.1 from the sheet, "
+    "and §11.2's P1.2 likewise.",
 ]
 
 # What was checked at build time, in scratch, with SymPy 1.14 and mpmath.
@@ -6084,6 +6311,29 @@ VERIFIED = (
     "sin^2 + cos^2 = 1 for real z; |x|' has no value at 0 (one-sided "
     "limits -1 and 1); Int_1^oo 1 diverges. terms.py: every new string "
     "parses and round-trips. Both files import; the suite passes",
+    # regularity spec 2026-09-24
+    "regularity spec 2026-09-24, in scratch (/tmp/claude-1000/reg/): an "
+    "independent reading of REG_CHECK_RULE (regcheck.py), with each side "
+    "handed to the committed discharge.check, accepts every certificate in "
+    "REG_EXPECTED (both files), REG_CASE_CERTS, REG_CHECKER_ACCEPTS and the "
+    "cases' certificates with exactly the tag given, and rejects every "
+    "REG_MUST_REJECT certificate for exactly its rejects_because; for every "
+    "REG_CASE_ADMITTED key it finds no derivation. The committed refuter "
+    "(refute.refute) decides every E63 side condition false at exactly the "
+    "point and reading given. SymPy 1.14 (symverify.py): every certified "
+    "one-variable claim (144) is true in E59's reading (C^0: the domain "
+    "inside continuous_domain; C^1: inside the interior of the continuous "
+    "domains of e and e'); tan x on cos x > 0, x in [0, 1] checked with the "
+    "interval restricted first (a SymPy set artifact otherwise); the "
+    "multi-variable and constant ones by hand (atan(-ln(x + y)) with x + y "
+    "> 0; x^y = exp(y ln x) with x >= 1; x*y; the constants of "
+    "E56_REVIEW_CASES; sqrt 3); every must-reject truth as stated; "
+    "Int_0^pi e^x sin x = (e^pi + 1)/2; Int_1^oo 1/x and Int_-1^1 1/x^2 "
+    "diverge; Int_0^1 1/(2 sqrt x) = 1 (improper); the fallback's F is "
+    "(2/3) x^(3/2) near 0+, C^1 one-sided but undefined left of 0. "
+    "terms.py (parsecheck.py): all 876 new strings parse and round-trip. "
+    "The committed kernel: installing Int[x = (a-1)^40 .. 0] sqrt(x^2) "
+    "takes 29.7 s (E68). Both files import; the suite is unchanged",
 )
 
 # Changes to this file made after it was frozen. The first was adjudicated
@@ -7168,6 +7418,70 @@ DATA_CHANGES = (
      "hi 'Int[y = 1 .. oo] 1' -> '1'; the 'was' note corrected",
      "the second-review build: the old hi holds oo, which INT_SUBST_RULE step 1 refuses bad-args before step 3 reaches the new trees-in-limits test, and on 45132e5 the move was already bad-args, not orientation-undecided. With hi := 1 the selected Int's own upper limit trips the test after step 3. Checked by the main session against INT_SUBST_RULE step 1",
      'adjudicated during implementation'),
+    # regularity spec 2026-09-24: written before any code, staged
+    # (REG_SWITCH); the old -> new of every changed expectation is in
+    # REG_CASE_CHANGES, REG_BAD_MOVES_CHANGED, REG_E57_CHANGES,
+    # REG_SUITE_CHANGES, REG_FORGERY_CHANGES and REG_BUG_RETRACE
+    ("DECISIONS E59-E70 (new)",
+     "regularity's meaning (E59), regularity as a checked discharge method "
+     "(E60), the C^0/C^1 rule table with the natural-domain table as its "
+     "C^0 sides (E61), soundness per rule (E62), decided false through a "
+     "definedness side (E63), §18 Q23's Int and D formers (E64), improper "
+     "integrals and diverges deferred (E65), how E26 (b) and E57 change "
+     "(E66), int_parts out (E67), every statable Int's order decided at "
+     "entry (E68), verdicts (E69), staging (E70); the delegated ones marked "
+     "'main session, delegated by the owner 2026-09-24'",
+     "WHAT.md 'Start here: regularity, the last piece of stage 1', and the "
+     "owner's settlement of §18 Q23",
+     "regularity spec 2026-09-24"),
+    ("section 17 (new): REG_RULES, REG_C1_EXTRA, REG_SIDES_LISTED, "
+     "REG_CERTIFICATE, REG_CHECK_RULE, REG_REASONS, REG_SOUNDNESS, "
+     "REG_DISCHARGE_ORDER, REG_TAG_RULE, REG_SEARCH_RULE, FORMER_RULE, "
+     "DECIDED_FALSE_MESSAGES_REG, REG_NOT_COVERED, REG_EXPECTED, "
+     "REG_STEP_ADDS, REG_NOT_NEW, REG_OBLIGATIONS, REG_FINAL_TRACKER, "
+     "REG_ADMISSIONS, REG_VERDICTS, REG_Q23_CASES, REG_Q23_REFUSALS, "
+     "REG_E57_CHANGES, REG_E57_ACCEPTS, REG_MUST_REJECT, "
+     "REG_CHECKER_ACCEPTS, REG_BAD_MOVES, REG_DECIDED_FALSE, REG_UNDECIDED, "
+     "REG_INSTALL_CASES, REG_CASE_CERTS, REG_CASE_ADMITTED, "
+     "REG_CASE_CHANGES, REG_BAD_MOVES_CHANGED, REG_SUITE_CHANGES, "
+     "REG_BAD_MOVES_ADDED, REG_FORGERY_STATE, REG_FORGERY_CHANGES, "
+     "REG_PLANTED_BUGS, REG_BUG_RETRACE, REG_PROPERTY_TEST, REG_SWITCH, "
+     "REG_TEXT_CHANGES",
+     "every PROOFS proof 'Proved.' with each Reg key's certificate; the "
+     "Int formers each proof gains; the atom algebra of Q23 on "
+     "Int_0^pi e^x sin x; the pyth reproducers (the D one now owing its "
+     "false condition, the divergent one still refused); 22 must-reject "
+     "certificates and 17 must-accept neighbours; the FTC-across-a-pole "
+     "trap refused by its former and by regularity; 24 planted bugs; every "
+     "changed expectation with its old and new value",
+     "the task's items 1-6",
+     "regularity spec 2026-09-24"),
+    ("expected values that change at the switch (not edited in place; "
+     "each table named keeps its current value until REG_SWITCH's second "
+     "commit)",
+     "every Reg row admitted ('reg', ()) 'regularity not built' -> "
+     "DISCHARGED ('reg', cites); every PROOFS N 3 or 5 -> 0 and every "
+     "verdict -> 'Proved.'; each case's installation list gains its Int "
+     "and D formers; BAD_MOVES close_D_goal_scope_passes -> "
+     "close-check-failed, divisor_test_refuses_D -> "
+     "divisor-normalises-to-zero, ring_refuses_D, field_refuses_D, "
+     "match_refuses_D and ftc_check_refuses_D -> accepted (owing their "
+     "false D conditions, admitted none), rewrite_under_D_through_Int_R_"
+     "former and its ln twin -> orientation-undecided at installation; "
+     "E57_BAD_MOVES pyth_erases_D -> accepted, 'Proved modulo 1 "
+     "admissions'; E56_REVIEW_CASES int_subst_enclosing_range_undecided "
+     "refused at installation, lazy_unused_range_installs deciding its "
+     "order; the suite's rewrite_inst_shadows -> shadowing; FORGERIES' two "
+     "admission cases on REG_FORGERY_STATE; DEFINEDNESS_MUTATIONS "
+     "ring_reads_D_as_atom and field_reads_D_as_atom retired",
+     "E64-E69: each traced by hand from the stated rules, listed with its "
+     "old value where it is recorded",
+     "regularity spec 2026-09-24"),
+    ("DESIGN_DEFECTS (six appended), VERIFIED (one appended)",
+     "what DESIGN.md must fold in for regularity, and the record of the "
+     "checks",
+     "the places this file records what DESIGN.md must change",
+     "regularity spec 2026-09-24"),
 )
 
 
@@ -11746,3 +12060,2088 @@ SECOND_REVIEW_SWITCH = (
     "45132e5). GRAMMAR.md and DESIGN.md §5.1 are the main session's to "
     "edit for E58.",
 )
+
+
+# ---------------------------------------------------------------------------
+# 17. Regularity, specified before any code (regularity spec 2026-09-24)
+#
+# WHAT.md "Start here: regularity, the last piece of stage 1". DECISIONS
+# E59-E70 give the design in brief with § references; the tables below
+# state it in full, one paragraph per point, as DISCHARGE_RULE and
+# INT_SUBST_RULE do. Written from DESIGN.md revision 10 (§5.1, §5.2, §5.3,
+# §5.4, §6.1, §6.4, §6.9, §14, §15.2, §18 Q22-Q23), ARCHITECTURE.md,
+# GRAMMAR.md and the data files, without reading kernel.py, discharge.py,
+# search.py or refute.py. Every string was parsed with terms.py's parser,
+# every certificate's side conditions re-checked against the committed
+# checker, and every regularity claim, certified or rejected, checked with
+# SymPy in a scratch directory (VERIFIED, last entry). Staged: nothing here
+# is asserted until the build (REG_SWITCH, E70).
+
+# Reasons after the switch: REASON_REG is retired (E60). An admitted Reg
+# carries REASON_NONE (no derivation, tag ('none', ())) or REASON_REJECTED
+# (the search proposed a certificate the checker refused, tag ('reg', ())),
+# which no unmutated run produces.
+REG_REASONS_AFTER = (REASON_NONE, REASON_REJECTED)
+# A discharged Reg's tag is ('reg', cites): the cites of its side
+# certificates in pre-order first use (REG_CHECK_RULE, Tag).
+T_REG_OK = ("reg", ())
+T_REG_SQRT_POS = ("reg", ("sqrt_pos",))
+T_REG_SQRT_NONNEG = ("reg", ("sqrt_nonneg",))
+T_REG_COS = ("reg", ("cos_le_one", "cos_ge_neg_one"))
+DISCHARGE_METHODS_REG = {
+    "reg": "§6.9's closure rules as a checked derivation by term structure, "
+           "each side condition a §5.3 certificate (E60, REG_CHECK_RULE)",
+}
+
+# E61. The rule table, as data: rule name -> (the term node it applies to,
+# the children it consumes in GRAMMAR.md §7's field order, its C^0 sides,
+# its C^1 sides). 'NATURAL_DOMAINS' means the builtin's row of E26's table,
+# read at check time from the one table the formers also read; 'interior'
+# means that row with >= made > and <= made < (REG_C1_EXTRA added).
+REG_RULES = {
+    "const":   ("Num, or Const pi or e_const", (), (), ()),
+    "var":     ("Var, any variable", (), (), ()),
+    "neg":     ("Neg(a)", ("a",), (), ()),
+    "add":     ("Add(a, b)", ("a", "b"), (), ()),
+    "mul":     ("Mul(a, b)", ("a", "b"), (), ()),
+    "div":     ("Div(a, b)", ("a", "b"), ("b # 0",), ("b # 0",)),
+    "pow":     ("Pow(a, n), n >= 0 (n = 0 included: E58's u^0 is 1, but "
+                "the base is still owed, conservatively)", ("a",), (), ()),
+    "pow_neg": ("Pow(a, n), n < 0", ("a",), ("a # 0",), ("a # 0",)),
+    "rpow":    ("RPow(a, w)", ("a", "w"), ("a > 0",), ("a > 0",)),
+    # one rule per builtin, named by the builtin; its child is the argument u
+    "app":     ("App(f, u), f one of the sixteen builtins; the rule's name "
+                "is f", ("u",), "NATURAL_DOMAINS[f](u), nothing for a total "
+                "builtin", "interior(NATURAL_DOMAINS[f](u)) + "
+                "REG_C1_EXTRA[f](u)"),
+}
+REG_BUILTINS_TOTAL = ("sin", "cos", "atan", "exp", "abs", "sinh", "cosh",
+                      "tanh", "asinh")
+REG_C1_EXTRA = {"abs": "u # 0"}   # the one datum regularity adds to E26's
+# The resulting sides, spelled out once for review (not a second table the
+# kernel reads: the checker derives them from NATURAL_DOMAINS and
+# REG_C1_EXTRA, and the suite compares this listing against that derivation).
+REG_SIDES_LISTED = {
+    "ln":    (("u > 0",), ("u > 0",)),
+    "sqrt":  (("u >= 0",), ("u > 0",)),
+    "tan":   (("cos u # 0",), ("cos u # 0",)),
+    "asin":  (("u >= -1", "u <= 1"), ("u > -1", "u < 1")),
+    "acos":  (("u >= -1", "u <= 1"), ("u > -1", "u < 1")),
+    "acosh": (("u >= 1",), ("u > 1",)),
+    "atanh": (("u > -1", "u < 1"), ("u > -1", "u < 1")),
+    "abs":   ((), ("u # 0",)),
+    **{f: ((), ()) for f in ("sin", "cos", "atan", "exp", "sinh", "cosh",
+                             "tanh", "asinh")},
+}
+
+# The certificate the untrusted search proposes and the checker checks.
+REG_CERTIFICATE = (
+    "{'method': 'reg', 'tree': NODE}, where NODE is {'rule': name, "
+    "'args': (NODE, ...), 'side': ((prop, cert), ...)}: plain data, like "
+    "every certificate (DISCHARGE_RULE, the trust split). 'rule' is a "
+    "REG_RULES name or a builtin's name; 'args' has one node per child the "
+    "rule consumes, in order; 'side' has one pair per side condition the "
+    "rule gives at the key's class, in the table's order, prop being the "
+    "side's proposition (a GRAMMAR.md string in this file, a Judgement "
+    "with empty domain for the checker) and cert its §5.3 certificate "
+    "(hyp, farkas, sign, sign product, cite, or the norm_num leaf). The "
+    "tree mirrors the term: the checker walks the key's term and the "
+    "certificate together, so the certificate never names a subterm.",
+)
+
+# E60. What the trusted checker checks, in order; the first rule broken
+# names the rejection (REG_REASONS).
+REG_CHECK_RULE = (
+    "Key. The key is Reg(e, k, D). k must be 0 or 1, else 'class-not-built' "
+    "(C^2 and up and C^omega are §6.9's, not this step's). The certificate "
+    "must be a dict with exactly the keys method ('reg') and tree, and "
+    "every node a dict with exactly rule, args and side, args a tuple of "
+    "nodes and side a tuple of pairs, else 'malformed' (a field the "
+    "checker does not know rejects, as in DISCHARGE_RULE).",
+
+    "Rule. At each node, with t the term at that position (e at the root): "
+    "the rule the term's head determines is const for Num and Const, var "
+    "for Var, neg, add, mul, div for their nodes, pow for Pow with n >= 0, "
+    "pow_neg for Pow with n < 0, rpow for RPow, and the builtin's name for "
+    "App; there is none for Integral, Deriv, Call and MVar, which rejects "
+    "'no-rule'. The node's 'rule' must be that name, else 'wrong-rule'. "
+    "The checker dispatches on the TERM, never on the certificate's name: "
+    "the name is checked so that a certificate is a readable derivation "
+    "and §14's provenance count ('n rule applications over m rules') can "
+    "be read off it.",
+
+    "Children. 'args' must have exactly the rule's number of children, "
+    "else 'arity', and each is checked, recursively, against the "
+    "corresponding child of t (Neg: a; Add, Mul, Div: a then b; Pow: the "
+    "base; RPow: the base then the exponent; App: the argument).",
+
+    "Sides. The checker REBUILDS the node's side propositions from t and k "
+    "(REG_RULES; a builtin's from the natural-domain table and "
+    "REG_C1_EXTRA, never from the certificate). 'side' must have exactly "
+    "that many pairs, else 'side-count', and each pair's prop must equal "
+    "the rebuilt one as a tree, else 'wrong-side'. Each side is then keyed "
+    "terms.with_domain(prop, D), so E5 applies (a closed side such as "
+    "sqrt 3 # 0 has domain true), and decided by discharge's own "
+    "dispatcher on its cert, exact values first, exactly as DISCHARGE_RULE "
+    "decides a child: accepted, or 'child-rejected/<that checker's "
+    "reason>'. Sides are never refuted, never tracker entries, and a side "
+    "is always keyed at the Reg's whole domain D, so a certificate can "
+    "never supply a domain.",
+
+    "Tag. ('reg', cites): the union of the side certificates' cites (their "
+    "tags' second components), in the order a pre-order walk first meets "
+    "them, a node's own sides before its children's. The exact-value "
+    "entries a side used are among its cites, as for any child.",
+
+    "Refusals and depth. A terms.Refused met inside the check (a side's "
+    "ring meeting an unstatable Int, say) is a rejection, and a "
+    "RecursionError is 'too-deep', as for the other checkers (E30); the "
+    "walk is structural recursion on a finite certificate, so it "
+    "terminates.",
+
+    "What it does not check, deliberately. It does not check that the "
+    "derivation is the only one (there is one per term), that a side is "
+    "necessary (sufficient is sound), or anything about the variables: "
+    "every rule is side-free at a variable, so no rule depends on which "
+    "variable is being integrated (E59).",
+)
+REG_REASONS = ("class-not-built", "malformed", "no-rule", "wrong-rule",
+               "arity", "side-count", "wrong-side", "child-rejected",
+               "too-deep")
+
+# E62. Why each rule is sound, in E59's reading, with the standard theorem
+# §14 (A) would cite. Every rule has the same shape: if the children are
+# C^k on D and the sides hold on D, then the node is C^k on D.
+REG_SOUNDNESS = {
+    "const": "a constant is C^infinity everywhere",
+    "var": "a coordinate function is C^infinity everywhere",
+    "neg": "C^0: -1 times a continuous function; C^1: (-u)' = -u'",
+    "add": "sums of continuous (C^1) functions are continuous (C^1), on "
+           "the common set (neighbourhoods intersected)",
+    "mul": "products likewise; C^1 by the product rule, (uv)' = u'v + uv' "
+           "continuous",
+    "div": "C^0: u/v is continuous wherever v # 0 and u, v are; C^1: v # 0 "
+           "at p and v continuous give v # 0 on a neighbourhood, and "
+           "(u/v)' = (u'v - uv')/v^2 is continuous there",
+    "pow": "u^n = u*...*u (n factors, u^0 = 1), mul's argument n times",
+    "pow_neg": "u^n = 1/u^|n| with u # 0, div's argument",
+    "rpow": "u^w = exp(w*ln u) with u > 0 (§5.1's reading of e ^ e): exp, "
+            "mul and ln's theorems, u > 0 being ln's side",
+    "app": "composition f(u): C^0, f is continuous on its natural domain A "
+           "(relative topology) and the sides put u(S) inside A, so f o u "
+           "is continuous on S; C^1, f is C^1 (analytic) on the open "
+           "interior O of A, except abs, which is C^1 on u # 0, and the "
+           "strict sides put u(p) in O, hence u(N) in O for a neighbourhood "
+           "N of p, so f o u is C^1 on N by the chain rule. The natural "
+           "domains are E26's: ln (0, oo), sqrt [0, oo), tan cos u # 0, "
+           "asin and acos [-1, 1], acosh [1, oo), atanh (-1, 1), the rest R",
+}
+
+# E60. At emission, a Reg key (never ftc's derivative premise, which stays
+# DISCHARGE_RULE step (1)) goes through these steps in place of step (2).
+REG_DISCHARGE_ORDER = (
+    "(2r-a) A Reg skips DISCHARGE_RULE's steps (3) and (4): E7 never sees "
+    "a Reg, as now (so its term may hold an Int or D node, which "
+    "REG_CHECK_RULE then rejects 'no-rule'), and the exact values apply "
+    "inside its sides, not to the Reg itself.",
+    "(2r-b) Certify: the untrusted search proposes one reg certificate "
+    "(REG_SEARCH_RULE) and the trusted checker decides it: accepted gives "
+    "DISCHARGED with ('reg', cites) and the certificate.",
+    "(2r-c) Refute (E63): otherwise, the untrusted refuter walks the C^0 "
+    "sides of the term's derivation (REG_RULES at every node that has a "
+    "rule, pre-order, not descending into a node without one), each keyed "
+    "at the Reg's domain, and the first that F1, F2 or F3 decides false "
+    "refuses the step 'obligation-decided-false' with "
+    "DECIDED_FALSE_MESSAGES_REG['reg_undefined'].",
+    "(2r-d) Otherwise ADMITTED, with REG_TAG_RULE's tag and REASON_NONE "
+    "when that tag is ('none', ()), else REASON_REJECTED.",
+)
+
+# E24's reg row, replaced at the switch (TAG_RULES' second paragraph).
+REG_TAG_RULE = (
+    "reg. A regularity judgement e in C^k(D) is tagged ('reg', cites) when "
+    "its derivation exists (every node of e has a rule, REG_CHECK_RULE) "
+    "and every side condition of it, keyed at D, is not tagged none by "
+    "this same list (the side's tag, recursively, as sub-obligations are); "
+    "cites are the sides' cites in pre-order first use. Otherwise "
+    "('none', ()). No other method sees a regularity judgement, and reg "
+    "sees nothing else.",
+)
+
+# The untrusted search's rule. It is untrusted: whatever it builds, only
+# the checker's acceptance discharges (E28).
+REG_SEARCH_RULE = (
+    "The search walks e as the checker will, builds each node's rule name "
+    "from the term's head and each node's side propositions from the same "
+    "tables the checker reads (untrusted code reading trusted data, as the "
+    "tagger reads ENTRIES), and asks search.propose for each side's "
+    "certificate at D. If some node has no rule, or some side has no "
+    "certificate, it proposes nothing. It never proposes a certificate for "
+    "a key with no derivation, and it does not try alternatives: there is "
+    "one derivation per term.",
+)
+
+# E64-E66, the formers of §18 Q23 and what changes in E26 (b) and E57.
+FORMER_RULE = (
+    "Statable. An Integral node is statable when neither limit is PosInf or "
+    "NegInf and neither limit holds an Integral or Deriv node "
+    "(terms.trees). A Deriv node is always statable.",
+
+    "The Int former. A statable Int[x = a .. b] f at position domain P owes "
+    "Reg(f, 0, P + I), I its range as E56 builds it (two rational literals "
+    "ordered by norm_num; otherwise the order discharge proves, emitted as "
+    "the orientation key, source orient; neither refuses "
+    "'orientation-undecided'). Source 'former'. For a top-level integral "
+    "with no goal domain this is the key ftc later emits as ftc_f_C0 on "
+    "the same range, so the two merge (E8).",
+
+    "The D former. D[x] e at position domain P owes Reg(e, 1, P). Source "
+    "'former'. P constrains x where the goal or an enclosing range does, "
+    "and is 'true' when nothing does: D[x] x^2 == ?A owes x^2 in "
+    "C^1(true).",
+
+    "When. Wherever a term enters the proof and its E6 and E26 formers are "
+    "charged (installation's two sides; ftc's new goal; a rewrite's R at "
+    "each occurrence; close's value; int_subst's step 14 on the new "
+    "integral, its limits and its body; int_flip's new integral; a used "
+    "fact's inst values), its Int and D formers are charged too: after "
+    "every E6 and E26 former of that term, at the same position domains, "
+    "in pre-order among themselves (an outer node before the nodes in its "
+    "body). The order is what keeps every existing refusal: a false "
+    "E6/E26 former refuses first, as before. An unstatable Int owes "
+    "nothing, as E26 (b) had it.",
+
+    "Not recharged. A step that changes an Int's or a D's body without "
+    "creating the node (a rewrite at an occurrence inside it, int_subst "
+    "replacing an Int nested in a D's body) does not charge the enclosing "
+    "node again: the step proves the old body equal to the new one where "
+    "the old one's formers were owed, so the new node denotes where the "
+    "old one was owed to (§6.1's congruence).",
+
+    "ring and field (E66 (1)). A statable Int and every Deriv node are "
+    "opaque atoms, keyed by the node's tree exactly. An unstatable Int is "
+    "refused 'Int-or-D-not-normalisable', everywhere ring_nf runs, as "
+    "now. The residual renderer prints such an atom as the node itself.",
+
+    "Unchanged (E66 (2)). E7 refuses an obligation holding any Integral or "
+    "Deriv node in its proposition or its domain; install's hypothesis "
+    "gate refuses a goal hypothesis holding one; deriv's d_const guard "
+    "refuses an x-free subterm holding one; SECOND_REVIEW_RULE refuses a "
+    "limit holding one. So discharge's checkers, search and refuter never "
+    "meet a tree atom through a key, and a Reg's side holding one belongs "
+    "to a term with no derivation.",
+
+    "E57 (E66 (3)). REWRITE_RULE step 2a refuses 'Int-or-D-not-normalisable' "
+    "when an inst value or the target holds an UNSTATABLE Int; a statable "
+    "Int or a D node passes, and its former is charged with R's at step 10 "
+    "when R carries it. Step 9 (a): a Reg that step 10 charges from R and "
+    "whose proposition or domain mentions x is not open in x.",
+)
+
+# E63's message. {key} is terms.show of the Reg, {cond} of the side's key
+# (proposition @ domain, or the bare proposition when closed), and {inner}
+# the side's own decided-false message, DECIDED_FALSE_MESSAGES' template
+# filled as for any key.
+DECIDED_FALSE_MESSAGES_REG = {
+    "reg_undefined": "{key} is false: its term owes {cond}. {inner}",
+}
+
+
+def _reg_undefined(key, cond, inner):
+    return ("reg_undefined", {"key": key, "cond": cond, "inner": inner})
+
+
+# What this step does not cover, each with where it goes.
+REG_NOT_COVERED = (
+    "Improper integrals: convergence and `diverges` (E65), with "
+    "int_improper and readiness P5.",
+    "int_parts (E67).",
+    "Regularity through an Int node (FTC-1: Int[t = a .. x] g is C^1 in x "
+    "where g is C^0; Leibniz for a parameter), a D node (needs C^2) or a "
+    "declared symbol (§6.9's hypothesis form, §12.1): no rule, so any Reg "
+    "whose term holds one is admitted none. D[y](y*(Int[x = 0 .. 1] 2*x)) "
+    "shows it (REG_CASE_CHANGES under_D_constant_integral).",
+    "C^1 read one-sided at a closed end: x := t*sqrt t over [0, 1] is "
+    "C^1([0, 1]) in §6.4's one-sided sense, and E59's neighbourhood "
+    "reading does not certify it (sqrt's C^1 side t > 0 fails at 0). "
+    "DESIGN.md §6.4 says such a case 'goes away only with §6.9's "
+    "regularity rules, which can state C^1 without differentiating "
+    "through the root'; these rules do not, and int_subst's deriv refuses "
+    "it first anyway (d_sqrt's t > 0 on the closed range, E38). A "
+    "DESIGN.md note, not a soundness matter.",
+    "C^2 and up, C^omega: 'class-not-built'.",
+)
+
+
+# --- Certificate helpers ------------------------------------------------------
+def _N(rule, *args, side=()):
+    """A regularity certificate node (REG_CERTIFICATE)."""
+    return {"rule": rule, "args": tuple(args), "side": tuple(side)}
+
+
+def _REG(tree):
+    return {"method": "reg", "tree": tree}
+
+
+_K = _N("const")
+_X = _N("var")
+_T2_SQ = _sos("0", [("1", "t", 2)])     # t^2 >= 0 by E20, as P1.1's goal key
+
+
+def _sqrt_t2(side_cert=_T2_SQ):
+    """sqrt(t^2) at C^0: its side t^2 >= 0."""
+    return _N("sqrt", _N("pow", _X), side=[("t^2 >= 0", side_cert)])
+
+
+def _two_t1_1():
+    """2*t^1*1, deriv's output for t^2 (E41): no side."""
+    return _N("mul", _N("mul", _K, _N("pow", _X)), _K)
+
+
+# P1.1's F, 2*sin t - 2*t*cos t: (add (mul 2 (sin t)) (neg (mul (mul 2 t)
+# (cos t)))). No side at either class.
+_F_P11 = _N("add", _N("mul", _K, _N("sin", _X)),
+            _N("neg", _N("mul", _N("mul", _K, _X), _N("cos", _X))))
+
+
+def _F_fallback(k):
+    """The fallback's F, 2*sin(sqrt x) - 2*sqrt x * cos(sqrt x): three sqrt
+    nodes, each with sqrt's side at class k on the key's own range: x >= 0
+    on [0, pi^2/4] (k = 0) or x > 0 on (0, pi^2/4) (k = 1), both by the
+    range's lower end."""
+    side = [("x >= 0", _RANGE_LO)] if k == 0 else [("x > 0", _RANGE_LO)]
+
+    def sq():
+        return _N("sqrt", _X, side=side)
+    return _N("add", _N("mul", _K, _N("sin", sq())),
+              _N("neg", _N("mul", _N("mul", _K, sq()), _N("cos", sq()))))
+
+
+def _F_p12(k):
+    """P1.2's F, (1/3)*ln(1 + x) - (1/6)*ln(x^2 - x + 1) + (1/sqrt 3)*
+    atan((2*x - 1)/sqrt 3), on [0, 1] (k = 0) or (0, 1) (k = 1). Sides in
+    pre-order: 3 # 0; 1 + x > 0 (range, lower end); 6 # 0;
+    x^2 - x + 1 > 0 (sign, its completed square); sqrt 3 # 0 (cite
+    sqrt_pos, E5: domain true); sqrt 3's own 3 >= 0 (k = 0) or 3 > 0
+    (k = 1, the interior), literal; the atan argument's divisor sqrt 3 # 0
+    and its sqrt again."""
+    three = [("3 >= 0", NORM_NUM_LEAF)] if k == 0 else \
+        [("3 > 0", NORM_NUM_LEAF)]
+
+    def sq3():
+        return _N("sqrt", _K, side=three)
+    return _N(
+        "add",
+        _N("add",
+           _N("mul", _N("div", _K, _K, side=[("3 # 0", NORM_NUM_LEAF)]),
+              _N("ln", _N("add", _K, _X), side=[("1 + x > 0", _RANGE_LO)])),
+           _N("neg", _N("mul",
+                        _N("div", _K, _K, side=[("6 # 0", NORM_NUM_LEAF)]),
+                        _N("ln", _N("add", _N("add", _N("pow", _X),
+                                              _N("neg", _X)), _K),
+                           side=[("x^2 - x + 1 > 0", _QUAD)])))),
+        _N("mul", _N("div", _K, sq3(), side=[("sqrt 3 # 0", _SQRT3)]),
+           _N("atan", _N("div", _N("add", _N("mul", _K, _X), _N("neg", _K)),
+                         sq3(), side=[("sqrt 3 # 0", _SQRT3)]))))
+
+
+# REG_EXPECTED[proof][(prop, dom)] = (tag, certificate): every Reg key of
+# every PROOFS proof, each DISCHARGED at the switch. The dom column is the
+# judgement's own domain, as FINAL_TRACKER writes it.
+_REG_P11_GOAL = ("sin(sqrt(t^2))*(2*t) in C^0([0, pi/2])", "[0, pi/2]")
+_REG_SHEET_GOAL = ("sin(sqrt x) in C^0([0, pi^2/4])", "[0, pi^2/4]")
+_REG_SHEET_S1 = ("sin(sqrt(t^2))*(2*t^1*1) in C^0([0, pi/2])", "[0, pi/2]")
+_REG_P12_GOAL = ("1/(1 + x^3) in C^0([0, 1])", "[0, 1]")
+REG_EXPECTED = {
+    "P1.1": {
+        # new: the goal's integral's former (E64)
+        _REG_P11_GOAL: (T_REG_OK, _REG(_N("mul", _N("sin", _sqrt_t2()),
+                                          _N("mul", _K, _X)))),
+        ("2*sin t - 2*t*cos t in C^0([0, pi/2])", "[0, pi/2]"):
+            (T_REG_OK, _REG(_F_P11)),
+        ("2*sin t - 2*t*cos t in C^1((0, pi/2))", "(0, pi/2)"):
+            (T_REG_OK, _REG(_F_P11)),
+        ("sin t * (2*t) in C^0([0, pi/2])", "[0, pi/2]"):
+            (T_REG_OK, _REG(_N("mul", _N("sin", _X), _N("mul", _K, _X)))),
+    },
+    "P1.1-sheet": {
+        # new: the sheet's integral's former, the fallback's f premise key
+        _REG_SHEET_GOAL: (T_REG_OK, _REG(_N("sin", _N(
+            "sqrt", _X, side=[("x >= 0", _RANGE_LO)])))),
+        ("t^2 in C^1([0, pi/2])", "[0, pi/2]"):
+            (T_REG_OK, _REG(_N("pow", _X))),
+        ("sin(sqrt(t^2)) in C^0([0, pi/2])", "[0, pi/2]"):
+            (T_REG_OK, _REG(_N("sin", _sqrt_t2()))),
+        # new: int_subst's new integral's former (step 14)
+        _REG_SHEET_S1: (T_REG_OK, _REG(_N("mul", _N("sin", _sqrt_t2()),
+                                          _two_t1_1()))),
+        ("2*sin t - 2*t*cos t in C^0([0, pi/2])", "[0, pi/2]"):
+            (T_REG_OK, _REG(_F_P11)),
+        ("2*sin t - 2*t*cos t in C^1((0, pi/2))", "(0, pi/2)"):
+            (T_REG_OK, _REG(_F_P11)),
+        ("sin t * (2*t^1*1) in C^0([0, pi/2])", "[0, pi/2]"):
+            (T_REG_OK, _REG(_N("mul", _N("sin", _X), _two_t1_1()))),
+    },
+    "P1.1-fallback": {
+        ("2*sin(sqrt x) - 2*sqrt x * cos(sqrt x) in C^0([0, pi^2/4])",
+         "[0, pi^2/4]"): (T_REG_OK, _REG(_F_fallback(0))),
+        ("2*sin(sqrt x) - 2*sqrt x * cos(sqrt x) in C^1((0, pi^2/4))",
+         "(0, pi^2/4)"): (T_REG_OK, _REG(_F_fallback(1))),
+        # now emitted first at installation (E64), then by ftc
+        _REG_SHEET_GOAL: (T_REG_OK, _REG(_N("sin", _N(
+            "sqrt", _X, side=[("x >= 0", _RANGE_LO)])))),
+    },
+    "P1.2": {
+        (P1_2_F + " in C^0([0, 1])", "[0, 1]"):
+            (T_REG_SQRT_POS, _REG(_F_p12(0))),
+        (P1_2_F + " in C^1((0, 1))", "(0, 1)"):
+            (T_REG_SQRT_POS, _REG(_F_p12(1))),
+        # now emitted first at installation (E64), then by ftc
+        _REG_P12_GOAL: (T_REG_OK, _REG(_N(
+            "div", _K, _N("add", _K, _N("pow", _X)),
+            side=[("1 + x^3 # 0", _ONE_PLUS_X3)]))),
+    },
+}
+REG_EXPECTED["P1.2-alt"] = dict(REG_EXPECTED["P1.2"])
+
+# What each proof's per-step lists gain (E64): the Int formers, at the step
+# where the integral enters, and the `new` flags they flip later.
+REG_STEP_ADDS = {
+    "P1.1": {"goal": [_REG_P11_GOAL + ((S_FORMER,), DISCHARGED, T_REG_OK,
+                                       True)]},
+    "P1.1-sheet": {"goal": [_REG_SHEET_GOAL + ((S_FORMER,), DISCHARGED,
+                                               T_REG_OK, True)],
+                   "s1": [_REG_SHEET_S1 + ((S_FORMER,), DISCHARGED, T_REG_OK,
+                                           True)]},
+    "P1.1-fallback": {"goal": [_REG_SHEET_GOAL + ((S_FORMER,), DISCHARGED,
+                                                  T_REG_OK, True)]},
+    "P1.2": {"goal": [_REG_P12_GOAL + ((S_FORMER,), DISCHARGED, T_REG_OK,
+                                       True)]},
+}
+REG_STEP_ADDS["P1.2-alt"] = REG_STEP_ADDS["P1.2"]
+# (proof, step) -> keys whose emission there is no longer new: ftc's f
+# premise, first emitted at installation now (P1.1's and the sheet's ftc
+# see the rewritten integrand, a different key, so nothing flips there).
+REG_NOT_NEW = {
+    ("P1.1-fallback", "s1"): (_REG_SHEET_GOAL,),
+    ("P1.2", "s2"): (_REG_P12_GOAL,),
+    ("P1.2-alt", "s2"): (_REG_P12_GOAL,),
+}
+
+
+def _after_regularity(proof, sid, obs, table, adds, not_new):
+    """The per-step list under the regularity switch, derived by one rule
+    from the post-discharge list: every Reg row DISCHARGED with its tag in
+    `table` (asserted admitted and tagged reg before), `new` cleared for
+    the keys `not_new` names, then the rows `adds` gives."""
+    out = []
+    for prop, dom, sources, status, tag, new in obs:
+        k = (prop, dom)
+        if " in C^" in prop:
+            assert status == ADMITTED and tag == T_REG, (proof, sid, k)
+            status, tag = DISCHARGED, table[k][0]
+        if k in not_new.get((proof, sid), ()):
+            assert new, (proof, sid, k)
+            new = False
+        out.append((prop, dom, sources, status, tag, new))
+    return out + list(adds.get(proof, {}).get(sid, ()))
+
+
+_REG_BASE_OBLIGATIONS = {p: DISCHARGE_OBLIGATIONS[p]
+                         for p in ("P1.1", "P1.1-fallback", "P1.2",
+                                   "P1.2-alt")}
+_REG_BASE_OBLIGATIONS["P1.1-sheet"] = INT_SUBST_OBLIGATIONS["P1.1-sheet"]
+REG_OBLIGATIONS = {
+    p: {sid: _after_regularity(p, sid, obs, REG_EXPECTED[p], REG_STEP_ADDS,
+                               REG_NOT_NEW)
+        for sid, obs in steps.items()}
+    for p, steps in _REG_BASE_OBLIGATIONS.items()}
+
+# Written out by hand: every key once, final status and tag.
+REG_FINAL_TRACKER = {
+    "P1.1": [
+        ("2 # 0", "true", DISCHARGED, T_NORM_NUM),
+        ("t^2 >= 0", "[0, pi/2]", DISCHARGED, T_SIGN),
+        ("0 <= pi/2", "true", DISCHARGED, T_LINEAR_PI),
+        ("sin(sqrt(t^2))*(2*t) in C^0([0, pi/2])", "[0, pi/2]", DISCHARGED,
+         T_REG_OK),
+        ("t >= 0", "[0, pi/2]", DISCHARGED, T_RANGE),
+        ("2*sin t - 2*t*cos t in C^0([0, pi/2])", "[0, pi/2]", DISCHARGED,
+         T_REG_OK),
+        ("2*sin t - 2*t*cos t in C^1((0, pi/2))", "(0, pi/2)", DISCHARGED,
+         T_REG_OK),
+        ("D[t](2*sin t - 2*t*cos t) == sin t * (2*t)", "(0, pi/2)",
+         DISCHARGED, T_DERIV_RING),
+        ("sin t * (2*t) in C^0([0, pi/2])", "[0, pi/2]", DISCHARGED,
+         T_REG_OK),
+    ],
+    "P1.1-sheet": [
+        ("4 # 0", "true", DISCHARGED, T_NORM_NUM),
+        ("x >= 0", "[0, pi^2/4]", DISCHARGED, T_RANGE),
+        ("0 <= pi^2/4", "true", DISCHARGED, T_SIGN),
+        ("sin(sqrt x) in C^0([0, pi^2/4])", "[0, pi^2/4]", DISCHARGED,
+         T_REG_OK),
+        ("2 # 0", "true", DISCHARGED, T_NORM_NUM),
+        ("0 <= pi/2", "true", DISCHARGED, T_LINEAR_PI),
+        ("0^2 == 0", "true", DISCHARGED, T_RING),
+        ("(pi/2)^2 == pi^2/4", "true", DISCHARGED, T_RING),
+        ("t^2 in C^1([0, pi/2])", "[0, pi/2]", DISCHARGED, T_REG_OK),
+        ("sin(sqrt(t^2)) in C^0([0, pi/2])", "[0, pi/2]", DISCHARGED,
+         T_REG_OK),
+        ("t^2 >= 0", "[0, pi/2]", DISCHARGED, T_SIGN),
+        ("sin(sqrt(t^2))*(2*t^1*1) in C^0([0, pi/2])", "[0, pi/2]",
+         DISCHARGED, T_REG_OK),
+        ("t >= 0", "[0, pi/2]", DISCHARGED, T_RANGE),
+        ("2*sin t - 2*t*cos t in C^0([0, pi/2])", "[0, pi/2]", DISCHARGED,
+         T_REG_OK),
+        ("2*sin t - 2*t*cos t in C^1((0, pi/2))", "(0, pi/2)", DISCHARGED,
+         T_REG_OK),
+        ("D[t](2*sin t - 2*t*cos t) == sin t * (2*t^1*1)", "(0, pi/2)",
+         DISCHARGED, T_DERIV_RING),
+        ("sin t * (2*t^1*1) in C^0([0, pi/2])", "[0, pi/2]", DISCHARGED,
+         T_REG_OK),
+    ],
+    "P1.1-fallback": [
+        ("4 # 0", "true", DISCHARGED, T_NORM_NUM),
+        ("x >= 0", "[0, pi^2/4]", DISCHARGED, T_RANGE),
+        ("0 <= pi^2/4", "true", DISCHARGED, T_SIGN),
+        ("sin(sqrt x) in C^0([0, pi^2/4])", "[0, pi^2/4]", DISCHARGED,
+         T_REG_OK),
+        ("2*sin(sqrt x) - 2*sqrt x * cos(sqrt x) in C^0([0, pi^2/4])",
+         "[0, pi^2/4]", DISCHARGED, T_REG_OK),
+        ("2*sin(sqrt x) - 2*sqrt x * cos(sqrt x) in C^1((0, pi^2/4))",
+         "(0, pi^2/4)", DISCHARGED, T_REG_OK),
+        ("D[x](2*sin(sqrt x) - 2*sqrt x * cos(sqrt x)) == sin(sqrt x)",
+         "(0, pi^2/4)", DISCHARGED, T_DERIV_FIELD),
+        ("x > 0", "(0, pi^2/4)", DISCHARGED, T_RANGE),
+        ("2*sqrt x # 0", "(0, pi^2/4)", DISCHARGED, T_PRODUCT_SQRT),
+        ("pi^2/4 >= 0", "true", DISCHARGED, T_SIGN),
+        ("0 >= 0", "true", DISCHARGED, T_NORM_NUM),
+        ("pi/2 >= 0", "true", DISCHARGED, T_LINEAR_PI),
+        ("2 # 0", "true", DISCHARGED, T_NORM_NUM),
+    ],
+    "P1.2": [
+        ("1 + x^3 # 0", "[0, 1]", DISCHARGED, T_PRODUCT),
+        ("1/(1 + x^3) in C^0([0, 1])", "[0, 1]", DISCHARGED, T_REG_OK),
+        ("3 # 0", "true", DISCHARGED, T_NORM_NUM),
+        ("6 # 0", "true", DISCHARGED, T_NORM_NUM),
+        ("sqrt 3 # 0", "true", DISCHARGED, T_SQRT_POS),
+        ("3 >= 0", "true", DISCHARGED, T_NORM_NUM),
+        ("1 + x > 0", "[0, 1]", DISCHARGED, T_RANGE),
+        ("x^2 - x + 1 > 0", "[0, 1]", DISCHARGED, T_SIGN),
+        (P1_2_F + " in C^0([0, 1])", "[0, 1]", DISCHARGED, T_REG_SQRT_POS),
+        (P1_2_F + " in C^1((0, 1))", "(0, 1)", DISCHARGED, T_REG_SQRT_POS),
+        ("D[x](" + P1_2_F + ") == 1/(1 + x^3)", "(0, 1)", DISCHARGED,
+         T_DERIV_FIELD_FACT),
+        ("1 + x > 0", "(0, 1)", DISCHARGED, T_RANGE),
+        ("x^2 - x + 1 > 0", "(0, 1)", DISCHARGED, T_SIGN),
+        ("1 + x # 0", "(0, 1)", DISCHARGED, T_RANGE),
+        ("x^2 - x + 1 # 0", "(0, 1)", DISCHARGED, T_SIGN),
+        ("1 + ((2*x - 1)/sqrt 3)^2 # 0", "(0, 1)", DISCHARGED, T_SIGN),
+        ("1 + x^3 # 0", "(0, 1)", DISCHARGED, T_PRODUCT),
+        ("1 + 1 > 0", "true", DISCHARGED, T_NORM_NUM),
+        ("1^2 - 1 + 1 > 0", "true", DISCHARGED, T_NORM_NUM),
+        ("1 + 0 > 0", "true", DISCHARGED, T_NORM_NUM),
+        ("0^2 - 0 + 1 > 0", "true", DISCHARGED, T_NORM_NUM),
+        ("3*sqrt 3 # 0", "true", DISCHARGED, T_PRODUCT_SQRT),
+        ("2 > 0", "true", DISCHARGED, T_NORM_NUM),
+    ],
+}
+REG_FINAL_TRACKER["P1.2-alt"] = (
+    [ob for ob in REG_FINAL_TRACKER["P1.2"] if ob[0] != "3*sqrt 3 # 0"]
+    + [("9 # 0", "true", DISCHARGED, T_NORM_NUM)])
+
+# N: zero everywhere. Every proof reads 'Proved.' (E69), which §11.1 and
+# §11.2 promised and no build reached until now.
+REG_ADMISSIONS = {p: 0 for p in REG_FINAL_TRACKER}
+REG_VERDICTS = {p: PROVED for p in REG_FINAL_TRACKER}
+# The keys each proof gains, and the Reg count, for the report
+REG_NEW_KEYS = {p: [k for k in REG_EXPECTED[p]
+                    if any(r[:2] == k for rows in REG_STEP_ADDS.get(p, {})
+                           .values() for r in rows)]
+                for p in REG_EXPECTED}
+
+# Cross-check on import, as section 11's.
+for _p, _rows in REG_FINAL_TRACKER.items():
+    _keys = [(r[0], r[1]) for r in _rows]
+    assert len(set(_keys)) == len(_keys), _p
+    _seen = set()
+    for _sid, _obs in REG_OBLIGATIONS[_p].items():
+        for _ob in _obs:
+            _k = (_ob[0], _ob[1])
+            _fin = [r for r in _rows if (r[0], r[1]) == _k]
+            assert _fin and _fin[0][2:] == (_ob[3], _ob[4]), (_p, _sid, _ob)
+            assert _ob[5] == (_k not in _seen), (_p, _sid, _ob)
+        _seen |= {(o[0], o[1]) for o in _obs}
+    assert _seen == set(_keys), (_p, set(_keys) ^ _seen)
+    assert all(r[2] == DISCHARGED for r in _rows), _p
+    assert {k for k in _keys if " in C^" in k[0]} == set(REG_EXPECTED[_p]), _p
+    for _k, (_tag, _c) in REG_EXPECTED[_p].items():
+        assert [r for r in _rows if (r[0], r[1]) == _k][0][3] == _tag, _k
+del _p, _rows, _keys, _seen, _sid, _obs, _ob, _k, _fin, _tag, _c
+
+
+# --- §18 Q23: the atom algebra and the formers' cases (E64-E67) ---------------
+#
+# In INT_SUBST_ACCEPTS' shape: goal_emits is installation's list, then each
+# move with its own list, to a report. 'certificates' gives every key a
+# §5.3 method or regularity discharges, 'reasons' every admission's.
+_I_EXP_SIN = "(Int[x = 0 .. pi] exp x * sin x)"
+_REG_EXP_SIN = ("exp x * sin x in C^0([0, pi])", "[0, pi]")
+_PI_ORDER = _farkas({GOAL: "1", FACT("pi_pos"): "1"})   # 0 <= pi
+REG_Q23_CASES = [
+    {"id": "solve_for_I_cancels",
+     "goal": "2*" + _I_EXP_SIN + " - " + _I_EXP_SIN + " - " + _I_EXP_SIN
+             + " == ?A",
+     # the three Ints are one key (E8); the range [0, pi] is symbolic, so
+     # its order 0 <= pi is decided and emitted first (E56, E68)
+     "goal_emits": [
+         ("0 <= pi", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI, True),
+         _REG_EXP_SIN + ((S_FORMER,), DISCHARGED, T_REG_OK, True)],
+     "move": ("close", {"value": "0", "check": "ring", "facts": []}),
+     "goal_after": None, "emits": [],
+     "report": PROVED,
+     "theorem": "2*" + _I_EXP_SIN + " - " + _I_EXP_SIN + " - " + _I_EXP_SIN
+                + " == 0",
+     "certificates": {("0 <= pi", "true"): _PI_ORDER,
+                      _REG_EXP_SIN: _REG(_N("mul", _N("exp", _X),
+                                            _N("sin", _X)))},
+     "was": "refused Int-or-D-not-normalisable by ring (E26 (b))",
+     "why": "Q23's first case: 2I - I - I is 0 in Q[I], the atom I's "
+            "integrability owed at installation and discharged (exp and sin "
+            "are total, so no side)"},
+    {"id": "solve_for_I_after_parts",
+     # the goal an int_parts step would leave (E67): I rewritten at one of
+     # two occurrences of (I + I)/2 into (e^pi + 1) - I, by parts twice
+     "goal": "(exp pi + 1 - " + _I_EXP_SIN + " + " + _I_EXP_SIN
+             + ")/2 == ?A",
+     "goal_emits": [
+         ("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+         ("0 <= pi", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI, True),
+         _REG_EXP_SIN + ((S_FORMER,), DISCHARGED, T_REG_OK, True)],
+     "move": ("close", {"value": "(exp pi + 1)/2", "check": "ring",
+                        "facts": []}),
+     "goal_after": None,
+     "emits": [("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM,
+                False)],
+     "report": PROVED,
+     "theorem": "(exp pi + 1 - " + _I_EXP_SIN + " + " + _I_EXP_SIN
+                + ")/2 == (exp pi + 1)/2",
+     "certificates": {("0 <= pi", "true"): _PI_ORDER,
+                      _REG_EXP_SIN: _REG(_N("mul", _N("exp", _X),
+                                            _N("sin", _X)))},
+     "why": "solving for I is ring algebra on the atom once I denotes: "
+            "(e^pi + 1 - I + I)/2 = (e^pi + 1)/2, and Int_0^pi e^x sin x "
+            "is (e^pi + 1)/2 (SymPy), so the theorem an int_parts proof "
+            "would reach is true. E27 accepts the value (exp pi has no "
+            "exact value)"},
+    {"id": "d_atoms_defined",
+     "goal": "D[x] x^2 - D[x] x^2 == ?A",
+     "goal_emits": [("x^2 in C^1(true)", "true", (S_FORMER,), DISCHARGED,
+                     T_REG_OK, True)],
+     "move": ("close", {"value": "0", "check": "ring", "facts": []}),
+     "goal_after": None, "emits": [],
+     "report": PROVED,
+     "theorem": "D[x] x^2 - D[x] x^2 == 0",
+     "certificates": {("x^2 in C^1(true)", "true"): _REG(_N("pow", _X))},
+     "why": "the D former (E64): D[x] x^2 owes x^2 differentiable at every "
+            "x, which regularity discharges, and the two atoms cancel"},
+    # The two BAD_MOVES cases ring_refuses_D and field_refuses_D, which
+    # E66 turns into acceptances owing the false condition (REG_CHANGES).
+    {"id": "d_atoms_cancel_undefined",
+     "goal": "D[x](abs x) - D[x](abs x) == ?A",
+     "goal_emits": [("abs x in C^1(true)", "true", (S_FORMER,), ADMITTED,
+                     T_NONE, True)],
+     "move": ("close", {"value": "0", "check": "ring", "facts": []}),
+     "goal_after": None, "emits": [],
+     "report": VERDICT.format(n=1),
+     "theorem": "D[x](abs x) - D[x](abs x) == 0",
+     "reasons": {("abs x in C^1(true)", "true"): REASON_NONE},
+     "why": "abs's C^1 side x # 0 @ true has no certificate (tagged none), "
+            "and E63 does not refute it: abs has no C^0 side. The theorem "
+            "is false at 0, where the left side does not exist, and the "
+            "proof says so: 'Proved modulo 1 admissions', the admission "
+            "tagged none (§5.4: an admission tagged none may be false)"},
+    {"id": "d_atoms_cancel_undefined_field",
+     "goal": "D[x](abs x) - D[x](abs x) == ?A",
+     "goal_emits": [("abs x in C^1(true)", "true", (S_FORMER,), ADMITTED,
+                     T_NONE, True)],
+     "move": ("close", {"value": "0", "check": "field", "facts": []}),
+     "goal_after": None, "emits": [],
+     "report": VERDICT.format(n=1),
+     "theorem": "D[x](abs x) - D[x](abs x) == 0",
+     "reasons": {("abs x in C^1(true)", "true"): REASON_NONE},
+     "why": "the same by field: no divisor in its input"},
+]
+# Refused, in BAD_MOVES' shape.
+REG_Q23_REFUSALS = [
+    {"id": "divergent_I_minus_I",
+     "goal": "(Int[x = 1 .. oo] 1/x) - (Int[x = 1 .. oo] 1/x) == ?A",
+     "setup": [],
+     "move": ("close", {"value": "0", "check": "ring", "facts": []}),
+     "refusal": "Int-or-D-not-normalisable",
+     "goal_emits": [("x # 0", "[1, oo)", (S_FORMER,), DISCHARGED, T_RANGE,
+                     True)],
+     "certificates": {("x # 0", "[1, oo)"): _RANGE_LO_NZ},
+     "why": "Q23's second case, with conv deferred (E65): an improper Int "
+            "is unstatable, owes nothing and is not an atom, so ring still "
+            "refuses it. Int_1^oo 1/x diverges (SymPy)"},
+    {"id": "hypothesis_gate_kept",
+     "goal": "1 == ?A @ (Int[t = 0 .. 1] t) > 0", "setup": [],
+     "move": ("install", {}),
+     "refusal": "Int-or-D-not-normalisable",
+     "why": "E66 (2): install's hypothesis gate is unchanged, for a "
+            "statable Int too"},
+]
+
+# --- E57 after the formers (E66 (3)) -----------------------------------------
+REG_E57_CHANGES = {
+    # moves from E57_BAD_MOVES to REG_E57_ACCEPTS below
+    "E57_BAD_MOVES pyth_erases_D": {
+        "old": ("refused", "Int-or-D-not-normalisable"),
+        "new": "accepted, and after close 1 'Proved modulo 1 admissions', "
+               "owing abs x in C^1(true) tagged none (REG_E57_ACCEPTS)"},
+    "E57_BAD_MOVES pyth_erases_divergent_Int": {
+        "old": ("refused", "Int-or-D-not-normalisable"),
+        "new": ("refused", "Int-or-D-not-normalisable"),
+        "why": "unchanged: Int[x = 1 .. oo] 1 is unstatable (E65)"},
+    "E57_PRINCIPLE rewrite": "refuses an unstatable Int in an inst value "
+                             "or the target (E66 (3)); a statable Int or D "
+                             "is owed where it entered and R's at step 10",
+    "E57_PRINCIPLE ftc": "its f premise is the Int's former, the same key "
+                         "(E64), no longer admitted",
+}
+REG_E57_ACCEPTS = [
+    {"id": "pyth_erases_D",
+     "goal": "(sin(D[x](abs x)))^2 + (cos(D[x](abs x)))^2 == ?A",
+     "goal_emits": [("abs x in C^1(true)", "true", (S_FORMER,), ADMITTED,
+                     T_NONE, True)],
+     "move": ("rewrite", {"entry": "pyth", "inst": {"u": "D[x](abs x)"},
+                          "at": "(sin(D[x](abs x)))^2"
+                                " + (cos(D[x](abs x)))^2"}),
+     "occurrences": 1, "goal_after": "1 == ?A", "emits": [],
+     "then": [{"move": ("close", {"value": "1", "check": "ring",
+                                  "facts": []}),
+               "goal_after": None, "emits": []}],
+     "report": VERDICT.format(n=1),
+     "theorem": "(sin(D[x](abs x)))^2 + (cos(D[x](abs x)))^2 == 1",
+     "reasons": {("abs x in C^1(true)", "true"): REASON_NONE},
+     "why": "the last review's reproducer: it no longer yields a plain "
+            "'Proved.'. The erased D node's definedness was owed at "
+            "installation, admitted none because it is false at 0, and it "
+            "stays in the verdict"},
+    {"id": "pyth_erases_proper_Int",
+     "goal": "(sin(Int[x = 0 .. 1] x))^2 + (cos(Int[x = 0 .. 1] x))^2 == ?A",
+     "goal_emits": [("x in C^0([0, 1])", "[0, 1]", (S_FORMER,), DISCHARGED,
+                     T_REG_OK, True)],
+     "move": ("rewrite", {"entry": "pyth",
+                          "inst": {"u": "Int[x = 0 .. 1] x"},
+                          "at": "(sin(Int[x = 0 .. 1] x))^2"
+                                " + (cos(Int[x = 0 .. 1] x))^2"}),
+     "occurrences": 1, "goal_after": "1 == ?A", "emits": [],
+     "then": [{"move": ("close", {"value": "1", "check": "ring",
+                                  "facts": []}),
+               "goal_after": None, "emits": []}],
+     "report": PROVED,
+     "theorem": "(sin(Int[x = 0 .. 1] x))^2 + (cos(Int[x = 0 .. 1] x))^2"
+                " == 1",
+     "certificates": {("x in C^0([0, 1])", "[0, 1]"): _REG(_X)},
+     "why": "a statable Int whose integrability is owed and discharged may "
+            "be erased: the identity holds for its value, 1/2"},
+    {"id": "pyth_erases_defined_D",
+     "goal": "(sin(D[x] x^2))^2 + (cos(D[x] x^2))^2 == ?A",
+     "goal_emits": [("x^2 in C^1(true)", "true", (S_FORMER,), DISCHARGED,
+                     T_REG_OK, True)],
+     "move": ("rewrite", {"entry": "pyth", "inst": {"u": "D[x] x^2"},
+                          "at": "(sin(D[x] x^2))^2 + (cos(D[x] x^2))^2"}),
+     "occurrences": 1, "goal_after": "1 == ?A", "emits": [],
+     "then": [{"move": ("close", {"value": "1", "check": "ring",
+                                  "facts": []}),
+               "goal_after": None, "emits": []}],
+     "report": PROVED,
+     "theorem": "(sin(D[x] x^2))^2 + (cos(D[x] x^2))^2 == 1",
+     "certificates": {("x^2 in C^1(true)", "true"): _REG(_N("pow", _X))},
+     "why": "the D twin: x^2 is C^1 everywhere, so D[x] x^2 denotes at every "
+            "x and the rewrite owes nothing more"},
+]
+
+# --- Must-reject: the regularity checker called directly ---------------------
+#
+# DISCHARGE_MUST_REJECT's shape: 'rejects_because' is REG_REASONS' name,
+# 'truth' whether the claim holds in E59's reading, 'if_emitted' the
+# kernel's outcome when the key is emitted and the search offers its own
+# certificate (REG_DISCHARGE_ORDER): ('discharged', tag), ('admitted', tag,
+# reason) or ('refused', message).
+_SQRTX_C1_CLOSED = ("sqrt x in C^1([0, 1])", "[0, 1]")
+REG_MUST_REJECT = [
+    {"id": "sqrt_C1_closed_at_zero", "key": _SQRTX_C1_CLOSED,
+     "cert": _REG(_N("sqrt", _X, side=[("x > 0", _RANGE_LO)])),
+     "rejects_because": "child-rejected",
+     "note": "sqrt's C^1 side x > 0 on [0, 1]: (0 - x) + (x - 0) = 0, no "
+             "strict constraint (DISCHARGE_MUST_REJECT farkas_nonstrict_"
+             "pair's combination)",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("admitted", T_NONE, REASON_NONE)},
+    {"id": "sqrt_C1_side_weakened", "key": _SQRTX_C1_CLOSED,
+     "cert": _REG(_N("sqrt", _X, side=[("x >= 0", _RANGE_LO)])),
+     "rejects_because": "wrong-side",
+     "note": "the C^0 side offered for the C^1 claim, with a valid "
+             "certificate: only a checker that rebuilds the side from k "
+             "refuses it",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("admitted", T_NONE, REASON_NONE)},
+    {"id": "sqrt_C0_side_omitted", "key": ("sqrt x in C^0([-1, 1])",
+                                           "[-1, 1]"),
+     "cert": _REG(_N("sqrt", _X)),
+     "rejects_because": "side-count",
+     "truth": ("false", {"x": "-1"}),
+     "if_emitted": ("refused", _reg_undefined(
+         "sqrt x in C^0([-1, 1])", "x >= 0 @ [-1, 1]",
+         _point("x >= 0 @ [-1, 1]", "-1 >= 0", x="-1")))},
+    {"id": "inv_C0_across_pole", "key": ("1/x in C^0([-1, 1])", "[-1, 1]"),
+     "cert": _REG(_N("div", _K, _X, side=[("x # 0", _RANGE_LO_NZ)])),
+     "rejects_because": "child-rejected",
+     "note": "(0 - x) + (x + 1) = 1, no contradiction",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("refused", _reg_undefined(
+         "1/x in C^0([-1, 1])", "x # 0 @ [-1, 1]",
+         _point("x # 0 @ [-1, 1]", "0 # 0", x="0")))},
+    {"id": "div_side_omitted", "key": ("1/x in C^0([-1, 1])", "[-1, 1]"),
+     "cert": _REG(_N("div", _K, _X)),
+     "rejects_because": "side-count",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("refused", _reg_undefined(
+         "1/x in C^0([-1, 1])", "x # 0 @ [-1, 1]",
+         _point("x # 0 @ [-1, 1]", "0 # 0", x="0")))},
+    {"id": "ln_C0_at_zero", "key": ("ln x in C^0([0, 1])", "[0, 1]"),
+     "cert": _REG(_N("ln", _X, side=[("x > 0", _RANGE_LO)])),
+     "rejects_because": "child-rejected",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("refused", _reg_undefined(
+         "ln x in C^0([0, 1])", "x > 0 @ [0, 1]",
+         _point("x > 0 @ [0, 1]", "0 > 0", x="0")))},
+    {"id": "ln_side_omitted", "key": ("ln x in C^0([0, 1])", "[0, 1]"),
+     "cert": _REG(_N("ln", _X)),
+     "rejects_because": "side-count",
+     "note": "accepted by a checker that reads a mutated natural-domain "
+             "table (DEFINEDNESS_MUTATIONS no_ln_former): the one-datum "
+             "coupling of E61, caught here",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("refused", _reg_undefined(
+         "ln x in C^0([0, 1])", "x > 0 @ [0, 1]",
+         _point("x > 0 @ [0, 1]", "0 > 0", x="0")))},
+    {"id": "ln_as_const", "key": ("ln x in C^0([0, 1])", "[0, 1]"),
+     "cert": _REG(_K),
+     "rejects_because": "wrong-rule",
+     "note": "accepted by a checker that dispatches on the certificate's "
+             "rule name instead of the term",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("refused", _reg_undefined(
+         "ln x in C^0([0, 1])", "x > 0 @ [0, 1]",
+         _point("x > 0 @ [0, 1]", "0 > 0", x="0")))},
+    {"id": "abs_C1_at_zero", "key": ("abs x in C^1([-1, 1])", "[-1, 1]"),
+     "cert": _REG(_N("abs", _X, side=[("x # 0", _RANGE_LO_NZ)])),
+     "rejects_because": "child-rejected",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("admitted", T_NONE, REASON_NONE)},
+    {"id": "abs_C1_side_omitted", "key": ("abs x in C^1([-1, 1])",
+                                          "[-1, 1]"),
+     "cert": _REG(_N("abs", _X)),
+     "rejects_because": "side-count",
+     "note": "accepted by a checker without REG_C1_EXTRA, or one that "
+             "demands the C^0 sides at k = 1",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("admitted", T_NONE, REASON_NONE)},
+    {"id": "composition_leaves_domain",
+     "key": ("sqrt(x - 2) in C^0([0, 1])", "[0, 1]"),
+     "cert": _REG(_N("sqrt", _N("add", _X, _N("neg", _K)),
+                     side=[("x - 2 >= 0", _RANGE_LO)])),
+     "rejects_because": "child-rejected",
+     "note": "(2 - x, strict) + (x - 0) = 2: the inner x - 2 never enters "
+             "sqrt's domain on [0, 1]",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("refused", _reg_undefined(
+         "sqrt(x - 2) in C^0([0, 1])", "x - 2 >= 0 @ [0, 1]",
+         _point("x - 2 >= 0 @ [0, 1]", "0 - 2 >= 0", x="0")))},
+    {"id": "asin_inner_leaves_domain",
+     "key": ("asin(2*x) in C^0([0, 1])", "[0, 1]"),
+     "cert": _REG(_N("asin", _N("mul", _K, _X),
+                     side=[("2*x >= -1", _farkas({GOAL: "1", LO(0): "2"})),
+                           ("2*x <= 1", _farkas({GOAL: "1", HI(0): "2"}))])),
+     "rejects_because": "child-rejected",
+     "note": "the first side holds ((-(2x + 1), strict) + 2x = -1); the "
+             "second is 2*(1 - x) + (2x - 1) = 1, no contradiction, since "
+             "2x leaves [-1, 1] above x = 1/2",
+     "truth": ("false", {"x": "1"}),
+     "if_emitted": ("refused", _reg_undefined(
+         "asin(2*x) in C^0([0, 1])", "2*x <= 1 @ [0, 1]",
+         _point("2*x <= 1 @ [0, 1]", "2*1 <= 1", x="1")))},
+    {"id": "nested_arg_unchecked",
+     "key": ("sin(ln x) in C^0([0, 1])", "[0, 1]"),
+     "cert": _REG(_N("sin")),
+     "rejects_because": "arity",
+     "note": "sin's child omitted, so ln's side is never asked",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("refused", _reg_undefined(
+         "sin(ln x) in C^0([0, 1])", "x > 0 @ [0, 1]",
+         _point("x > 0 @ [0, 1]", "0 > 0", x="0")))},
+    {"id": "wrong_rule_name", "key": ("sin x in C^0([0, 1])", "[0, 1]"),
+     "cert": _REG(_N("cos", _X)),
+     "rejects_because": "wrong-rule",
+     "truth": ("true",),
+     "if_emitted": ("discharged", T_REG_OK)},
+    {"id": "negative_power_as_power",
+     "key": ("x^(-1) in C^0([-1, 1])", "[-1, 1]"),
+     "cert": _REG(_N("pow", _X)),
+     "rejects_because": "wrong-rule",
+     "note": "Pow with n < 0 is pow_neg, whose side is x # 0 (§5.1's "
+             "spelling symmetry: x^(-1) owes what 1/x owes)",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("refused", _reg_undefined(
+         "x^(-1) in C^0([-1, 1])", "x # 0 @ [-1, 1]",
+         _point("x # 0 @ [-1, 1]", "0 # 0", x="0")))},
+    {"id": "rpow_side_omitted",
+     "key": ("x^y in C^0(x in [0, 1], y in [1, 2])",
+             "x in [0, 1], y in [1, 2]"),
+     "cert": _REG(_N("rpow", _X, _X)),
+     "rejects_because": "side-count",
+     "truth": ("false", {"x": "0", "y": "1"}),
+     "if_emitted": ("refused", _reg_undefined(
+         "x^y in C^0(x in [0, 1], y in [1, 2])",
+         "x > 0 @ x in [0, 1], y in [1, 2]",
+         _point("x > 0 @ x in [0, 1], y in [1, 2]", "0 > 0", x="0",
+                y="1")))},
+    {"id": "int_node_no_rule",
+     "key": ("(Int[t = 0 .. 1] t)*x in C^0([0, 1])", "[0, 1]"),
+     "cert": _REG(_N("mul", _K, _X)),
+     "rejects_because": "no-rule",
+     "note": "true (the Int is 1/2), and out of this step: no rule reads "
+             "an Int node (REG_NOT_COVERED)",
+     "truth": ("true",),
+     "if_emitted": ("admitted", T_NONE, REASON_NONE)},
+    {"id": "d_node_no_rule",
+     "key": ("D[x](abs x) in C^0([-1, 1])", "[-1, 1]"),
+     "cert": _REG(_K),
+     "rejects_because": "no-rule",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("admitted", T_NONE, REASON_NONE)},
+    {"id": "class_omega", "key": ("x in C^omega([0, 1])", "[0, 1]"),
+     "cert": _REG(_X),
+     "rejects_because": "class-not-built",
+     "truth": ("true",),
+     "if_emitted": ("admitted", T_NONE, REASON_NONE)},
+    {"id": "class_two", "key": ("x in C^2([0, 1])", "[0, 1]"),
+     "cert": _REG(_X),
+     "rejects_because": "class-not-built",
+     "truth": ("true",),
+     "if_emitted": ("admitted", T_NONE, REASON_NONE)},
+    {"id": "malformed_extra_field", "key": ("x in C^0([0, 1])", "[0, 1]"),
+     "cert": {"method": "reg", "tree": _X, "note": "trust me"},
+     "rejects_because": "malformed",
+     "truth": ("true",),
+     "if_emitted": ("discharged", T_REG_OK)},
+    {"id": "ftc_F_C1_on_the_closed_range",
+     "key": ("2*sin(sqrt x) - 2*sqrt x * cos(sqrt x) in C^1([0, pi^2/4])",
+             "[0, pi^2/4]"),
+     "cert": _REG(_F_fallback(1)),
+     "rejects_because": "child-rejected",
+     "note": "the fallback's F claimed C^1 on the CLOSED range: sqrt's "
+             "x > 0 fails at 0. ftc never asks this (its C^1 premise is on "
+             "(0, pi^2/4), REG_EXPECTED), which is §6.4's split: F may "
+             "misbehave at an endpoint, f may not",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("admitted", T_NONE, REASON_NONE)},
+]
+
+# The nearest valid neighbours, and the forms no proof exercises.
+REG_CHECKER_ACCEPTS = [
+    {"id": "sqrt_C0_closed_end", "key": ("sqrt x in C^0([0, 1])", "[0, 1]"),
+     "cert": _REG(_N("sqrt", _X, side=[("x >= 0", _RANGE_LO)])),
+     "tag": T_REG_OK},
+    {"id": "sqrt_C1_open", "key": ("sqrt x in C^1((0, 1))", "(0, 1)"),
+     "cert": _REG(_N("sqrt", _X, side=[("x > 0", _RANGE_LO)])),
+     "tag": T_REG_OK},
+    {"id": "abs_C0_everywhere", "key": ("abs x in C^0([-1, 1])", "[-1, 1]"),
+     "cert": _REG(_N("abs", _X)), "tag": T_REG_OK},
+    {"id": "abs_C1_off_zero", "key": ("abs x in C^1((0, 1))", "(0, 1)"),
+     "cert": _REG(_N("abs", _X, side=[("x # 0", _RANGE_LO_NZ)])),
+     "tag": T_REG_OK},
+    {"id": "inv_C0_off_pole", "key": ("1/x in C^0([1, 2])", "[1, 2]"),
+     "cert": _REG(_N("div", _K, _X, side=[("x # 0", _RANGE_LO_NZ)])),
+     "tag": T_REG_OK},
+    {"id": "ln_C1_on_a_closed_range", "key": ("ln x in C^1([1, 2])",
+                                              "[1, 2]"),
+     "cert": _REG(_N("ln", _X, side=[("x > 0", _RANGE_LO)])),
+     "tag": T_REG_OK},
+    {"id": "asin_C0_closed", "key": ("asin x in C^0([-1, 1])", "[-1, 1]"),
+     "cert": _REG(_N("asin", _X, side=[
+         ("x >= -1", _RANGE_LO), ("x <= 1", _farkas({GOAL: "1",
+                                                      HI(0): "1"}))])),
+     "tag": T_REG_OK},
+    {"id": "asin_C1_open", "key": ("asin x in C^1((-1, 1))", "(-1, 1)"),
+     "cert": _REG(_N("asin", _X, side=[
+         ("x > -1", _RANGE_LO), ("x < 1", _farkas({GOAL: "1",
+                                                    HI(0): "1"}))])),
+     "tag": T_REG_OK},
+    {"id": "acosh_C0_closed_end", "key": ("acosh x in C^0([1, 2])",
+                                          "[1, 2]"),
+     "cert": _REG(_N("acosh", _X, side=[("x >= 1", _RANGE_LO)])),
+     "tag": T_REG_OK},
+    {"id": "acosh_C1_open", "key": ("acosh x in C^1((1, 2))", "(1, 2)"),
+     "cert": _REG(_N("acosh", _X, side=[("x > 1", _RANGE_LO)])),
+     "tag": T_REG_OK},
+    {"id": "atanh_C1_inside", "key": ("atanh x in C^1([-1/2, 1/2])",
+                                      "[-1/2, 1/2]"),
+     "cert": _REG(_N("atanh", _X, side=[
+         ("x > -1", _RANGE_LO), ("x < 1", _farkas({GOAL: "1",
+                                                    HI(0): "1"}))])),
+     "tag": T_REG_OK},
+    {"id": "tan_by_hypothesis",
+     "key": ("tan x in C^0(cos x > 0, x in [0, 1])",
+             "cos x > 0, x in [0, 1]"),
+     "cert": _REG(_N("tan", _X, side=[("cos x # 0", _member(0))])),
+     "tag": ("reg", ())},
+    {"id": "rpow_C1", "key": ("x^y in C^1(x in [1, 2], y in [0, 1])",
+                              "x in [1, 2], y in [0, 1]"),
+     "cert": _REG(_N("rpow", _X, _X, side=[("x > 0", _RANGE_LO)])),
+     "tag": T_REG_OK},
+    {"id": "negative_power", "key": ("x^(-2) in C^0([1, 2])", "[1, 2]"),
+     "cert": _REG(_N("pow_neg", _X, side=[("x # 0", _RANGE_LO_NZ)])),
+     "tag": T_REG_OK},
+    {"id": "joint_in_parameters",
+     "key": ("x*y in C^1(x in [0, 1], y in [0, 1])",
+             "x in [0, 1], y in [0, 1]"),
+     "cert": _REG(_N("mul", _X, _X)), "tag": T_REG_OK},
+    {"id": "d_former_by_hypothesis", "key": ("abs x in C^1(x > 0)", "x > 0"),
+     "cert": _REG(_N("abs", _X, side=[("x # 0", _member(0))])),
+     "tag": T_REG_OK},
+    {"id": "closed_term_constant", "key": ("sqrt 3 in C^1(true)", "true"),
+     "cert": _REG(_N("sqrt", _K, side=[("3 > 0", NORM_NUM_LEAF)])),
+     "tag": T_REG_OK},
+]
+
+# E63 through a move: the FTC-across-a-pole trap, refused by its former
+# first and, when the former is lost, by regularity (REG_PLANTED_BUGS
+# former_div_dropped and ftc_no_F_formers, where 'as_well' is asserted).
+REG_BAD_MOVES = [
+    {"id": "ftc_across_pole",
+     "goal": "Int[x = -1 .. 1] 1/x^2 == ?A", "setup": [],
+     "move": ("install", {}),
+     "refusal": OBLIGATION_DECIDED_FALSE,
+     "message": _point("x^2 # 0 @ [-1, 1]", "0^2 # 0", x="0"),
+     "as_well": _reg_undefined("1/x^2 in C^0([-1, 1])", "x^2 # 0 @ [-1, 1]",
+                               _point("x^2 # 0 @ [-1, 1]", "0^2 # 0",
+                                      x="0")),
+     "why": "the '/' former is charged before the Int's own (E64's order), "
+            "so the message is DISCHARGE_BAD_MOVES_ADDED decided_false_"
+            "pole's; without that former the Int's former 1/x^2 in "
+            "C^0([-1, 1]) is decided false by E63 at the same point "
+            "(as_well). Int_-1^1 1/x^2 diverges (SymPy); HolPy's kernel "
+            "returned -2 (§4.2)"},
+    {"id": "ftc_F_across_pole",
+     "goal": "Int[x = -1 .. 1] 1 == ?A", "setup": [],
+     "move": ("ftc", {"F": "x + 0*(1/x)", "check": "ring", "facts": []}),
+     "refusal": OBLIGATION_DECIDED_FALSE,
+     "message": _point("x # 0 @ [-1, 1]", "0 # 0", x="0"),
+     "as_well": _reg_undefined("x + 0*(1/x) in C^0([-1, 1])",
+                               "x # 0 @ [-1, 1]",
+                               _point("x # 0 @ [-1, 1]", "0 # 0", x="0")),
+     "why": "an antiderivative undefined at an interior point: F's former "
+            "refuses first (E9 (ii)); without it, ftc's F in C^0([-1, 1]) "
+            "premise is decided false by E63 (as_well), before deriv"},
+    {"id": "ftc_f_not_C0_at_an_end",
+     "goal": "Int[x = 0 .. 1] 1/(2*sqrt x) == ?A", "setup": [],
+     "move": ("install", {}),
+     "refusal": OBLIGATION_DECIDED_FALSE,
+     "message": _point("2*sqrt x # 0 @ [0, 1]", "2*0 # 0",
+                       entries=("sqrt_zero",), x="0"),
+     "as_well": _reg_undefined("1/(2*sqrt x) in C^0([0, 1])",
+                               "2*sqrt x # 0 @ [0, 1]",
+                               _point("2*sqrt x # 0 @ [0, 1]", "2*0 # 0",
+                                      entries=("sqrt_zero",), x="0")),
+     "why": "§6.4's other half of the split: f may not misbehave at an "
+            "endpoint. The integral is 1, but improper (STAGE0.md S30): F "
+            "= sqrt x is C^0 on [0, 1] and C^1 on (0, 1), and f is not C^0 "
+            "on [0, 1]. int_improper is its route (E65)"},
+]
+# The accepted twin of the split: F only C^0 at an end is fine, and that is
+# PROOFS' P1.1-fallback (F = 2 sin sqrt x - 2 sqrt x cos sqrt x, C^1 only on
+# (0, pi^2/4)), 'Proved.' under REG_EXPECTED; REG_MUST_REJECT
+# ftc_F_C1_on_the_closed_range shows the closed claim is not certifiable.
+
+# E63 called on keys directly (item D), each emitted alone at a fresh
+# goal's domain: the kernel's outcome for the key.
+REG_DECIDED_FALSE = [c for c in REG_MUST_REJECT
+                     if c["if_emitted"][0] == "refused"] + [
+    {"id": "ln_C1_refuted_by_its_C0_side",
+     "key": ("ln x in C^1([0, 1])", "[0, 1]"),
+     "if_emitted": ("refused", _reg_undefined(
+         "ln x in C^1([0, 1])", "x > 0 @ [0, 1]",
+         _point("x > 0 @ [0, 1]", "0 > 0", x="0"))),
+     "why": "k = 1 is refuted through the C^0 side, which here is also "
+            "the C^1 side"},
+    {"id": "pole_integrand", "key": ("1/x^2 in C^0([-1, 1])", "[-1, 1]"),
+     "if_emitted": ("refused", _reg_undefined(
+         "1/x^2 in C^0([-1, 1])", "x^2 # 0 @ [-1, 1]",
+         _point("x^2 # 0 @ [-1, 1]", "0^2 # 0", x="0")))},
+    {"id": "f_at_an_end", "key": ("1/(2*sqrt x) in C^0([0, 1])", "[0, 1]"),
+     "if_emitted": ("refused", _reg_undefined(
+         "1/(2*sqrt x) in C^0([0, 1])", "2*sqrt x # 0 @ [0, 1]",
+         _point("2*sqrt x # 0 @ [0, 1]", "2*0 # 0", entries=("sqrt_zero",),
+                x="0")))},
+]
+# Not decided false (E63's C^1-only sides never refute): admitted none.
+REG_UNDECIDED = [c["id"] for c in REG_MUST_REJECT
+                 if c["if_emitted"][0] == "admitted"] + [
+    "f3_irrational_pole_undecided's Int former (REG_CASE_CHANGES)"]
+
+
+# Install-only cases for the formers' domains (DISCHARGE_UNDECIDED's shape).
+REG_INSTALL_CASES = [
+    {"id": "d_under_its_own_Int",
+     "goal": "Int[x = 0 .. 1] D[x](x^2) == ?A",
+     "goal_emits": [
+         ("D[x](x^2) in C^0([0, 1])", "[0, 1]", (S_FORMER,), ADMITTED,
+          T_NONE, True),
+         ("x^2 in C^1([0, 1])", "[0, 1]", (S_FORMER,), DISCHARGED, T_REG_OK,
+          True)],
+     "certificates": {("x^2 in C^1([0, 1])", "[0, 1]"): _REG(_N("pow", _X))},
+     "reasons": {("D[x](x^2) in C^0([0, 1])", "[0, 1]"): REASON_NONE},
+     "why": "pre-order: the Int's former first, whose term holds a D node "
+            "(no rule, REG_NOT_COVERED: admitted none), then the D's former "
+            "at ITS position domain, the Int's range [0, 1] (not true)"},
+    {"id": "d_former_with_goal_domain",
+     "goal": "D[x](ln x) == ?A @ x > 0",
+     "goal_emits": [
+         ("x > 0", "x > 0", (S_FORMER,), DISCHARGED, T_HYP, True),
+         ("ln x in C^1(x > 0)", "x > 0", (S_FORMER,), DISCHARGED, T_REG_OK,
+          True)],
+     "certificates": {("x > 0", "x > 0"): _member(0),
+                      ("ln x in C^1(x > 0)", "x > 0"):
+                          _REG(_N("ln", _X, side=[("x > 0", _member(0))]))},
+     "why": "ln's E26 former first, then the D former at the goal's "
+            "domain; both by hypothesis"},
+]
+
+# --- What changes in the existing cases (E64-E68) ----------------------------
+#
+# Every table the suite asserts, re-traced by hand. A case not named keeps
+# every expected value except that each Reg row it lists becomes DISCHARGED
+# with REG_CASE_CERTS' tag (or ADMITTED as REG_CASE_ADMITTED says), and its
+# report loses those admissions (a 'Proved modulo 3' that owed only Regs
+# reads 'Proved.'). For a named case: 'goal_emits_add' and 'emits_add' are
+# rows appended to installation's and the move's lists, 'then_add' to the
+# continuation's i-th step; 'not_new' names the keys whose row in that list
+# (by 'goal', 'emits' or the step index) is no longer new; 'report' the new
+# report. Every added row's key is in REG_CASE_CERTS or REG_CASE_ADMITTED
+# (Reg) or has its certificate in 'certificates'.
+def _rrow(prop, dom, sources=(S_FORMER,), tag=T_REG_OK, new=True,
+          status=DISCHARGED):
+    return (prop, dom, sources, status, tag, new)
+
+
+_ORIENT_PI_HALF = ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI,
+                   True)
+_KEY_PI_HALF = ("0 <= pi/2", "true")
+_RANGE_LO1 = _farkas({GOAL: "1", LO(1): "1"})
+# 1 - (cos theta)^2 >= 0 on [0, pi/2], as CONSOLIDATION_CHANGES pins it
+_COS_SQ_PRODUCT = _product(
+    "-1", [("cos theta - 1", "<=",
+            _farkas({GOAL: "1", ATOM("cos_le_one", "theta"): "1"})),
+           ("cos theta + 1", ">=",
+            _farkas({GOAL: "1", ATOM("cos_ge_neg_one", "theta"): "1"}))])
+REG_CASE_CERTS = {
+    # MATCH_ACCEPTS
+    ("ln(1/x - 1/x + 1) in C^0([1, 2])", "[1, 2]"): (T_REG_OK, _REG(_N(
+        "ln", _N("add", _N("add", _N("div", _K, _X,
+                                     side=[("x # 0", _RANGE_LO_NZ)]),
+                            _N("neg", _N("div", _K, _X,
+                                         side=[("x # 0", _RANGE_LO_NZ)]))),
+                 _K),
+        side=[("1/x - 1/x + 1 > 0", _farkas({GOAL: "1"}))]))),
+    ("atan(-ln x) in C^0([1, 2])", "[1, 2]"): (T_REG_OK, _REG(_N(
+        "atan", _N("neg", _N("ln", _X, side=[("x > 0", _RANGE_LO)]))))),
+    ("atan(-ln(x + y)) in C^0(y > 0, x in [1, 2])", "y > 0, x in [1, 2]"):
+        (T_REG_OK, _REG(_N("atan", _N("neg", _N(
+            "ln", _N("add", _X, _X),
+            side=[("x + y > 0", _farkas({GOAL: "1", REL(0): "1",
+                                         LO(1): "1"}))]))))),
+    ("t in C^0(y >= 0, t in [0, sqrt y])", "y >= 0, t in [0, sqrt y]"):
+        (T_REG_OK, _REG(_X)),
+    # OCCURRENCE_CASE
+    ("sqrt(t^2) in C^0([0, 1])", "[0, 1]"): (T_REG_OK, _REG(_sqrt_t2())),
+    ("sqrt(t^2) in C^0([-1, 0])", "[-1, 0]"): (T_REG_OK, _REG(_sqrt_t2())),
+    # INT_SUBST_ACCEPTS (and the case E56_CHANGES moved there)
+    ("2*x in C^0([0, 1])", "[0, 1]"): (T_REG_OK, _REG(_N("mul", _K, _X))),
+    ("1 - t in C^1([0, 1])", "[0, 1]"): (T_REG_OK, _REG(_N(
+        "add", _K, _N("neg", _X)))),
+    ("2*(1 - t) in C^0([0, 1])", "[0, 1]"): (T_REG_OK, _REG(_N(
+        "mul", _K, _N("add", _K, _N("neg", _X))))),
+    ("2*(1 - t)*(0 + (0*t + (-1)*1)) in C^0([0, 1])", "[0, 1]"):
+        (T_REG_OK, _REG(_N("mul", _N("mul", _K, _N("add", _K, _N("neg", _X))),
+                           _N("add", _K, _N("add", _N("mul", _K, _X),
+                                                  _N("mul", _N("neg", _K),
+                                                     _K)))))),
+    ("t^2 - 2*t in C^0([0, 1])", "[0, 1]"): (T_REG_OK, _REG(_N(
+        "add", _N("pow", _X), _N("neg", _N("mul", _K, _X))))),
+    ("t^2 - 2*t in C^1((0, 1))", "(0, 1)"): (T_REG_OK, _REG(_N(
+        "add", _N("pow", _X), _N("neg", _N("mul", _K, _X))))),
+    ("x in C^0([1, 1])", "[1, 1]"): (T_REG_OK, _REG(_X)),
+    ("t^2 in C^1([-1, 1])", "[-1, 1]"): (T_REG_OK, _REG(_N("pow", _X))),
+    ("t^2 in C^0([-1, 1])", "[-1, 1]"): (T_REG_OK, _REG(_N("pow", _X))),
+    ("t^2*(2*t^1*1) in C^0([-1, 1])", "[-1, 1]"): (T_REG_OK, _REG(_N(
+        "mul", _N("pow", _X), _two_t1_1()))),
+    ("exp x in C^0([0, 1])", "[0, 1]"): (T_REG_OK, _REG(_N("exp", _X))),
+    ("ln t in C^1([1, e_const])", "[1, e_const]"): (T_REG_OK, _REG(_N(
+        "ln", _X, side=[("t > 0", _RANGE_LO)]))),
+    ("exp(ln t) in C^0([1, e_const])", "[1, e_const]"): (T_REG_OK, _REG(_N(
+        "exp", _N("ln", _X, side=[("t > 0", _RANGE_LO)])))),
+    ("exp(ln t)*(1/t) in C^0([1, e_const])", "[1, e_const]"):
+        (T_REG_OK, _REG(_N("mul", _N("exp", _N("ln", _X, side=[
+            ("t > 0", _RANGE_LO)])), _N("div", _K, _X, side=[
+                ("t # 0", _RANGE_LO_NZ)])))),
+    ("cos x in C^0([0, pi/2])", "[0, pi/2]"): (T_REG_OK, _REG(_N("cos",
+                                                                  _X))),
+    ("pi/2 - t in C^1([0, pi/2])", "[0, pi/2]"): (T_REG_OK, _REG(_N(
+        "add", _N("div", _K, _K, side=[("2 # 0", NORM_NUM_LEAF)]),
+        _N("neg", _X)))),
+    ("cos(pi/2 - t) in C^0([0, pi/2])", "[0, pi/2]"): (T_REG_OK, _REG(_N(
+        "cos", _N("add", _N("div", _K, _K, side=[("2 # 0", NORM_NUM_LEAF)]),
+                  _N("neg", _X))))),
+    ("-(cos(pi/2 - t)*(0 + (0*t + (-1)*1))) in C^0([0, pi/2])", "[0, pi/2]"):
+        (T_REG_OK, _REG(_N("neg", _N(
+            "mul", _N("cos", _N("add", _N("div", _K, _K, side=[
+                ("2 # 0", NORM_NUM_LEAF)]), _N("neg", _X))),
+            _N("add", _K, _N("add", _N("mul", _K, _X),
+                             _N("mul", _N("neg", _K), _K))))))),
+    ("x in C^0([0, 1])", "[0, 1]"): (T_REG_OK, _REG(_X)),
+    ("cos theta in C^1([0, pi/2])", "[0, pi/2]"): (T_REG_OK, _REG(_N("cos",
+                                                                      _X))),
+    ("cos theta in C^0([0, pi/2])", "[0, pi/2]"): (T_REG_OK, _REG(_N("cos",
+                                                                      _X))),
+    ("-(cos theta * (-sin theta * 1)) in C^0([0, pi/2])", "[0, pi/2]"):
+        (T_REG_OK, _REG(_N("neg", _N("mul", _N("cos", _X), _N(
+            "mul", _N("neg", _N("sin", _X)), _K))))),
+    ("(sin theta)^2/2 in C^0([0, pi/2])", "[0, pi/2]"): (T_REG_OK, _REG(_N(
+        "div", _N("pow", _N("sin", _X)), _K,
+        side=[("2 # 0", NORM_NUM_LEAF)]))),
+    ("(sin theta)^2/2 in C^1((0, pi/2))", "(0, pi/2)"): (T_REG_OK, _REG(_N(
+        "div", _N("pow", _N("sin", _X)), _K,
+        side=[("2 # 0", NORM_NUM_LEAF)]))),
+    ("sqrt(1 - x^2) in C^0([0, 1])", "[0, 1]"): (T_REG_OK, _REG(_N(
+        "sqrt", _N("add", _K, _N("neg", _N("pow", _X))),
+        side=[("1 - x^2 >= 0", _ONE_MINUS_X2)]))),
+    ("sqrt(1 - (cos theta)^2) in C^0([0, pi/2])", "[0, pi/2]"):
+        (T_REG_COS, _REG(_N("sqrt", _N("add", _K, _N("neg", _N(
+            "pow", _N("cos", _X)))), side=[("1 - (cos theta)^2 >= 0",
+                                            _COS_SQ_PRODUCT)]))),
+    ("-(sqrt(1 - (cos theta)^2)*(-sin theta * 1)) in C^0([0, pi/2])",
+     "[0, pi/2]"):
+        (T_REG_COS, _REG(_N("neg", _N("mul", _N("sqrt", _N(
+            "add", _K, _N("neg", _N("pow", _N("cos", _X)))),
+            side=[("1 - (cos theta)^2 >= 0", _COS_SQ_PRODUCT)]),
+            _N("mul", _N("neg", _N("sin", _X)), _K))))),
+    ("t^2 in C^1([0, pi/2])", "[0, pi/2]"): (T_REG_OK, _REG(_N("pow", _X))),
+    ("sin(sqrt(t^2)) in C^0([0, pi/2])", "[0, pi/2]"): (T_REG_OK, _REG(_N(
+        "sin", _sqrt_t2()))),
+    _REG_SHEET_GOAL: (T_REG_OK, _REG(_N("sin", _N(
+        "sqrt", _X, side=[("x >= 0", _RANGE_LO)])))),
+    _REG_SHEET_S1: (T_REG_OK, _REG(_N("mul", _N("sin", _sqrt_t2()),
+                                      _two_t1_1()))),
+    ("2*x^3 in C^0([-1, 1])", "[-1, 1]"): (T_REG_OK, _REG(_N(
+        "mul", _K, _N("pow", _X)))),
+    ("x^2 in C^1([-1, 1])", "[-1, 1]"): (T_REG_OK, _REG(_N("pow", _X))),
+    ("x^2 in C^0([-1, 1])", "[-1, 1]"): (T_REG_OK, _REG(_N("pow", _X))),
+    ("u in C^0([1, 1])", "[1, 1]"): (T_REG_OK, _REG(_X)),
+    ("2*x in C^0([0, pi/2])", "[0, pi/2]"): (T_REG_OK, _REG(_N("mul", _K,
+                                                                _X))),
+    ("-1 in C^0(u in [0, pi^2/4])", "u in [0, pi^2/4]"): (T_REG_OK, _REG(
+        _N("neg", _K))),
+    ("x^2 in C^1([0, pi/2])", "[0, pi/2]"): (T_REG_OK, _REG(_N("pow", _X))),
+    ("1 in C^0(x in [0, pi/2])", "x in [0, pi/2]"): (T_REG_OK, _REG(_K)),
+    # INT_FLIP_ACCEPTS
+    ("-(2*x) in C^0([0, pi/2])", "[0, pi/2]"): (T_REG_OK, _REG(_N(
+        "neg", _N("mul", _K, _X)))),
+    ("-x^2 in C^0([0, pi/2])", "[0, pi/2]"): (T_REG_OK, _REG(_N(
+        "neg", _N("pow", _X)))),
+    ("-x^2 in C^1((0, pi/2))", "(0, pi/2)"): (T_REG_OK, _REG(_N(
+        "neg", _N("pow", _X)))),
+    ("sqrt x in C^0([0, pi/2])", "[0, pi/2]"): (T_REG_OK, _REG(_N(
+        "sqrt", _X, side=[("x >= 0", _RANGE_LO)]))),
+    ("-(sqrt x) in C^0([0, pi/2])", "[0, pi/2]"): (T_REG_OK, _REG(_N(
+        "neg", _N("sqrt", _X, side=[("x >= 0", _RANGE_LO)])))),
+    # E56_ACCEPTS
+    ("sqrt(t^2) in C^0([0, pi/2])", "[0, pi/2]"): (T_REG_OK, _REG(
+        _sqrt_t2())),
+    ("t^2/2 in C^0([0, pi/2])", "[0, pi/2]"): (T_REG_OK, _REG(_N(
+        "div", _N("pow", _X), _K, side=[("2 # 0", NORM_NUM_LEAF)]))),
+    ("t^2/2 in C^1((0, pi/2))", "(0, pi/2)"): (T_REG_OK, _REG(_N(
+        "div", _N("pow", _X), _K, side=[("2 # 0", NORM_NUM_LEAF)]))),
+    ("t in C^0([0, pi/2])", "[0, pi/2]"): (T_REG_OK, _REG(_X)),
+    ("x^2 in C^0([0, pi/2])", "[0, pi/2]"): (T_REG_OK, _REG(_N("pow", _X))),
+    ("x^2 in C^1((0, pi/2))", "(0, pi/2)"): (T_REG_OK, _REG(_N("pow", _X))),
+    # REVIEW_ACCEPTS
+    ("1 in C^0(x in [0, 1])", "x in [0, 1]"): (T_REG_OK, _REG(_K)),
+    ("1 in C^0(t in [1, e_const])", "t in [1, e_const]"): (T_REG_OK,
+                                                           _REG(_K)),
+    ("1*(1/t) in C^0([1, e_const])", "[1, e_const]"): (T_REG_OK, _REG(_N(
+        "mul", _K, _N("div", _K, _X, side=[("t # 0", _RANGE_LO_NZ)])))),
+    ("1 in C^0(u in [0, pi^2/4])", "u in [0, pi^2/4]"): (T_REG_OK, _REG(_K)),
+    # E56_REVIEW_CASES
+    ("t in C^1(a <= b, y in [a, b], t in [a, y])",
+     "a <= b, y in [a, b], t in [a, y]"): (T_REG_OK, _REG(_X)),
+    ("1 in C^0(a <= b, y in [a, b], t in [a, y])",
+     "a <= b, y in [a, b], t in [a, y]"): (T_REG_OK, _REG(_K)),
+    ("1 in C^0(a <= b, y in [a, b], x in [a, y])",
+     "a <= b, y in [a, b], x in [a, y]"): (T_REG_OK, _REG(_K)),
+    ("1*1 in C^0(a <= b, y in [a, b], t in [a, y])",
+     "a <= b, y in [a, b], t in [a, y]"): (T_REG_OK, _REG(_N("mul", _K,
+                                                              _K))),
+    ("sin 0 in C^0(x in [0, (a - 1)^40])", "x in [0, (a - 1)^40]"):
+        (T_REG_OK, _REG(_N("sin", _K))),
+    # DISCHARGE_BAD_MOVES_ADDED rewrite_under_D_through_Int_stated
+    ("sqrt(t^2) in C^0(0 <= x, t in [0, x])", "0 <= x, t in [0, x]"):
+        (T_REG_OK, _REG(_sqrt_t2())),
+    # the BAD_MOVES case ftc_check_refuses_D, now accepted
+    ("x in C^0([-1, 1])", "[-1, 1]"): (T_REG_OK, _REG(_X)),
+    ("x in C^1((-1, 1))", "(-1, 1)"): (T_REG_OK, _REG(_X)),
+    # the BAD_MOVES case close_D_goal_scope_passes
+    ("x^2 in C^1(true)", "true"): (T_REG_OK, _REG(_N("pow", _X))),
+}
+# Reg keys in the cases that stay admitted (no derivation), each tagged none.
+REG_CASE_ADMITTED = {
+    ("y*(Int[x = 0 .. 1] 2*x) in C^1(true)", "true"): (T_NONE, REASON_NONE),
+    ("Int[x = a .. y] 1 in C^0(a <= b, y in [a, b])", "a <= b, y in [a, b]"):
+        (T_NONE, REASON_NONE),
+    ("Int[t = 0 .. x] sqrt(t^2) in C^1(0 <= x)", "0 <= x"):
+        (T_NONE, REASON_NONE),
+    ("1/((x + pi)/(x + pi) - 1) in C^0([1, 2])", "[1, 2]"):
+        (T_NONE, REASON_NONE),
+    ("1/(t^2 - 2) in C^0([0, 2])", "[0, 2]"): (T_NONE, REASON_NONE),
+    ("abs x in C^1(true)", "true"): (T_NONE, REASON_NONE),
+    ("abs x in C^1([-1, 1])", "[-1, 1]"): (T_NONE, REASON_NONE),
+    ("1 + (D[x](abs x) - D[x](abs x)) in C^0([-1, 1])", "[-1, 1]"):
+        (T_NONE, REASON_NONE),
+}
+
+REG_CASE_CHANGES = {
+    "MATCH_ACCEPTS": {
+        "ring_cancels_inv_atom": {"goal_emits_add": [_rrow(
+            "ln(1/x - 1/x + 1) in C^0([1, 2])", "[1, 2]")]},
+        "rewrite_R_former_at_position": {"goal_emits_add": [_rrow(
+            "atan(-ln x) in C^0([1, 2])", "[1, 2]")]},
+        "rewrite_R_former_at_goal_and_range": {"goal_emits_add": [_rrow(
+            "atan(-ln(x + y)) in C^0(y > 0, x in [1, 2])",
+            "y > 0, x in [1, 2]")]},
+        # the Int's range 0 .. sqrt y is used by its former now (E68)
+        "limit_former_at_outer_domain": {
+            "goal_emits_add": [
+                ("0 <= sqrt y", "y >= 0", (S_ORIENT,), DISCHARGED,
+                 T_LINEAR_SQRT, True),
+                _rrow("t in C^0(y >= 0, t in [0, sqrt y])",
+                      "y >= 0, t in [0, sqrt y]")],
+            "certificates": {("0 <= sqrt y", "y >= 0"):
+                             _farkas({GOAL: "1", SQRT("y"): "1"})}},
+        "rewrite_under_infinite_range": {"note": "unchanged: its Int is "
+                                                 "improper (E65)"},
+    },
+    "OCCURRENCE_CASE": {"goal_emits_add": [
+        _rrow("sqrt(t^2) in C^0([0, 1])", "[0, 1]"),
+        _rrow("sqrt(t^2) in C^0([-1, 0])", "[-1, 0]")]},
+    "INT_SUBST_ACCEPTS": {
+        "decreasing_literal_ends": {
+            "goal_emits_add": [_rrow("2*x in C^0([0, 1])", "[0, 1]")],
+            "emits_add": [_rrow("2*(1 - t)*(0 + (0*t + (-1)*1)) in "
+                                "C^0([0, 1])", "[0, 1]")],
+            "not_new": {0: [("2*(1 - t)*(0 + (0*t + (-1)*1)) in C^0([0, 1])",
+                             "[0, 1]")]},
+            "report": PROVED},
+        "non_monotone_accepted": {
+            "goal_emits_add": [_rrow("x in C^0([1, 1])", "[1, 1]")],
+            "emits_add": [_rrow("t^2*(2*t^1*1) in C^0([-1, 1])",
+                                "[-1, 1]")]},
+        "ln_endpoints_by_exact_values": {
+            "goal_emits_add": [_rrow("exp x in C^0([0, 1])", "[0, 1]")],
+            "emits_add": [_rrow("exp(ln t)*(1/t) in C^0([1, e_const])",
+                                "[1, e_const]")]},
+        "decreasing_symbolic_ends_flipped": {
+            "goal_emits_add": [_ORIENT_PI_HALF,
+                               _rrow("cos x in C^0([0, pi/2])",
+                                     "[0, pi/2]")],
+            "not_new": {"emits": [_KEY_PI_HALF]},
+            "emits_add": [_rrow("-(cos(pi/2 - t)*(0 + (0*t + (-1)*1))) in "
+                                "C^0([0, pi/2])", "[0, pi/2]")]},
+        "cos_theta_canonical": {
+            "goal_emits_add": [_rrow("sqrt(1 - x^2) in C^0([0, 1])",
+                                     "[0, 1]")],
+            "emits_add": [_rrow("-(sqrt(1 - (cos theta)^2)*(-sin theta * 1))"
+                                " in C^0([0, pi/2])", "[0, pi/2]",
+                                tag=T_REG_COS)]},
+        "cos_theta_full": {
+            "goal_emits_add": [_rrow("x in C^0([0, 1])", "[0, 1]")],
+            "emits_add": [_rrow("-(cos theta * (-sin theta * 1)) in "
+                                "C^0([0, pi/2])", "[0, pi/2]")],
+            "not_new": {0: [("-(cos theta * (-sin theta * 1)) in "
+                             "C^0([0, pi/2])", "[0, pi/2]")]},
+            "report": PROVED},
+        "sum_second_occurrence": {
+            "goal_emits_add": [_rrow("2*x in C^0([0, 1])", "[0, 1]"),
+                               _rrow(*_REG_SHEET_GOAL)],
+            "emits_add": [_rrow(*_REG_SHEET_S1)]},
+        # E61's limit, visible: the D former's term holds an Int
+        "under_D_constant_integral": {
+            "goal_emits_add": [
+                _rrow("y*(Int[x = 0 .. 1] 2*x) in C^1(true)", "true",
+                      status=ADMITTED, tag=T_NONE),
+                _rrow("2*x in C^0([0, 1])", "[0, 1]")],
+            "emits_add": [_rrow("2*(1 - t)*(0 + (0*t + (-1)*1)) in "
+                                "C^0([0, 1])", "[0, 1]")]},
+        "reverse_non_monotone": {
+            "goal_emits_add": [_rrow("2*x^3 in C^0([-1, 1])", "[-1, 1]")],
+            "emits_add": [_rrow("u in C^0([1, 1])", "[1, 1]")]},
+        # moved here by E56_CHANGES
+        "reverse_symbolic_old_range_reversed": {
+            "goal_emits_add": [_ORIENT_PI_HALF,
+                               _rrow("2*x in C^0([0, pi/2])", "[0, pi/2]")],
+            "not_new": {"emits": [_KEY_PI_HALF]},
+            "emits_add": [_rrow("-1 in C^0(u in [0, pi^2/4])",
+                                "u in [0, pi^2/4]")]},
+    },
+    "INT_FLIP_ACCEPTS": {
+        "flip_reversed_symbolic_to_value": {
+            "goal_emits_add": [_ORIENT_PI_HALF,
+                               _rrow("2*x in C^0([0, pi/2])", "[0, pi/2]")],
+            "emits_add": [
+                ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI,
+                 False),
+                _rrow("-(2*x) in C^0([0, pi/2])", "[0, pi/2]")],
+            "not_new": {0: [_KEY_PI_HALF,
+                            ("-(2*x) in C^0([0, pi/2])", "[0, pi/2]")]},
+            "report": PROVED},
+        "flip_sum_second_occurrence": {
+            "goal_emits_add": [_rrow("2*x in C^0([0, 1])", "[0, 1]"),
+                               _ORIENT_PI_HALF,
+                               _rrow("2*x in C^0([0, pi/2])", "[0, pi/2]")],
+            "emits_add": [
+                ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI,
+                 False),
+                _rrow("-(2*x) in C^0([0, pi/2])", "[0, pi/2]")]},
+        "flip_oriented_symbolic_with_former": {
+            "goal_emits_add": [_rrow("sqrt x in C^0([0, pi/2])",
+                                     "[0, pi/2]")],
+            "emits_add": [_rrow("-(sqrt x) in C^0([0, pi/2])",
+                                "[0, pi/2]")]},
+    },
+    "E56_ACCEPTS": {
+        "reversed_symbolic_with_former_by_ftc": {
+            "goal_emits_add": [_rrow("sqrt(t^2) in C^0([0, pi/2])",
+                                     "[0, pi/2]")],
+            "report": PROVED},
+        "reversed_symbolic_by_ftc_linear": {
+            "goal_emits_add": [_ORIENT_PI_HALF,
+                               _rrow("2*x in C^0([0, pi/2])", "[0, pi/2]")],
+            "not_new": {"emits": [_KEY_PI_HALF,
+                                  ("2*x in C^0([0, pi/2])", "[0, pi/2]")]},
+            "report": PROVED},
+    },
+    "REVIEW_ACCEPTS": {
+        "forward_constant_body_partial_phi": {
+            "goal_emits_add": [_rrow("1 in C^0(x in [0, 1])", "x in [0, 1]")],
+            "emits_add": [_rrow("1*(1/t) in C^0([1, e_const])",
+                                "[1, e_const]")]},
+        "reverse_symbolic_old_range_oriented": {
+            "goal_emits_add": [_ORIENT_PI_HALF,
+                               _rrow("2*x in C^0([0, pi/2])", "[0, pi/2]")],
+            "not_new": {"emits": [_KEY_PI_HALF]},
+            "emits_add": [_rrow("1 in C^0(u in [0, pi^2/4])",
+                                "u in [0, pi^2/4]")]},
+    },
+    "E56_REVIEW_CASES": {
+        # the outer Int's own former now needs a <= b at installation
+        "int_subst_enclosing_range_undecided": {
+            "old": ("refused at the int_subst move", "orientation-undecided",
+                    {"lo": "a", "hi": "b"}),
+            "new": ("refused at installation", "orientation-undecided",
+                    {"lo": "a", "hi": "b"})},
+        "int_subst_enclosing_range_decided": {
+            "goal_emits_add": [
+                ("a <= b", "a <= b", (S_ORIENT,), DISCHARGED, T_HYP, True),
+                _rrow("Int[x = a .. y] 1 in C^0(a <= b, y in [a, b])",
+                      "a <= b, y in [a, b]", status=ADMITTED, tag=T_NONE),
+                ("a <= y", "a <= b, y in [a, b]", (S_ORIENT,), DISCHARGED,
+                 T_RANGE, True),
+                _rrow("1 in C^0(a <= b, y in [a, b], x in [a, y])",
+                      "a <= b, y in [a, b], x in [a, y]")],
+            "not_new": {"emits": [("a <= b", "a <= b"),
+                                  ("a <= y", "a <= b, y in [a, b]")]},
+            "emits_add": [_rrow("1*1 in C^0(a <= b, y in [a, b], "
+                                "t in [a, y])",
+                                "a <= b, y in [a, b], t in [a, y]")],
+            "certificates": {("a <= y", "a <= b, y in [a, b]"): _RANGE_LO1}},
+        "lazy_unused_range_installs": {
+            "goal_emits_add": [
+                ("0 <= (a - 1)^40", "true", (S_ORIENT,), DISCHARGED, T_SIGN,
+                 True),
+                _rrow("sin 0 in C^0(x in [0, (a - 1)^40])",
+                      "x in [0, (a - 1)^40]")],
+            "certificates": {("0 <= (a - 1)^40", "true"):
+                             _sos("0", [("1", "a - 1", 40)])},
+            "timing_bound": E56_TIMING_BOUND,
+            "note": "E68: the range is used by the Int's own former, so its "
+                    "order is decided; the bound stays, a requirement on the "
+                    "untrusted search"},
+    },
+    "E57_BAD_MOVES": {"pyth_erases_D": "moves to REG_E57_ACCEPTS"},
+    "DISCHARGE_BAD_MOVES_ADDED": {
+        "rewrite_under_D_through_Int_stated": {"goal_emits_add": [
+            _rrow("Int[t = 0 .. x] sqrt(t^2) in C^1(0 <= x)", "0 <= x",
+                  status=ADMITTED, tag=T_NONE),
+            _rrow("sqrt(t^2) in C^0(0 <= x, t in [0, x])",
+                  "0 <= x, t in [0, x]")]},
+        "field_zero_divisor_opaque": {"goal_emits_add": [
+            _rrow("1/((x + pi)/(x + pi) - 1) in C^0([1, 2])", "[1, 2]",
+                  status=ADMITTED, tag=T_NONE)]},
+    },
+    "F3_ROOTS_UNDECIDED": {
+        "f3_irrational_pole_undecided": {"goal_emits_add": [
+            _rrow("1/(t^2 - 2) in C^0([0, 2])", "[0, 2]", status=ADMITTED,
+                  tag=T_NONE)],
+            "note": "its div side t^2 - 2 # 0 @ [0, 2] is the former that "
+                    "stays admitted none; E63's F3 misses the irrational "
+                    "pole as F3 does"},
+    },
+}
+
+# BAD_MOVES whose outcome changes, old -> new, each traced (E66).
+REG_BAD_MOVES_CHANGED = {
+    "close_D_goal_scope_passes": {
+        "old": ("refused", "Int-or-D-not-normalisable"),
+        "new": ("refused", "close-check-failed"),
+        "residual": ("D[x] x^2 - 2*x", "ring"),
+        "goal_emits": [_rrow("x^2 in C^1(true)", "true")],
+        "why": "ring reads D[x] x^2 as an atom (E66 (1)), unrelated to 2*x "
+               "(no rule reads a D atom's value), so the check fails, as it "
+               "did before E26; the scope check and the whitelist still "
+               "pass first, which is what the case is for"},
+    "ring_refuses_D": {
+        "old": ("refused", "Int-or-D-not-normalisable"),
+        "new": "accepted: REG_Q23_CASES d_atoms_cancel_undefined, 'Proved "
+               "modulo 1 admissions'"},
+    "field_refuses_D": {
+        "old": ("refused", "Int-or-D-not-normalisable"),
+        "new": "accepted: REG_Q23_CASES d_atoms_cancel_undefined_field"},
+    "divisor_test_refuses_D": {
+        "old": ("refused", "Int-or-D-not-normalisable"),
+        "new": ("refused", "divisor-normalises-to-zero"),
+        "why": "E25's ring_nf reads the two D atoms and cancels them: the "
+               "divisor is 0 wherever it is defined, and it is refused before "
+               "any D former is charged (E64's order)"},
+    "match_refuses_D": {
+        "old": ("refused", "Int-or-D-not-normalisable"),
+        "new": {"goal_emits": [_rrow("abs x in C^1(true)", "true",
+                                     status=ADMITTED, tag=T_NONE)],
+                "goal_after": "-atan 0 == ?A", "emits": [],
+                "reasons": {("abs x in C^1(true)", "true"): REASON_NONE}},
+        "why": "step 2a passes a D node (E66 (3)), and step 3's ring_nf "
+               "matches -0 against D - D. The D's definedness was owed at "
+               "installation, admitted none"},
+    "ftc_check_refuses_D": {
+        "old": ("refused", "Int-or-D-not-normalisable"),
+        "new": {
+            "goal_emits": [
+                _rrow("1 + (D[x](abs x) - D[x](abs x)) in C^0([-1, 1])",
+                      "[-1, 1]", status=ADMITTED, tag=T_NONE),
+                _rrow("abs x in C^1([-1, 1])", "[-1, 1]", status=ADMITTED,
+                      tag=T_NONE)],
+            "goal_after": "1 - -1 == ?A",
+            "emits": [
+                _rrow("x in C^0([-1, 1])", "[-1, 1]", (S_FTC_C0F,)),
+                _rrow("x in C^1((-1, 1))", "(-1, 1)", (S_FTC_C1F,)),
+                ("D[x] x == 1 + (D[x](abs x) - D[x](abs x))", "(-1, 1)",
+                 (S_FTC_D,), DISCHARGED, T_DERIV_RING, True),
+                _rrow("1 + (D[x](abs x) - D[x](abs x)) in C^0([-1, 1])",
+                      "[-1, 1]", (S_FTC_C0f,), status=ADMITTED, tag=T_NONE,
+                      new=False)],
+            "then": [{"move": ("close", {"value": "2", "check": "ring",
+                                         "facts": []}),
+                      "goal_after": None, "emits": []}],
+            "report": VERDICT.format(n=2),
+            "theorem": "Int[x = -1 .. 1] (1 + (D[x](abs x) - D[x](abs x)))"
+                       " == 2"},
+        "why": "the check's ring cancels the D atoms; the integrand's "
+               "definedness is owed twice and both are false at 0: its "
+               "Int former (a term holding D nodes has no derivation) and "
+               "the D former abs x in C^1([-1, 1]), each admitted none. "
+               "'Proved modulo 2 admissions', where before E26 it was "
+               "'Proved modulo 3' with nothing false visible"},
+    "unchanged, re-traced": (
+        "every BAD_MOVES case on an improper Int (ring_refuses_Int, "
+        "field_refuses_Int, norm_num_refuses_Int, divisor_test_refuses_Int, "
+        "match_refuses_Int, ftc_check_refuses_Int, ftc_F_holds_x_free_Int, "
+        "ftc_infinite_endpoint): E65",
+        "norm_num_refuses_D, norm_num_refuses_open_Int, "
+        "norm_num_refuses_Int_in_domain, norm_num_refuses_D_in_domain: E7 "
+        "and the hypothesis gate are unchanged, and each refuses before any "
+        "Int or D former is charged (E64's order)",
+        "ftc_F_contains_D (deriv-no-rule) and ftc_F_holds_x_free_D (E12's "
+        "guard): F's formers, now including a D former, are charged first "
+        "and discarded with the refused step (E13)",
+        "rewrite_under_D, rewrite_under_D_stated, rewrite_under_D_R_closed_"
+        "former, rewrite_under_D_R_divisor: they install, owing sqrt(x^2) "
+        "in C^1 (admitted none: x^2 > 0 fails at 0) or atan(-x) in C^1 "
+        "(discharged), and step 9 refuses as before",
+        "rewrite_in_own_endpoint: 0 <= sqrt 1 is decided at installation "
+        "now (linear, sqrt_nonneg), and step 6 refuses as before",
+        "INT_SUBST_BAD_MOVES and INT_FLIP_BAD_MOVES: every goal installs as "
+        "before (each symbolic range's order is decidable, the stated ones "
+        "by hypothesis), and each refusal comes before step 14's formers",
+        "SECOND_REVIEW_BAD_MOVES: an Int with a tree in a limit is "
+        "unstatable, owes nothing, and every move still refuses it",
+        "F3_ROOTS_CASES, DISCHARGE_BAD_MOVES_ADDED's decided_false_*, "
+        "WRONG_ANSWERS, and stage 0's refusals: each refusal is an E6/E26 "
+        "former's, a check's or a step's, all before any new emission",
+    ),
+}
+
+# The suite's own cases in proof_of_life.py (read, not edited): what the
+# build must change there, with the reason, as DISCHARGE's 11b did.
+REG_SUITE_CHANGES = {
+    "SUITE_BAD_MOVES rewrite_inst_shadows": {
+        "old": "Int-or-D-not-normalisable (E57's step 2a)",
+        "new": "shadowing (rewrite's closing check_goal)",
+        "why": "the inst value's Ints are statable, so step 2a passes them "
+               "(E66 (3)) and step 3 matches; R carries Int[t = ..] into "
+               "Int[t = ..]'s body, which check_goal refuses. BACKSTOPS "
+               "rewrite_closing_check_goal still passes, and is now also "
+               "reached without its seam"},
+    "SUITE_BAD_MOVES rewrite_under_D_through_Int_R_former and _ln": {
+        "old": "rewrite-under-D-needs-open-domain",
+        "new": "orientation-undecided at installation, {'lo': '1', "
+               "'hi': 'x'}",
+        "why": "the Int's own former now uses its range [1, x] (E68); the "
+               "stated twins REG_BAD_MOVES_ADDED keep step 9 (b) reachable"},
+    "BAD_MOVES rewrite_under_D_through_Int_R_former and _ln (data)": {
+        "old": "rewrite-under-D-needs-open-domain",
+        "new": "orientation-undecided at installation, {'lo': '1', "
+               "'hi': 'x'}"},
+    "SUITE_BAD_MOVES goal_hyp_holds_Int, goal_hyp_holds_D, "
+    "goal_hyp_holds_Int_before_ftc, norm_num_refuses_Int_in_range_domain "
+    "and _div, ftc_F_holds_Int_binder, ftc_F_binder_free_in_rhs, "
+    "close_value_is_goal_lhs": "unchanged (E66 (2); the last installs "
+                               "owing x^2 in C^1(true), discharged, and "
+                               "E23 still refuses the value)",
+    "ISOLATED_SEAMS, BACKSTOPS": "unchanged",
+}
+REG_BAD_MOVES_ADDED = [
+    {"id": "rewrite_under_D_through_Int_R_former_stated",
+     "twin_of": "rewrite_under_D_through_Int_R_former",
+     "goal": "D[x](Int[t = 1 .. x] atan(-t)) == ?A @ 1 <= x", "setup": [],
+     "move": ("rewrite", {"entry": "atan_odd",
+                          "inst": {"u": "t + (sqrt t - sqrt t)"},
+                          "at": "atan(-t)"}),
+     "refusal": "rewrite-under-D-needs-open-domain",
+     "goal_emits": [
+         _rrow("Int[t = 1 .. x] atan(-t) in C^1(1 <= x)", "1 <= x",
+               status=ADMITTED, tag=T_NONE),
+         ("1 <= x", "1 <= x", (S_ORIENT,), DISCHARGED, T_HYP, True),
+         _rrow("atan(-t) in C^0(1 <= x, t in [1, x])",
+               "1 <= x, t in [1, x]")],
+     "certificates": {("1 <= x", "1 <= x"): _member(0),
+                      ("atan(-t) in C^0(1 <= x, t in [1, x])",
+                       "1 <= x, t in [1, x]"):
+                          _REG(_N("atan", _N("neg", _X)))},
+     "why": "the hypothesis orders the range, so installation succeeds, "
+            "and step 9 (b) refuses R's t >= 0 on the x-dependent [1, x]"},
+    {"id": "rewrite_under_D_through_Int_R_former_ln_stated",
+     "twin_of": "rewrite_under_D_through_Int_R_former_ln",
+     "goal": "D[x](Int[t = 1 .. x] atan(-t)) == ?A @ 1 <= x", "setup": [],
+     "move": ("rewrite", {"entry": "atan_odd",
+                          "inst": {"u": "t + (ln t - ln t)"},
+                          "at": "atan(-t)"}),
+     "refusal": "rewrite-under-D-needs-open-domain",
+     "why": "the ln twin: R's t > 0 on the closed, x-dependent [1, x]"},
+]
+REG_CASE_ADMITTED[("Int[t = 1 .. x] atan(-t) in C^1(1 <= x)", "1 <= x")] = \
+    (T_NONE, REASON_NONE)
+
+# --- FORGERIES (E69) -----------------------------------------------------------
+# print_proved_with_admissions and direct_tracker_write need a finished state
+# that still has an admission; P1.1 at s6 now reads 'Proved.'. They move to
+# REG_Q23_CASES d_atoms_cancel_undefined after its close (N = 1, the
+# admission abs x in C^1(true) tagged none). The suite replays that case's
+# goal and move to reach it.
+REG_FORGERY_STATE = ("REG_Q23_CASES", "d_atoms_cancel_undefined", "closed")
+REG_FORGERY_CHANGES = {
+    "direct_tracker_write": {
+        "state": REG_FORGERY_STATE,
+        "does": "public API only: take the object returned by the state's "
+                "public obligations or tracker accessor, and delete the "
+                "admission abs x in C^1(true) from it",
+        "post": "the accessor again returns that case's final tracker, "
+                "[abs x in C^1(true), admitted, ('none', ())], and the "
+                "report is 'Proved modulo 1 admissions'"},
+    "print_proved_with_admissions": {
+        "state": REG_FORGERY_STATE,
+        "post": "every report string the kernel produces for the state "
+                "equals 'Proved modulo 1 admissions', and 'Proved.' is not "
+                "a substring of any captured stdout or report output"},
+    "json_roundtrip_state, the handle forgeries": "unchanged; FORGERY_STATE "
+        "stays (P1.2, s8), and TRACKER_AT_FORGERY_STATE is derived from "
+        "REG_FINAL_TRACKER['P1.2'] as it was from FINAL_TRACKER",
+}
+
+
+# --- Planted bugs: one per checker rule, and for the formers -----------------
+#
+# DISCHARGE_NEW_PLANTED_BUGS' shape: the mutation, and what must catch it.
+# Seams are the architecture's to name (ARCHITECTURE.md §7): each rule a
+# small function looked up by name at call time. Locations: (table, id) for
+# a case whose expected outcome the bug changes, ('PROPERTY', 'reg') for
+# REG_PROPERTY_TEST, ('N', proof) and (proof, step, prop, dom) as
+# PLANTED_BUGS read them; 'admissions' where N moves.
+REG_PLANTED_BUGS = {
+    # the checker, rule by rule
+    "reg_side_not_decided": {
+        "mutation": "a side condition's certificate is not decided (every "
+                    "side accepted)",
+        "caught_by": [("REG_MUST_REJECT", "sqrt_C1_closed_at_zero"),
+                      ("REG_MUST_REJECT", "inv_C0_across_pole"),
+                      ("REG_MUST_REJECT", "ln_C0_at_zero"),
+                      ("REG_MUST_REJECT", "abs_C1_at_zero"),
+                      ("REG_MUST_REJECT", "composition_leaves_domain"),
+                      ("REG_MUST_REJECT", "asin_inner_leaves_domain"),
+                      ("REG_MUST_REJECT", "ftc_F_C1_on_the_closed_range"),
+                      ("PROPERTY", "reg")]},
+    "reg_side_count_unchecked": {
+        "mutation": "sides are paired with the rebuilt list without "
+                    "checking the count, so a missing side is never asked",
+        "caught_by": [("REG_MUST_REJECT", "sqrt_C0_side_omitted"),
+                      ("REG_MUST_REJECT", "div_side_omitted"),
+                      ("REG_MUST_REJECT", "ln_side_omitted"),
+                      ("REG_MUST_REJECT", "abs_C1_side_omitted"),
+                      ("REG_MUST_REJECT", "rpow_side_omitted")]},
+    "reg_side_from_certificate": {
+        "mutation": "a side's proposition is taken from the certificate, "
+                    "not rebuilt from the term and k",
+        "caught_by": [("REG_MUST_REJECT", "sqrt_C1_side_weakened"),
+                      ("PROPERTY", "reg")]},
+    "reg_rule_from_certificate": {
+        "mutation": "the checker dispatches on the certificate's rule name, "
+                    "not on the term's head",
+        "caught_by": [("REG_MUST_REJECT", "ln_as_const"),
+                      ("REG_MUST_REJECT", "negative_power_as_power"),
+                      ("REG_MUST_REJECT", "d_node_no_rule"),
+                      ("REG_MUST_REJECT", "wrong_rule_name")]},
+    "reg_children_not_walked": {
+        "mutation": "only the root node is checked; args is not compared "
+                    "with the term's children",
+        "caught_by": [("REG_MUST_REJECT", "nested_arg_unchecked"),
+                      ("PROPERTY", "reg")]},
+    "reg_c1_uses_c0_sides": {
+        "mutation": "at k = 1 the builtin's C^0 sides are demanded (no "
+                    "interior, no REG_C1_EXTRA)",
+        "caught_by": [("REG_MUST_REJECT", "sqrt_C1_side_weakened"),
+                      ("REG_MUST_REJECT", "abs_C1_side_omitted")]},
+    "reg_no_c1_extra": {
+        "mutation": "REG_C1_EXTRA is not read: abs is C^1 everywhere",
+        "caught_by": [("REG_MUST_REJECT", "abs_C1_side_omitted")]},
+    "reg_div_no_side": {
+        "mutation": "div owes no side",
+        "caught_by": [("REG_MUST_REJECT", "div_side_omitted")]},
+    "reg_negative_power_as_power": {
+        "mutation": "Pow with n < 0 is given the pow rule (no side)",
+        "caught_by": [("REG_MUST_REJECT", "negative_power_as_power")]},
+    "reg_rpow_no_side": {
+        "mutation": "rpow owes no side",
+        "caught_by": [("REG_MUST_REJECT", "rpow_side_omitted")]},
+    "reg_any_class": {
+        "mutation": "k is not checked (C^2 and C^omega read as C^1)",
+        "caught_by": [("REG_MUST_REJECT", "class_omega"),
+                      ("REG_MUST_REJECT", "class_two")]},
+    "reg_tree_as_const": {
+        "mutation": "an Integral or Deriv node is given the const rule",
+        "caught_by": [("REG_MUST_REJECT", "int_node_no_rule"),
+                      ("REG_MUST_REJECT", "d_node_no_rule")]},
+    "reg_extra_fields_ignored": {
+        "mutation": "a certificate field the checker does not know is "
+                    "ignored",
+        "caught_by": [("REG_MUST_REJECT", "malformed_extra_field")]},
+    # untrusted, can only cost admissions or a refusal
+    "reg_search_drops_side": {
+        "mutation": "the untrusted search omits the last side of every node "
+                    "that has one",
+        "admissions": {"P1.1": 1, "P1.1-sheet": 3, "P1.1-fallback": 3,
+                       "P1.2": 3, "P1.2-alt": 3},
+        "caught_by": [("N", "P1.1"), ("N", "P1.1-sheet"),
+                      ("N", "P1.1-fallback"), ("N", "P1.2"),
+                      ("N", "P1.2-alt")],
+        "note": "each rejected Reg is admitted REASON_REJECTED, tagged "
+                "('reg', cites) by REG_TAG_RULE (P1.2's F keeps its "
+                "sqrt_pos), which the search's bug does not reach: a search "
+                "bug costs admissions, never a discharge"},
+    "reg_refute_off": {
+        "mutation": "E63 never refutes a Reg",
+        "caught_by": [("REG_DECIDED_FALSE", c["id"])
+                      for c in REG_DECIDED_FALSE]},
+    # the formers
+    "int_former_not_charged": {
+        "mutation": "a statable Int owes no former where it enters",
+        "caught_by": [("P1.1", "goal", "sin(sqrt(t^2))*(2*t) in "
+                       "C^0([0, pi/2])", "[0, pi/2]"),
+                      ("P1.1-sheet", "s1", "sin(sqrt(t^2))*(2*t^1*1) in "
+                       "C^0([0, pi/2])", "[0, pi/2]"),
+                      ("P1.2", "s2", "1/(1 + x^3) in C^0([0, 1])", "new"),
+                      ("REG_Q23_CASES", "solve_for_I_cancels"),
+                      ("REG_E57_ACCEPTS", "pyth_erases_proper_Int"),
+                      ("E56_REVIEW_CASES", "int_subst_enclosing_range_"
+                                           "undecided")],
+        "note": "no false 'Proved.' follows in the data: every erased or "
+                "atom-read statable Int there is integrable. The worst case "
+                "is an atom whose integrand has an irrational pole, which "
+                "E6's own former already owes (admitted none)"},
+    "d_former_not_charged": {
+        "mutation": "a D node owes no former where it enters",
+        "caught_by": [("REG_E57_ACCEPTS", "pyth_erases_D"),
+                      ("REG_Q23_CASES", "d_atoms_cancel_undefined"),
+                      ("REG_Q23_CASES", "d_atoms_defined"),
+                      ("REG_INSTALL_CASES", "d_under_its_own_Int")],
+        "note": "the case that matters: pyth_erases_D reports a plain "
+                "'Proved.' again, the false Proved the consolidation review "
+                "found. Its report is what catches it"},
+    "d_former_at_goal_domain": {
+        "mutation": "a D node's former is charged at the goal's domain, not "
+                    "at its position domain",
+        "caught_by": [("REG_INSTALL_CASES", "d_under_its_own_Int")]},
+    "int_former_charged_first": {
+        "mutation": "the Int and D formers are charged before the term's E6 "
+                    "and E26 formers",
+        "caught_by": [("REG_BAD_MOVES", "ftc_across_pole"),
+                      ("REG_BAD_MOVES", "ftc_f_not_C0_at_an_end")],
+        "note": "each is refused by E63 with its 'as_well' message instead "
+                "of its former's"},
+    "former_div_dropped": {
+        "mutation": "installation does not charge a '/' former (the seam "
+                    "that charges formers, not kernel._owed, so E63's walk "
+                    "of the derivation still sees the divisor)",
+        "caught_by": [("REG_BAD_MOVES", "ftc_across_pole"),
+                      ("REG_BAD_MOVES", "ftc_f_not_C0_at_an_end"),
+                      ("P1.2", "goal", "1 + x^3 # 0", "[0, 1]")],
+        "expect": "ftc_across_pole and ftc_f_not_C0_at_an_end are still "
+                  "refused 'obligation-decided-false', with their 'as_well' "
+                  "messages: the FTC-across-a-pole trap refused by "
+                  "regularity alone"},
+    "ftc_no_F_formers": {
+        "mutation": "ftc does not charge F's formers",
+        "caught_by": [("REG_BAD_MOVES", "ftc_F_across_pole"),
+                      ("P1.2", "s2", "1 + x > 0", "[0, 1]")],
+        "expect": "ftc_F_across_pole is still refused, with its 'as_well' "
+                  "message (F in C^0([-1, 1]) decided false by E63)"},
+    "e57_refuses_nothing": {
+        "mutation": "REWRITE_RULE step 2a is dropped",
+        "caught_by": [("E57_BAD_MOVES", "pyth_erases_divergent_Int")]},
+    "e57_refuses_statable": {
+        "mutation": "step 2a still refuses every Int and D node (E57 as it "
+                    "stood)",
+        "caught_by": [("REG_E57_ACCEPTS", "pyth_erases_D"),
+                      ("REG_E57_ACCEPTS", "pyth_erases_proper_Int"),
+                      ("REG_E57_ACCEPTS", "pyth_erases_defined_D"),
+                      ("REG_BAD_MOVES_CHANGED", "match_refuses_D")]},
+    "improper_Int_as_atom": {
+        "mutation": "ring and field read an unstatable Int as an atom",
+        "caught_by": [("REG_Q23_REFUSALS", "divergent_I_minus_I"),
+                      ("BAD_MOVES", "ring_refuses_Int"),
+                      ("BAD_MOVES", "field_refuses_Int")],
+        "note": "the same patch as DEFINEDNESS_MUTATIONS "
+                "ring_reads_Int_as_atom and field_reads_Int_as_atom, which "
+                "keep their meaning (REG_BUG_RETRACE)"},
+}
+
+# --- The existing planted bugs, mutations and seams under the switch ---------
+#
+# The rule, applied to every entry of PLANTED_BUGS (with DISCHARGE_PLANTED_
+# BUGS), DISCHARGE_NEW_PLANTED_BUGS, DEFINEDNESS_MUTATIONS (with DISCHARGE_
+# MUTATION_CHANGES), INT_SUBST_PLANTED_BUGS, INT_SUBST_SEAMS, REVIEW_PLANTED_
+# BUGS, CONSOLIDATION_PLANTED_BUGS, E56_PLANTED_BUGS, REVIEW2_PLANTED_BUGS,
+# P1_1_SHEET_TRACES and problems/stage0's DISCHARGE_S0_SEAMS: a proof's
+# expected N under a bug is its post-discharge N minus the Reg keys that
+# proof had (3 for P1.1, P1.1-fallback, P1.2, P1.2-alt and the stage-0
+# proofs; 5 for the sheet; 5 for SUB1, SUB2 and QC1, 4 for S2R), because
+# every Reg key, old and new, is discharged under the bug exactly as without
+# it, EXCEPT where listed below. A bug reaches a Reg's certificate only by
+# weakening a side's certificate (a checker bug that rejects, a search bug)
+# or the natural-domain table the checker shares with the formers
+# (DEFINEDNESS_MUTATIONS' table rows): every one was traced. caught_by is
+# unchanged except where listed. Refusals are unchanged: no bug's refused
+# step reaches a new emission first.
+REG_BUG_RETRACE = {
+    # N given, re-traced
+    "PLANTED_BUGS / DISCHARGE_PLANTED_BUGS: every 'admissions' of 3": 0,
+    "PLANTED_BUGS tracker_drops_one": {
+        "admissions": {"P1.1": 0, "P1.1-fallback": 0, "P1.2": 0,
+                       "P1.2-alt": 0},
+        "drop": [("N", "P1.1"), ("N", "P1.2"), ("N", "P1.2-alt")],
+        "why": "its drop keys sin t * (2*t) in C^0 and 1/(1 + x^3) in C^0 "
+               "are discharged now, so dropping them no longer moves N; "
+               "the FINAL_TRACKER locations still catch it (E69). "
+               "1/(1 + x^3) in C^0([0, 1]) is now first emitted at "
+               "installation, and the wrapper drops every emission of it"},
+    "DISCHARGE_NEW_PLANTED_BUGS search_scales_wrongly": {
+        "admissions": {"P1.1-fallback": 1, "P1.2": 0, "P1.2-alt": 0},
+        "why": "P1.1 and the sheet are still refused (orientation-"
+               "undecided); the fallback keeps pi/2 >= 0 REASON_REJECTED; no "
+               "P1 Reg side uses a fact label (they are range, sign, cite "
+               "and literal certificates), so every Reg is discharged"},
+    "DISCHARGE_NEW_PLANTED_BUGS farkas_swaps_interval_ends": {
+        "admissions": {"P1.1": 1, "P1.1-sheet": 3, "P1.1-fallback": 6,
+                       "P1.2": 0, "P1.2-alt": 0},
+        "why": "a range certificate using a lower end is rejected where the "
+               "upper end is not rational (its note): P1.1's t >= 0; the "
+               "sheet's x >= 0 and t >= 0, and its Int former sin(sqrt x) "
+               "in C^0([0, pi^2/4]), whose side x >= 0 is range; the "
+               "fallback's x >= 0, x > 0 and 2*sqrt x # 0, and its three "
+               "Regs, all with range sides on pi^2/4. P1.2's [0, 1] is "
+               "not caught, as before. caught_by keeps ('N', 'P1.1') and "
+               "('N', 'P1.1-fallback'); P1_1_SHEET_TRACES' N 7 -> 3"},
+    "DISCHARGE_MUTATION_CHANGES sqrt_open_at_0": {
+        "admissions": {"P1.2": 0, "P1.2-alt": 0},
+        "why": "the shared table makes sqrt's C^0 side u > 0 too, and P1.2's "
+               "sqrt 3 owes 3 > 0 in both its former and its Reg sides: "
+               "literal, true. P1.1, the fallback and the sheet are refused "
+               "at installation, as before"},
+    "E56_CHANGES pi_pos_not_in_constraint_set": {
+        "admissions": {"P1.1": 0, "P1.1-fallback": 0, "P1.2": 0,
+                       "P1.2-alt": 0, "P1.1-sheet": 0}},
+    "INT_SUBST_SEAMS no_sqrt_former, d_ln_emits_nothing": {
+        "admissions": {"P1.1-sheet": 0}},
+    "P1_1_SHEET_TRACES": "every N 5 -> 0; farkas_swaps_interval_ends 7 -> 3",
+    "problems/stage0 DISCHARGE_S0_SEAMS": "every N 3 -> 0",
+    # the table mutations, now read by the checker too (E61)
+    "DEFINEDNESS_MUTATIONS, the 19 table rows": {
+        "rule": "N 0 for every proof the mutation does not refuse: the "
+                "search builds its sides from the mutated table and the "
+                "checker demands exactly those, so each Reg is discharged "
+                "with the mutated sides. Each keeps its caught_by, and the "
+                "row removals gain REG_MUST_REJECT's side-omitted cases",
+        "add": {"no_ln_former": [("REG_MUST_REJECT", "ln_side_omitted")],
+                "no_sqrt_former": [("REG_MUST_REJECT",
+                                    "sqrt_C0_side_omitted")]},
+        "drop": {"no_sqrt_former": [
+            ("P1.1", "goal", "0 <= pi/2", "true"),
+            ("P1.1", "s1", "0 <= pi/2", "new"),
+            ("P1.1-fallback", "goal", "0 <= pi^2/4", "true"),
+            ("P1.1-fallback", "s1", "0 <= pi^2/4", "new")]},
+        "why": "no_sqrt_former's orientation catches relied on sqrt's "
+               "former being the only key that used the range at "
+               "installation; the Int's own former uses it now (E64), so "
+               "the orientation is emitted at installation under the "
+               "mutation too. Its other locations still catch it"},
+    "INT_SUBST_SEAMS no_sqrt_former": {
+        "drop": [("P1.1-sheet", "goal", "0 <= pi^2/4", "true")]},
+    "P1_1_SHEET_TRACES no_sqrt_former": {
+        "drop": [("P1.1-sheet", "goal", "0 <= pi^2/4", "true")]},
+    "DEFINEDNESS_MUTATIONS ring_reads_D_as_atom, field_reads_D_as_atom": {
+        "retire": True,
+        "why": "vacuous after the switch: the kernel itself reads every D "
+               "node as an atom (E66 (1)), so the patched normaliser is the "
+               "unpatched one and nothing can catch it. Retired with a "
+               "DATA_CHANGES entry, not deleted silently. E57's and the "
+               "formers' own bugs (REG_PLANTED_BUGS d_former_not_charged, "
+               "e57_refuses_statable) are what now guard D nodes"},
+    "DEFINEDNESS_MUTATIONS ring_reads_Int_as_atom, field_reads_Int_as_atom": {
+        "why": "kept: after the switch they differ from the kernel only on "
+               "an unstatable Int, and every caught_by case uses one "
+               "(Int[x = 0 .. oo] 1); REG_PLANTED_BUGS improper_Int_as_atom "
+               "is the same patch named for this step"},
+    "DEFINEDNESS_MUTATIONS norm_num_admits_Int": {
+        "note": "caught_by unchanged. Under it norm_num_refuses_open_Int "
+                "installs past E7 and is then refused 'orientation-"
+                "undecided' by its Int's own former (0 .. x undecided): "
+                "still a changed outcome"},
+    "DEFINEDNESS_MUTATIONS deriv_d_const_on_Int_or_D": {
+        "note": "caught_by unchanged: with the guard off both ftc steps are "
+                "accepted, their Reg premises admitted none (a term holding "
+                "an Int or D has no derivation)"},
+    "INT_SUBST_PLANTED_BUGS int_subst_C0_on_original_integrand": {
+        "note": "under it the forward C^0 premise is the old integrand on "
+                "the old range, which is now the Int's own former from "
+                "installation (sheet: sin(sqrt x) in C^0([0, pi^2/4])), so "
+                "at s1 it is emitted not new; its catches (the s1 lists) "
+                "still differ"},
+    "every other entry": "N as the rule gives; caught_by, refusals and "
+                         "retags unchanged (each traced: checker bugs that "
+                         "only accept more discharge no Reg less, and "
+                         "CONSOLIDATION_PLANTED_BUGS' atom-fact bugs "
+                         "strengthen QC1's cos sides, never reject them)",
+}
+
+# --- The property test (E34's, extended) --------------------------------------
+REG_PROPERTY_TEST = (
+    "Family 'reg', for kernel/test_discharge.py, on its own seeded stream: "
+    "random terms over one variable x built from the rules (literals, x, "
+    "neg, add, mul, div, pow with n in -2..3, and the sixteen builtins), "
+    "depth up to 4, on a random interval with rational ends, open or "
+    "closed, and k in {0, 1}. For each key the search's certificate, if "
+    "the checker accepts it, is tested at the interval's rational points "
+    "(its ends where closed, its midpoint, and 16 more): every side "
+    "condition of the derivation must hold there, evaluated exactly where "
+    "the term is a rational function and with math-module floats and a "
+    "1e-9 margin otherwise, and for k = 1 at points a margin inside the "
+    "open ends as well. An accepted key whose sides fail anywhere is a "
+    "soundness failure. The same keys with each certificate mutated (a side "
+    "dropped, a side's proposition weakened >= for >, a child's rule "
+    "renamed) must be rejected. Counts: 2,000 keys, as the other families.",
+)
+
+# --- The switch (E70) ------------------------------------------------------------
+REG_SWITCH = (
+    "Commit 1: the checker in discharge.py, one function per REG_CHECK_RULE "
+    "paragraph (the seams REG_PLANTED_BUGS names), reading the "
+    "natural-domain table the formers read, from wherever the build puts it "
+    "so that both see one object (DEFINEDNESS_MUTATIONS' patch must reach "
+    "both); the search's REG_SEARCH_RULE; E63 in refute.py; REG_TAG_RULE in "
+    "the tagger. test_discharge.py gains REG_MUST_REJECT, "
+    "REG_CHECKER_ACCEPTS, REG_DECIDED_FALSE and every certificate in "
+    "REG_EXPECTED, REG_CASE_CERTS and problems/stage0's REG_EXPECTED, each "
+    "handed to the checker directly, the search's own certificate for each "
+    "compared node by node, and REG_PROPERTY_TEST. Nothing is wired into "
+    "kernel._emit, so items 1-7 still assert the current tables; the suite "
+    "stays green.",
+
+    "Commit 2: the wiring (REG_DISCHARGE_ORDER in _emit), the Int and D "
+    "formers (FORMER_RULE), ring and field's atoms, E57's relaxation, and in "
+    "the same commit the suite asserts, for both data files: REG_OBLIGATIONS "
+    "for the per-step lists, REG_FINAL_TRACKER, REG_ADMISSIONS and "
+    "REG_VERDICTS; each Reg's certificate (REG_EXPECTED) and every "
+    "admission's reason; REG_CASE_CHANGES, REG_BAD_MOVES_CHANGED, "
+    "REG_E57_CHANGES and REG_SUITE_CHANGES applied to the tables they name; "
+    "REG_Q23_CASES, REG_Q23_REFUSALS, REG_E57_ACCEPTS, REG_INSTALL_CASES, "
+    "REG_BAD_MOVES (with 'as_well' asserted under former_div_dropped and "
+    "ftc_no_F_formers) and REG_BAD_MOVES_ADDED; REG_FORGERY_CHANGES; "
+    "REG_PLANTED_BUGS and REG_BUG_RETRACE in child processes; "
+    "DECIDED_FALSE_MESSAGES_REG among the messages; SOURCES['former'], "
+    "DISCHARGE_METHODS and TAG_RULES' reg row as REG_TEXT_CHANGES gives "
+    "them. The no-none assertion over PROOFS runs and every E24 tag "
+    "assertion stay. One constant in proof_of_life.py switches it, never a "
+    "kernel file, and no kernel file imports either data file.",
+
+    "The pre-regularity tables stay in both files as the record and are no "
+    "longer asserted; retiring them later is a DATA_CHANGES entry. "
+    "REASON_REG is then no longer produced by the kernel.",
+)
+
+# Text that changes at the switch (the build edits the data's prose it
+# asserts nothing of; listed so the change is reviewed, not incidental).
+REG_TEXT_CHANGES = {
+    "SOURCES['former']": "adds: a statable Int owes its integrand in C^0 on "
+                         "its range, and a D[x] e owes e in C^1 at its "
+                         "position domain (E64)",
+    "DISCHARGE_METHODS": "gains DISCHARGE_METHODS_REG['reg']",
+    "ADMISSION_METHODS['reg']": "'§6.9 closure rules, checked (E60); an "
+                                "admitted Reg is tagged none or reg by "
+                                "REG_TAG_RULE'",
+    "TAG_RULES, the reg paragraph": "replaced by REG_TAG_RULE",
+    "DISCHARGE_RULE, scope and step (2)": "a Reg is decided by "
+                                          "REG_DISCHARGE_ORDER",
+    "E26 (b) comment, E7, REWRITE_RULE steps 5 and 9, E57_RULE": "read with "
+        "FORMER_RULE's E66 paragraphs",
+}

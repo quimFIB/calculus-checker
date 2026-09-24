@@ -854,6 +854,30 @@ DECISIONS = {
             "1 - x^2 >= 0 at installation and 1 - (cos theta)^2 >= 0 after "
             "the substitution (E53). QC1-W1 drops the fact; QC1-W2 applies "
             "sqrt_sq before pyth_cos",
+    # regularity spec 2026-09-24 (section 14)
+    "PF24": "every problem-file proof under p1_expected's section 17 "
+            "(E59-E70): each Reg key discharged by a regularity certificate "
+            "whose sides reuse the certificates this file already pins for "
+            "the same keys (x > 0 @ [1, e_const], 1 - (1 - t^2) >= 0, "
+            "1 + sqrt x # 0, the two QC1 sign products); every proof reads "
+            "'Proved.' (REG_VERDICTS). The one side no step owes is SUB2's "
+            "f premise's 1 + t # 0 on the CLOSED [0, 2] (the tracker has it "
+            "on (0, 2)): range, sense '>'",
+    "PF25": "the Int formers (E64) each proof gains: S1, S2, S3 and "
+            "S3-ring gain none, because their goal's integral's former is "
+            "ftc's f premise on the same range (it moves to installation, "
+            "and ftc's emission is no longer new); SUB1, SUB2 and QC1 gain "
+            "two each (the goal's integrand, and int_subst's new integral "
+            "before the rewrite that follows it), S2R one (its new "
+            "integral's former is ftc's F = f key, first emitted at s1 "
+            "now). QC1's new integral is the flipped one, so its former is "
+            "on -(body'). Nothing is recharged by the rewrites under an "
+            "integral (FORMER_RULE, 'Not recharged')",
+    "PF26": "no problem file's wrong answer or refusal changes: each is "
+            "refused by a check, an endpoint equation or a rewrite, after "
+            "steps whose every emission is discharged, and none of them "
+            "holds a D node or an unstatable integral. The stage-0 seams' N "
+            "goes to 0 (REG_S0_SEAMS)",
 }
 
 # ---------------------------------------------------------------------------
@@ -1032,6 +1056,15 @@ VERIFIED = (
     "pyth_cos and not without it (QC1-W1's residual), F(pi/2) - F(0) = "
     "pi/4. QC1.json loads and matches CONSOLIDATION_STEPS; every string "
     "parses and round-trips; every goal_after equals its rebuilt tree",
+    # regularity spec 2026-09-24
+    "regularity spec 2026-09-24, in scratch (/tmp/claude-1000/reg/): every "
+    "REG_EXPECTED certificate re-checked by an independent reading of "
+    "p1_expected's REG_CHECK_RULE, its sides by the committed "
+    "discharge.check, each with exactly its tag; SymPy 1.14: every claim "
+    "true in E59's reading (sqrt(1 - x^2) C^0 on [0, 1], 1/(1 + sqrt x) "
+    "C^0 on [0, 4], (2/5)t^5 - (2/3)t^3 C^1, ln x / x C^0 on [1, e], and "
+    "the rest); every new string parses and round-trips; the import-time "
+    "cross-check holds",
 )
 
 # ---------------------------------------------------------------------------
@@ -1235,6 +1268,25 @@ CHANGES = (
      "node, and none relies on 0^0",
      "second review 2026-09-24: p1_expected E57's amendment and E58",
      "hand re-trace"),
+    # regularity spec 2026-09-24: staged, no value edited in place
+    ("section 14 (new): REG_EXPECTED, REG_STEP_ADDS, REG_NOT_NEW, "
+     "REG_OBLIGATIONS, REG_FINAL_ADDED, REG_FINAL_TRACKER, REG_ADMISSIONS, "
+     "REG_VERDICTS, REG_COUNTS, REG_WRONG_ANSWERS_CHANGES, REG_S0_SEAMS; "
+     "DECISIONS PF24-PF26",
+     "none (new tables)",
+     "every problem-file proof 'Proved.': S1-S3 and S3-ring 3 Reg keys "
+     "each, SUB1, SUB2 and QC1 7, S2R 5, all discharged",
+     "regularity spec 2026-09-24: p1_expected E59-E70",
+     "hand derivation; import-time cross-check; scratch checker, "
+     "SymPy and parser checks (VERIFIED)"),
+    ("DISCHARGE_* / INT_SUBST_* / CONSOLIDATION_* obligations, trackers, N "
+     "and verdicts (at the switch, not edited in place)",
+     "every Reg row admitted ('reg', ()) 'regularity not built'; N 3, 5 or "
+     "4; 'Proved modulo N admissions'",
+     "DISCHARGED ('reg', cites); the Int formers of PF25 added; N 0; "
+     "'Proved.' (REG_OBLIGATIONS, REG_FINAL_TRACKER, REG_VERDICTS)",
+     "regularity spec 2026-09-24: p1_expected E64, E69",
+     "hand re-trace of every step"),
 )
 
 # ---------------------------------------------------------------------------
@@ -2216,3 +2268,324 @@ for _p, _rows in CONSOLIDATION_FINAL_TRACKER.items():
         assert [r for r in _rows if (r[0], r[1]) == _k][0][2:] == \
             (DISCHARGED, _tag), (_p, _k)
 del _p, _rows, _seen, _sid, _obs, _ob, _fin, _k, _tag, _c
+
+
+# ---------------------------------------------------------------------------
+# 14. Regularity (regularity spec 2026-09-24)
+#
+# p1_expected's section 17 states the rules (E59-E70: REG_CHECK_RULE,
+# REG_RULES, FORMER_RULE, REG_DISCHARGE_ORDER); this is every problem-file
+# proof under them, derived by hand step by step, without reading
+# kernel.py, discharge.py, search.py or refute.py. Every Reg key of every
+# proof is discharged, each integral that enters owes its own former (E64),
+# and every proof reads 'Proved.'. Staged until the build (p1_expected
+# REG_SWITCH). PF24-PF26 give the choices.
+
+# Restated from p1_expected so this file stands alone (values verbatim).
+PROVED = "Proved."
+NORM_NUM_LEAF = {"method": "norm_num"}
+T_REG_OK = ("reg", ())
+T_REG_SQRT_NONNEG = ("reg", ("sqrt_nonneg",))
+T_REG_COS = ("reg", ("cos_le_one", "cos_ge_neg_one"))
+
+
+def _N(rule, *args, side=()):
+    """A regularity certificate node (p1_expected REG_CERTIFICATE)."""
+    return {"rule": rule, "args": tuple(args), "side": tuple(side)}
+
+
+def _REG(tree):
+    return {"method": "reg", "tree": tree}
+
+
+_K = _N("const")
+_X = _N("var")
+_LEAF = NORM_NUM_LEAF
+_T2 = _sos("0", [("1", "t", 2)])
+
+
+def _two_t1_1():
+    return _N("mul", _N("mul", _K, _N("pow", _X)), _K)
+
+
+def _half(tree):
+    """tree/2: div, with its literal side 2 # 0 (E5: domain true)."""
+    return _N("div", tree, _K, side=[("2 # 0", _LEAF)])
+
+
+# The side certificates the proofs already pin, reused (the same keys).
+_SUB1_1MX = INT_SUBST_EXPECTED["SUB1"][("1 - x >= 0", "[0, 1]")][1]
+_SUB1_T2 = INT_SUBST_EXPECTED["SUB1"][("1 - (1 - t^2) >= 0", "[0, 1]")][1]
+_SUB2_ROOT4 = INT_SUBST_EXPECTED["SUB2"][("1 + sqrt x # 0", "[0, 4]")][1]
+_SUB2_ROOT2 = INT_SUBST_EXPECTED["SUB2"][("1 + sqrt(t^2) # 0", "[0, 2]")][1]
+_QC1_1MX2 = CONSOLIDATION_EXPECTED["QC1"][("1 - x^2 >= 0", "[0, 1]")][1]
+_QC1_COS = CONSOLIDATION_EXPECTED["QC1"][("1 - (cos theta)^2 >= 0",
+                                          "[0, pi/2]")][1]
+
+# (1 - t^2)*sqrt(1 - (1 - t^2)): (mul (add 1 (neg (pow t 2))) (sqrt ...))
+_SUB1_COMPOSED = _N("mul", _N("add", _K, _N("neg", _N("pow", _X))),
+                    _N("sqrt", _N("add", _K, _N("neg", _N(
+                        "add", _K, _N("neg", _N("pow", _X))))),
+                       side=[("1 - (1 - t^2) >= 0", _SUB1_T2)]))
+# 0 + (0*t^2 + (-1)*(2*t^1*1)), deriv's phi' for 1 - t^2 (E41)
+_SUB1_PHI_PRIME = _N("add", _K, _N("add", _N("mul", _K, _N("pow", _X)),
+                                   _N("mul", _N("neg", _K), _two_t1_1())))
+_SUB2_COMPOSED = _N("div", _K, _N("add", _K, _N(
+    "sqrt", _N("pow", _X), side=[("t^2 >= 0", _T2)])),
+    side=[("1 + sqrt(t^2) # 0", _SUB2_ROOT2)])
+_QC1_SQRT = _N("sqrt", _N("add", _K, _N("neg", _N("pow", _N("cos", _X)))),
+               side=[("1 - (cos theta)^2 >= 0", _QC1_COS)])
+
+REG_EXPECTED = {
+    "S1": {
+        ("3*x^2 + 2*x in C^0([0, 1])", "[0, 1]"): (T_REG_OK, _REG(_N(
+            "add", _N("mul", _K, _N("pow", _X)), _N("mul", _K, _X)))),
+        ("x^3 + x^2 in C^0([0, 1])", "[0, 1]"): (T_REG_OK, _REG(_N(
+            "add", _N("pow", _X), _N("pow", _X)))),
+        ("x^3 + x^2 in C^1((0, 1))", "(0, 1)"): (T_REG_OK, _REG(_N(
+            "add", _N("pow", _X), _N("pow", _X)))),
+    },
+    "S2": {
+        ("x*exp(x^2) in C^0([0, 1])", "[0, 1]"): (T_REG_OK, _REG(_N(
+            "mul", _X, _N("exp", _N("pow", _X))))),
+        ("exp(x^2)/2 in C^0([0, 1])", "[0, 1]"): (T_REG_OK, _REG(_half(
+            _N("exp", _N("pow", _X))))),
+        ("exp(x^2)/2 in C^1((0, 1))", "(0, 1)"): (T_REG_OK, _REG(_half(
+            _N("exp", _N("pow", _X))))),
+    },
+    "S3": {
+        ("ln x / x in C^0([1, e_const])", "[1, e_const]"): (T_REG_OK, _REG(
+            _N("div", _N("ln", _X, side=[("x > 0", _RANGE_LO)]), _X,
+               side=[("x # 0", _RANGE_LO_NZ)]))),
+        ("(ln x)^2/2 in C^0([1, e_const])", "[1, e_const]"): (T_REG_OK, _REG(
+            _half(_N("pow", _N("ln", _X, side=[("x > 0", _RANGE_LO)]))))),
+        ("(ln x)^2/2 in C^1((1, e_const))", "(1, e_const)"): (T_REG_OK, _REG(
+            _half(_N("pow", _N("ln", _X, side=[("x > 0", _RANGE_LO)]))))),
+    },
+    "SUB1": {
+        ("x*sqrt(1 - x) in C^0([0, 1])", "[0, 1]"): (T_REG_OK, _REG(_N(
+            "mul", _X, _N("sqrt", _N("add", _K, _N("neg", _X)),
+                          side=[("1 - x >= 0", _SUB1_1MX)])))),
+        ("1 - t^2 in C^1([0, 1])", "[0, 1]"): (T_REG_OK, _REG(_N(
+            "add", _K, _N("neg", _N("pow", _X))))),
+        ("(1 - t^2)*sqrt(1 - (1 - t^2)) in C^0([0, 1])", "[0, 1]"):
+            (T_REG_OK, _REG(_SUB1_COMPOSED)),
+        (SUB1_S1.split(" == ")[0].split("] ", 1)[1] + " in C^0([0, 1])",
+         "[0, 1]"): (T_REG_OK, _REG(_N("mul", _SUB1_COMPOSED,
+                                       _SUB1_PHI_PRIME))),
+        (SUB1_F + " in C^0([0, 1])", "[0, 1]"): (T_REG_OK, _REG(_N(
+            "add", _N("mul", _N("div", _K, _K, side=[("5 # 0", _LEAF)]),
+                      _N("pow", _X)),
+            _N("neg", _N("mul", _N("div", _K, _K, side=[("3 # 0", _LEAF)]),
+                         _N("pow", _X)))))),
+        (SUB1_F + " in C^1((0, 1))", "(0, 1)"): (T_REG_OK, _REG(_N(
+            "add", _N("mul", _N("div", _K, _K, side=[("5 # 0", _LEAF)]),
+                      _N("pow", _X)),
+            _N("neg", _N("mul", _N("div", _K, _K, side=[("3 # 0", _LEAF)]),
+                         _N("pow", _X)))))),
+        (SUB1_F_INTEGRAND + " in C^0([0, 1])", "[0, 1]"): (T_REG_OK, _REG(_N(
+            "mul", _N("mul", _N("add", _K, _N("neg", _N("pow", _X))), _X),
+            _SUB1_PHI_PRIME))),
+    },
+    "S2R": {
+        ("x*exp(x^2) in C^0([0, 1])", "[0, 1]"): (T_REG_OK, _REG(_N(
+            "mul", _X, _N("exp", _N("pow", _X))))),
+        ("x^2 in C^1([0, 1])", "[0, 1]"): (T_REG_OK, _REG(_N("pow", _X))),
+        ("exp(x^2)/2 in C^0([0, 1])", "[0, 1]"): (T_REG_OK, _REG(_half(
+            _N("exp", _N("pow", _X))))),
+        ("exp(u)/2 in C^0([0, 1])", "[0, 1]"): (T_REG_OK, _REG(_half(
+            _N("exp", _X)))),
+        ("exp(u)/2 in C^1((0, 1))", "(0, 1)"): (T_REG_OK, _REG(_half(
+            _N("exp", _X)))),
+    },
+    "SUB2": {
+        ("1/(1 + sqrt x) in C^0([0, 4])", "[0, 4]"): (T_REG_SQRT_NONNEG, _REG(
+            _N("div", _K, _N("add", _K, _N("sqrt", _X, side=[
+                ("x >= 0", _RANGE_LO)])),
+               side=[("1 + sqrt x # 0", _SUB2_ROOT4)]))),
+        ("t^2 in C^1([0, 2])", "[0, 2]"): (T_REG_OK, _REG(_N("pow", _X))),
+        ("1/(1 + sqrt(t^2)) in C^0([0, 2])", "[0, 2]"):
+            (T_REG_SQRT_NONNEG, _REG(_SUB2_COMPOSED)),
+        ("(1/(1 + sqrt(t^2)))*(2*t^1*1) in C^0([0, 2])", "[0, 2]"):
+            (T_REG_SQRT_NONNEG, _REG(_N("mul", _SUB2_COMPOSED, _two_t1_1()))),
+        (SUB2_F + " in C^0([0, 2])", "[0, 2]"): (T_REG_OK, _REG(_N(
+            "add", _N("mul", _K, _X), _N("neg", _N("mul", _K, _N(
+                "ln", _N("add", _K, _X), side=[("1 + t > 0",
+                                               _RANGE_LO)])))))),
+        (SUB2_F + " in C^1((0, 2))", "(0, 2)"): (T_REG_OK, _REG(_N(
+            "add", _N("mul", _K, _X), _N("neg", _N("mul", _K, _N(
+                "ln", _N("add", _K, _X), side=[("1 + t > 0",
+                                               _RANGE_LO)])))))),
+        # its div side 1 + t # 0 on the CLOSED [0, 2] is a key no step owes
+        # (the tracker has it on (0, 2)): the range's lower end, sense '>'
+        (SUB2_F_INTEGRAND + " in C^0([0, 2])", "[0, 2]"): (T_REG_OK, _REG(_N(
+            "mul", _N("div", _K, _N("add", _K, _X),
+                      side=[("1 + t # 0", _RANGE_LO_NZ)]),
+            _two_t1_1()))),
+    },
+    "QC1": {
+        ("sqrt(1 - x^2) in C^0([0, 1])", "[0, 1]"): (T_REG_OK, _REG(_N(
+            "sqrt", _N("add", _K, _N("neg", _N("pow", _X))),
+            side=[("1 - x^2 >= 0", _QC1_1MX2)]))),
+        ("cos theta in C^1([0, pi/2])", "[0, pi/2]"): (T_REG_OK, _REG(_N(
+            "cos", _X))),
+        ("sqrt(1 - (cos theta)^2) in C^0([0, pi/2])", "[0, pi/2]"):
+            (T_REG_COS, _REG(_QC1_SQRT)),
+        # the flipped new integral's body, -(body') (E46, E64)
+        ("-(sqrt(1 - (cos theta)^2)*(-sin theta * 1)) in C^0([0, pi/2])",
+         "[0, pi/2]"): (T_REG_COS, _REG(_N("neg", _N(
+             "mul", _QC1_SQRT, _N("mul", _N("neg", _N("sin", _X)), _K))))),
+        (QC1_F + " in C^0([0, pi/2])", "[0, pi/2]"): (T_REG_OK, _REG(_half(
+            _N("add", _X, _N("neg", _N("mul", _N("sin", _X),
+                                       _N("cos", _X))))))),
+        (QC1_F + " in C^1((0, pi/2))", "(0, pi/2)"): (T_REG_OK, _REG(_half(
+            _N("add", _X, _N("neg", _N("mul", _N("sin", _X),
+                                       _N("cos", _X))))))),
+        (QC1_INTEGRAND + " in C^0([0, pi/2])", "[0, pi/2]"): (T_REG_OK, _REG(
+            _N("neg", _N("mul", _N("sin", _X), _N(
+                "mul", _N("neg", _N("sin", _X)), _K))))),
+    },
+}
+REG_EXPECTED["S3-ring"] = dict(REG_EXPECTED["S3"])
+
+# The Int formers each proof gains (E64), at the step where the integral
+# enters, and the later `new` flags they flip.
+_SUB1_NEW = (SUB1_S1.split(" == ")[0].split("] ", 1)[1] + " in C^0([0, 1])",
+             "[0, 1]")
+
+
+def _former(key, tag=T_REG_OK):
+    return key + ((S_FORMER,), DISCHARGED, tag, True)
+
+
+REG_STEP_ADDS = {
+    "S1": {"goal": [_former(("3*x^2 + 2*x in C^0([0, 1])", "[0, 1]"))]},
+    "S2": {"goal": [_former(("x*exp(x^2) in C^0([0, 1])", "[0, 1]"))]},
+    "S3": {"goal": [_former(("ln x / x in C^0([1, e_const])",
+                             "[1, e_const]"))]},
+    "SUB1": {"goal": [_former(("x*sqrt(1 - x) in C^0([0, 1])", "[0, 1]"))],
+             "s1": [_former(_SUB1_NEW)]},
+    "S2R": {"goal": [_former(("x*exp(x^2) in C^0([0, 1])", "[0, 1]"))],
+            "s1": [_former(("exp(u)/2 in C^0([0, 1])", "[0, 1]"))]},
+    "SUB2": {"goal": [_former(("1/(1 + sqrt x) in C^0([0, 4])", "[0, 4]"),
+                              T_REG_SQRT_NONNEG)],
+             "s1": [_former(("(1/(1 + sqrt(t^2)))*(2*t^1*1) in C^0([0, 2])",
+                             "[0, 2]"), T_REG_SQRT_NONNEG)]},
+    "QC1": {"goal": [_former(("sqrt(1 - x^2) in C^0([0, 1])", "[0, 1]"))],
+            "s1": [_former(("-(sqrt(1 - (cos theta)^2)*(-sin theta * 1)) in "
+                            "C^0([0, pi/2])", "[0, pi/2]"), T_REG_COS)]},
+}
+REG_STEP_ADDS["S3-ring"] = REG_STEP_ADDS["S3"]
+# ftc's f premise first emitted at installation now; S2R's F in C^0 = f in
+# C^0 key first emitted as the new integral's former at s1
+REG_NOT_NEW = {
+    ("S1", "s1"): (("3*x^2 + 2*x in C^0([0, 1])", "[0, 1]"),),
+    ("S2", "s1"): (("x*exp(x^2) in C^0([0, 1])", "[0, 1]"),),
+    ("S3", "s1"): (("ln x / x in C^0([1, e_const])", "[1, e_const]"),),
+    ("S3-ring", "s1"): (("ln x / x in C^0([1, e_const])", "[1, e_const]"),),
+    ("S2R", "s2"): (("exp(u)/2 in C^0([0, 1])", "[0, 1]"),),
+}
+
+
+def _after_regularity(proof, sid, obs, table, adds, not_new):
+    """p1_expected's rule of the same name, restated."""
+    out = []
+    for prop, dom, sources, status, tag, new in obs:
+        k = (prop, dom)
+        if " in C^" in prop:
+            assert status == ADMITTED and tag == T_REG, (proof, sid, k)
+            status, tag = DISCHARGED, table[k][0]
+        if k in not_new.get((proof, sid), ()):
+            assert new, (proof, sid, k)
+            new = False
+        out.append((prop, dom, sources, status, tag, new))
+    return out + list(adds.get(proof, {}).get(sid, ()))
+
+
+_REG_BASE = {p: DISCHARGE_OBLIGATIONS[p] for p in ("S1", "S2", "S3",
+                                                   "S3-ring")}
+_REG_BASE.update({p: INT_SUBST_OBLIGATIONS[p] for p in ("SUB1", "S2R",
+                                                        "SUB2")})
+_REG_BASE["QC1"] = CONSOLIDATION_OBLIGATIONS["QC1"]
+REG_OBLIGATIONS = {
+    p: {sid: _after_regularity(p, sid, obs, REG_EXPECTED[p], REG_STEP_ADDS,
+                               REG_NOT_NEW)
+        for sid, obs in steps.items()}
+    for p, steps in _REG_BASE.items()}
+
+
+def _final(pre, rows_added, table):
+    """Written out as: the post-discharge tracker with every Reg row turned
+    DISCHARGED with its tag, plus the added former rows, each spelled out
+    below and checked against the per-step lists."""
+    out = [(p, d, DISCHARGED, table[(p, d)][0]) if " in C^" in p
+           else (p, d, s, t) for p, d, s, t in pre]
+    return out + [r for r in rows_added if r[:2] not in {x[:2] for x in out}]
+
+
+# Written out by hand; the added keys, per proof, are listed explicitly and
+# the whole is cross-checked against REG_OBLIGATIONS on import.
+REG_FINAL_ADDED = {
+    "S1": [], "S2": [], "S3": [], "S3-ring": [],   # f premise: same key
+    "SUB1": [("x*sqrt(1 - x) in C^0([0, 1])", "[0, 1]", DISCHARGED,
+              T_REG_OK),
+             _SUB1_NEW + (DISCHARGED, T_REG_OK)],
+    "S2R": [("x*exp(x^2) in C^0([0, 1])", "[0, 1]", DISCHARGED, T_REG_OK)],
+    "SUB2": [("1/(1 + sqrt x) in C^0([0, 4])", "[0, 4]", DISCHARGED,
+              T_REG_SQRT_NONNEG),
+             ("(1/(1 + sqrt(t^2)))*(2*t^1*1) in C^0([0, 2])", "[0, 2]",
+              DISCHARGED, T_REG_SQRT_NONNEG)],
+    "QC1": [("sqrt(1 - x^2) in C^0([0, 1])", "[0, 1]", DISCHARGED,
+             T_REG_OK),
+            ("-(sqrt(1 - (cos theta)^2)*(-sin theta * 1)) in C^0([0, pi/2])",
+             "[0, pi/2]", DISCHARGED, T_REG_COS)],
+}
+_REG_PRE = dict(DISCHARGE_FINAL_TRACKER)
+_REG_PRE.update(INT_SUBST_FINAL_TRACKER)
+_REG_PRE.update(CONSOLIDATION_FINAL_TRACKER)
+REG_FINAL_TRACKER = {p: _final(_REG_PRE[p], REG_FINAL_ADDED[p],
+                               REG_EXPECTED[p])
+                     for p in REG_EXPECTED}
+REG_ADMISSIONS = {p: 0 for p in REG_FINAL_TRACKER}
+REG_VERDICTS = {p: PROVED for p in REG_FINAL_TRACKER}
+# Reg keys per proof after the switch (all discharged): S1-S3 3 each; SUB1,
+# SUB2 and QC1 7 (5 + the two Int formers); S2R 5 (4 + the goal's former;
+# its new integral's former is ftc's F = f key)
+REG_COUNTS = {"S1": 3, "S2": 3, "S3": 3, "S3-ring": 3, "SUB1": 7, "S2R": 5,
+              "SUB2": 7, "QC1": 7}
+
+# The problem files' wrong answers and refusals are unchanged: each is a
+# check's, an endpoint's or a rewrite's refusal, and every obligation the
+# steps before it emit is discharged (PF26).
+REG_WRONG_ANSWERS_CHANGES = "none"
+# The stage-0 seams (DISCHARGE_S0_SEAMS and p1_expected's INT_SUBST_SEAMS
+# stage-1 locations) after the switch: N 0 for every proof; no_sqrt_former's
+# SUB1 locations (1 - x >= 0 at the goal, 1 - (1 - t^2) >= 0 at s1) still
+# catch it, and the Reg keys whose sqrt side it removes are discharged with
+# no side (the checker reads the same mutated table, E61).
+REG_S0_SEAMS = {
+    "no_ln_former": {"admissions": {"S1": 0, "S2": 0, "S3": 0,
+                                    "S3-ring": 0},
+                     "caught_by": "the obligation lists only, as before"},
+    "d_ln_emits_nothing": {"admissions": {"S1": 0, "S2": 0, "S3": 0,
+                                          "S3-ring": 0},
+                           "caught_by": "the obligation lists only"},
+}
+
+# Cross-check on import, as section 13's.
+for _p, _rows in REG_FINAL_TRACKER.items():
+    _keys = [(r[0], r[1]) for r in _rows]
+    assert len(set(_keys)) == len(_keys), _p
+    _seen = set()
+    for _sid, _obs in REG_OBLIGATIONS[_p].items():
+        for _ob in _obs:
+            _k = (_ob[0], _ob[1])
+            _fin = [r for r in _rows if (r[0], r[1]) == _k]
+            assert _fin and _fin[0][2:] == (_ob[3], _ob[4]), (_p, _sid, _ob)
+            assert _ob[5] == (_k not in _seen), (_p, _sid, _ob)
+        _seen |= {(o[0], o[1]) for o in _obs}
+    assert _seen == set(_keys), (_p, set(_keys) ^ _seen)
+    assert all(r[2] == DISCHARGED for r in _rows), _p
+    assert {k for k in _keys if " in C^" in k[0]} == set(REG_EXPECTED[_p]), _p
+    assert len(REG_EXPECTED[_p]) == REG_COUNTS[_p], _p
+del _p, _rows, _keys, _seen, _sid, _obs, _ob, _k, _fin
