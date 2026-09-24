@@ -95,8 +95,12 @@ has three pieces left:
 
    The target is clear: every P1 and stage-0 admission tagged with a §5.3
    method becomes discharged. What remains is the regularity premises, which
-   wait for item 3, and anything tagged `none`, which stays admitted. §18 Q22
-   asks what should happen to a `none`-tagged obligation that is false.
+   wait for item 3, and anything tagged `none`. §18 Q22 is settled
+   (2026-09-24): discharge first rewrites with §6.8's exact values, and an
+   obligation it can decide false refuses the step. So
+   `tan(pi/2) − tan(pi/2)` is refused, because `cos_pi_half` makes its
+   `cos(pi/2) # 0` read `0 # 0`. Only obligations discharge can decide
+   neither way stay admitted as `none`.
 2. **`int_subst` (§6.4).** P1.1 then starts from the sheet's own goal,
    ∫₀^{π²/4} sin √x, rather than from the goal after the substitution.
 3. **The C⁰/C¹ subset of regularity (§6.9)** that `ftc` needs. This closes

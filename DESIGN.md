@@ -4236,8 +4236,19 @@ the change of language and deployment, and reopen Q7.
     refusing. Real discharge will close the true ones it can reach. What it
     does with an obligation no method decides — keep admitting it, try §6.8's
     exact values first (`cos_pi_half` would refute this one), or refuse
-    anything tagged `none` — is open, and it decides whether `Proved modulo N`
-    can ever hide a false admission.
+    anything tagged `none` — decides whether `Proved modulo N` can ever hide
+    a false admission.
+
+    **Settled, 2026-09-24: an obligation discharge can decide false refuses
+    the step.** Discharge first rewrites an obligation with §6.8's exact
+    values, then decides it where it can. Here `cos_pi_half` turns
+    `cos(pi/2) # 0` into `0 # 0`, which `norm_num` finds false, so the step
+    is refused, just as E7 refuses `0*ln(-1)` for `-1 > 0`. The reason: a
+    goal that can only be "proved" through a false admission is a wrong goal,
+    and the learner should be told so at the step where it goes wrong. An
+    obligation that discharge can decide neither way stays admitted and
+    tagged `none`, so it is still visible. Refusing every `none` would also
+    refuse obligations that are true but out of the methods' reach.
 23. **How will `Int` and `D` state their definedness?** *(Revision 10.)*
     `ring`, `field` and `norm_num` refuse them today, because an opaque atom
     is assumed to denote and nothing yet shows that these do (§5.1). Once
