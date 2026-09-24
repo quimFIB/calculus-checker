@@ -5,12 +5,11 @@ one way, course to tool (§18 Q6, settled revision 6). The course problems are a
 separable package `./calc` loads, not part of the tool, which is §1's
 replaceability test made operational.
 
-A design, two spikes, and **a headless kernel that proves readiness P1 from
-the sheet's own goal, and stage 0's S1–S3, with obligations discharged by
-checked certificates**
-(`kernel/`, 2026-09-24). The tool a learner would use is not
-built yet: there is no API, UI or assistance tier, and regularity is still
-admitted.
+A design, two spikes, and **a complete stage-1 headless kernel** that proves
+readiness P1 from the sheet's own goal and stage 0's S1–S3 as plain
+`Proved.`, with every obligation discharged by a checked certificate
+(`kernel/`, 2026-09-23 to 2026-09-25). The tool a learner would use is not
+built yet: there is no API, UI or assistance tier.
 Design 2026-09-20, stage 0b first pass 2026-09-21, decoupling pass and stage 0
 first pass 2026-09-22, the stage 0c `ring`/`field` spike (`spike/ring/`) and a
 recognizer spike (`spike/recognizer/`) 2026-09-23, the proof-of-life kernel
@@ -77,36 +76,31 @@ kill it. Nothing else is required reading before stage 1; Waterproof's course
 evaluations are optional, since adoption evidence for the class is not this
 tool's falsifier.
 
-## Start here: regularity, the last piece of stage 1
+## Start here: stage 1's kernel is complete
 
-The kernel proves readiness P1 from the sheet's own goal, stage 0's S1–S3,
-three substitution files, and ∫₀¹ √(1 − x²) = π/4.
-`python3 kernel/proof_of_life.py` passes 655 checks (`PROOF_OF_LIFE.md`).
-Every proof reads *Proved modulo N admissions*, and every one of those
-admissions is a regularity premise: 3 for `ftc`, plus 2 per substitution.
+**Every proof reads a plain `Proved.`**, with nothing admitted. That covers
+readiness P1 from the sheet's own goal, stage 0's S1–S3, three substitution
+files, and ∫₀¹ √(1 − x²) = π/4. `python3 kernel/proof_of_life.py` passes 882
+checks (`PROOF_OF_LIFE.md`). Discharge, `int_subst`, `int_flip` and
+regularity are built, and so are §18 Q23's formers: integrals and
+derivatives owe their own definedness.
 
-**The C⁰/C¹ subset of regularity (§6.9)** that `ftc` and `int_subst` need
-closes every remaining admission and gives the first plain `Proved.`.
+**Deliberately not built yet:**
+- convergence and improper integrals (`diverges`), since continuity is not
+  convergence;
+- an integration-by-parts move;
+- `trig_norm`;
+- Sturm sequences, for exact sign decisions on irrational poles.
 
-It is also where `Int` and `D` get their definedness. §18 Q23 is settled
-(2026-09-24): they become formers, like `/` and `ln`. `Int[x = a .. b] f`
-owes f integrable on [a, b], and `D[x] e` owes e differentiable at x. After
-that, `ring` treats them as atoms, which is what makes "solve for I" after
-integration by parts work. Until then, E26 (b)'s refusal and E57 (no rule
-erases an Int or D) stand.
-
-It works as before:
-- write the expected results by hand, and commit them before the code;
-- build against them;
-- have a skeptic try to break it;
-- keep the regression suite green throughout.
+**Next, when the owner resumes it,** per §17: the in-process `step` becomes
+§16.3's JSON API. Then comes the recognizer table, scored on a held-out set
+(revision 8), then the UI. A thin check-mode page over the API would give a
+usable tool before the assistance layer exists. The work stops here until
+the owner picks it up.
 
 **Pushing:** commits land locally. Push to `origin`
 (`github.com/quimFIB/calculus-checker`) only with the owner's explicit
 approval, each time.
-
-**After stage 1:** the in-process `step` becomes §16.3's API, then the
-recognizer table scored on a held-out set (revision 8), then the UI.
 
 ## What has been done, in order
 
@@ -215,6 +209,22 @@ recognizer table scored on a held-out set (revision 8), then the UI.
    fixed by E57: no rule may erase an Int or D node. An independent second
    review found no further way to a false `Proved`. Its minors are fixed,
    including 0⁰ = 1 (E58).
+10. **Regularity (§6.9) and §18 Q23's formers — done 2026-09-25. Stage 1's
+    kernel is complete.**
+    - **Checked certificates:** continuity and differentiability are
+      discharged by certificates. The untrusted search proposes a derivation,
+      and a trusted checker verifies it, taking each rule from the term's
+      head and rebuilding every side condition from one shared table of
+      natural domains.
+    - **Q23:** integrals owe their integrand continuous on the range, and
+      derivatives owe C¹. After that, `ring` treats both as atoms.
+    - **Result:** every proof reads a plain `Proved.`
+    - **Decisions taken on the owner's delegation:** convergence is deferred
+      (continuity is not convergence), and integration by parts is out of
+      scope.
+    - **Review:** a skeptic found no false `Proved`. Its findings are fixed:
+      a crash on deep certificates, a test gap where a soundness mutation
+      survived, and a parser crash on very deep nesting.
 
 **Stage 0b is closed** (2026-09-21 and 2026-09-22; setup and notes in
 `_scratch/holpy-trial/` — outside this tool, and a dangling pointer if it is ever published; findings in §4.2). Its verdict: reimplement the core

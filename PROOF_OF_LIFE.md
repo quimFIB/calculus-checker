@@ -14,9 +14,10 @@ lives only once.
 `PASS: 225 of 225 checks passed` for items 1–6, exit 0. The unit tests
 (`python3 -m unittest discover -s kernel`) pass 69 of 69. Both were re-run
 independently after the last change, on 2026-09-24. Since then the suite has
-grown to 655: item 7 added the problem files, E27 the evaluated-answer
+grown to 882: item 7 added the problem files, E27 the evaluated-answer
 cases, discharge its certificate checks, `int_subst` its moves and files,
-and the consolidation step its moves, entries and review cases.
+the consolidation step its moves, entries and review cases, and
+regularity its checker, formers and review cases.
 
 | Proof | Verdict |
 |---|---|
@@ -437,6 +438,57 @@ integral, erased the term, and `close 1` then reported a plain `Proved.`.
 
 The suite is at 655 of 655.
 
+## Since: regularity, and stage 1's kernel complete (2026-09-25)
+
+Decisions E59–E70 in `p1_expected.py`, with section 18 holding the review
+items. The owner delegated the open design calls; the ones taken on that
+basis are marked as such in the data and below.
+- **What `e ∈ Cᵏ(D)` means** (E59): k is 0 or 1. C¹ means C¹ on a
+  neighbourhood of every point, so it is the stronger reading at a closed
+  end.
+- **Regularity is a certificate-checked discharge method** (E60–E63).
+  - The untrusted search proposes a derivation that follows the term's
+    structure.
+  - The trusted checker in `discharge.py` takes each rule from the term's
+    head, never from the certificate. It rebuilds every side condition from
+    one natural-domain table, `kernel/domains.py`, shared with the formers,
+    and decides each on exactly the Reg's own domain.
+  - A Reg is refuted only through a definedness side. A failed C¹-only
+    condition decides nothing.
+- **Q23's formers** (E64 and E66, the owner's direction). A statable
+  integral owes its integrand in C⁰ on its range, and `D[x] e` owes e in C¹
+  at its position. `ring` and `field` then read both as atoms, keyed by
+  their tree. Improper integrals are still refused.
+- **Deferred, on the owner's delegation:**
+  - convergence and `diverges` (E65), since 1/x is continuous on [1, ∞) but
+    its integral diverges;
+  - integration by parts (E67). "Solve for I" is shown on hand-built goals,
+    with I = ∫₀^π eˣ sin x's integrability owed and discharged.
+
+**Every proof reads a plain `Proved.`, with 0 admissions:** P1.1 (from the
+sheet's goal, and the t-form), the fallback, P1.2 in both forms, S1–S3,
+S3-ring, SUB1, S2R, SUB2 and QC1.
+
+**The review** found no false `Proved`. It tried:
+- hand-built false certificates, and a fuzz of 15,000 mutated ones;
+- poles and kinks in `ftc` and `int_subst`;
+- atoms owed at one domain and cancelled at another.
+
+Its findings are fixed:
+- a crash freezing very deep certificates, a regression, now iterative
+  with an overflow read as "no certificate";
+- a test gap: one soundness mutation of the trusted checker, letting a side
+  be assumed in its own domain, survived the whole suite, and it is now
+  pinned by must-reject cases;
+- the parser crashing on very deep nesting, now refused with
+  `nesting-too-deep`.
+
+A vacuously true Reg whose closed side is false is refused on purpose, as
+closed formers always were.
+
+**Stage 1's kernel is complete.** The suite is at 882 of 882. Next, when the
+owner resumes, is §16.3's API.
+
 ## What is in `kernel/`
 
 | File | Role |
@@ -446,7 +498,8 @@ The suite is at 655 of 655.
 | `ARCHITECTURE.md` | modules, trust tiers, contracts, planted-bug mechanism |
 | `terms.py` | trusted: nodes, parser, printer, goal checks |
 | `entries.py`, `poly.py`, `field.py`, `deriv.py`, `kernel.py` | trusted: the §6.8 entries, `ring`/`field` (copied from the spike), §6.3, rules/tracker/handles/`step` |
-| `discharge.py` | trusted: the certificate checkers and the exact-value rewrite |
+| `discharge.py` | trusted: the certificate checkers (regularity included) and the exact-value rewrite |
+| `domains.py` | trusted: the one natural-domain table the formers and the regularity checker share |
 | `tagger.py`, `search.py`, `refute.py`, `residual.py`, `schema.py` | untrusted: admission tags, certificate search, decided-false, residual rendering, the closed whitelist and E27 |
 | `proof_of_life.py` | the done script and regression suite (items 1–6 for P1, item 7 for the problem files) |
 | `loader.py` | untrusted: reads a §16.4 problem file and drives its reference proof through `step()` |
