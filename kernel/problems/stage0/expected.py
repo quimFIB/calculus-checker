@@ -1229,6 +1229,12 @@ CHANGES = (
      "undecided, or depends on when an order is decided",
      "consolidation review 2026-09-24: p1_expected E57 and E56's amendments",
      "hand re-trace; QC1's pyth_cos rewrite has u := theta"),
+    # second review 2026-09-24: re-traced, nothing changed
+    ("every table (no change)", "none",
+     "none: no problem file's integral has a limit holding an Int or D "
+     "node, and none relies on 0^0",
+     "second review 2026-09-24: p1_expected E57's amendment and E58",
+     "hand re-trace"),
 )
 
 # ---------------------------------------------------------------------------

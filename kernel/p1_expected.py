@@ -5460,7 +5460,27 @@ DECISIONS = {
            "ERASE AN Int OR D NODE UNLESS ITS DEFINEDNESS IS OWED; until "
            "§18 Q23's formers land that means never, except where the "
            "rule's own premises owe it. E57_PRINCIPLE checks every move "
-           "against it",
+           "against it"
+           ". Amended by the second review (main session, 2026-09-24): "
+           "ftc, int_subst and int_flip refuse 'Int-or-D-not-normalisable' "
+           "when a limit of the Int they act on (or int_subst's new limit) "
+           "holds an Int or D node, before any orientation is decided "
+           "(SECOND_REVIEW_RULE); until then ftc reached "
+           "'orientation-undecided' only because norm_num refused the key "
+           "inside the order decision",
+    # second review 2026-09-24
+    "E58": "0^0 is 1 (main session's decision, 2026-09-24): Pow(u, 0), the "
+           "integer exponent 0, denotes 1 for every base, 0 included. It is "
+           "the convention ring already implements (u^0 normalises to the "
+           "constant 1, an integer power being repeated multiplication, the "
+           "empty product 1), and the one that keeps ring_nf a sound "
+           "identity over every assignment of the atoms. RPow (a real "
+           "exponent) is untouched: it owes base > 0 (§5.1). A limit of the "
+           "form 0^0 is §6.7's business, a question about a limit, not "
+           "about a term's value. deriv still refuses n == 0 (E12: d_pow_int "
+           "checks n != 0 on the literal), which is incompleteness, not "
+           "unsoundness. Pinned by E58_ACCEPTS; for GRAMMAR.md and DESIGN.md "
+           "§5.1 to state (the main session edits them)",
 }
 
 DESIGN_DEFECTS = [
@@ -7129,6 +7149,21 @@ DATA_CHANGES = (
      "('BAD_MOVES', 'match_refuses_Int') and ('BAD_MOVES', 'match_refuses_D') removed; the mutations stay caught at their other three and four locations",
      "the E57 build: step 2a tests the target `at` too, so both cases are refused Int-or-D-not-normalisable before step 3's ring_nf runs, and a ring_nf that reads Int or D as an atom can no longer be observed there; REVIEW2_CHANGES' 'nothing changes' missed this. Checked by the main session",
      'adjudicated during implementation'),
+    # second review 2026-09-24: an independent second review of 45132e5; spec only, staged
+    ("DECISIONS E57 (amended), E58 (new); E57_PRINCIPLE's ftc and int_flip "
+     "rows",
+     "ftc, int_subst and int_flip refuse Int-or-D-not-normalisable on a "
+     "limit holding an Int or D node, before orientation; 0^0 = 1 for the "
+     "integer exponent",
+     "the second review's minors 1 and 2 (the main session's decisions)",
+     "second review 2026-09-24"),
+    ("section 16 (new): SECOND_REVIEW_RULE, SECOND_REVIEW_BAD_MOVES, "
+     "E58_ACCEPTS, SECOND_REVIEW_SWITCH",
+     "three refusals on Int[x = 0 .. (Int[y = 1 .. oo] 1)] 0 (ftc, reverse "
+     "int_subst, int_flip) and two plain 'Proved.' cases (0^0, (x - x)^0); "
+     "no existing expectation changes",
+     "the task's items 1 and 2",
+     "second review 2026-09-24"),
 )
 
 
@@ -11437,14 +11472,20 @@ E57_PRINCIPLE = {
            "is its conclusion, and the Int's definedness is owed by its "
            "premises (f in C^0, admitted until regularity); an Int or D "
            "inside F is refused by deriv (E12), one inside the integrand "
-           "by the check's ring or field",
+           "by the check's ring or field, and (second review) one in a "
+           "limit by an explicit check before the orientation is decided, "
+           "since F(b) - F(a) would carry it into the goal with nothing "
+           "owed for it (SECOND_REVIEW_RULE)",
     "int_subst": "complies: it replaces one Int by another under its "
                  "premises; a nested Int or D in the body is carried into "
                  "the new body by substitution, never dropped; one in sub "
                  "is refused by deriv, one in a limit or in f by the "
                  "endpoint or integrand check's ring (E26 (b))",
     "int_flip": "complies: it reorders the limits and negates the body, "
-                "dropping nothing",
+                "dropping nothing; by decision (second review) it refuses an "
+                "Int whose limit holds an Int or D node, as ftc and int_subst "
+                "do, so that no move acts on an integral whose range cannot "
+                "be stated",
     "fact": "complies: a handle whose inst holds an Int or D node keeps it "
             "in its conclusion, and every use refuses it (field's "
             "normaliser for facts, norm_num for the inst formers it "
@@ -11617,4 +11658,84 @@ REVIEW2_SWITCH = (
     "decision; the suite asserts E57_BAD_MOVES, E57_ACCEPTS, "
     "E56_REVIEW_CASES (the timing case by its bound), REVIEW2_PLANTED_BUGS "
     "in child processes, and patches E57's seam in the backstop.",
+)
+
+
+
+# ---------------------------------------------------------------------------
+# 16. The second review (second review 2026-09-24)
+#
+# An independent second review of 45132e5 found no false 'Proved.' and four
+# minors; these two need spec. Staged (SECOND_REVIEW_SWITCH).
+
+SECOND_REVIEW_RULE = (
+    "ftc (after E9's infinite-endpoint check), int_subst (after "
+    "INT_SUBST_RULE step 3) and int_flip (after its selection) test the "
+    "limits of the Int they act on, and int_subst also its new limits lo "
+    "and hi, for an Integral or Deriv node (terms.trees); one found "
+    "refuses 'Int-or-D-not-normalisable' before anything is emitted and "
+    "before any order is decided. Reason (E57's principle): such a limit "
+    "has no definedness condition the kernel can state, and ftc's F(b) - "
+    "F(a), int_subst's endpoint images and int_flip's new integral would "
+    "carry it into the goal; the refusal was reached before only by "
+    "accident (norm_num refusing the orientation key inside E56's "
+    "decision, or the endpoint check's ring). int_flip is included by "
+    "decision, for one rule across the three moves; it erased nothing. "
+    "Installation is unchanged: a goal may hold such an Int, and every key "
+    "holding the tree is refused by E7 as before.",
+)
+SECOND_REVIEW_BAD_MOVES = [
+    {"id": "ftc_limit_holds_Int",
+     "goal": "Int[x = 0 .. (Int[y = 1 .. oo] 1)] 0 == ?A", "setup": [],
+     "move": ("ftc", {"F": "0", "check": "ring", "facts": []}),
+     "refusal": "Int-or-D-not-normalisable",
+     "was": "orientation-undecided, 'the order of 0 and Int[y = 1 .. oo] 1 "
+            "is not decided', by accident",
+     "why": "the upper limit is a divergent integral; the goal installs "
+            "(0 owes nothing, so no key uses the range)"},
+    {"id": "int_subst_reverse_limit_holds_Int",
+     "goal": "Int[x = 0 .. (Int[y = 1 .. oo] 1)] 0 == ?A", "setup": [],
+     "move": ("int_subst", {"mode": "reverse", "var": "x", "sub": "x",
+                            "new_var": "u", "lo": "0",
+                            "hi": "Int[y = 1 .. oo] 1", "f": "0",
+                            "check": "ring", "facts": [], "occurrence": 0}),
+     "refusal": "Int-or-D-not-normalisable",
+     "was": "orientation-undecided: reverse mode decides the old range's "
+            "order first (step 8)",
+     "why": "the selected Int's limit, and hi, hold an Int"},
+    {"id": "int_flip_limit_holds_Int",
+     "goal": "Int[x = 0 .. (Int[y = 1 .. oo] 1)] 0 == ?A", "setup": [],
+     "move": ("int_flip", {"occurrence": 0}),
+     "refusal": "Int-or-D-not-normalisable",
+     "was": "accepted (no key uses the new range, so nothing decided it)",
+     "why": "int_flip's part of SECOND_REVIEW_RULE, by decision"},
+]
+# Forward int_subst on the same goal was refused Int-or-D-not-normalisable
+# already, by its endpoint check's ring; now by the explicit test, the same
+# code. No existing case in either data file acts on an Int with a tree in a
+# limit, so no existing refusal code changes.
+
+# E58: 0^0 = 1. Each installs owing nothing (a Pow with a literal exponent
+# owes no former) and closes by ring with 1; E27 accepts the value 1 (a
+# rational literal in lowest terms); the report is 'Proved.'. Checked on
+# the committed kernel (45132e5), which already behaves this way.
+E58_ACCEPTS = [
+    {"id": "zero_to_the_zero",
+     "goal": "0^0 == ?A", "goal_emits": [],
+     "move": ("close", {"value": "1", "check": "ring", "facts": []}),
+     "goal_after": None, "emits": [],
+     "report": PROVED, "theorem": "0^0 == 1"},
+    {"id": "difference_to_the_zero",
+     "goal": "(x - x)^0 == ?A", "goal_emits": [],
+     "move": ("close", {"value": "1", "check": "ring", "facts": []}),
+     "goal_after": None, "emits": [],
+     "report": PROVED, "theorem": "(x - x)^0 == 1",
+     "why": "the base normalises to 0 for every x, and the power is still 1: "
+            "the convention is about the integer exponent, not the base"},
+]
+SECOND_REVIEW_SWITCH = (
+    "One commit: the three moves' limit test; the suite asserts "
+    "SECOND_REVIEW_BAD_MOVES and E58_ACCEPTS (these already pass on "
+    "45132e5). GRAMMAR.md and DESIGN.md §5.1 are the main session's to "
+    "edit for E58.",
 )
