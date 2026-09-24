@@ -1222,6 +1222,13 @@ CHANGES = (
      "tag ('cite', ('sin_nonneg_on', 'pi_pos')) -> ('cite', ('sin_nonneg_on',)); the child theta <= pi's certificate -> _farkas({GOAL: 1, LO(0): 1, HI(0): 2})",
      "the consolidation build showed the child is closed by the range alone: (theta - pi, strict) + (theta - 0) + 2*(pi/2 - theta) = 0, strict, so pi_pos is unneeded and TAG_RULES' deletion filter drops sign facts first. Checked by the main session",
      "adjudicated during implementation"),
+    # consolidation review 2026-09-24: re-traced, nothing changed
+    ("every table (no change)", "none",
+     "none: no stage-0, stage-1 or consolidation proof rewrites with an "
+     "Int or D in an inst value, acts inside an Int whose range is "
+     "undecided, or depends on when an order is decided",
+     "consolidation review 2026-09-24: p1_expected E57 and E56's amendments",
+     "hand re-trace; QC1's pyth_cos rewrite has u := theta"),
 )
 
 # ---------------------------------------------------------------------------

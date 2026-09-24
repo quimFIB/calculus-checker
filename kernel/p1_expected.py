@@ -5433,7 +5433,32 @@ DECISIONS = {
            "int_subst's premises are on the closed interval between its "
            "limits. Equal limits make either order provable and the same "
            "point. The order key is still emitted, discharged, so what a "
-           "proof relied on stays in its tracker. Changes: E56_CHANGES",
+           "proof relied on stays in its tracker. Changes: E56_CHANGES"
+           ". Amended by the consolidation review (main session, "
+           "2026-09-24; E56_AMENDMENTS): (1) every interval in every "
+           "emitted key's domain is one E56 decided, the enclosing Ints' "
+           "ranges in a position domain P included, so int_subst (and "
+           "every move emitting at P) refuses 'orientation-undecided' "
+           "naming an enclosing range whose order no discharge proves; "
+           "(2) the order is decided lazily, only when a key whose domain "
+           "holds that interval is emitted, and each decision is memoised "
+           "per key; the semantics are unchanged",
+    # consolidation review 2026-09-24
+    "E57": "rewrite refuses 'Int-or-D-not-normalisable' when any inst value "
+           "or the target `at` holds an Int or D node, on every match "
+           "branch, the tree match of a non-App left side included (main "
+           "session's decision, soundness, 2026-09-24). The skeptic's "
+           "blocker: pyth's left side is a sum, so the tree branch skipped "
+           "step 3's ring_nf, whose E26 (b) refusal is what stopped trees "
+           "in inst values, and pyth is the first equation entry whose "
+           "right side drops its schema variable; (sin(D[x](abs x)))^2 + "
+           "(cos(D[x](abs x)))^2 rewrote to 1 with nothing owed and closed "
+           "'Proved.', though abs' does not exist at 0 (and likewise "
+           "u := Int[x = 1 .. oo] 1, divergent). The principle: NO RULE MAY "
+           "ERASE AN Int OR D NODE UNLESS ITS DEFINEDNESS IS OWED; until "
+           "§18 Q23's formers land that means never, except where the "
+           "rule's own premises owe it. E57_PRINCIPLE checks every move "
+           "against it",
 }
 
 DESIGN_DEFECTS = [
@@ -5708,8 +5733,9 @@ DESIGN_DEFECTS = [
     "method. E53 extends it to non-strict goals with non-strict factors; "
     "§5.3 should state the four relations, the parity, and that a "
     "non-strict factor never serves a strict target.",
-    "§6.2 names pyth as (sin x)^2 + (cos x)^2 == 1, which neither rewrite "
-    "nor field can use as stated (a sum on the left). §6.8 should pin the "
+    "§6.2 names pyth as (sin x)^2 + (cos x)^2 == 1, which field cannot use "
+    "as stated (a sum on the left; rewrite can, at a tree-equal sum: "
+    "corrected by the consolidation review, E57). §6.8 should pin the "
     "solved form pyth_cos : (cos u)^2 == 1 - (sin u)^2 beside it (E54), "
     "and name the sign facts a trigonometric substitution needs: sin on "
     "[0, pi], cos on [0, pi/2], and the total bounds of cos, which the "
@@ -6027,6 +6053,15 @@ VERIFIED = (
     "(decided_false_reversed_range and reverse_symbolic_old_range_reversed "
     "refused by F2 on pi/2 <= 0, rewrite_under_D_through_Int by F3 on "
     "0 <= x); both files import and the suite passes",
+    # consolidation review 2026-09-24
+    "consolidation review 2026-09-24: on the committed kernel (834b8a2) both pyth reproducers close "
+    "'Proved.' and the z case too; the nested reproducer is accepted with "
+    "premises on y in [a, b]; its decided twin emits every key "
+    "E56_REVIEW_CASES lists except a <= b @ a <= b, which the amendment "
+    "adds; the timing goal installs emitting nothing in 30.5 s. SymPy: "
+    "sin^2 + cos^2 = 1 for real z; |x|' has no value at 0 (one-sided "
+    "limits -1 and 1); Int_1^oo 1 diverges. terms.py: every new string "
+    "parses and round-trips. Both files import; the suite passes",
 )
 
 # Changes to this file made after it was frozen. The first was adjudicated
@@ -7061,6 +7096,33 @@ DATA_CHANGES = (
      "if_emitted's tag drops pi_pos; the rule states that a content of -1 is not split off under a non-strict target",
      "the consolidation build: sin theta >= 0 @ [0, pi/2]'s child theta <= pi is closed by the range alone ((theta - pi, strict) + theta + 2*(pi/2 - theta) = 0), so pi_pos is unneeded; and splitting off -1 under a non-strict target made the one factor restate the key, contradicting the flat certificates the data pins. Checked by the main session",
      'adjudicated during implementation'),
+    # consolidation review 2026-09-24: the skeptic's review of the consolidation build (834b8a2);
+    # written before any code, staged, no existing expected value changes
+    ("DECISIONS E57 (new); E56 (a closing amendment)",
+     "E57: rewrite refuses Int-or-D-not-normalisable when an inst value or "
+     "the target holds an Int or D node, on every branch, and the principle "
+     "that no rule erases one; E56: enclosing ranges in a position domain "
+     "are decided (orientation-undecided otherwise), and every order is "
+     "decided lazily and memoised",
+     "a false plain 'Proved.' through pyth's tree branch; int_subst's "
+     "premises on an undecided enclosing range; 30 s to install a goal "
+     "whose range no key uses",
+     "the main session's decisions, 2026-09-24"),
+    ("section 15 (new): E57_RULE, E57_PRINCIPLE, E57_BAD_MOVES, "
+     "E57_ACCEPTS, E56_AMENDMENTS, E56_TIMING_BOUND, E56_REVIEW_CASES, "
+     "REVIEW2_PLANTED_BUGS, REVIEW2_CHANGES, REVIEW2_SWITCH",
+     "both reproducers refused, the sound pyth rewrite on z proved plainly; "
+     "every move checked against the principle; the nested reproducer "
+     "refused naming a and b, its decided twin accepted; the timing case",
+     "the task's items 1-3",
+     "consolidation review 2026-09-24"),
+    ("CONSOLIDATION_ENTRIES pyth 'use'; DESIGN_DEFECTS §6.2 pyth entry",
+     "'neither rewrite nor field can use it as stated' corrected: rewrite "
+     "can, at a tree-equal sum, and E57 guards it",
+     "the claim was false (the skeptic)",
+     "consolidation review 2026-09-24"),
+    ("VERIFIED, one entry appended", "the record of the checks",
+     "the record of the checks", "consolidation review 2026-09-24"),
 )
 
 
@@ -10766,9 +10828,13 @@ CONSOLIDATION_ENTRIES = {
         "statement": "(sin u)^2 + (cos u)^2 == 1",
         "schema": ("u",), "hyps": (),
         "use": "the identity as the owner states it; the parent of "
-               "pyth_cos. Its left side is a sum, so neither rewrite (it "
-               "matches a non-App left side as a tree) nor field (a fact "
-               "must be a^k == r) can use it as stated",
+               "pyth_cos. Corrected by the consolidation review: rewrite "
+               "CAN use it, at a subterm tree-equal to (sin b)^2 + (cos b)^2 "
+               "(a non-App left side is matched as a tree), turning it into "
+               "1, soundly for every real b, and E57 refuses a b holding an "
+               "Int or D node, which the rewrite would erase; field cannot "
+               "(a fact must be a^k == r). pyth_cos is the form both use at "
+               "(cos b)^2",
         "cite": "§6.2 ('sin²x + cos²x ≐ 1 ... needs the named identity "
                 "pyth'), §6.8; Rocq's sin2_cos2",
         "used_in": ("the record; pyth_cos",)},
@@ -11327,3 +11393,222 @@ E56_CHANGES = {
         "E51's limitation and DESIGN_DEFECTS' E4-installation entry",
     ),
 }
+
+
+# ---------------------------------------------------------------------------
+# 15. The consolidation review (consolidation review 2026-09-24)
+#
+# The skeptic of the consolidation build (834b8a2) found a false plain
+# 'Proved.' (E57) and two E56 defects: an enclosing range used undecided by
+# int_subst, and eager orientation decisions costing 30 s on a range no key
+# uses. Specified before any code; staged (REVIEW2_SWITCH).
+
+E57_RULE = (
+    "Amends REWRITE_RULE at the build, as a new step 2a between steps 2 "
+    "and 3: if any inst value, or the target `at`, holds an Integral or "
+    "Deriv node (terms.trees), the rewrite is refused "
+    "'Int-or-D-not-normalisable', whichever branch step 3 would take. "
+    "Step 3's App branch already refused such an argument through ring_nf "
+    "(E26 (b)); its tree branch, for a left side that is not an App "
+    "(pyth's sum, pyth_cos's power), compared trees and never "
+    "normalised, so a schema variable bound to an Int or D node passed, "
+    "and an entry whose right side drops that variable erased the node. "
+    "The test is a seam for the architecture to name, because BACKSTOPS "
+    "rewrite_closing_check_goal (an Int carried in through an inst value, "
+    "reaching the closing check_goal when step 3 is lax) must now patch it "
+    "too to reach the check.",
+)
+
+# The principle, checked against every move.
+E57_PRINCIPLE = {
+    "rewrite": "refuses by E57_RULE; R and H are instances of the entry's "
+               "sides under inst, so an Int or D node reaches them only "
+               "through inst, which the rule stops",
+    "close": "complies: the whitelist (E23) refuses a value holding Int or "
+             "D, and the check's ring or field refuses any side holding "
+             "one (E26 (b)), so close cannot cancel one away",
+    "ftc": "complies: ftc replaces the top-level Int by F(b) - F(a), which "
+           "is its conclusion, and the Int's definedness is owed by its "
+           "premises (f in C^0, admitted until regularity); an Int or D "
+           "inside F is refused by deriv (E12), one inside the integrand "
+           "by the check's ring or field",
+    "int_subst": "complies: it replaces one Int by another under its "
+                 "premises; a nested Int or D in the body is carried into "
+                 "the new body by substitution, never dropped; one in sub "
+                 "is refused by deriv, one in a limit or in f by the "
+                 "endpoint or integrand check's ring (E26 (b))",
+    "int_flip": "complies: it reorders the limits and negates the body, "
+                "dropping nothing",
+    "fact": "complies: a handle whose inst holds an Int or D node keeps it "
+            "in its conclusion, and every use refuses it (field's "
+            "normaliser for facts, norm_num for the inst formers it "
+            "charges, E26 (b)); fact itself need not refuse",
+    "field facts": "comply: field normalises each fact's sides, and its "
+                   "normaliser refuses an Int or D node",
+    "exact values (E31) and every checker": "comply: they match or "
+                                            "normalise through ring_nf, "
+                                            "which refuses the node, and a "
+                                            "refusal inside discharge is no "
+                                            "rewrite and no acceptance "
+                                            "(E30)",
+}
+
+E57_BAD_MOVES = [
+    {"id": "pyth_erases_D",
+     "goal": "(sin(D[x](abs x)))^2 + (cos(D[x](abs x)))^2 == ?A", "setup": [],
+     "move": ("rewrite", {"entry": "pyth", "inst": {"u": "D[x](abs x)"},
+                          "at": "(sin(D[x](abs x)))^2 + (cos(D[x](abs x)))^2"}),
+     "refusal": "Int-or-D-not-normalisable",
+     "was": "accepted; close 1 by ring then reported 'Proved.' with no "
+            "admission, though D[x](abs x) does not exist at x = 0",
+     "why": "E57: the inst value holds a D node, which pyth's right side 1 "
+            "would erase. The goal installs: sin, cos and abs are total and "
+            "a D node owes no former"},
+    {"id": "pyth_erases_divergent_Int",
+     "goal": "(sin(Int[x = 1 .. oo] 1))^2 + (cos(Int[x = 1 .. oo] 1))^2 == ?A",
+     "setup": [],
+     "move": ("rewrite", {"entry": "pyth",
+                          "inst": {"u": "Int[x = 1 .. oo] 1"},
+                          "at": "(sin(Int[x = 1 .. oo] 1))^2"
+                                " + (cos(Int[x = 1 .. oo] 1))^2"}),
+     "refusal": "Int-or-D-not-normalisable",
+     "was": "accepted, then 'Proved.' for a goal about a divergent integral",
+     "why": "E57, with an Int node: Int[x = 1 .. oo] 1 diverges"},
+]
+E57_ACCEPTS = [
+    {"id": "pyth_on_a_variable",
+     "goal": "(sin z)^2 + (cos z)^2 == ?A",
+     "goal_emits": [],   # sin and cos are total
+     "move": ("rewrite", {"entry": "pyth", "inst": {"u": "z"},
+                          "at": "(sin z)^2 + (cos z)^2"}),
+     "occurrences": 1,
+     "goal_after": "1 == ?A",
+     "emits": [],        # no hypothesis; R = 1 has no former
+     "then": [{"move": ("close", {"value": "1", "check": "ring",
+                                  "facts": []}),
+               "goal_after": None, "emits": []}],
+     "report": PROVED,
+     "theorem": "(sin z)^2 + (cos z)^2 == 1",
+     "why": "the tree branch at a tree-equal target, sound for every real "
+            "z; a plain 'Proved.' with nothing owed is right here"},
+]
+
+E56_AMENDMENTS = (
+    "Enclosing ranges. Every interval item in the domain of every key any "
+    "step emits was built by E56: the step's own ranges, and each "
+    "enclosing Int's range in a position domain P. So a step emitting any "
+    "key at P, or at a domain extending P (int_subst's D = P+I or P+I', "
+    "rewrite's P, int_flip's and a new goal's position domains), first "
+    "decides the order of each enclosing range that domain holds, "
+    "outermost first, and refuses 'orientation-undecided' with that "
+    "range's {lo} and {hi} when neither order is discharged. A decided "
+    "enclosing order is emitted as its key (source orient), as the step's "
+    "own is. The skeptic's reproducer, Int[y = a .. b] (Int[x = a .. y] "
+    "1) with int_subst on the inner Int, emitted its premises on an "
+    "undecided [a, b]: refused now (E56_REVIEW_CASES).",
+
+    "Laziness. The order of a range is decided when, and only when, a key "
+    "whose domain holds that range's interval is emitted; a range no "
+    "emitted key uses is never decided, and costs nothing. That was E4's "
+    "reading and E56's text ('wherever a range is used'), so no expected "
+    "value changes. Each decision (steps (3)-(5) on lo <= hi, then on "
+    "hi <= lo) is memoised per key: discharge is a function of the key "
+    "and ENTRIES alone (E32), so a repeated question has the same answer. "
+    "Int[x = (a-1)^40 .. 0] sin 0 == ?A emits nothing at installation "
+    "(sin 0 is total, the limits owe no former), so it decides nothing; "
+    "the build asserts it installs within E56_TIMING_BOUND seconds (it "
+    "took 30.5 s at 834b8a2).",
+)
+E56_TIMING_BOUND = 2.0   # seconds, on the suite's machine
+E56_REVIEW_CASES = {
+    "bad_moves": [
+        {"id": "int_subst_enclosing_range_undecided",
+         "goal": "Int[y = a .. b] (Int[x = a .. y] 1) == ?A", "setup": [],
+         "move": ("int_subst", {"var": "x", "sub": "t", "new_var": "t",
+                                "lo": "a", "hi": "y", "check": "ring",
+                                "facts": []}),
+         "refusal": "orientation-undecided",
+         "message": ("orientation-undecided", {"lo": "a", "hi": "b"}),
+         "was": "accepted, its premises on y in [a, b] with a <= b never "
+                "decided",
+         "why": "the inner Int's position domain holds the outer range, "
+                "whose order a <= b is not discharged (a and b are free and "
+                "unconstrained); the goal installs, since 1 owes nothing"},
+    ],
+    "accepts": [
+        # the decided twin; hand-derived, then matched against the
+        # committed kernel, which emits every key below but a <= b
+        {"id": "int_subst_enclosing_range_decided",
+         "goal": "Int[y = a .. b] (Int[x = a .. y] 1) == ?A @ a <= b",
+         "goal_emits": [],
+         "move": ("int_subst", {"var": "x", "sub": "t", "new_var": "t",
+                                "lo": "a", "hi": "y", "check": "ring",
+                                "facts": []}),
+         "goal_after": "Int[y = a .. b] (Int[t = a .. y] 1*1) == ?A @ a <= b",
+         "deriv": {"var": "t", "F": "t",
+                   "trace": [("d_var", "t", ())], "output": "1",
+                   "emits": ()},
+         "emits": [
+             ("a <= b", "a <= b", (S_ORIENT,), DISCHARGED, T_HYP, True),
+             ("a <= y", "a <= b, y in [a, b]", (S_ORIENT,), DISCHARGED,
+              T_RANGE, True),
+             ("a == a", "a <= b, y in [a, b]", (S_SUBST_LO,), DISCHARGED,
+              T_RING, True),
+             ("y == y", "a <= b, y in [a, b]", (S_SUBST_HI,), DISCHARGED,
+              T_RING, True),
+             ("t in C^1(a <= b, y in [a, b], t in [a, y])",
+              "a <= b, y in [a, b], t in [a, y]", (S_SUBST_C1,), ADMITTED,
+              T_REG, True),
+             ("1 in C^0(a <= b, y in [a, b], t in [a, y])",
+              "a <= b, y in [a, b], t in [a, y]", (S_SUBST_C0,), ADMITTED,
+              T_REG, True)],
+         "certificates": {("a <= b", "a <= b"): _member(0),
+                          ("a <= y", "a <= b, y in [a, b]"):
+                              _farkas({GOAL: "1", LO(1): "1"})},
+         "why": "the outer order a <= b is the goal's hypothesis; the new "
+                "range's a <= y follows from y's lower end"},
+        {"id": "lazy_unused_range_installs",
+         "goal": "Int[x = (a-1)^40 .. 0] sin 0 == ?A",
+         "goal_emits": [],
+         "timing_bound": E56_TIMING_BOUND,
+         "why": "no key uses the range, so its order is never decided "
+                "(E56_AMENDMENTS, laziness)"},
+    ],
+}
+
+REVIEW2_PLANTED_BUGS = {
+    "rewrite_tree_branch_skips_E57": {
+        "mutation": "E57's test runs only on the App branch",
+        "caught_by": [("E57_BAD_MOVES", "pyth_erases_D"),
+                      ("E57_BAD_MOVES", "pyth_erases_divergent_Int")]},
+    "enclosing_range_undecided": {
+        "mutation": "a position domain's enclosing ranges are used without "
+                    "deciding their order",
+        "caught_by": [("E56_REVIEW_CASES",
+                       "int_subst_enclosing_range_undecided"),
+                      ("E56_REVIEW_CASES",
+                       "int_subst_enclosing_range_decided")]},
+}
+
+# What changes in existing expectations: nothing. E57 refuses only moves
+# whose inst values or target hold an Int or D node, and every such case in
+# the data (match_refuses_Int, match_refuses_D, rewrite_inst_shadows) was
+# already refused 'Int-or-D-not-normalisable' by step 3; no accepted rewrite
+# carries one. The enclosing-range rule changes no accepted case, since none
+# acts inside an Int with an undecided range. Laziness changes no value. The
+# suite-level BACKSTOPS rewrite_closing_check_goal needs E57's seam patched
+# as well (E57_RULE).
+REVIEW2_CHANGES = {
+    "BACKSTOPS rewrite_closing_check_goal (suite)": "patch E57's seam too",
+    "CONSOLIDATION_ENTRIES pyth 'use'": "corrected (rewrite can use pyth)",
+    "entries.py's docstring for pyth": "the build corrects it the same way",
+    "DESIGN_DEFECTS §6.2 pyth entry": "corrected in place",
+    "expected values": "none change",
+}
+REVIEW2_SWITCH = (
+    "One commit: E57's step 2a in kernel.py's rewrite (a seam), the "
+    "enclosing-range decision and the lazy, memoised orientation "
+    "decision; the suite asserts E57_BAD_MOVES, E57_ACCEPTS, "
+    "E56_REVIEW_CASES (the timing case by its bound), REVIEW2_PLANTED_BUGS "
+    "in child processes, and patches E57's seam in the backstop.",
+)
