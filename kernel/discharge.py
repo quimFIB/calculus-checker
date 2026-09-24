@@ -37,15 +37,16 @@ divisor) is a rejection (E30).
 
 **Seams** (kernel/ARCHITECTURE.md §7). Each rule a planted bug removes is
 its own small function, looked up by name at call time: `_ends`,
-`_is_fact`, `_sqrt_fact`, `_multiplier_ok`, `_goal_used`, `_contradicts`,
+`_is_fact`, `_atom_fact`, `_multiplier_ok`, `_goal_used`, `_contradicts`,
 `_square_ok`,
-`_constant_ok`, `_sign_identity`, `_parity_ok`, `_factors_hold`,
+`_constant_ok`, `_sign_identity`, `_parity_ok`, `_relation_ok`, `_factors_hold`,
 `_hyps_hold`. Keep their names and signatures, and call them only as
 written here.
 """
 
 from dataclasses import replace
 from fractions import Fraction
+from types import MappingProxyType
 
 import field as FD
 import poly as P
@@ -59,6 +60,15 @@ GOAL = ("goal",)
 ZERO = Num(0)
 ORDERINGS = ("<", "<=", ">", ">=")
 SQRT_FACT = "sqrt_nonneg"  # E49: the sign fact read for each sqrt atom
+# ATOM_FACT_RULE (E54, generalising E49): each atom sign fact and the head
+# of the atoms it is read for. Its constraint is the entry's statement at
+# the atom's argument, read as a target, non-strict. Each one's hypotheses
+# are its atom's definedness (sqrt_nonneg) or none (cos is total), so a
+# label needs no child. sin_nonneg_on and cos_nonneg_on are not here: their
+# hypotheses are real conditions, and cite is their route. Read-only, as
+# ENTRIES is: a row added here would extend what the checker assumes.
+ATOM_FACTS = MappingProxyType({SQRT_FACT: "sqrt", "cos_le_one": "cos",
+                               "cos_ge_neg_one": "cos"})
 
 # The reasons a certificate is rejected, in the order DISCHARGE_RULE states
 # the rules. A rejected child is "child-rejected/" + its own reason.
@@ -68,7 +78,7 @@ REASONS = (
     "goal-unused", "not-constant", "positive-constant", "zero-without-strict",
     "unknown-item", "not-hypothesis-item", "not-member", "not-ordering",
     "chain-broken", "chain-ends", "chain-not-strict", "bad-square",
-    "constant-too-small", "identity-fails", "non-strict-target",
+    "constant-too-small", "identity-fails",
     "zero-content", "bad-relation", "parity", "unknown-entry",
     "entry-not-ordering", "bad-instance", "schema-not-in-conclusion",
     "conclusion-does-not-imply", "hypothesis-count", "hypothesis-mismatch",
@@ -225,49 +235,55 @@ def _constraint_set(key, sense):
         if _is_fact(entry, consts):
             (x, y), s = _reading(entry.statement)
             cs[("fact", name)] = (x, y, s)
-    for w in _sqrt_arguments(key):
-        label = ("fact", SQRT_FACT, w)
-        c = _sqrt_fact(key, label)
-        if c is not None:
-            cs[label] = c
+    for name, head in ATOM_FACTS.items():
+        for w in _atom_arguments(key, head):
+            label = ("fact", name, w)
+            c = _atom_fact(key, label)
+            if c is not None:
+                cs[label] = c
     return cs
 
 
-def _sqrt_arguments(x):
-    """The argument w of every sqrt atom in a term, judgement, interval or
-    tuple."""
-    out = [x.arg] if type(x) is App and x.fn == "sqrt" else []
+def _atom_arguments(x, head):
+    """The argument w of every atom head(w) in a term, judgement, interval
+    or tuple."""
+    out = [x.arg] if type(x) is App and x.fn == head else []
     for k in _kids(x):
-        out += _sqrt_arguments(k)
+        out += _atom_arguments(k, head)
     return out
 
 
-def _sqrt_fact(key, label):
-    """E49's label ('fact', 'sqrt_nonneg', u): the constraint sqrt u >= 0,
-    non-strict, when sqrt_nonneg is in ENTRIES and an atom sqrt w with
-    ring_nf(w) = ring_nf(u) occurs in the key, else None. Its hypothesis
-    u >= 0 needs no child: the certificate claims the key only where its
-    terms are defined, and there that atom is defined, so its argument is
-    >= 0 (the former E26 charged where the sqrt entered). A seam
-    (ARCHITECTURE.md §7)."""
-    if not (len(label) == 3 and label[1] == SQRT_FACT and SQRT_FACT in ENTRIES
-            and _plain(label[2])):
+def _atom_fact(key, label):
+    """ATOM_FACT_RULE's label ('fact', name, u) (E49, E54): when name is one
+    of ATOM_FACTS and in ENTRIES, and an atom h(w) of its head h occurs in
+    the key's proposition or domain with ring_nf(w) = ring_nf(u), the
+    constraint is the entry's statement at u read as a target, non-strict:
+    sqrt u >= 0, 1 - cos u >= 0 or cos u + 1 >= 0. Else None. No child: at a
+    point where the key's terms are defined that atom is defined, which is
+    sqrt_nonneg's hypothesis u >= 0 (the former E26 charged where the sqrt
+    entered), and the cos bounds have none. A seam (ARCHITECTURE.md §7)."""
+    if not (type(label) is tuple and len(label) == 3
+            and type(label[1]) is str and label[1] in ATOM_FACTS
+            and label[1] in ENTRIES and _plain(label[2])):
         return None
-    u = label[2]
-    for w in _sqrt_arguments(key):
+    name, u = label[1], label[2]
+    entry = ENTRIES[name]
+    for w in _atom_arguments(key, ATOM_FACTS[name]):
         p, q = _polys(u, w)
         if p == q:
-            return (App("sqrt", u), ZERO, False)
+            (x, y), _ = _reading(_prop(subst(entry.statement,
+                                             {entry.schema[0]: u})))
+            return (x, y, False)
     return None
 
 
 def _constraint(cs, key, label):
-    """A label's constraint: from the set, or a sqrt label matched by the
-    ring normal form of its argument (SQRT_FACT_RULE)."""
+    """A label's constraint: from the set, or an atom label ('fact', name,
+    u) matched by the ring normal form of its argument (ATOM_FACT_RULE)."""
     if label in cs:
         return cs[label]
-    if type(label) is tuple and label[:2] == ("fact", SQRT_FACT):
-        return _sqrt_fact(key, label)
+    if type(label) is tuple and len(label) == 3 and label[0] == "fact":
+        return _atom_fact(key, label)
     return None
 
 
@@ -425,14 +441,25 @@ def _product_identity(g, total):
 
 
 def _parity_ok(c, rels):
-    """sign(c) times (-1) to the number of '<' factors is +1. A seam
+    """sign(c) times (-1) to the number of '<' and '<=' factors is +1. A
+    seam (ARCHITECTURE.md §7)."""
+    return (c > 0) == (sum(r in ("<", "<=") for r in rels) % 2 == 0)
+
+
+def _relation_ok(r, nonzero, strict):
+    """A factor's relation (SIGN_PRODUCT_NONSTRICT_RULE (a), E53): '# 0'
+    under a # 0 key; '>' or '<' under a strict target; any of '>', '<',
+    '>=' and '<=' under a non-strict one. A non-strict factor under a
+    strict target could be 0, and the product with it. A seam
     (ARCHITECTURE.md §7)."""
-    return (c > 0) == (sum(r == "<" for r in rels) % 2 == 0)
+    if nonzero:
+        return r == "# 0"
+    return r in ((">", "<") if strict else ORDERINGS)
 
 
 def _factors_hold(dom, factors):
-    """Each factor's sub-obligation, fj # 0, fj > 0 or fj < 0 at the
-    parent's domain, accepted by its own certificate. Returns the union of
+    """Each factor's sub-obligation, fj # 0 or fj rj 0 at the parent's
+    domain, accepted by its own certificate. Returns the union of
     their cites. A seam (ARCHITECTURE.md §7)."""
     cites = ()
     for f, r, cert in factors:
@@ -445,20 +472,23 @@ def _factors_hold(dom, factors):
 
 
 def _product(key, cert):
-    """§5.3 method 5, for >, < and # 0 keys: g = c * f1 * ... * fn by ring,
-    each factor's sign by its own certificate, and for an ordering the
-    parity. E18's content split is the one-factor case. 'Strictly lower
-    degree' is the search's termination rule; this check terminates by
-    recursion on a finite certificate (E30)."""
+    """§5.3 method 5, for every ordering and # 0 key (E53): g = c * f1 *
+    ... * fn by ring, each factor's relation allowed by the target
+    (_relation_ok), each factor's sign by its own certificate, and for an
+    ordering the parity. Where the terms are defined each factor has its
+    certified sign, so the product's sign is sign(c) times theirs: positive
+    when every factor is strict, non-negative when one may be 0. E18's
+    content split is the one-factor case. 'Strictly lower degree' is the
+    search's termination rule; this check terminates by recursion on a
+    finite certificate (E30)."""
     _fields(cert, "sense", "content", "factors")
     sense, c, factors = cert["sense"], cert["content"], cert["factors"]
     nonzero = type(key) is NonZero
     if nonzero:
         _need(sense == "#", "bad-sense")
-        g = key.e
+        g, strict = key.e, True
     else:
-        _need(key.op in (">", "<"), "non-strict-target")
-        (a, b), _ = _target(key, sense)
+        (a, b), strict = _target(key, sense)
         g = Add(a, Neg(b))
     _need(_rational(c) and c != 0, "zero-content")
     _need(type(factors) is tuple, "malformed")
@@ -466,8 +496,7 @@ def _product(key, cert):
     for fac in factors:
         _need(type(fac) is tuple and len(fac) == 3 and _plain(fac[0]),
               "malformed")
-        _need(fac[1] == "# 0" if nonzero else fac[1] in (">", "<"),
-              "bad-relation")
+        _need(_relation_ok(fac[1], nonzero, strict), "bad-relation")
         total = Mul(total, fac[0])
     _need(_product_identity(g, total), "identity-fails")
     if not nonzero:

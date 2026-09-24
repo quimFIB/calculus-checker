@@ -1,10 +1,13 @@
 """The kernel: proof states, the rules P1 needs, and `step`.
 
 Trusted (DESIGN.md §15.2 items 2, 3 and 5). This file holds the rules
-(`rewrite`, `fact`, `ftc`, `close`, `int_subst`, and §6.1's refl/trans/cong
-inside them, p1_expected E16; int_subst is §6.4's substitution, forward and
-reverse, with E46's flip, as INT_SUBST_RULE states it), the matcher and instantiator (REWRITE_RULE), the
-obligation tracker, and §15.3's handles. kernel/ARCHITECTURE.md §4 is the
+(`rewrite`, `fact`, `ftc`, `close`, `int_subst`, `int_flip`, and §6.1's
+refl/trans/cong inside them, p1_expected E16; int_subst is §6.4's
+substitution, forward and reverse, with E46's flip, as INT_SUBST_RULE states
+it; int_flip is §5.1's reversed integral, as INT_FLIP_RULE states it, E51),
+E56's one orientation rule for every range a step builds (`_range_of`), the
+matcher and instantiator (REWRITE_RULE), the obligation tracker, and
+§15.3's handles. kernel/ARCHITECTURE.md §4 is the
 contract for `step`. p1_expected.py is the specification, and it is never
 imported here. Nothing in this file names a P1 term: every obligation, tag
 and refusal is computed by the rules.
@@ -72,10 +75,11 @@ as 'Proved.'). Integral and Deriv nodes have no condition the kernel can
 state, and field.py refuses to normalise them instead (E26 (b)).
 
 **Seams** (ARCHITECTURE.md §7). `derivative_domain`, `_Tracker.add`,
-`NATURAL_DOMAINS`, `_encloses` and `_charge_formers`, and int_subst's rule
-functions (`_select`, `_fresh`, `_subst_under_D`, `_new_orientation`,
-`_subst_deriv`, `_reverse_check`, `_endpoint`, `_forward_premises`,
-`_reverse_premises`, `_new_integrand`, `_new_integral`), are ordinary code
+`NATURAL_DOMAINS`, `_encloses`, `_charge_formers` and `_range_of`,
+int_subst's rule functions (`_select`, `_fresh`, `_subst_under_D`,
+`_new_orientation`, `_subst_deriv`, `_reverse_check`, `_endpoint`,
+`_forward_premises`, `_reverse_premises`, `_new_integrand`,
+`_new_integral`), and int_flip's (`_flip_under_D`, `_flipped`), are ordinary code
 that the planted-bug and definedness-mutation runs replace in a child process.
 Keep their names and signatures. Call them only as written below, and never
 bind them anywhere else.
@@ -120,7 +124,7 @@ REASON_EMPTY = "domain inconsistent"  # §5.3's pre-check found the domain
 # infeasible and nothing else closed the key: vacuously true, admitted
 DECIDED_FALSE = "obligation-decided-false"  # E33
 VERDICT = "Proved modulo {n} admissions"
-MOVES = ("rewrite", "fact", "ftc", "close", "int_subst")
+MOVES = ("rewrite", "fact", "ftc", "close", "int_subst", "int_flip")
 
 # The documented public API. No name here returns a ProofState from a str,
 # bytes or dict (FORGERIES json_roundtrip_state, no_loader).
@@ -342,13 +346,16 @@ def install(goal):
     goal hypothesis holding an Int or D node is refused
     'Int-or-D-not-normalisable' (E26 (b)) whether or not any key carries
     it: a hypothesis about such a value presupposes that it exists. It
-    builds each Integral's E4 range, refusing 'range-same-infinity'. It then
+    builds each Integral's range by E56 (_range_of), refusing
+    'range-same-infinity', and 'orientation-undecided' when a key uses a
+    range whose order discharge proves neither way. It then
     charges the formers of each goal hypothesis at the hypotheses before it,
     so `@ x > 0, ln x > 0` owes x > 0 @ x > 0, and every former of the
     judgement's sides at its position domain (E6: '/' and negative powers
     give d # 0, RPow bases give b > 0; E26: each partial builtin its
     NATURAL_DOMAINS items; source 'former'), with E25 and E7. The
-    orientation of a range is emitted only when some key's domain uses it. Returns the first ProofState, with a
+    orientation of a range is emitted only when some key's domain uses it.
+    Returns the first ProofState, with a
     fresh lineage and last.move == "install", or a Refusal.
     """
     try:
@@ -398,6 +405,8 @@ def step(state, move, args):
       ftc      {"F": Term, "check": "ring" | "field", "facts": list | tuple}
       close    {"value": Term, "check": "ring" | "field", "facts": list |
                 tuple}
+      int_subst  INT_SUBST_RULE's args (p1_expected INT_SUBST_ARGS)
+      int_flip   {} or {"occurrence": int}
     """
     if not _kernel_state(state):
         return Refusal("state-not-minted", "not a state this kernel made")
@@ -459,7 +468,8 @@ def derivative_domain(closed):
 
 _ARGS = {"rewrite": ("entry", "inst", "at"), "fact": ("entry", "inst", "bind"),
          "ftc": ("F", "check", "facts"), "close": ("value", "check", "facts"),
-         "int_subst": ("var", "sub", "new_var", "lo", "hi", "check", "facts")}
+         "int_subst": ("var", "sub", "new_var", "lo", "hi", "check", "facts"),
+         "int_flip": ()}
 _TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f")
 
 
@@ -480,7 +490,7 @@ def _check_args(move, args, goal):
     int_subst term holds no oo either (close's rule). With the goal, the
     terms must pass check_names as one statement."""
     need = set(_ARGS[move])
-    optional = {"occurrence"} if move == "rewrite" else set()
+    optional = {"occurrence"} if move in ("rewrite", "int_flip") else set()
     if move == "int_subst":  # INT_SUBST_RULE step 1 (E36, E45, E48)
         optional = {"mode", "occurrence"}
         if type(args) is dict and args.get("mode") == "reverse":
@@ -496,13 +506,16 @@ def _check_args(move, args, goal):
         ok = (type(args["check"]) is str and args["check"] in ("ring", "field")
               and type(facts) in (list, tuple)
               and not (args["check"] == "ring" and facts))
+    if ok and move == "int_flip":  # INT_FLIP_RULE step 1 (E51)
+        ok = args.get("occurrence", 0) >= 0
     if ok and move == "int_subst":
         ok = (type(args.get("mode", "forward")) is str
               and args.get("mode", "forward") in ("forward", "reverse")
               and args.get("occurrence", 0) >= 0
               and _names_variable(args["var"]) and _names_variable(args["new_var"]))
     if not ok:
-        raise Refused("bad-args", f"{move} takes {', '.join(sorted(need))}")
+        raise Refused("bad-args", f"{move} takes {', '.join(sorted(need))}"
+                      if need else f"{move} takes no argument but occurrence")
     given = [args[k] for k in _TERM_ARGS if k in args] + list(inst.values())
     for t in given:  # check_goal first: it refuses a malformed node unread
         if not isinstance(t, Term):
@@ -551,10 +564,12 @@ def _resolve_fact(state, obj):
 @dataclass(frozen=True, slots=True)
 class _IntScope:
     """An Int enclosing a position through its body: the Int, its range
-    Interval, and its orientation key (None when E4 gives none)."""
+    Interval, its orientation key (None when E56 owes none), and, when E56
+    decided no order, the Refused that any key using the range raises."""
     integral: Integral
     range: Interval
     orient: object
+    undecided: object = None
 
 
 def _subterms(t):
@@ -570,17 +585,44 @@ def _sides(g):
     return (g.lhs,) if isinstance(g.rhs, MVar) else (g.lhs, g.rhs)
 
 
-def _range(integral, pos_dom):
-    """E4. The Interval for Integral[v = lo .. hi], plus the orientation
-    proposition `lo <= hi` at pos_dom (with E5), or None.
+ORIENTATION_UNDECIDED = "orientation-undecided"  # E56, every step's one code
 
-    Literal ends (field.rational_value) are ordered into [min, max], using
-    the original end terms, with no orientation. An infinite end is always
-    open and on its own side, with no orientation. Equal infinities raise
-    'range-same-infinity'. Otherwise the interval is [lo, hi], closed, with
-    the orientation. pos_dom is the Int's own position domain.
-    """
-    v, lo, hi = integral.var, integral.lo, integral.hi
+
+def _settles(key):
+    """DISCHARGE_RULE's steps (3)-(5) alone, as E56 asks of an orientation
+    candidate: norm_num, the exact values then norm_num, or a certificate
+    the trusted checker accepts. It never refutes and never emits."""
+    try:
+        said = FD.norm_num(key)
+        if said is None:
+            new, _ = discharge.exact_values(key)
+            said = FD.norm_num(new)
+        if said is not None:
+            return said
+        cert = search.propose(key)
+        return cert is not None and discharge.check(key, cert) is not None
+    except (Refused, RecursionError):
+        return False
+
+
+def _range_of(v, lo, hi, dom):
+    """E56, the one orientation rule: the Interval of v between the limits
+    lo and hi, and the orientation key its step emits (source 'orient'), or
+    None. Every step that builds a range calls this function, through
+    _range or directly (int_subst's new range).
+
+    Two infinite ends: the whole line, or 'range-same-infinity' when they
+    are equal. One infinite end: open there and on its own side. Two
+    rational literals (field.rational_value): [min, max] with the original
+    end terms, owing nothing. Otherwise lo <= hi, then hi <= lo, each at the
+    position domain `dom` (with E5), goes to DISCHARGE_RULE's steps (3)-(5)
+    with no refutation (_settles); the first that holds is the key, and the
+    interval is [lo, hi] or [hi, lo] accordingly. Neither: Refused
+    'orientation-undecided'. A proved order is never wrong, so the interval
+    is exactly the points between the limits and never empty.
+
+    A seam (ARCHITECTURE.md §7): its callers look it up by this global name,
+    and E56's planted bugs replace it in a child process."""
     inf = [e for e in (lo, hi) if isinstance(e, (PosInf, NegInf))]
     if len(inf) == 2:
         if type(lo) is type(hi):
@@ -595,8 +637,18 @@ def _range(integral, pos_dom):
     if ql is not None and qh is not None:
         a, b = (lo, hi) if ql <= qh else (hi, lo)
         return Interval(v, a, True, b, True), None
-    return (Interval(v, lo, True, hi, True),
-            with_domain(Rel("<=", lo, hi), pos_dom))
+    for a, b in ((lo, hi), (hi, lo)):
+        key = with_domain(Rel("<=", a, b), dom)
+        if _settles(key):
+            return Interval(v, a, True, b, True), key
+    raise Refused(ORIENTATION_UNDECIDED, f"the order of {show(lo)} and "
+                  f"{show(hi)} is not decided; state it in the goal's domain")
+
+
+def _range(integral, pos_dom):
+    """E56 for Integral[v = lo .. hi] at its own position domain: _range_of
+    on its variable and limits."""
+    return _range_of(integral.var, integral.lo, integral.hi, pos_dom)
 
 
 def _encloses(slot):
@@ -614,13 +666,24 @@ def _positions(t, dom, anc=(), path=()):
     """Pre-order walk of one term, children in GRAMMAR.md §7's field order.
     For each subterm it yields (path, subterm, position domain, anc). An
     Int's range is built as the walk reaches it, so every Int of a walked
-    term is checked by E4. rewrite (REWRITE_RULE steps 2, 6, 7, 9) and
-    former charging (E6) both use it."""
+    term is checked by E56. An undecided order is not refused here: the
+    range stands as [lo, hi] and its _IntScope carries the refusal, which
+    _emit_at raises when a key's domain uses that range, so an Int whose
+    body owes nothing never needs an order. rewrite (REWRITE_RULE steps 2,
+    6, 7, 9), int_subst's and int_flip's selectors and former charging (E6)
+    all use it."""
     yield path, t, dom, anc
     inner_dom, inner_anc = dom, anc + ((t,) if isinstance(t, Deriv) else ())
     if isinstance(t, Integral):
-        iv, orient = _range(t, dom)
-        inner_dom, inner_anc = dom + (iv,), anc + (_IntScope(t, iv, orient),)
+        try:
+            iv, orient = _range(t, dom)
+            undecided = None
+        except Refused as r:
+            if r.code != ORIENTATION_UNDECIDED:
+                raise
+            iv, orient, undecided = Interval(t.var, t.lo, True, t.hi, True), None, r
+        inner_dom = dom + (iv,)
+        inner_anc = anc + (_IntScope(t, iv, orient, undecided),)
     for s, k in children(t):
         if not isinstance(k, Term):
             continue  # an infinite limit
@@ -738,13 +801,19 @@ def _frozen(x):
 
 
 def _emit_at(buf, prop, dom, anc, source, goal_dom, divisor=True):
-    """prop at a position (E5), then E4's orientation of each enclosing Int
-    whose range the key's domain now uses."""
+    """prop at a position (E5), then E56's orientation of each enclosing Int
+    whose range the key's domain now uses. A used range whose order E56
+    could not decide refuses 'orientation-undecided' first, before the key,
+    which would be stated on an interval nobody has shown to be the right
+    one."""
     key = with_domain(prop, dom)
+    used = [a for a in anc if isinstance(a, _IntScope) and a.range in key.dom]
+    for a in used:
+        if a.undecided is not None:
+            raise Refused(a.undecided.code, a.undecided.message)
     _emit(buf, key, source, goal_dom, divisor=divisor)
-    for a in anc:
-        if isinstance(a, _IntScope) and a.orient is not None \
-                and a.range in key.dom:
+    for a in used:
+        if a.orient is not None:
             _emit(buf, a.orient, "orient", goal_dom)
 
 
@@ -798,11 +867,13 @@ def _charge_formers(buf, term, dom, goal_dom, anc=()):
     its orientation, when a key uses that range). Each divisor goes through
     E25 in _emit, and each key through E7.
 
-    A seam (ARCHITECTURE.md §7): rewrite and int_subst are its only callers
-    that pass `anc`, by keyword, and the mutations
+    A seam (ARCHITECTURE.md §7): rewrite, int_subst and int_flip are its
+    only callers that pass `anc`, by keyword, and the mutations
     rewrite_R_former_at_goal_domain and rewrite_R_former_on_ranges_only
-    replace it in a child process that runs PROOFS and the case tables, none
-    of which reaches int_subst."""
+    replace it in a child process that runs PROOFS and the case tables.
+    Since E52 PROOFS holds P1.1-sheet, whose int_subst acts on a top-level
+    Int of a goal with no domain, where both mutations charge what the rule
+    charges (P1_1_SHEET_TRACES: N 5, no change)."""
     for _, s, d, a in _positions(term, dom, anc):
         for prop, divisor in _owed(s):
             _emit_at(buf, prop, d, a, "former", goal_dom, divisor)
@@ -955,7 +1026,10 @@ def _fact(state, args, minted, buf):
 
 def _ftc(state, args, minted, buf):
     """E9 (i)–(vi) with §6.4's four premises. Returns (new goal, None,
-    deriv's trace and output).
+    deriv's trace and output). The range is E56's (_range): the premises
+    are on [min, max] and (min, max) of the limits, the order discharge
+    proved, and the new goal is F(b) - F(a) with the limits as written,
+    which holds for either order (§5.1).
 
     Everything that can refuse runs in the order ARCHITECTURE.md §4 gives:
     the orientation, F's formers, deriv, the check, the new goal's formers,
@@ -1052,23 +1126,6 @@ S_SUBST_C1, S_SUBST_C0 = "int_subst_phi_C1", "int_subst_f_C0"
 S_SUBST_INT = "int_subst_integrand"
 
 
-def _settles(key):
-    """DISCHARGE_RULE's steps (3)-(5) alone, as E46 asks of an orientation
-    candidate: norm_num, the exact values then norm_num, or a certificate
-    the trusted checker accepts. It never refutes and never emits."""
-    try:
-        said = FD.norm_num(key)
-        if said is None:
-            new, _ = discharge.exact_values(key)
-            said = FD.norm_num(new)
-        if said is not None:
-            return said
-        cert = search.propose(key)
-        return cert is not None and discharge.check(key, cert) is not None
-    except (Refused, RecursionError):
-        return False
-
-
 def _select(g, var, k):
     """Step 2 (E48): the Integral nodes of the non-?A side(s), in
     REWRITE_RULE's pre-order; the k-th, or with no k the one binding var.
@@ -1131,22 +1188,16 @@ def _subst_under_D(anc, it, terms):
 
 
 def _new_orientation(buf, v, lo, hi, P, G):
-    """Step 8, E46: (flip, I'). Two rational literals are ordered, owing
-    nothing, and kept. Otherwise lo <= hi at P, if steps (3)-(5) discharge
-    it, is emitted and the limits kept; else hi <= lo likewise, and the new
-    integral is flipped; else the step is refused. A candidate that is not
-    discharged is never emitted."""
-    ql, qh = FD.rational_value(lo), FD.rational_value(hi)
-    if ql is not None and qh is not None:
-        a, b = (lo, hi) if ql <= qh else (hi, lo)
-        return False, Interval(v, a, True, b, True)
-    for flip, (a, b) in ((False, (lo, hi)), (True, (hi, lo))):
-        key = with_domain(Rel("<=", a, b), P)
-        if _settles(key):
-            _emit(buf, key, "orient", G)
-            return flip, Interval(v, a, True, b, True)
-    raise Refused("int-subst-orientation-undecided", f"the order of {show(lo)} "
-                  f"and {show(hi)} is not decided; state it in the goal's domain")
+    """Step 8: (flip, I'), the new range by E56 (_range_of at P). Two
+    rational literals are ordered, owing nothing, and kept. Otherwise the
+    order discharge proves is emitted (source 'orient'): lo <= hi keeps the
+    limits, hi <= lo flips the new integral (E46's form, kept as a choice
+    since E56); neither refuses 'orientation-undecided'."""
+    new_range, orient = _range_of(v, lo, hi, P)
+    if orient is None:
+        return False, new_range
+    _emit(buf, orient, "orient", G)
+    return new_range.lo != lo, new_range
 
 
 def _subst_deriv(sub, x, D):
@@ -1190,8 +1241,9 @@ def _endpoint(check, image, limit, end, source, minted, P, G, buf):
 
 
 def _old_range(buf, it, P, G):
-    """Step 8, reverse mode: the old range I, owing its orientation a <= b
-    at P when its ends are not two literals, since the premises use I."""
+    """Step 8, reverse mode: the old range I by E56 (_range), owing the
+    order discharge proved at P when its ends are not two literals, since
+    the premises use I; neither order refuses 'orientation-undecided'."""
     old, orient = _range(it, P)
     if orient is not None:
         _emit(buf, orient, "orient", G)
@@ -1289,5 +1341,60 @@ def _int_subst(state, args, minted, buf):
     return goal, None, {"trace": d.trace, "output": d.output}
 
 
+# ---------------------------------------------------------------- int_flip
+#
+# p1_expected's INT_FLIP_RULE (E51): §5.1's reversed integral with pointwise
+# linearity, Int[x = a .. b] f == Int[x = b .. a] -(f), for every a and b, so
+# the step owes no order of its own and has no premise. Its rule functions
+# are seams like int_subst's: _flip_select, _flip_under_D and _flipped.
+
+def _flip_select(g, k):
+    """Step 2: int_subst's selector (E48) without a variable. The Integral
+    nodes of the non-?A side(s) in REWRITE_RULE's pre-order; the k-th, or
+    with no k the only one. Returns (side index, path, the Int, its
+    position domain P, anc)."""
+    ints = [(i, p, s, d, a) for i, side in enumerate(_sides(g))
+            for p, s, d, a in _positions(side, g.dom) if isinstance(s, Integral)]
+    if k is not None:
+        if k >= len(ints):
+            raise Refused("int-flip-no-integral",
+                          f"the goal holds no integral at occurrence {k}")
+        return ints[k]
+    if not ints:
+        raise Refused("int-flip-no-integral", "the goal holds no integral")
+    if len(ints) > 1:
+        raise Refused("int-flip-ambiguous", f"{len(ints)} integrals in the "
+                      "goal; give an occurrence")
+    return ints[0]
+
+
+def _flip_under_D(anc, it):
+    """Step 3: E48's D[y] test for the selected Int, whose new closed range
+    step 4's keys may be charged on."""
+    _subst_under_D(anc, it, ())
+
+
+def _flipped(it):
+    """Step 4: Int[x = b .. a] -(f) for Int[x = a .. b] f."""
+    return Integral(it.var, it.hi, it.lo, Neg(it.body))
+
+
+def _int_flip(state, args, minted, buf):
+    """INT_FLIP_RULE steps 2-4: the selected Int replaced by its flip, whose
+    formers are charged as a new term's at its position (its limits at P,
+    its body on its own range, built by E56 with its orientation when a
+    key uses it), then check_goal. Returns (new goal, None, no extras)."""
+    g = state.goal[0]
+    side, path, it, P, anc = _flip_select(g, args.get("occurrence"))  # step 2
+    _flip_under_D(anc, it)  # step 3
+    new = _flipped(it)  # step 4
+    sides = list(_sides(g))
+    sides[side] = _put(sides[side], path, new)
+    _charge_formers(buf, new, P, g.dom, anc=anc)
+    goal = (replace(g, lhs=sides[0], rhs=sides[1] if len(sides) > 1 else g.rhs),)
+    check_goal(goal)
+    return goal, None, {}
+
+
 _MOVE = {"rewrite": _rewrite, "fact": _fact, "ftc": _ftc, "close": _close,
-         "int_subst": _int_subst}
+         "int_subst": _int_subst, "int_flip": _int_flip}

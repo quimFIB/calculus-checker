@@ -28,6 +28,18 @@ discharge.exact_values applies, and a rewrite by either owes nothing.
 it for each sqrt atom of a key, as it reads pi_pos for pi (discharge.py's
 ('fact', 'sqrt_nonneg', u) label); it is also an ordinary cite entry.
 
+The last six are the consolidation's (p1_expected E54, E55), for
+Int_0^1 sqrt(1 - x^2) by x := cos theta. `pyth` is the identity as the owner
+states it; its left side is a sum, so neither rewrite nor field can use it
+as stated, and E27 (a) counts it. `pyth_cos` is pyth solved for (cos u)^2,
+differing from it by a ring identity: a rewrite at (cos b)^2 and a field
+fact in §6.2's a^k == r shape. `sin_nonneg_on` and `cos_nonneg_on` are
+sign facts whose hypotheses are real conditions on the argument, so they
+are read by cite only. `cos_le_one` and `cos_ge_neg_one` are total bounds,
+read by the linear method for each cos atom as sqrt_nonneg is for each sqrt
+atom (ATOM_FACT_RULE, discharge.ATOM_FACTS), and by cite. None is an exact
+value: each has a schema variable.
+
 ENTRIES is read-only: writing to it would extend the trusted cite library
 (§15.2 item 7) for the whole process, and it is not one of
 kernel/ARCHITECTURE.md §7's seams, so nothing needs it mutable.
@@ -57,6 +69,13 @@ STATEMENTS = {
     "exp_one": ("exp 1 == e_const", ()),
     "cos_zero": ("cos 0 == 1", ()),
     "sqrt_nonneg": ("sqrt a >= 0 @ a >= 0", ("a",)),
+    # the consolidation's six (p1_expected E54, CONSOLIDATION_ENTRIES)
+    "pyth": ("(sin u)^2 + (cos u)^2 == 1", ("u",)),
+    "pyth_cos": ("(cos u)^2 == 1 - (sin u)^2", ("u",)),
+    "sin_nonneg_on": ("sin u >= 0 @ u >= 0, u <= pi", ("u",)),
+    "cos_nonneg_on": ("cos u >= 0 @ u >= 0, u <= pi/2", ("u",)),
+    "cos_le_one": ("cos u <= 1", ("u",)),
+    "cos_ge_neg_one": ("cos u >= -1", ("u",)),
 }
 
 

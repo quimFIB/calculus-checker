@@ -23,7 +23,10 @@ first to pass wins:
                 the negated goal; the domain's items, where an interval on v
                 gives c <= v and v <= d, strict at an open end and absent at
                 an infinite one; and SIGN_FACTS for each named constant that
-                occurs in prop or dom. A goal e # 0 is tried as e > 0, then as
+                occurs in prop or dom, and ATOM_FACTS' non-strict bound for
+                each distinct atom of its head (sqrt_nonneg for sqrt,
+                cos_le_one and cos_ge_neg_one for cos; ATOM_FACT_RULE). A
+                goal e # 0 is tried as e > 0, then as
                 e < 0. If the set is infeasible, shrink it to a support-minimal
                 infeasible subset by a deletion filter that keeps the negated
                 goal and tries to drop the sign facts first, then the domain
@@ -36,12 +39,18 @@ first to pass wins:
                 positive leading coefficient and a negative discriminant.
                 E20: a non-strict `e >= 0` or `0 <= e` goal also accepts a
                 zero constant. e # 0 is tried as e > 0.
-  sign product  >, < and # 0 only. (i) E18: the normal form is c*p with
-                rational c other than 0 and 1, and p's obligation at dom is
-                not tagged none. (ii) Otherwise, a factorisation into factors
-                of strictly lower degree from `factor_rational_roots` in which
-                no factor's obligation at dom is tagged none. The cites are
-                the parts' cites.
+  sign product  every ordering and # 0 (E53, SIGN_PRODUCT_NONSTRICT_RULE).
+                (i) E18: the normal form is c*p with rational c other than 0
+                and 1 (and other than -1 under a non-strict target, where
+                p's goal restates the key), and p's obligation at dom is not
+                tagged none. (ii) Otherwise, a factorisation into factors
+                of strictly lower degree from `normalised_factors`, each
+                factor with a positive leading coefficient and the content
+                taking the sign, in which no factor's obligation at dom is
+                tagged none. A factor's relation is tried strict first ('>'
+                then '<'), then, under a non-strict target only, non-strict
+                ('>=' then '<='); a choice's parity must give the goal's
+                sign. The cites are the parts' cites.
   cite          an ENTRIES statement whose instantiated conclusion is prop as
                 a tree, or is `a > 0` / `0 < a` where prop is `a # 0`,
                 `a >= 0` or `0 <= a` for the same a, and whose instantiated
@@ -76,6 +85,10 @@ SIGN_FACTS = {
 
 NONE = ("none", ())
 SQRT_FACT = "sqrt_nonneg"  # E49's sign fact, one per sqrt atom
+# ATOM_FACT_RULE (E54, generalising E49): each atom sign fact, read for each
+# distinct atom of its head, in the order the cites list them. This module's
+# own copy, apart from discharge.ATOM_FACTS, so neither hides the other.
+ATOM_FACTS = {SQRT_FACT: "sqrt", "cos_le_one": "cos", "cos_ge_neg_one": "cos"}
 ROOT_TEST_BOUND = 10 ** 6  # keeps the rational root test cheap (TAG_RULES)
 # How deep sign product's factorisations nest, a factor's own obligation
 # factorised again: past it, (ii) is not tried. §5.3's strictly lower degree
@@ -222,8 +235,7 @@ def _linear(prop, dom):
     names = {n.name for n in _nodes((prop, dom)) if isinstance(n, Const)}
     facts = [(entry, s) for name, (entry, fact) in SIGN_FACTS.items()
              if name in names for s in _rel_senses(fact)]
-    facts += [(SQRT_FACT, (App("sqrt", w), ZERO, False))
-              for w in sqrt_atoms((prop, dom))]
+    facts += [(name, c) for name, _, c in atom_facts((prop, dom))]
     items = [s for item in dom for s in _rel_senses(item)]
     for a, b, strict in _senses(prop):
         # The negation of a - b > 0 is b - a >= 0, and of >= it is >.
@@ -246,20 +258,35 @@ def _linear(prop, dom):
     return None
 
 
-def sqrt_atoms(x):
-    """E49: the argument w of each distinct sqrt atom of x (distinct by
-    the ring normal form of w, §6.2's atom identity), when sqrt_nonneg is
-    in ENTRIES; each brings the sign fact sqrt w >= 0 to the linear method,
-    as pi brings pi_pos. Raises Refused like ring."""
-    if SQRT_FACT not in ENTRIES:
-        return []
-    args = [n.arg for n in _nodes(x) if isinstance(n, App) and n.fn == "sqrt"]
+def atoms_of(x, head):
+    """The argument w of each distinct atom head(w) of x (distinct by the
+    ring normal form of w, §6.2's atom identity), in first-seen order.
+    Raises Refused like ring."""
+    args = [n.arg for n in _nodes(x) if isinstance(n, App) and n.fn == head]
     polys = FD.ring_polys(args)[0] if args else []
     seen, out = set(), []
     for w, p in zip(args, polys):
         if P.frozen(p) not in seen:
             seen.add(P.frozen(p))
             out.append(w)
+    return out
+
+
+def atom_facts(x):
+    """ATOM_FACT_RULE: (entry name, w, (a, b, False)) for each ATOM_FACTS
+    entry in ENTRIES and each distinct atom of its head in x, the fact's
+    statement at w read as a - b >= 0, non-strict: sqrt w >= 0, 1 - cos w
+    >= 0, cos w + 1 >= 0. Facts in ATOM_FACTS order, atoms in first-seen
+    order. Raises Refused like ring."""
+    out = []
+    for name, head in ATOM_FACTS.items():
+        entry = ENTRIES.get(name)
+        if entry is None:
+            continue
+        for w in atoms_of(x, head):
+            st = subst(replace(entry.statement, dom=()), {entry.schema[0]: w})
+            (a, b, _), = _senses(st)
+            out.append((name, w, (a, b, False)))
     return out
 
 
@@ -381,6 +408,47 @@ def _sign_goal(t, sign, dom):
     return with_domain(prop, dom)
 
 
+def rel_goal(t, r, dom):
+    """The sub-obligation t # 0 (r '# 0') or t r 0 at dom."""
+    return with_domain(NonZero(t) if r == "# 0" else Rel(r, t, ZERO), dom)
+
+
+# A factor's relations, in the order they are tried (E53): strict first,
+# then non-strict. The sign each claims, for the parity.
+STRICT_RELATIONS = (">", "<")
+NONSTRICT_RELATIONS = (">", "<", ">=", "<=")
+RELATION_SIGN = {">": 1, ">=": 1, "<": -1, "<=": -1, "# 0": 0}
+
+
+def product_form(prop):
+    """For sign product: (a, b, want, relations) reading prop as the sign
+    of e = a - b, want 0 (# 0), 1 (> or >=) or -1 (< or <=), and the
+    relations its factors may take (E53: strict ones under a strict target,
+    all four under a non-strict one), or None for an equation."""
+    if isinstance(prop, NonZero):
+        return prop.e, ZERO, 0, ("# 0",)
+    if prop.op not in (">", "<", ">=", "<="):
+        return None
+    want = 1 if prop.op in (">", ">=") else -1
+    rels = STRICT_RELATIONS if prop.op in (">", "<") else NONSTRICT_RELATIONS
+    return prop.lhs, prop.rhs, want, rels
+
+
+def split_relations(rels, s):
+    """The relations a content split's one factor p may take, in order: those
+    whose sign is s (s = 0: '# 0')."""
+    return tuple(r for r in rels if RELATION_SIGN[r] == s)
+
+
+def splits(c, prop):
+    """E18: a content split is tried when c is a rational other than 0 and
+    1, except c = -1 under a non-strict target (E53): there p's sign goal
+    is the key's own proposition restated, and splitting it off would only
+    nest the factorisation the key itself reaches."""
+    return c != 1 and not (c == -1 and isinstance(prop, Rel)
+                           and prop.op in (">=", "<="))
+
+
 def _as_term(p, atoms):
     """p as a Term, a bare atom as its own term, so that cite sees the
     atom's tree (sqrt 3, not 1*sqrt 3)."""
@@ -392,41 +460,60 @@ def _as_term(p, atoms):
 
 
 def _product(prop, dom, gamma, split, depth=0):
-    """§5.3 method 5, for >, < and # 0 only: (i) E18's content split, then
-    (ii) a factorisation into factors of strictly lower degree."""
-    if isinstance(prop, NonZero):
-        a, b, want = prop.e, ZERO, 0
-    elif prop.op in (">", "<"):
-        a, b, want = prop.lhs, prop.rhs, 1 if prop.op == ">" else -1
-    else:
+    """§5.3 method 5 for every ordering and # 0 (E53): (i) E18's content
+    split, then (ii) a factorisation into factors of strictly lower degree,
+    each factor's relation strict first, then non-strict under a
+    non-strict target."""
+    form = product_form(prop)
+    if form is None:
         return None
+    a, b, want, rels = form
     [e], atoms = _normal_diffs([(a, b)])
     if not e:
         return None
     c, p = P.content_normal(e)
-    if split and c != 1:
+    if split and splits(c, prop):
         # e = c*p: p # 0, or p's sign times c's sign is the goal's.
-        t = _tag(_sign_goal(_as_term(p, atoms), want * (1 if c > 0 else -1),
-                            dom), gamma, split=False, depth=depth)
-        if t != NONE:
-            return ("sign product", t[1])
-    factors = factor_rational_roots(e, atoms) if depth < FACTOR_DEPTH else None
-    if not factors:
+        s = want * (1 if c > 0 else -1)
+        for r in split_relations(rels, s):
+            t = _tag(rel_goal(_as_term(p, atoms), r, dom), gamma, split=False,
+                     depth=depth)
+            if t != NONE:
+                return ("sign product", t[1])
+    found = normalised_factors(e, atoms) if depth < FACTOR_DEPTH else None
+    if not found:
         return None
-    # Each factor's sign, or just # 0, and a choice whose product has the
-    # goal's sign. The factors multiply to e exactly.
+    # Each factor's relation, and a choice whose product, with the content's
+    # sign, has the goal's sign. The content times the factors is e exactly.
+    c, factors = found
     options = []
     for f in factors:
-        signs = (0,) if want == 0 else (1, -1)
-        tagged = [(s, _tag(_sign_goal(f, s, dom), gamma, split=True,
+        tagged = [(r, _tag(rel_goal(f, r, dom), gamma, split=True,
                            depth=depth + 1))
-                  for s in signs]
-        options.append([(s, t) for s, t in tagged if t != NONE])
+                  for r in rels]
+        options.append([(r, t) for r, t in tagged if t != NONE])
     for choice in itertools.product(*options):
-        if want == 0 or math.prod(s for s, _ in choice) == want:
+        if want == 0 or ((1 if c > 0 else -1)
+                         * math.prod(RELATION_SIGN[r] for r, _ in choice)) == want:
             return ("sign product",
                     _dedup(c for _, t in choice for c in t[1]))
     return None
+
+
+def normalised_factors(p, atoms):
+    """(c, factors) with p = c * f1 * ... * fn exactly: factor_rational_roots'
+    factorisation, each factor divided by its leading coefficient so that it
+    is positive, and c their product (E53: the content takes the sign), or
+    None."""
+    polys = _factor_polys(p)
+    if polys is None:
+        return None
+    c, out = Fraction(1), []
+    for f in polys:
+        lc, monic = P.content_normal(f)
+        c *= lc
+        out.append(residual.poly_term(monic, atoms))
+    return c, out
 
 
 def factor_rational_roots(p, atoms):
@@ -438,6 +525,14 @@ def factor_rational_roots(p, atoms):
     each factor's sign obligation matters. Returns None when |a0| or |an|
     (as integers) exceeds ROOT_TEST_BOUND, so the test stays cheap; a
     factorisation it misses only weakens a tag."""
+    polys = _factor_polys(p)
+    return None if polys is None else [residual.poly_term(f, atoms)
+                                       for f in polys]
+
+
+def _factor_polys(p):
+    """factor_rational_roots' factors as polynomials, [atom - root,
+    quotient], whose product is p; or None."""
     used = {i for m in p for i, _ in m}
     if len(used) != 1:
         return None
@@ -472,7 +567,7 @@ def factor_rational_roots(p, atoms):
     linear = P.sub(P.atom(i), P.const(root))
     if P.mul(linear, q) != p:  # a factoriser bug, caught before it is used
         return None
-    return [residual.poly_term(linear, atoms), residual.poly_term(q, atoms)]
+    return [linear, q]
 
 
 def _divisors(n):

@@ -11,6 +11,8 @@
     python3 kernel/proof_of_life.py --discharge-control     the same child, unpatched
     python3 kernel/proof_of_life.py --int-subst NAME   one int_subst planted bug or re-traced seam (a child)
     python3 kernel/proof_of_life.py --int-subst-control   the same child, unpatched
+    python3 kernel/proof_of_life.py --consolidation NAME  one int_flip, E53, E54 or E56 planted bug (a child)
+    python3 kernel/proof_of_life.py --consolidation-control  the same child, unpatched
 
 It asserts every item of WHAT.md's "Done when" against p1_expected.py, which
 was written before the kernel and is never changed to fit it. The header
@@ -20,8 +22,9 @@ from kernel/ARCHITECTURE.md, the skeletons' signatures and p1_expected.py
 alone, not from the kernel's code, so it tests the contract rather than
 mirroring the implementation.
 
-  1  proves P1.1, its fallback, P1.2 and P1.2-alt: every step accepted, each
-     goal_after as a tree, the theorem, N and the verdict string;
+  1  proves P1.1, its fallback, P1.2, P1.2-alt and P1.1-sheet (in PROOFS
+     since E52, ROUTE['P1.1']): every step accepted, each goal_after as a
+     tree, the theorem, N and the verdict string;
   2  every step's obligation list (key, sources, status, tag, reason, new),
      deriv's trace and output, the final tracker, and no admission tagged
      none; also MATCH_ACCEPTS, DEFINEDNESS_CASES (E26: installation's and
@@ -67,13 +70,21 @@ mirroring the implementation.
      S3-W3's E27 residual compared as a tree, with its message). Also the four
      stage-0 entries pinned in entries.py, and the tagger's sign facts
      against ENTRIES.
-  S  int_subst (p1_expected section 12, INT_SUBST_SWITCH): P1.1-sheet,
-     staged outside PROOFS (E47), as items 1-2 assert PROOFS, every
+  S  int_subst (p1_expected section 12, INT_SUBST_SWITCH): every
      INT_SUBST_ACCEPTS case with its continuation, and every
      INT_SUBST_BAD_MOVES case by code, message and residual; its planted
      bugs and the three re-traced seams run under item 3, and stage 1's
      problem files (stage1/SUB1, S2R, SUB2) under item 7, with their own
-     floor.
+     floor. P1.1-sheet, staged here until E52, is in PROOFS now.
+  C  the consolidation (p1_expected sections 13-14, CONSOLIDATION_SWITCH,
+     the constant CONSOLIDATED below): CONSOLIDATION_ENTRIES pinned, E27's
+     reading of pyth and pyth_cos, every INT_FLIP_ACCEPTS and E56_ACCEPTS
+     case with its continuation, every INT_FLIP_BAD_MOVES and E56_BAD_MOVES
+     case; E53's and E54's checker cases are item D's, QC1
+     (problems/consolidation/) item 7's, with its own floor and its two
+     wrong answers, and CONSOLIDATION_PLANTED_BUGS and E56_PLANTED_BUGS item
+     3's, with E56_CHANGES, CONSOLIDATION_CHANGES and P1_1_SHEET_TRACES
+     applied to every table they name.
   D  discharge's parts (p1_expected section 11), called directly as well
      as through kernel._emit, with E49's sqrt_nonneg label: the pinned sqrt_zero
      and cos_zero, every certificate the data gives accepted with its tag
@@ -179,8 +190,9 @@ ITEMS = {
     6: "round-trips the parser, echoes each goal",
     7: "problem files S1-S3 as stage0/expected.py states them",
     "D": "discharge's checkers, search and refutation, called directly",
-    "S": "int_subst (p1_expected section 12): P1.1-sheet, the accepted and "
-         "refused moves",
+    "S": "int_subst (p1_expected section 12): the accepted and refused moves",
+    "C": "the consolidation (p1_expected sections 13-14): int_flip, E56's "
+         "orientation, E54's entries",
 }
 UNIT, UNIT_TEXT = "unit", ("unit tests: test_field.py, test_grammar.py, "
                            "test_discharge.py")  # beside 1-6
@@ -304,6 +316,83 @@ if DISCHARGE_WIRED:
 else:
     MATCH_ACCEPTS, DEFINEDNESS_CASES = X.MATCH_ACCEPTS, X.DEFINEDNESS_CASES
     OCCURRENCE_CASE, UNDECIDED, REFUSAL_CODES = X.OCCURRENCE_CASE, [], X.REFUSAL_CODES
+
+# CONSOLIDATION_SWITCH (p1_expected sections 13 and 14): the one constant.
+# With int_flip, E56's one orientation rule, E53's non-strict sign product
+# and E54's entries built, the suite merges P1.1-sheet into PROOFS
+# (P1_1_SHEET_JOIN, E52), applies E56_CHANGES and CONSOLIDATION_CHANGES to
+# the tables they name, and asserts sections 13 and 14's cases (item C),
+# planted bugs (item 3) and QC1 (item 7).
+CONSOLIDATED = True
+J = X.P1_1_SHEET_JOIN
+E56 = X.E56_CHANGES
+SHEET = "P1.1-sheet"
+if CONSOLIDATED:
+    PROOFS = {**X.PROOFS, SHEET: J["PROOFS"]}
+    OBLIGATIONS = {**OBLIGATIONS, SHEET: J["DISCHARGE_OBLIGATIONS"]}
+    FINAL = {**FINAL, SHEET: J["DISCHARGE_FINAL_TRACKER"]}
+    ADMISSIONS = {**ADMISSIONS, SHEET: J["DISCHARGE_ADMISSIONS"]}
+    VERDICTS = {**VERDICTS, SHEET: X.VERDICT.format(n=J["DISCHARGE_ADMISSIONS"])}
+    ANSWERS = {**X.ANSWERS, SHEET: J["ANSWERS"]}
+    ECHO = {**X.ECHO, SHEET: J["ECHO"]}
+    NUMERIC = {**X.NUMERIC, SHEET: J["NUMERIC"]}
+    EXPECTED = {**X.DISCHARGE_EXPECTED, SHEET: J["DISCHARGE_EXPECTED"]}
+    ROUTE = {**X.ROUTE, **J["ROUTE"]}
+    # the sheet leaves INT_SUBST_PROOFS; the int_subst children run it from
+    # PROOFS (SUBST_PROOFS: the PROOFS entries int_subst reaches)
+    INT_SUBST_PROOFS = {n: p for n, p in X.INT_SUBST_PROOFS.items() if n != SHEET}
+    SUBST_PROOFS = (SHEET,)
+    # E56_CHANGES and CONSOLIDATION_CHANGES on the case tables
+    BAD_MOVES = [dict(b, refusal=E56["DISCHARGE_BAD_MOVES_CHANGED rewrite_under_D_through_Int"]
+                      ["new"][1][0], at="install",
+                      message=E56["DISCHARGE_BAD_MOVES_CHANGED rewrite_under_D_through_Int"]
+                      ["new"][1])
+                 if b["id"] == "rewrite_under_D_through_Int" else b
+                 for b in BAD_MOVES if b["id"] != "decided_false_reversed_range"]
+    DISCHARGE_BAD_MOVES_ADDED = [c for c in DISCHARGE_BAD_MOVES_ADDED
+                                 if c["id"] != "decided_false_reversed_range"]
+    _REVERSED = E56["REVIEW_BAD_MOVES reverse_symbolic_old_range_reversed"]["new"]
+    _CC = X.CONSOLIDATION_CHANGES["INT_SUBST_ACCEPTS cos_theta_canonical"]
+
+    def _consolidated_accept(c):
+        """cos_theta_canonical as CONSOLIDATION_CHANGES gives it: the goal's
+        list, the one changed row, the added certificates, no reasons."""
+        if c["id"] != "cos_theta_canonical":
+            return c
+        row = _CC["emits_change"]
+        emits = [row if (e[0], e[1]) == (row[0], row[1]) else e for e in c["emits"]]
+        c = dict(c, goal_emits=_CC["goal_emits"], emits=emits,
+                 certificates={**c["certificates"], **_CC["certificates_add"]})
+        c.pop("goal_reasons", None)
+        c.pop("reasons", None)
+        return c
+
+    def _moved_accept(b):
+        """REVIEW_BAD_MOVES reverse_symbolic_old_range_reversed, which E56
+        moves to INT_SUBST_ACCEPTS with its new values."""
+        return {"id": b["id"], "goal": b["goal"], "move": b["move"],
+                "goal_emits": _REVERSED["goal_emits"],
+                "goal_after": _REVERSED["goal_after"], "emits": _REVERSED["emits"],
+                "certificates": _REVERSED["certificates"]}
+
+    SUBST_ACCEPTS = [_consolidated_accept(c) for c in SUBST_ACCEPTS] + [
+        _moved_accept(b) for b in X.REVIEW_BAD_MOVES
+        if b["id"] == "reverse_symbolic_old_range_reversed"]
+    _UNDECIDED_NEW = E56["INT_SUBST_BAD_MOVES orientation_undecided"]["new"]
+    SUBST_BAD_MOVES = [dict(b, refusal=_UNDECIDED_NEW[0], message=_UNDECIDED_NEW[1])
+                       if b["id"] == "orientation_undecided" else b
+                       for b in SUBST_BAD_MOVES
+                       if b["id"] != "reverse_symbolic_old_range_reversed"]
+    REFUSAL_CODES = {c: v for c, v in {**REFUSAL_CODES, **X.REFUSAL_CODES_INT_FLIP,
+                                       **X.REFUSAL_CODES_E56}.items()
+                     if c != "int-subst-orientation-undecided"}
+    MESSAGES = {**{k: v for k, v in X.INT_SUBST_MESSAGES.items()
+                   if k != "int-subst-orientation-undecided"},
+                **X.INT_FLIP_MESSAGES, **X.E56_MESSAGES}
+else:
+    PROOFS, ANSWERS, ECHO, NUMERIC = X.PROOFS, X.ANSWERS, X.ECHO, X.NUMERIC
+    EXPECTED, ROUTE, INT_SUBST_PROOFS = X.DISCHARGE_EXPECTED, X.ROUTE, X.INT_SUBST_PROOFS
+    SUBST_PROOFS, MESSAGES = tuple(X.INT_SUBST_PROOFS), X.INT_SUBST_MESSAGES
 CASES = {"BAD_MOVES": BAD_MOVES, "DEFINEDNESS_CASES": DEFINEDNESS_CASES,
          "MATCH_ACCEPTS": MATCH_ACCEPTS}
 
@@ -328,12 +417,13 @@ def _message_field(v):
 
 
 def expected_message(spec):
-    """A refusal's message from its (template, parts): INT_SUBST_MESSAGES'
-    for int_subst's own codes, filled with each part shown after parsing,
+    """A refusal's message from its (template, parts): INT_SUBST_MESSAGES',
+    INT_FLIP_MESSAGES' and E56_MESSAGES' for those codes (MESSAGES), filled
+    with each part shown after parsing,
     else DECIDED_FALSE_MESSAGES' (test_discharge.expected_message)."""
     how, parts = spec
-    if how in X.INT_SUBST_MESSAGES:
-        return X.INT_SUBST_MESSAGES[how].format(
+    if how in MESSAGES:
+        return MESSAGES[how].format(
             **{k: _message_field(v) for k, v in parts.items()})
     return TD.expected_message(spec)
 
@@ -470,9 +560,9 @@ def take(state, move, args, handles, where):
 
 def replay(proof, through):
     """The state after step `through` of PROOFS[proof] (or of
-    INT_SUBST_PROOFS[proof]), and the handles bound on the way. Each call is
+    p1_expected's INT_SUBST_PROOFS[proof]), and the handles bound on the way. Each call is
     a fresh install, so a fresh lineage."""
-    p = X.PROOFS[proof] if proof in X.PROOFS else X.INT_SUBST_PROOFS[proof]
+    p = PROOFS[proof] if proof in PROOFS else X.INT_SUBST_PROOFS[proof]
     st, handles = install(p["goal"], (proof, "goal")), {}
     for s in p["steps"]:
         st = take(st, s["move"], s["args"], handles, (proof, s["id"]))
@@ -695,13 +785,23 @@ class Tables:
         self.__dict__.update(kw)
 
 
+def _p1_deriv(name, s):
+    """A PROOFS step's DERIV row: an int_subst step's is INT_SUBST_DERIV's,
+    keyed (proof, step), since it has no F (P1.1-sheet's s1, E52); an ftc
+    step's is DERIV's for its F."""
+    if (name, s["id"]) in X.INT_SUBST_DERIV:
+        return X.INT_SUBST_DERIV[(name, s["id"])]
+    return DERIV_BY_F[s["args"]["F"]]
+
+
 P1_TABLES = Tables(
-    PROOFS=X.PROOFS, OBLIGATIONS=OBLIGATIONS, FINAL=FINAL, ADMISSIONS=ADMISSIONS,
-    VERDICTS=VERDICTS, ANSWERS=X.ANSWERS, ECHO=X.ECHO, EXPECTED=X.DISCHARGE_EXPECTED,
-    deriv=lambda name, s: DERIV_BY_F[s["args"]["F"]])
-# P1.1-sheet's goal is the fallback's (INT_SUBST_PROOFS), so its echo is the
-# fallback's ECHO.
-SUBST_TABLES = Tables(
+    PROOFS=PROOFS, OBLIGATIONS=OBLIGATIONS, FINAL=FINAL, ADMISSIONS=ADMISSIONS,
+    VERDICTS=VERDICTS, ANSWERS=ANSWERS, ECHO=ECHO, EXPECTED=EXPECTED,
+    deriv=_p1_deriv)
+# What int_subst's children run: after E52, P1.1-sheet from PROOFS's tables
+# (INT_SUBST_PROOFS keeps no proof); before it, INT_SUBST_PROOFS', whose
+# P1.1-sheet echoes as the fallback (the same goal).
+SUBST_TABLES = P1_TABLES if CONSOLIDATED else Tables(
     PROOFS=X.INT_SUBST_PROOFS, OBLIGATIONS=X.INT_SUBST_OBLIGATIONS,
     FINAL=X.INT_SUBST_FINAL_TRACKER, ADMISSIONS=X.INT_SUBST_ADMISSIONS,
     VERDICTS=X.INT_SUBST_VERDICTS, ANSWERS=X.INT_SUBST_ANSWERS,
@@ -987,17 +1087,32 @@ def undecided_problems(case):
     return out
 
 
+def route_problems(runs):
+    """P1_1_SHEET_JOIN's ROUTE: P1.1's route is P1.1-sheet, P1.2's is P1.2;
+    each names a PROOFS entry that ran to a close here, with ANSWERS' value
+    for the problem it routes."""
+    out = [] if ROUTE == {"P1.1": SHEET, "P1.2": "P1.2"} else [f"ROUTE is {ROUTE}"]
+    for problem, proof in ROUTE.items():
+        run = runs.get(proof)
+        if proof not in PROOFS or run is None or run.n is None:
+            out.append(f"{problem}: its route {proof} did not close")
+        elif term(ANSWERS[proof]) != term(X.ANSWERS[problem]):
+            out.append(f"{problem}: its route closes with {ANSWERS[proof]}, "
+                       f"ANSWERS says {X.ANSWERS[problem]}")
+    return out
+
+
 def numeric_problems(name):
     """A math-module check that the answer is the integral: NUMERIC against
     the theorem's right side evaluated, and against Simpson's rule on the
     goal's integral. It shares no code with the kernel."""
     base = "P1.1" if name.startswith("P1.1") else "P1.2"
-    want = X.NUMERIC[base]
+    want = NUMERIC[base]
     out = []
-    answer = value(goal(X.PROOFS[name]["theorem"])[0].rhs)
+    answer = value(goal(PROOFS[name]["theorem"])[0].rhs)
     if abs(answer - want) > 1e-12 * max(1.0, abs(want)):
         out.append(f"the answer is {answer!r}, NUMERIC says {want!r}")
-    integral = value(goal(X.PROOFS[name]["goal"])[0].lhs)
+    integral = value(goal(PROOFS[name]["goal"])[0].lhs)
     if abs(integral - want) > 1e-4:
         out.append(f"Simpson gives {integral!r}, NUMERIC says {want!r}")
     return out
@@ -1297,10 +1412,12 @@ def refusal_coverage_problems():
     are true of P1's proofs, not of the kernel: every REFUSAL_CODES code
     needs a case too, from DIRECT_REFUSALS when no move reaches it."""
     named = {c["refusal"] for c in BAD_MOVES + X.WRONG_ANSWERS + SUITE_BAD_MOVES
-             + SUBST_BAD_MOVES}
+             + SUBST_BAD_MOVES + (X.INT_FLIP_BAD_MOVES + X.E56_BAD_MOVES
+                                  if CONSOLIDATED else [])}
     if S0 is not None:
         named |= {c["refusal"] for c in S0.INT_SUBST_WRONG_ANSWERS
-                  + S0.INT_SUBST_S0_REFUSALS}
+                  + S0.INT_SUBST_S0_REFUSALS
+                  + (S0.CONSOLIDATION_WRONG_ANSWERS if CONSOLIDATED else [])}
     named |= {a.split(":", 1)[1] for f in X.FORGERIES for a in f["accept"]
               if a.startswith("refusal:")}
     named |= set(DIRECT_CODES) | {"syntax"}  # HOSTILE_TREES
@@ -1795,8 +1912,55 @@ def _mutations_switched():
     return out
 
 
+def _with_sheet(name, bug):
+    """One planted bug or mutation as P1_1_SHEET_TRACES re-traces it for
+    P1.1-sheet in PROOFS (E52): its N there beside the other proofs' (None:
+    refused, and left out, as the data writes a refused proof), checked for
+    every child as `sheet_N`; its added caught_by locations; and its
+    retagged and refused rows, where the trace gives them. A name the
+    traces do not list is N default_N with nothing added."""
+    if not CONSOLIDATED:
+        return bug
+    t = J["traces"].get(name, {"N": J["default_N"], "add": []})
+    b = dict(bug, sheet_N=t["N"],
+             caught_by=[tuplify(c) for c in bug["caught_by"]]
+             + [tuplify(c) for c in t["add"]])
+    if "admissions" in bug:
+        b["admissions"] = {**bug["admissions"],
+                           **({SHEET: t["N"]} if t["N"] is not None else {})}
+    if "retagged" in t:
+        b["retagged"] = {**bug.get("retagged", {}), SHEET: list(t["retagged"])}
+    if "refused" in t:
+        b["refused"] = {**bug.get("refused", {}), SHEET: t["refused"]}
+    return b
+
+
+def _e56_planted(name, bug, change):
+    """A bug E56_CHANGES re-traces with E53 built: its new admissions,
+    retagged rows, refusals, caught_by and certificate replace the old."""
+    if not CONSOLIDATED:
+        return bug
+    new = E56[change]["new"]
+    return dict(bug, **{k: new[k] for k in ("admissions", "retagged", "refused",
+                                            "caught_by", "certificate") if k in new})
+
+
 PLANTED_BUGS = _planted_switched()
 DEFINEDNESS_MUTATIONS = _mutations_switched()
+if CONSOLIDATED:
+    PLANTED_BUGS["pi_pos_not_in_constraint_set"] = _e56_planted(
+        "pi_pos_not_in_constraint_set", PLANTED_BUGS["pi_pos_not_in_constraint_set"],
+        "DISCHARGE_PLANTED_BUGS pi_pos_not_in_constraint_set")
+    # the admissions E56_CHANGES gives already hold the sheet's
+    PLANTED_BUGS = {n: _with_sheet(n, b) for n, b in PLANTED_BUGS.items()}
+    DEFINEDNESS_MUTATIONS = {n: _with_sheet(n, b)
+                             for n, b in DEFINEDNESS_MUTATIONS.items()}
+DISCHARGE_BUGS = {n: _with_sheet(n, b) for n, b in X.DISCHARGE_NEW_PLANTED_BUGS.items()}
+if CONSOLIDATED:
+    DISCHARGE_BUGS["search_scales_wrongly"] = _with_sheet(
+        "search_scales_wrongly", _e56_planted(
+            "search_scales_wrongly", X.DISCHARGE_NEW_PLANTED_BUGS["search_scales_wrongly"],
+            "DISCHARGE_NEW_PLANTED_BUGS search_scales_wrongly"))
 
 
 def closed_admissions(data):
@@ -1901,10 +2065,10 @@ def child(name, kind="plant"):
         else:
             from unittest import mock
             ctx = (seam_patch if kind == "plant" else mutation_patch)(name, mock)
-        found, admissions, final, refusals = [], {}, {}, {}
+        found, admissions, final, refusals, runs = [], {}, {}, {}, {}
         with ctx:
-            for p in X.PROOFS:
-                run = run_proof(p, strict=False, out=lambda line: None)
+            for p in PROOFS:
+                run = runs[p] = run_proof(p, strict=False, out=lambda line: None)
                 found += [where for _, where, _ in run.found]
                 refusals.update({"/".join(where): detail for _, where, detail
                                  in run.found if where[-1] == "refused"})
@@ -1914,12 +2078,36 @@ def child(name, kind="plant"):
                     for o in run.state.obligations()]
             if kind != "plant":
                 found += case_failures()
+            bug = PLANTED_BUGS.get(name, {}) if kind == "plant" else {}
+            certs = retag_certificate_problems(bug, runs)
     except Exception:  # noqa: BLE001 -- a crash, not a catch
         traceback.print_exc()
         return 2
     print(json.dumps({"mismatches": found, "admissions": admissions, "final": final,
-                      "refusals": refusals}))
+                      "refusals": refusals, "certificates": certs}))
     return 0
+
+
+def retag_certificate_problems(bug, runs):
+    """A bug whose data gives the certificate of its retagged keys
+    (E56_CHANGES' pi_pos_not_in_constraint_set, E53's content split): each
+    retagged key discharged in the child's run carries it."""
+    out = []
+    if "certificate" not in bug:
+        return out
+    want = TD.cert_of(bug["certificate"])
+    for proof, rows in bug.get("retagged", {}).items():
+        run = runs.get(proof)
+        if run is None or run.n is None:
+            continue
+        obs = {o.key: o for o in run.state.obligations()}
+        for row in rows:
+            ob = obs.get(key(row[0], row[1]))
+            if ob is not None and ob.status == X.DISCHARGED:
+                diff = TD.cert_differences(ob.certificate, want)
+                if diff:
+                    out.append(f"{proof}: {row[0]} @ {row[1]}: {'; '.join(diff)}")
+    return out
 
 
 def spawn(*flags):
@@ -1948,11 +2136,9 @@ def planted_problems(name, bug):
             if c not in found]
     if closed_admissions(data) != bug["admissions"]:
         out.append(f"admissions {data['admissions']}, expected {bug['admissions']}")
-    for proof, (sid, msg) in bug.get("refused", {}).items():
-        got = data.get("refusals", {}).get(f"{proof}/{sid}/refused")
-        want = f"refused {X.OBLIGATION_DECIDED_FALSE}: {TD.expected_message(msg)}"
-        if got != want:
-            out.append(f"{proof} {sid}: {got!r}, expected {want!r}")
+    out += refused_problems(data, bug)
+    out += sheet_n_problems(data, bug)
+    out += data.get("certificates", [])
     for proof, js in bug.get("missing", {}).items():
         rows = final_rows(data, proof)
         out += [f"{proof}: {j} is still in the final tracker" for j in js
@@ -1969,11 +2155,36 @@ def planted_problems(name, bug):
             if got is None or got[1] != tag or (len(row) == 4 and got[0] != row[2]):
                 out.append(f"{proof}: {p} @ {d} is {got}, expected {row[2:]}")
     if bug.get("step_lists_changed") is False:
-        out += [f"a step list changed: {m}" for m in found if m[0] in X.PROOFS]
+        out += [f"a step list changed: {m}" for m in found if m[0] in PROOFS]
     for proof in bug.get("affects", ()):
         if not any(proof in m[:2] for m in found):
             out.append(f"{proof} is listed as affected and shows no mismatch")
     return out
+
+
+def refused_problems(data, bug):
+    """Each refusal a bug's data names, (step, message spec) per proof: the
+    child's refusal there, by code and message. A message spec whose
+    template is a refusal code (orientation-undecided, E56) is that code's;
+    any other is DECIDED_FALSE_MESSAGES', code obligation-decided-false."""
+    out = []
+    for proof, (sid, msg) in bug.get("refused", {}).items():
+        got = data.get("refusals", {}).get(f"{proof}/{sid}/refused")
+        code = msg[0] if msg[0] in MESSAGES else X.OBLIGATION_DECIDED_FALSE
+        want = f"refused {code}: {expected_message(msg)}"
+        if got != want:
+            out.append(f"{proof} {sid}: {got!r}, expected {want!r}")
+    return out
+
+
+def sheet_n_problems(data, bug):
+    """P1.1-sheet's N under the bug, as P1_1_SHEET_TRACES gives it (None:
+    refused), for every child that runs PROOFS (E52)."""
+    if "sheet_N" not in bug:
+        return []
+    got = data["admissions"].get(SHEET)
+    return [] if got == bug["sheet_N"] else [
+        f"{SHEET}: N = {got}, expected {bug['sheet_N']} (P1_1_SHEET_TRACES)"]
 
 
 def control_problems():
@@ -1993,7 +2204,7 @@ def clean_after_problems():
     """The unmutated suite, run again in this process after the planted runs:
     nothing leaked, and unittest.mock was never imported here."""
     out = []
-    for p in X.PROOFS:
+    for p in PROOFS:
         run = run_proof(p, out=lambda line: None)
         out += [f"{p}: {fmt(w, d)}" for _, w, d in run.found]
         if run.n != ADMISSIONS[p]:
@@ -2275,7 +2486,7 @@ def mutation_problems(mutation, result):
             if c not in found]
     if "admissions" in mutation and closed_admissions(data) != mutation["admissions"]:
         out.append(f"admissions {data['admissions']}, expected {mutation['admissions']}")
-    return out
+    return out + sheet_n_problems(data, mutation)
 
 
 # ---------------------------------------------------------------- beyond P1's data
@@ -2411,9 +2622,14 @@ EMISSION_PLACEMENT = [
     ("a closed key uses no range, so no orientation (ARCHITECTURE.md §4)",
      placement_install("Int[x=0..pi] 1/sqrt 3 == ?A",
                        {"sqrt 3 # 0": ["former"], "3 >= 0": ["former"]})),
-    ("a key that uses the range brings its orientation (E4, E6)",
-     placement_install("Int[x=1..pi] 1/x == ?A",
-                       {"x # 0 @ [1, pi]": ["former"], "1 <= pi": ["orient"]})),
+    # E56: 1 <= pi is not provable from pi_pos alone, so these two use
+    # 1 + pi, whose order is linear with pi_pos
+    ("a key that uses the range brings its orientation (E56, E6)",
+     placement_install("Int[x=1..1 + pi] 1/x == ?A",
+                       {"x # 0 @ [1, 1 + pi]": ["former"], "1 <= 1 + pi": ["orient"]})),
+    ("a reversed symbolic range is built from the order discharge proves (E56)",
+     placement_install("Int[x=1 + pi..1] 1/x == ?A",
+                       {"x # 0 @ [1, 1 + pi]": ["former"], "1 <= 1 + pi": ["orient"]})),
     ("ftc places a fact's hypothesis on the check's domain (E9, E10)",
      placement_fact_hyp),
     ("a negative integer power charges its base's former NonZero (E6, §5.1)",
@@ -2428,10 +2644,12 @@ EMISSION_PLACEMENT = [
      placement_install("Int[x=-1..-oo] 1/x == ?A", {"x # 0 @ (-oo, -1]": ["former"]})),
     ("literal ends are ordered into [min, max], with no orientation (E4)",
      placement_install("Int[x=2..1] 1/x == ?A", {"x # 0 @ [1, 2]": ["former"]})),
-    ("each enclosing Int's orientation is owed, not only the innermost (E4, E6)",
-     placement_install("Int[y=1..pi] (Int[x=1..y] 1/(x*y)) == ?A",
-                       {"x*y # 0 @ y in [1, pi], x in [1, y]": ["former"],
-                        "1 <= pi": ["orient"], "1 <= y @ [1, pi]": ["orient"]})),
+    ("each enclosing Int's orientation is owed, not only the innermost (E56, E6)",
+     placement_install("Int[y=1..1 + pi] (Int[x=1..y] 1/(x*y)) == ?A",
+                       {"x*y # 0 @ y in [1, 1 + pi], x in [1, y]": ["former"],
+                        "1 <= 1 + pi": ["orient"], "1 <= y @ [1, 1 + pi]": ["orient"]})),
+    ("an undecided order is refused only where a key uses the range (E56)",
+     placement_install("Int[x=1..pi] 2*x == ?A", {})),
     ("an orientation that is not closed keeps the goal's domain (E4, E5)",
      placement_install("Int[x=1..y] 1/x == ?A @ y > 1",
                        {"x # 0 @ y > 1, x in [1, y]": ["former"],
@@ -2810,8 +3028,8 @@ def vars_write_problems():
     by-accident standard). The Handle alone is not slotted (E17)."""
     records = [("an ENTRIES entry", e) for e in EN.ENTRIES.values()]
     for proof in ("P1.1", "P1.2"):
-        st, handles = install(X.PROOFS[proof]["goal"], (proof, "goal")), {}
-        for s in X.PROOFS[proof]["steps"]:
+        st, handles = install(PROOFS[proof]["goal"], (proof, "goal")), {}
+        for s in PROOFS[proof]["steps"]:
             st = take(st, s["move"], s["args"], handles, (proof, s["id"]))
             records += [("obligations()", o) for o in st.obligations()]
             records += [("last", st.last)] + [("last.emitted", o) for o in st.last.emitted]
@@ -3299,43 +3517,54 @@ def s0_table(name):
 
 class Book:
     """One set of problem files and the expected.py tables that state them:
-    stage 0's S1-S3 (sections 1-11), or stage 1's int_subst files
-    (section 12, INT_SUBST_*, p1_expected INT_SUBST_SWITCH). Item 7's checks
-    read everything through one, so both sets are asserted the same way."""
+    stage 0's S1-S3 (sections 1-11), stage 1's int_subst files (section 12,
+    INT_SUBST_*, p1_expected INT_SUBST_SWITCH), or the consolidation's QC1
+    (section 13, CONSOLIDATION_*, p1_expected CONSOLIDATION_SWITCH). Item
+    7's checks read everything through one, so every set is asserted the
+    same way. `stage1` is true of both later sets: tables prefixed, files
+    under kernel/problems/<dir>/, steps' DERIV rows keyed (proof, step), no
+    USED_ENTRIES."""
 
-    def __init__(self, stage1):
-        pre = "INT_SUBST_" if stage1 else ""
-        self.stage1, self.SIG = stage1, S0.SIG
+    PREFIX = {"stage0": "", "stage1": "INT_SUBST_", "consolidation": "CONSOLIDATION_"}
+
+    def __init__(self, kind):
+        pre = self.PREFIX[kind]
+        self.kind, self.stage1, self.SIG, self.pre = kind, kind != "stage0", S0.SIG, pre
         for name in ("PROOF_FILES", "GOALS", "ECHO", "STEPS", "THEOREMS",
                      "ANSWERS", "NUMERIC"):
             setattr(self, name, getattr(S0, pre + name))
-        self.root = os.path.dirname(STAGE0_DIR) if stage1 else STAGE0_DIR
-        self.EXPECTED_REFUSALS = () if stage1 else S0.EXPECTED_REFUSALS
-        self.WRONG_ANSWERS = (S0.INT_SUBST_WRONG_ANSWERS + S0.INT_SUBST_S0_REFUSALS
-                              if stage1 else S0.WRONG_ANSWERS)
+        self.root = os.path.dirname(STAGE0_DIR) if self.stage1 else STAGE0_DIR
+        self.EXPECTED_REFUSALS = () if self.stage1 else S0.EXPECTED_REFUSALS
+        self.WRONG_ANSWERS = {
+            "stage0": lambda: S0.WRONG_ANSWERS,
+            "stage1": lambda: S0.INT_SUBST_WRONG_ANSWERS + S0.INT_SUBST_S0_REFUSALS,
+            "consolidation": lambda: S0.CONSOLIDATION_WRONG_ANSWERS}[kind]()
 
     def table(self, name):
         if not self.stage1:
             return s0_table(name)
-        return getattr(S0, {"OBLIGATIONS": "INT_SUBST_OBLIGATIONS",
-                            "FINAL": "INT_SUBST_FINAL_TRACKER",
-                            "ADMISSIONS": "INT_SUBST_ADMISSIONS",
-                            "VERDICTS": "INT_SUBST_VERDICTS"}[name])
+        return getattr(S0, self.pre + {"OBLIGATIONS": "OBLIGATIONS",
+                                       "FINAL": "FINAL_TRACKER",
+                                       "ADMISSIONS": "ADMISSIONS",
+                                       "VERDICTS": "VERDICTS"}[name])
 
     def certs(self, proof):
         if not DISCHARGE_WIRED:
             return None
-        table = S0.INT_SUBST_EXPECTED if self.stage1 else S0.DISCHARGE_EXPECTED
+        table = getattr(S0, self.pre + "EXPECTED") if self.stage1 else \
+            S0.DISCHARGE_EXPECTED
         return {s0_key(p, d): c for (p, d), (_, c) in table[proof].items()}
 
     def deriv(self, proof, sid):
-        """The DERIV row of a step: stage 0 keys its one ftc by proof, stage 1
-        each ftc and int_subst step by (proof, step)."""
-        return S0.INT_SUBST_DERIV[(proof, sid)] if self.stage1 else S0.DERIV[proof]
+        """The DERIV row of a step: stage 0 keys its one ftc by proof, the
+        later sets each ftc and int_subst step by (proof, step)."""
+        if self.stage1:
+            return getattr(S0, self.pre + "DERIV")[(proof, sid)]
+        return S0.DERIV[proof]
 
 
-def book(stage1=False):
-    return Book(stage1)
+def book(stage1=False, kind=None):
+    return Book(kind or ("stage1" if stage1 else "stage0"))
 
 
 def s0_file(proof, B=None):
@@ -3667,29 +3896,29 @@ def s0_loader_problems():
     return out
 
 
-def s1_floor_problems():
-    """Stage 1's floor (INT_SUBST_SWITCH): stage1/ holds exactly the files
-    INT_SUBST_PROOF_FILES names, and every section-12 table is keyed by the
-    same proofs, so a new file or a dropped row cannot pass unchecked."""
-    B, out = book(True), []
-    want = set(B.PROOF_FILES)
-    for table in ("INT_SUBST_GOALS", "INT_SUBST_ECHO", "INT_SUBST_STEPS",
-                  "INT_SUBST_THEOREMS", "INT_SUBST_OBLIGATIONS",
-                  "INT_SUBST_EXPECTED", "INT_SUBST_FINAL_TRACKER",
-                  "INT_SUBST_ADMISSIONS", "INT_SUBST_VERDICTS", "INT_SUBST_ANSWERS",
-                  "INT_SUBST_NUMERIC"):
-        if set(getattr(S0, table)) != want:
-            out.append(f"{table} is keyed {sorted(getattr(S0, table))}")
+def s1_floor_problems(B=None):
+    """A later set's floor (INT_SUBST_SWITCH for stage1/, CONSOLIDATION_SWITCH
+    for consolidation/): its directory holds exactly the files its
+    PROOF_FILES names, and every one of its tables is keyed by the same
+    proofs, and its DERIV by their ftc and int_subst steps, so a new file
+    or a dropped row cannot pass unchecked."""
+    B, out = B or book(True), []
+    want, pre = set(B.PROOF_FILES), B.pre
+    for table in ("GOALS", "ECHO", "STEPS", "THEOREMS", "OBLIGATIONS", "EXPECTED",
+                  "FINAL_TRACKER", "ADMISSIONS", "VERDICTS", "ANSWERS", "NUMERIC"):
+        if set(getattr(S0, pre + table)) != want:
+            out.append(f"{pre + table} is keyed {sorted(getattr(S0, pre + table))}")
     steps = {(p, s["id"]) for p, rows in B.STEPS.items() for s in rows
              if s["move"] in ("ftc", "int_subst")}
-    if set(S0.INT_SUBST_DERIV) != steps:
-        out.append(f"INT_SUBST_DERIV is keyed {sorted(S0.INT_SUBST_DERIV)}")
-    stage1 = os.path.join(B.root, "stage1")
-    files = {f"stage1/{f}" for f in os.listdir(stage1) if f.endswith(".json")}
+    if set(getattr(S0, pre + "DERIV")) != steps:
+        out.append(f"{pre}DERIV is keyed {sorted(getattr(S0, pre + 'DERIV'))}")
     named = {row[0] for row in B.PROOF_FILES.values()}
+    dirs = {n.split("/")[0] for n in named} | {B.kind}
+    files = {f"{d}/{f}" for d in dirs for f in os.listdir(os.path.join(B.root, d))
+             if f.endswith(".json")}
     if files != named:
-        out.append(f"stage1/ holds {sorted(files)}, INT_SUBST_PROOF_FILES names "
-                   f"{sorted(named)}")
+        out.append(f"{'/, '.join(sorted(dirs))}/ holds {sorted(files)}, "
+                   f"{pre}PROOF_FILES names {sorted(named)}")
     return out
 
 
@@ -3786,14 +4015,21 @@ def s0_seam_problems(name, case):
     return out
 
 
-def s1_checks(check):
-    """Item 7's rows for stage 1's int_subst files (INT_SUBST_SWITCH): the
-    same checks through the stage-1 book, with its own floor, its wrong
-    answers and S2's refused forward substitution."""
-    B, runs = book(True), {}
-    print("\nStage 1: the int_subst problem files (expected.py section 12)")
-    check("stage1/ holds exactly INT_SUBST_PROOF_FILES' files, and every "
-          "section-12 table is keyed by them", s1_floor_problems)
+def s1_checks(check, kind="stage1"):
+    """Item 7's rows for a later set of problem files: stage 1's int_subst
+    files (INT_SUBST_SWITCH), or the consolidation's QC1
+    (CONSOLIDATION_SWITCH). The same checks through its book, with its own
+    floor and its wrong answers (for stage 1, S2's refused forward
+    substitution too)."""
+    B, runs = book(kind=kind), {}
+    what = {"stage1": ("Stage 1: the int_subst problem files (expected.py section 12)",
+                       "section-12", "Stage 1 wrong answers and S2's forward "
+                       "substitution"),
+            "consolidation": ("The consolidation: QC1 (expected.py section 13)",
+                              "section-13", "QC1's wrong answers")}[kind]
+    print("\n" + what[0])
+    check(f"{kind}/ holds exactly {B.pre}PROOF_FILES' files, and every "
+          f"{what[1]} table is keyed by them", lambda: s1_floor_problems(B))
     for proof, where in B.PROOF_FILES.items():
         print(f"\n{proof} ({' '.join(where[:2])})")
         check(f"{proof}: the file's goal, declarations, steps and substitution are "
@@ -3803,7 +4039,7 @@ def s1_checks(check):
         except Exception as e:  # noqa: BLE001 -- a kernel crash mid-proof
             check(f"{proof} runs", lambda e=e: ["crash: " + crash_text(e)])
             continue
-        check(f"{proof}: the goal is echoed as INT_SUBST_ECHO",
+        check(f"{proof}: the goal is echoed as {B.pre}ECHO",
               lambda run=run: by_item(run, 6))
         check(f"{proof}: {len(B.STEPS[proof])} steps accepted, closes with ?A := "
               f"{B.ANSWERS[proof]}, N = {B.table('ADMISSIONS')[proof]}, "
@@ -3815,7 +4051,7 @@ def s1_checks(check):
               lambda p=proof: s0_direct_problems(p, B))
         check(f"{proof}: the answer is the integral (math module)",
               lambda p=proof: s0_numeric_problems(p, B))
-    print("\nStage 1 wrong answers and S2's forward substitution")
+    print("\n" + what[2])
     for w in B.WRONG_ANSWERS:
         check(f"{w['id']}: {w['what']} -> {w['refusal']}",
               lambda w=w: s0_wrong_answer_problems(w, B)
@@ -3878,6 +4114,8 @@ def s0_checks(suite):
         check(f"{proof}: the answer is the integral (math module)",
               lambda p=proof: s0_numeric_problems(p))
     runs.update(s1_checks(check) if S0 is not None else {})
+    if S0 is not None and CONSOLIDATED:
+        runs.update(s1_checks(check, "consolidation"))
     if S0 is not None:
         print("\nStage 0 wrong answers")
         for w in S0.WRONG_ANSWERS:
@@ -3905,9 +4143,9 @@ def discharge_checks(suite):
             f"not run: test_discharge.py did not import ({DISCHARGE_ERROR})"])
         return
     suite.check("D", "DISCHARGE_NEW_ENTRIES pinned (sqrt_zero immediately before "
-                "sqrt_sq, cos_zero after exp_one, sqrt_nonneg after it), and "
-                "EXACT_VALUE_ENTRIES is ENTRIES' exact "
-                "values", TD.entries_problems)
+                "sqrt_sq, cos_zero after exp_one, sqrt_nonneg after it, "
+                "CONSOLIDATION_ENTRIES last: 23), and EXACT_VALUE_ENTRIES is "
+                "ENTRIES' exact values", TD.entries_problems)
     for row in TD.expected_certificates():
         where, _, tag, spec = row
         suite.check("D", f"{' / '.join(where)}: the {spec['method']} certificate is "
@@ -3930,6 +4168,15 @@ def discharge_checks(suite):
     for c in TD.SQRT_FACT_CHECKER_ACCEPTS:
         suite.check("D", f"SQRT_FACT_CHECKER_ACCEPTS {c['id']}: accepted as {c['tag']}",
                     lambda c=c: TD.checker_accept_problems(c))
+    for table in ("SIGN_PRODUCT", "CONSOLIDATION"):  # E53, E54
+        for c in getattr(TD, table + "_MUST_REJECT"):
+            suite.check("D", f"{table}_MUST_REJECT {c['id']}: rejected "
+                        f"{TD.REJECT_REASONS[c['id']]}; its truth, and "
+                        f"{c['if_emitted'][0]} if emitted",
+                        lambda c=c: TD.must_reject_problems(c))
+        for c in getattr(TD, table + "_CHECKER_ACCEPTS"):
+            suite.check("D", f"{table}_CHECKER_ACCEPTS {c['id']}: accepted as {c['tag']}",
+                        lambda c=c: TD.checker_accept_problems(c))
     for where, spec in TD.decided_false_cases():
         suite.check("D", f"{where}: obligation-decided-false, '{spec[0]}' message",
                     lambda spec=spec: TD.decided_false_problems(spec))
@@ -4021,13 +4268,15 @@ def discharge_child(name):
         else:
             from unittest import mock
             ctx = discharge_seam_patch(name, mock)
-            families = [c[1] for c in X.DISCHARGE_NEW_PLANTED_BUGS[name]["caught_by"]
+            families = [c[1] for c in DISCHARGE_BUGS[name]["caught_by"]
                         if c[0] == "PROPERTY"]
-        found, admissions = [], {}
+        found, admissions, refusals = [], {}, {}
         with ctx:
-            for p in X.PROOFS:
+            for p in PROOFS:
                 run = run_proof(p, strict=False, out=lambda line: None)
                 found += [list(where) for _, where, _ in run.found]
+                refusals.update({"/".join(where): detail for _, where, detail
+                                 in run.found if where[-1] == "refused"})
                 admissions[p] = run.n
             found += TD.must_reject_accepted()
             if families:
@@ -4036,7 +4285,8 @@ def discharge_child(name):
     except Exception:  # noqa: BLE001 -- a crash, not a catch
         traceback.print_exc()
         return 2
-    print(json.dumps({"mismatches": found, "admissions": admissions}))
+    print(json.dumps({"mismatches": found, "admissions": admissions,
+                      "refusals": refusals}))
     return 0
 
 
@@ -4061,12 +4311,12 @@ def discharge_planted_problems(name, result):
         if data["admissions"] != ADMISSIONS:
             out.append(f"unpatched admissions {data['admissions']}")
         return out
-    bug = X.DISCHARGE_NEW_PLANTED_BUGS[name]
+    bug = DISCHARGE_BUGS[name]
     out += [f"not caught at {c}" for c in map(tuplify, bug["caught_by"])
             if c not in found]
     if "admissions" in bug and closed_admissions(data) != bug["admissions"]:
         out.append(f"admissions {data['admissions']}, expected {bug['admissions']}")
-    return out
+    return out + refused_problems(data, bug) + sheet_n_problems(data, bug)
 
 
 # ---------------------------------------------------------------- int_subst (item S)
@@ -4079,12 +4329,14 @@ def discharge_planted_problems(name, result):
 # files are item 7's (s1_checks).
 
 
-def subst_accept_problems(c, found=None):
-    """One INT_SUBST_ACCEPTS case: installation's list, the int_subst step
-    (goal after, deriv, its list with certificates and reasons), each `then`
-    step likewise, and the report and theorem where given. `found`, when
-    given, collects each location in caught_by's shapes: the step's own
-    list at (INT_SUBST_ACCEPTS, id, prop, dom, what)."""
+def subst_accept_problems(c, found=None, table="INT_SUBST_ACCEPTS"):
+    """One INT_SUBST_ACCEPTS case (or INT_FLIP_ACCEPTS or E56_ACCEPTS one,
+    `table`): installation's list, the move (goal after, deriv where given,
+    its list with certificates and reasons), each `then` step likewise, and
+    the report and theorem where given. A `then` step's own certificates
+    join the case's. `found`, when given, collects each location in
+    caught_by's shapes: the step's own list at (table, id, prop, dom,
+    what)."""
     out = []
 
     def miss(item, where, detail):
@@ -4095,15 +4347,21 @@ def subst_accept_problems(c, found=None):
     # sum_second_occurrence's keys are P1.1-sheet's, key for key, and so are
     # their certificates; any other case states its own
     certs = case_certs(c) if "certificates" in c else (
-        proof_certs("P1.1-sheet", SUBST_TABLES) if c["id"] == "sum_second_occurrence"
+        proof_certs(SHEET, SUBST_TABLES) if c["id"] == "sum_second_occurrence"
         else {})
+    for step in c.get("then", ()):
+        certs = {**certs, **(case_certs(step) or {})}
     reasons = case_reasons(c)
     goal_reasons = {key(p, d): r for (p, d), r in c.get("goal_reasons", {}).items()}
     st = install(c["goal"], (c["id"], "goal"))
     compare_emitted(miss, c["id"], "goal", c["goal_emits"], st.last.emitted,
                     frozenset(), certs=certs, reasons=goal_reasons)
-    steps = [{"move": c["move"], "goal_after": c["goal_after"], "deriv": c["deriv"],
-              "emits": c["emits"]}] + list(c.get("then", ()))
+    # a case moved in by E56_CHANGES (reverse_symbolic_old_range_reversed)
+    # gives no deriv row, and its deriv is then not asserted
+    first = {"move": c["move"], "goal_after": c["goal_after"], "emits": c["emits"]}
+    if "deriv" in c:
+        first["deriv"] = c["deriv"]
+    steps = [first] + list(c.get("then", ()))
     for i, step in enumerate(steps):
         move, args = step["move"]
         where = (c["id"], move if i == 0 else f"then {i}")
@@ -4116,7 +4374,7 @@ def subst_accept_problems(c, found=None):
             for what, detail in deriv_problems(d["F"], st.last.trace, st.last.output, d):
                 miss(2, where + (what,), detail)
         if i == 0:
-            compare_emitted(miss, "INT_SUBST_ACCEPTS", c["id"], step["emits"],
+            compare_emitted(miss, table, c["id"], step["emits"],
                             st.last.emitted, keys_of(prev), certs=certs,
                             reasons=reasons, with_dom=True)
         else:
@@ -4145,7 +4403,7 @@ def subst_sheet_numeric_problems(name):
 def subst_checks(suite):
     """Item S's rows."""
     runs = {}
-    for name in X.INT_SUBST_PROOFS:
+    for name in INT_SUBST_PROOFS:  # none since E52: P1.1-sheet is in PROOFS
         print(f"\n{name} (INT_SUBST_PROOFS, staged: not in PROOFS, E47)")
         try:
             run = runs[name] = run_proof(name, tb=SUBST_TABLES)
@@ -4187,6 +4445,16 @@ def subst_checks(suite):
 # INT_SUBST_PLANTED_BUGS and the review's REVIEW_PLANTED_BUGS, one set of
 # child processes.
 SUBST_BUGS = {**X.INT_SUBST_PLANTED_BUGS, **X.REVIEW_PLANTED_BUGS}
+SUBST_SEAMS = dict(X.INT_SUBST_SEAMS)
+if CONSOLIDATED:  # E56_CHANGES: one catch moves with its case, one seam re-traced
+    _OLD = E56["REVIEW_PLANTED_BUGS int_subst_reverse_no_old_orient caught_by"]
+    SUBST_BUGS["int_subst_reverse_no_old_orient"] = dict(
+        SUBST_BUGS["int_subst_reverse_no_old_orient"],
+        caught_by=[_OLD["new"] if tuplify(c) == _OLD["old"] else c
+                   for c in SUBST_BUGS["int_subst_reverse_no_old_orient"]["caught_by"]])
+    SUBST_SEAMS["pi_pos_not_in_constraint_set"] = _e56_planted(
+        "pi_pos_not_in_constraint_set", SUBST_SEAMS["pi_pos_not_in_constraint_set"],
+        "INT_SUBST_SEAMS pi_pos_not_in_constraint_set")
 
 
 def subst_seam_patch(name, mock):
@@ -4250,15 +4518,18 @@ def subst_seam_patch(name, mock):
                 (T.with_domain(T.Reg(f, 0), P + (literal_order(v, lo, hi),)),
                  K.S_SUBST_C0)]
 
-    sqrt_fact = DC._sqrt_fact
+    atom_fact = DC._atom_fact  # the sqrt label is ATOM_FACT_RULE's since E54
 
     def sqrt_strict(key, label):
-        c = sqrt_fact(key, label)
-        return None if c is None else (c[0], c[1], True)
+        c = atom_fact(key, label)
+        if c is None or label[1] != DC.SQRT_FACT:
+            return c
+        return (c[0], c[1], True)
 
     def sqrt_any_u(key, label):  # any u, once the key holds some sqrt atom
-        if not (len(label) == 3 and label[1] == DC.SQRT_FACT
-                and DC._sqrt_arguments(key)):
+        if not (len(label) == 3 and label[1] == DC.SQRT_FACT):
+            return atom_fact(key, label)
+        if not DC._atom_arguments(key, "sqrt"):
             return None
         return (T.App("sqrt", label[2]), T.Num(0), False)
 
@@ -4270,7 +4541,7 @@ def subst_seam_patch(name, mock):
         "int_subst_no_sub_formers": (K, "_sub_formers",
                                      lambda buf, sub, Fg, D, G, anc: None),
         "int_subst_reverse_no_old_orient": (K, "_old_range", old_range_unoriented),
-        "sqrt_fact_any_u": (DC, "_sqrt_fact", sqrt_any_u),
+        "sqrt_fact_any_u": (DC, "_atom_fact", sqrt_any_u),
         "int_subst_skips_endpoint_check": (K, "_endpoint", endpoint_unchecked),
         "int_subst_drops_phi_prime": (K, "_new_integrand", lambda F, dphi: F),
         "int_subst_deriv_on_open": (K, "_subst_deriv", deriv_on_open),
@@ -4284,7 +4555,7 @@ def subst_seam_patch(name, mock):
         "int_subst_reverse_skips_check": (K, "_reverse_check", reverse_unchecked),
         "int_subst_reverse_premise_on_new_range": (K, "_reverse_premises",
                                                    reverse_on_new_range),
-        "sqrt_fact_strict": (DC, "_sqrt_fact", sqrt_strict),
+        "sqrt_fact_strict": (DC, "_atom_fact", sqrt_strict),
     }
     if name not in patches:
         raise KeyError(f"no seam for int_subst planted bug {name!r}")
@@ -4302,7 +4573,7 @@ def subst_child(name):
         return 2
     try:
         from unittest import mock
-        bug = SUBST_BUGS.get(name) or X.INT_SUBST_SEAMS.get(name) or {}
+        bug = SUBST_BUGS.get(name) or SUBST_SEAMS.get(name) or {}
         if name is None:
             ctx = contextlib.nullcontext()
         elif name in SUBST_BUGS:
@@ -4314,7 +4585,7 @@ def subst_child(name):
         found, admissions, final = [], {}, {}
         B1 = book(True)
         with ctx:
-            for p in X.INT_SUBST_PROOFS:
+            for p in SUBST_PROOFS:
                 run = run_proof(p, strict=False, out=lambda line: None, tb=SUBST_TABLES)
                 found += [list(where) for _, where, _ in run.found]
                 admissions[p] = run.n
@@ -4362,7 +4633,7 @@ def subst_child_results():
     """The control and every INT_SUBST_PLANTED_BUGS and INT_SUBST_SEAMS
     child, a few at a time: name -> spawn's (data, problems)."""
     from concurrent.futures import ThreadPoolExecutor
-    names = [None, *SUBST_BUGS, *X.INT_SUBST_SEAMS]
+    names = [None, *SUBST_BUGS, *SUBST_SEAMS]
     with ThreadPoolExecutor(max_workers=max(2, min(8, os.cpu_count() or 2))) as ex:
         futures = {n: ex.submit(spawn, *(("--int-subst-control",) if n is None else
                                          ("--int-subst", n))) for n in names}
@@ -4370,17 +4641,10 @@ def subst_child_results():
 
 
 # INT_SUBST_SEAMS locations the rules do not reach, each left failing with
-# its evidence until the data changes (a data_change_request).
-SUBST_DATA_CHANGE_REQUESTS = {
-    "pi_pos_not_in_constraint_set":
-        "data_change_request: with the sign facts cleared, P1.1-sheet's s1 is "
-        "refused 'int-subst-orientation-undecided' (the child reports "
-        "('P1.1-sheet', 's1', 'refused') and N None): INT_SUBST_RULE step 8 "
-        "(E46) must discharge 0 <= pi/2 or pi/2 <= 0 to choose the new "
-        "integral's form, and without pi_pos neither is, so the proof never "
-        "reaches the admitted 0 <= pi/2 the seam's caught_by and N = 6 "
-        "assume",
-}
+# its evidence until the data changes (a data_change_request). The last one,
+# pi_pos_not_in_constraint_set's, was answered by E56_CHANGES (E53's content
+# split closes 0 <= pi/2 by cite pi_pos).
+SUBST_DATA_CHANGE_REQUESTS = {}
 
 
 def subst_planted_problems(name, result):
@@ -4393,7 +4657,7 @@ def subst_planted_problems(name, result):
         if data["admissions"] != X.INT_SUBST_ADMISSIONS:
             out.append(f"unpatched admissions {data['admissions']}")
         return out
-    bug = SUBST_BUGS.get(name) or X.INT_SUBST_SEAMS[name]
+    bug = SUBST_BUGS.get(name) or SUBST_SEAMS[name]
     out += [f"not caught at {c}" for c in map(tuplify, bug["caught_by"])
             if c not in found]
     if out and name in SUBST_DATA_CHANGE_REQUESTS:
@@ -4407,6 +4671,228 @@ def subst_planted_problems(name, result):
                 out.append(f"{proof}: {p} @ {d} is {got.get(T.show(key(p, d)))}, "
                            f"expected {(status, tag)}")
     return out
+
+
+# ---------------------------------------------------------------- the consolidation (item C)
+#
+# p1_expected's sections 13 and 14 (CONSOLIDATION_SWITCH): int_flip (E51)
+# accepted and refused as INT_FLIP_RULE states it, and E56's one
+# orientation rule, reversed symbolic ranges proved end to end and the order
+# refused when neither is proved, each case as the int_subst cases are
+# asserted; E27's reading of E54's two equations. The non-strict sign
+# product (E53) and the atom labels (E54) are item D's, through
+# test_discharge.py; QC1 is item 7's; the planted bugs are item 3's.
+
+FLIP_ACCEPTS, FLIP_BAD_MOVES = X.INT_FLIP_ACCEPTS, X.INT_FLIP_BAD_MOVES
+E56_ACCEPTS, E56_BAD_MOVES = X.E56_ACCEPTS, X.E56_BAD_MOVES
+
+
+def e27_pyth_problems():
+    """ATOM_FACT_RULE's E27 (a): pyth counts at a subterm tree-equal to
+    (sin b)^2 + (cos b)^2, which is 1 unevaluated; pyth_cos never counts, so
+    a value holding (cos b)^2 is not refused for it; and neither is an
+    exact value (each has a schema variable)."""
+    out = []
+    got = SC.evaluated_offence(term("2 + ((sin 1)^2 + (cos 1)^2)"))
+    if got is None or (got[0], got[1], got[2]) != ("a", term("(sin 1)^2 + (cos 1)^2"),
+                                                    "pyth"):
+        out.append(f"(sin 1)^2 + (cos 1)^2: {got}, expected clause a at it, pyth")
+    got = SC.evaluated_offence(term("(cos 1)^2"))
+    if got is not None:
+        out.append(f"(cos 1)^2: {got}, expected no offence (pyth_cos never counts)")
+    exact = {n for n, e in EN.ENTRIES.items() if not e.schema and not e.hyps}
+    out += [f"{n} is an exact value" for n in X.CONSOLIDATION_ENTRIES if n in exact]
+    return out
+
+
+def consolidation_entries_problems():
+    """CONSOLIDATION_ENTRIES pinned in entries.py as stated, appended after
+    sqrt_nonneg in their order (E54): statement, schema and hypotheses."""
+    out, names = [], list(EN.ENTRIES)
+    want = list(X.CONSOLIDATION_ENTRIES)
+    if "sqrt_nonneg" not in names or \
+            names[names.index("sqrt_nonneg") + 1:] != want:
+        out.append(f"not appended after sqrt_nonneg in order: {names}")
+    for name, e in X.CONSOLIDATION_ENTRIES.items():
+        got = EN.ENTRIES.get(name)
+        if got is None:
+            out.append(f"{name} is not in ENTRIES")
+            continue
+        if got.statement != T.parse_judgement(e["statement"], SIG) \
+                or tuple(got.schema) != e["schema"] \
+                or tuple(got.hyps) != tuple(T.parse_judgement(h, SIG) for h in e["hyps"]):
+            out.append(f"{name}: {T.show(got.statement)} {got.schema}")
+    return out
+
+
+def consolidation_checks(suite):
+    """Item C's rows."""
+    suite.check("C", "CONSOLIDATION_ENTRIES are pinned after sqrt_nonneg, in order "
+                "(E54)", consolidation_entries_problems)
+    suite.check("C", "E27 (a) counts pyth at (sin b)^2 + (cos b)^2 and never "
+                "pyth_cos; none of the six is an exact value", e27_pyth_problems)
+    suite.check("C", f"int_flip is a move: MOVES is {len(K.MOVES)} long and names it",
+                lambda: [] if K.MOVES[-1] == X.INT_FLIP_MOVE and len(K.MOVES) == 6
+                else [f"MOVES is {K.MOVES}"])
+    print("\nint_flip (E51): accepted moves")
+    for c in FLIP_ACCEPTS:
+        suite.check("C", f"INT_FLIP_ACCEPTS {c['id']}"
+                    + (f" -> {c['report']!r}" if "report" in c else ""),
+                    lambda c=c: subst_accept_problems(c, table="INT_FLIP_ACCEPTS"))
+    print("\nint_flip (E51): refused moves")
+    for b in FLIP_BAD_MOVES:
+        suite.check("C", f"INT_FLIP_BAD_MOVES {b['id']} -> {b['refusal']}",
+                    lambda b=b: bad_move_problems(b))
+    print("\nE56: reversed ranges everywhere")
+    for c in E56_ACCEPTS:
+        suite.check("C", f"E56_ACCEPTS {c['id']}"
+                    + (f" -> {c['report']!r}" if "report" in c else ""),
+                    lambda c=c: subst_accept_problems(c, table="E56_ACCEPTS"))
+    for b in E56_BAD_MOVES:
+        suite.check("C", f"E56_BAD_MOVES {b['id']} -> {b['refusal']}",
+                    lambda b=b: bad_move_problems(b))
+
+
+# CONSOLIDATION_PLANTED_BUGS and E56_PLANTED_BUGS, each in a child process
+# (`--consolidation NAME`) through the seams of ARCHITECTURE.md §7: int_flip's
+# rule functions, discharge's _relation_ok and _atom_fact, and kernel's
+# _range_of. The child runs what their caught_by names: the int_flip and E56
+# cases, BAD_MOVES' DISCHARGE_BAD_MOVES_CHANGED cases, the must-reject
+# cases beyond DISCHARGE_MUST_REJECT (their verdicts), and the property
+# test's families a bug's caught_by names.
+
+CONSOLIDATION_BUGS = {**X.CONSOLIDATION_PLANTED_BUGS, **X.E56_PLANTED_BUGS}
+
+
+def consolidation_seam_patch(name, mock):
+    """The child's patch for one CONSOLIDATION_BUGS key: the mutation's own
+    text, through the function that holds the rule."""
+    import discharge as DC
+    atom_fact, range_of = DC._atom_fact, K._range_of
+
+    def symbolic(lo, hi):
+        """Neither end infinite, and not two rational literals: the ends E56
+        orders by discharge."""
+        return (all(isinstance(e, T.Term) for e in (lo, hi))
+                and (FD.rational_value(lo) is None or FD.rational_value(hi) is None))
+
+    def undecided(lo, hi):
+        return T.Refused(K.ORIENTATION_UNDECIDED, f"the order of {T.show(lo)} and "
+                         f"{T.show(hi)} is not decided; state it in the goal's domain")
+
+    def one_order(v, lo, hi, dom):  # lo <= hi only (E4's old reading)
+        if not symbolic(lo, hi):
+            return range_of(v, lo, hi, dom)
+        k = T.with_domain(T.Rel("<=", lo, hi), dom)
+        if K._settles(k):
+            return T.Interval(v, lo, True, hi, True), k
+        raise undecided(lo, hi)
+
+    def order_unproved(v, lo, hi, dom):  # [hi, lo] whenever lo <= hi is not proved
+        if not symbolic(lo, hi):
+            return range_of(v, lo, hi, dom)
+        k = T.with_domain(T.Rel("<=", lo, hi), dom)
+        if K._settles(k):
+            return T.Interval(v, lo, True, hi, True), k
+        return T.Interval(v, hi, True, lo, True), T.with_domain(T.Rel("<=", hi, lo), dom)
+
+    def fact_strict(key, label):
+        c = atom_fact(key, label)
+        return None if c is None else (c[0], c[1], True)
+
+    def any_entry(key, label):  # any ENTRIES ordering with a schema variable
+        if not (type(label) is tuple and len(label) == 3 and label[1] in EN.ENTRIES):
+            return None
+        if label[1] in DC.ATOM_FACTS:
+            return atom_fact(key, label)
+        e = EN.ENTRIES[label[1]]
+        st = e.statement
+        if not (type(st) is T.Rel and st.op in DC.ORDERINGS and len(e.schema) == 1):
+            return None
+        (x, y), strict = DC._reading(DC._prop(T.subst(st, {e.schema[0]: label[2]})))
+        return (x, y, strict)
+
+    patches = {
+        "int_flip_drops_negation": (K, "_flipped", lambda it: T.Integral(
+            it.var, it.hi, it.lo, it.body)),
+        "int_flip_under_D_unchecked": (K, "_flip_under_D", lambda anc, it: None),
+        "product_nonstrict_factor_on_strict": (DC, "_relation_ok", lambda r, nonzero, strict: (
+            r == "# 0" if nonzero else r in DC.ORDERINGS)),
+        "cos_fact_strict": (DC, "_atom_fact", fact_strict),
+        "atom_fact_any_entry": (DC, "_atom_fact", any_entry),
+        "orientation_tries_one_order": (K, "_range_of", one_order),
+        "orientation_order_unproved": (K, "_range_of", order_unproved),
+    }
+    if name not in patches:
+        raise KeyError(f"no seam for consolidation planted bug {name!r}")
+    module, attr, new = patches[name]
+    assert callable(getattr(module, attr, None)), f"seam {module.__name__}.{attr} is missing"
+    return mock.patch.object(module, attr, new)
+
+
+def consolidation_child(name):
+    """`--consolidation NAME`: under one CONSOLIDATION_BUGS patch (None: the
+    control), print {"mismatches": [...]}, each failing case as [table, id].
+    A crash exits 2."""
+    if K is None or TD is None:
+        print(KERNEL_ERROR or DISCHARGE_ERROR, file=sys.stderr)
+        return 2
+    try:
+        if name is None:
+            ctx = contextlib.nullcontext()
+        else:
+            from unittest import mock
+            ctx = consolidation_seam_patch(name, mock)
+        bug = CONSOLIDATION_BUGS.get(name, {})
+        found = []
+        changed = [b for b in BAD_MOVES if b["id"] in X.DISCHARGE_BAD_MOVES_CHANGED]
+        with ctx:
+            for table, cases, fn in (
+                    ("INT_FLIP_ACCEPTS", FLIP_ACCEPTS,
+                     lambda c: subst_accept_problems(c, table="INT_FLIP_ACCEPTS")),
+                    ("INT_FLIP_BAD_MOVES", FLIP_BAD_MOVES, bad_move_problems),
+                    ("E56_ACCEPTS", E56_ACCEPTS,
+                     lambda c: subst_accept_problems(c, table="E56_ACCEPTS")),
+                    ("E56_BAD_MOVES", E56_BAD_MOVES, bad_move_problems),
+                    ("DISCHARGE_BAD_MOVES_CHANGED", changed, bad_move_problems)):
+                for c in cases:
+                    try:
+                        problems = fn(c)
+                    except Mismatch as m:
+                        problems = [str(m)]
+                    if problems:
+                        found.append([table, c["id"]])
+            found += TD.more_must_reject_verdicts()
+            families = [c[1] for c in bug.get("caught_by", ()) if c[0] == "PROPERTY"]
+            if families:
+                results = TD.property_results(families=families)
+                found += [["PROPERTY", n] for n, st in results.items() if st.violations]
+    except Exception:  # noqa: BLE001 -- a crash, not a catch
+        traceback.print_exc()
+        return 2
+    print(json.dumps({"mismatches": found}))
+    return 0
+
+
+def consolidation_child_results():
+    """The control and every CONSOLIDATION_BUGS child, a few at a time."""
+    from concurrent.futures import ThreadPoolExecutor
+    names = [None, *CONSOLIDATION_BUGS]
+    with ThreadPoolExecutor(max_workers=max(2, min(8, os.cpu_count() or 2))) as ex:
+        futures = {n: ex.submit(spawn, *(("--consolidation-control",) if n is None else
+                                         ("--consolidation", n))) for n in names}
+    return {n: f.result() for n, f in futures.items()}
+
+
+def consolidation_planted_problems(name, result):
+    data, out = result
+    if data is None:
+        return out
+    found = data["mismatches"]
+    if name is None:
+        return out + [f"unpatched child found {m}" for m in sorted(found, key=str)]
+    return out + [f"not caught at {c}" for c in map(tuplify, CONSOLIDATION_BUGS[name]["caught_by"])
+                  if c not in found]
 
 
 # ---------------------------------------------------------------- main
@@ -4610,8 +5096,10 @@ def main():
                 entries_problems)
 
     runs = {}
-    for name, p in X.PROOFS.items():
-        print(f"\n{name}{' (fallback)' if p['fallback'] else ''}")
+    for name, p in PROOFS.items():
+        route = [r for r, n in ROUTE.items() if n == name]
+        print(f"\n{name}{' (fallback)' if p['fallback'] else ''}"
+              + (f" (ROUTE['{route[0]}'])" if route else ""))
         if K is None:
             for item in (1, 2, 6):
                 suite.check(item, f"{name}", lambda: [])
@@ -4624,13 +5112,18 @@ def main():
         suite.record(6, f"{name}: the goal is echoed from the installed tree "
                      "before s1", by_item(run, 6))
         suite.record(1, f"{name}: {len(p['steps'])} steps accepted, closes with "
-                     f"?A := {X.ANSWERS[name]}, N = {ADMISSIONS[name]}, "
+                     f"?A := {ANSWERS[name]}, N = {ADMISSIONS[name]}, "
                      f"'{VERDICTS[name]}'", by_item(run, 1))
         suite.record(2, f"{name}: every step's obligations (sources, status, tag, "
                      "new), deriv's trace, the final tracker, no tag none",
                      by_item(run, 2))
         suite.check(1, f"{name}: the answer is the integral (math module)",
                     lambda name=name: numeric_problems(name), needs_kernel=False)
+
+    if CONSOLIDATED and K is not None:
+        suite.check(1, "ROUTE['P1.1'] is P1.1-sheet (E52), and each ROUTE entry is a "
+                    "PROOFS proof that closes with its problem's answer",
+                    lambda: route_problems(runs))
 
     print("\nMatching, occurrences and deriv")
     for m in MATCH_ACCEPTS:
@@ -4799,6 +5292,10 @@ def main():
     print("\nint_subst (item S; p1_expected section 12)")
     s_runs = subst_checks(suite) if K is not None else {}
 
+    print("\nThe consolidation (item C; p1_expected sections 13-14)")
+    if K is not None and CONSOLIDATED:
+        consolidation_checks(suite)
+
     print("\nPlanted bugs (each in a child process)")
     suite.check(3, "control: the child, unpatched, finds nothing", control_problems)
     for name, bug in PLANTED_BUGS.items():
@@ -4814,7 +5311,7 @@ def main():
     suite.check(3, "discharge control: the child, unpatched, finds nothing in the "
                 "proofs or the must-reject cases",
                 lambda: discharge_planted_problems(None, dresults[None]))
-    for name, bug in X.DISCHARGE_NEW_PLANTED_BUGS.items():
+    for name, bug in DISCHARGE_BUGS.items():
         suite.check(3, f"{name}: {bug['mutation']}; caught at "
                     f"{len(bug['caught_by'])} location(s)",
                     lambda n=name: discharge_planted_problems(n, dresults[n]))
@@ -4822,10 +5319,19 @@ def main():
     sresults = subst_child_results() if K is not None and S0 is not None else {}
     suite.check(3, "int_subst control: the child, unpatched, finds nothing",
                 lambda: subst_planted_problems(None, sresults[None]))
-    for name, bug in {**SUBST_BUGS, **X.INT_SUBST_SEAMS}.items():
+    for name, bug in {**SUBST_BUGS, **SUBST_SEAMS}.items():
         suite.check(3, f"{name}: {bug.get('mutation', 're-traced on int_subst')}; "
                     f"caught at {len(bug['caught_by'])} location(s)",
                     lambda n=name: subst_planted_problems(n, sresults[n]))
+    if CONSOLIDATED:
+        print("\nConsolidation planted bugs (sections 13-14; each in a child process)")
+        cresults = consolidation_child_results() if K is not None and TD is not None else {}
+        suite.check(3, "consolidation control: the child, unpatched, finds nothing",
+                    lambda: consolidation_planted_problems(None, cresults[None]))
+        for name, bug in CONSOLIDATION_BUGS.items():
+            suite.check(3, f"{name}: {bug['mutation']}; caught at "
+                        f"{len(bug['caught_by'])} location(s)",
+                        lambda n=name: consolidation_planted_problems(n, cresults[n]))
     suite.check(3, "the unmutated run is clean afterwards", clean_after_problems)
 
     print("\nUnit tests (a child process)")
@@ -4842,9 +5348,11 @@ def main():
     print(f"\n{'PASS' if not failed else 'FAIL'}: {len(suite.rows) - len(failed)} of "
           f"{len(suite.rows)} checks passed")
     print("\nVerdicts")
-    for name in [*X.PROOFS, *X.INT_SUBST_PROOFS,
+    for name in [*PROOFS, *INT_SUBST_PROOFS,
                  *(S0.PROOF_FILES if S0 is not None else ()),
-                 *(S0.INT_SUBST_PROOF_FILES if S0 is not None else ())]:
+                 *(S0.INT_SUBST_PROOF_FILES if S0 is not None else ()),
+                 *(S0.CONSOLIDATION_PROOF_FILES if S0 is not None and CONSOLIDATED
+                   else ())]:
         run = runs.get(name) or s_runs.get(name) or s0_runs.get(name)
         if run is None or run.n is None:
             why = "the kernel did not import" if K is None else "did not close"
@@ -4875,4 +5383,8 @@ if __name__ == "__main__":
         sys.exit(subst_child(sys.argv[2]))
     if sys.argv[1:] == ["--int-subst-control"]:
         sys.exit(subst_child(None))
+    if sys.argv[1:2] == ["--consolidation"] and len(sys.argv) == 3:
+        sys.exit(consolidation_child(sys.argv[2]))
+    if sys.argv[1:] == ["--consolidation-control"]:
+        sys.exit(consolidation_child(None))
     sys.exit(main())

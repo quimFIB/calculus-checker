@@ -26,8 +26,9 @@ the checker has seen it (E28). For each:
                 plus even powers with positive coefficients, or a
                 one-atom quadratic with a negative discriminant, whose
                 certificate is its completed square. e # 0 is tried as e > 0.
-  sign product  E18's content split, then tagger.factor_rational_roots, each
-                factor's sign found by this same search.
+  sign product  E18's content split, then tagger.normalised_factors, each
+                factor's relation (strict first, then non-strict under a
+                non-strict target, E53) found by this same search.
   cite          an ENTRIES ordering whose conclusion implies the proposition
                 (tagger._implies), each instantiated hypothesis found by this
                 same search.
@@ -52,7 +53,7 @@ import field as FD
 import poly as P
 import tagger as TG
 from entries import ENTRIES
-from terms import (Add, App, Const, Div, Interval, Mul, Neg, NonZero, Num, Pow,
+from terms import (Add, Const, Div, Interval, Mul, Neg, NonZero, Num, Pow,
                    Refused, Rel, Term, Var, lit, subst, with_domain)
 
 NORM_NUM = {"method": "norm_num"}
@@ -161,8 +162,8 @@ def _labelled(key):
     out = [(("fact", entry), x, y, s)
            for const, (entry, fact) in TG.SIGN_FACTS.items() if const in names
            for x, y, s in TG._senses(fact)]
-    out += [(("fact", TG.SQRT_FACT, w), App("sqrt", w), ZERO, False)
-            for w in TG.sqrt_atoms((key, key.dom))]  # E49
+    out += [(("fact", name, w), x, y, s)  # E49, ATOM_FACT_RULE
+            for name, w, (x, y, s) in TG.atom_facts((key, key.dom))]
     for i, item in enumerate(key.dom):
         if type(item) is Interval:
             v = Var(item.var)
@@ -329,48 +330,50 @@ def _square(m, c, atoms):
 
 # ---------------------------------------------------------------- sign product
 
-_REL = {0: "# 0", 1: ">", -1: "<"}
-
-
 def _product(key, split, depth=0):
-    """TAG_RULES sign product on e = a - b, as tagger._product finds it.
-    The checker reads a < b as g = b - a = -e, so for a '<' key the
-    content's sign is flipped, which keeps the parity +1."""
+    """TAG_RULES sign product on e = a - b, as tagger._product finds it,
+    for every ordering and # 0 (E53). The checker reads a < b and a <= b as
+    g = b - a = -e, so for those keys the content's sign is flipped, which
+    keeps the parity +1. A factor's relation is tried strict first, then
+    non-strict under a non-strict target; the factorisation's factors have
+    positive leading coefficients and the content takes the sign."""
     prop, dom = replace(key, dom=()), key.dom
-    if type(prop) is NonZero:
-        a, b, want, sense = prop.e, ZERO, 0, "#"
-    elif prop.op in (">", "<"):
-        a, b, want, sense = prop.lhs, prop.rhs, 1 if prop.op == ">" else -1, None
-    else:
+    form = TG.product_form(prop)
+    if form is None:
         return None
+    a, b, want, rels = form
+    sense = "#" if want == 0 else None
     [e], atoms = TG._normal_diffs([(a, b)])
     if not e:
         return None
     flip = -1 if want == -1 else 1
     c, p = P.content_normal(e)
-    if split and c != 1:
+    if split and TG.splits(c, prop):
         s = want * (1 if c > 0 else -1)
         t = TG._as_term(p, atoms)
-        cert = _search(TG._sign_goal(t, s, dom), split=False, depth=depth)
-        if cert is not None:
-            return {"method": "sign product", "sense": sense,
-                    "content": flip * c, "factors": ((t, _REL[s], cert),)}
+        for r in TG.split_relations(rels, s):
+            cert = _search(TG.rel_goal(t, r, dom), split=False, depth=depth)
+            if cert is not None:
+                return {"method": "sign product", "sense": sense,
+                        "content": flip * c, "factors": ((t, r, cert),)}
     # tagger.FACTOR_DEPTH bounds the nesting, so no certificate is deeper
-    factors = (TG.factor_rational_roots(e, atoms) if depth < TG.FACTOR_DEPTH
-               else None)
-    if not factors:
+    found = (TG.normalised_factors(e, atoms) if depth < TG.FACTOR_DEPTH
+             else None)
+    if not found:
         return None
+    c, factors = found
     options = []
     for f in factors:
-        found = [(s, _search(TG._sign_goal(f, s, dom), split=True, depth=depth + 1))
-                 for s in ((0,) if want == 0 else (1, -1))]
-        options.append([(s, cert) for s, cert in found if cert is not None])
+        certs = [(r, _search(TG.rel_goal(f, r, dom), split=True, depth=depth + 1))
+                 for r in rels]
+        options.append([(r, cert) for r, cert in certs if cert is not None])
     for choice in itertools.product(*options):
-        if want == 0 or math.prod(s for s, _ in choice) == want:
+        if want == 0 or ((1 if c > 0 else -1)
+                         * math.prod(TG.RELATION_SIGN[r] for r, _ in choice)) == want:
             return {"method": "sign product", "sense": sense,
-                    "content": Fraction(flip),
-                    "factors": tuple((f, _REL[s], cert)
-                                     for f, (s, cert) in zip(factors, choice))}
+                    "content": Fraction(flip) * c,
+                    "factors": tuple((f, r, cert)
+                                     for f, (r, cert) in zip(factors, choice))}
     return None
 
 

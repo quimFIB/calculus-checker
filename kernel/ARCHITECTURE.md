@@ -17,7 +17,8 @@ It is the done script: WHAT.md's Done-when items 1–6 against
 p1_expected.py, plus the suite's own cases for what P1's data cannot see
 (§8), plus item 7, stage 0's problem files against their own hand-written
 data (§9), plus item D, discharge's checkers, search and refutation called
-directly (§10), exit 1 on any failure; its last line, `PASS: n of n checks passed`,
+directly (§10), plus items S and C, int_subst's and the consolidation's
+cases (§11, §12), exit 1 on any failure; its last line, `PASS: n of n checks passed`,
 gives the current count. Its header prints the protection in force,
 `handles for facts, sentinel for proof states`, with the reason the
 sentinel is enough for states (§2). It also runs the unit tests in a
@@ -36,11 +37,11 @@ tests alone: `python3 -m unittest discover -s kernel`.
 | File | Tier | §15.2 item | Imports |
 |---|---|---|---|
 | `terms.py` | trusted | 1, 8: nodes, fv/bv, substitution, goal checks, parser, printer | stdlib |
-| `entries.py` | trusted | 7: the seventeen §6.8 entries, pinned (P1's ten, stage 0's four, the owner's `sqrt_zero` and `cos_zero`, E35, and `sqrt_nonneg`, E49) | terms |
+| `entries.py` | trusted | 7: the twenty-three §6.8 entries, pinned (P1's ten, stage 0's four, the owner's `sqrt_zero` and `cos_zero`, E35, `sqrt_nonneg`, E49, and the consolidation's six, E54) | terms |
 | `poly.py` | trusted | 4: copied from `spike/ring/poly.py` | stdlib |
 | `field.py` | trusted | 4: `ring`, `field`, `norm_num` | poly, terms |
 | `deriv.py` | trusted | 2: §6.3's entries, applied | terms |
-| `kernel.py` | trusted | 2, 3, 5: rules (`int_subst` among them, §11), E6 and E26's formers, matcher, tracker, handles, `step`, discharge at emission (§5) | terms, entries, field, deriv, discharge, tagger, search, refute, residual, schema (poly only through field) |
+| `kernel.py` | trusted | 2, 3, 5: rules (`int_subst` and `int_flip` among them, §11, §12), E56's orientation rule, E6 and E26's formers, matcher, tracker, handles, `step`, discharge at emission (§5) | terms, entries, field, deriv, discharge, tagger, search, refute, residual, schema (poly only through field) |
 | `discharge.py` | trusted | 5: the certificate checkers (hyp, Farkas, sign, sign product, cite, the norm_num leaf) and the exact-value rewrite (E28–E31) | terms, entries, field, poly |
 | `tagger.py` | untrusted | none (§7, E24): computes admission tags; its Fourier–Motzkin keeps its Farkas witness (`refutation`) | terms, poly, field, residual, entries |
 | `search.py` | untrusted | none (E28): proposes one certificate per obligation | terms, poly, field, entries, tagger, discharge |
@@ -132,8 +133,8 @@ nor `poly.py` formats anything: the spike's `to_str`, `divide_exact` and
   `Reg`'s domain is inside it, and E5 never touches it. Every other key is
   built through `terms.with_domain(prop, dom)`, which gives `dom = ()` when
   the proposition has no free variable (E5). A **position domain** is the
-  goal's own domain items, then the E4 range interval of each `Integral` whose
-  *body* holds the position, outermost first.
+  goal's own domain items, then the range interval (E56, §12) of each
+  `Integral` whose *body* holds the position, outermost first.
 - **`Obligation`** (`kernel.py`, frozen and slotted): `key`, `sources`
   (frozenset of p1_expected SOURCES codes, or the kernel-local source codes
   listed in §6), `status` (`"discharged"`, `"admitted"`, or
@@ -224,7 +225,7 @@ hypothesis_tree(node) -> None             # always raises; install's gate (E26 (
 # (E26 (b)): the normaliser's `_Normaliser.tree`, and norm_num's
 # `norm_num_tree(node, in_domain)`, both seams (§7). rational_value
 # returns None there instead (an Int or D is never a literal), and
-# kernel._range relies on that None.
+# kernel._range_of relies on that None.
 # deriv.py
 APP_RULES: Mapping[str, rule]              # read-only; rule(u, du) -> (output, side_props)
 deriv(F, x, dom) -> Derived                # .output .trace .emissions; Refused
@@ -260,7 +261,7 @@ derivative_domain(closed: Interval) -> Interval
 `ProofState`, or a `Refusal` with the input state untouched (E13). The
 common checks come first, in this order: the state is one the kernel minted
 (`state-not-minted`); the goal is still open (`proof-finished`); the move is
-one of the four (`bad-move`); `args` has exactly the move's keys, each of
+one of the six in `MOVES` (`bad-move`); `args` has exactly the move's keys, each of
 the right type (`bad-args`). Fact slots are resolved next, before any rule
 runs (`fact-not-minted-handle`, `fact-foreign-state-handle`). Each move then
 proceeds as follows, with refusals given in the order they are tested:
@@ -273,7 +274,7 @@ proceeds as follows, with refusals given in the order they are tested:
   carries it: a hypothesis about such a value presupposes that it exists, and
   ftc's Reg premises and its discharged `ftc_D` premise, which carry the
   goal's domain but skip norm_num, would otherwise pass it on. It builds
-  the E4 range of every `Integral` (`range-same-infinity`), then charges
+  the range of every `Integral` by E56 (`range-same-infinity`; §12), then charges
   the formers of each goal hypothesis (an Interval's finite ends, a
   relation's two sides, a NonZero's expression) at the hypotheses before
   it, so `@ x > 0, ln x > 0` owes `x > 0 @ x > 0` and not a false
@@ -307,9 +308,10 @@ proceeds as follows, with refusals given in the order they are tested:
   through a seam instead, with step 3 made lax (BACKSTOPS
   rewrite_closing_check_goal, `shadowing`). It emits H at P
   (`rewrite_hyp`) and R's formers at P (`former`). For each `Integral`
-  whose interval sits in some emitted key's domain, it also emits E4's
-  `lo <= hi` (`orient`) at that Int's own position domain. The orientation
-  is emitted only when the interval is used: P1.1's goal owes it at
+  whose interval sits in some emitted key's domain, it also emits the order
+  E56 proved for it (`orient`) at that Int's own position domain, or, when
+  neither order was proved, refuses `orientation-undecided` before the key
+  (§12). The orientation is emitted only when the interval is used: P1.1's goal owes it at
   installation because sqrt(t^2) in the body owes t^2 >= 0 on the range,
   and MATCH_ACCEPTS limit_former_at_outer_domain owes none, its body t
   owing nothing.
@@ -327,9 +329,11 @@ proceeds as follows, with refusals given in the order they are tested:
 - **`ftc`** takes `{"F": Term, "check": "ring" | "field", "facts": [obj,
   ...]}`. `ring` with facts is `bad-args`. The goal's lhs must be an
   `Integral` (`ftc-no-integral`), and neither limit may be infinite
-  (`ftc-infinite-endpoint`). With G the goal's domain, `I = [a, b]` from E4,
-  and `J = derivative_domain(I)`, it emits:
-  - the orientation;
+  (`ftc-infinite-endpoint`). With G the goal's domain, `I` the closed
+  interval between the limits by E56 (`[a, b]` or `[b, a]`, whichever order
+  discharge proved; neither refuses `orientation-undecided`), and
+  `J = derivative_domain(I)`, it emits:
+  - the orientation, the order proved;
   - F's formers at G+I, its partial builtins' domains included (E26 (a));
   - `Reg(F, 0, G+I)`, `Reg(F, 1, G+(a, b))` and `Reg(f, 0, G+I)`, sources
     `ftc_F_C0`, `ftc_F_C1` and `ftc_f_C0`. The C¹ premise builds its open
@@ -349,8 +353,9 @@ proceeds as follows, with refusals given in the order they are tested:
   - `Rel("==", Deriv(x, F), f, G+J)`, DISCHARGED with tag `("deriv+" +
     check, fact entry names)`, source `ftc_D`.
 
-  The goal becomes `Add(F[x:=b], Neg(F[x:=a])) == rhs`, and that whole new
-  goal's formers are charged too. Last, `check_goal` runs on the new goal.
+  The goal becomes `Add(F[x:=b], Neg(F[x:=a])) == rhs`, with the limits as
+  written, which holds for either order (§5.1), and that whole new goal's
+  formers are charged too. Last, `check_goal` runs on the new goal.
   It is the only guard against a variable free in F that the goal's rhs
   binds (`D11-bound-and-free`), which a plain move reaches (SUITE_BAD_MOVES
   ftc_F_binder_free_in_rhs: F := x^2 + y - y against an rhs binding y). The
@@ -402,12 +407,20 @@ proceeds as follows, with refusals given in the order they are tested:
   `int-subst-ambiguous` (the selection); `int-subst-infinite-endpoint`;
   `int-subst-not-fresh`; `int-subst-scope`; rewrite's
   `rewrite-under-D-needs-open-domain`; `subst-under-D` and
-  `rpow-literal-exponent` from `terms.subst`; the orientation's
-  `int-subst-orientation-undecided`; decided-false formers (E33);
+  `rpow-literal-exponent` from `terms.subst`; E56's
+  `orientation-undecided` (the old range's in reverse mode, then the new
+  range's); decided-false formers (E33);
   deriv's refusals; reverse mode's `int-subst-check-failed` (residual body −
   f(g(x))·g′); `int-subst-endpoint-mismatch` (residual image − limit after
   the exact values); and `check_goal` on the new goal. `last.trace` and
   `last.output` are deriv's, as for ftc.
+- **`int_flip`** is §5.1's reversed integral, specified by p1_expected's
+  INT_FLIP_RULE (E51) and described in §12. Its args are `{}` or
+  `{"occurrence": k}` (`bad-args` otherwise). The refusals, in order:
+  `int-flip-no-integral` and `int-flip-ambiguous` (the selection);
+  rewrite's `rewrite-under-D-needs-open-domain`; the new integral's
+  formers (E56's `orientation-undecided`, decided-false formers); and
+  `check_goal` on the new goal. It owes no order of its own.
 
 A check that fails raises `field.NotEqual(residual)`. The kernel turns it
 into a Refusal carrying `residual.residual_term(r)`, which is lhs − rhs
@@ -504,13 +517,14 @@ acosh u owes u >= 1, atanh u owes u > -1 and u < 1. Closed where the
 builtin is defined at the end, open where it is not. It is not written
 abs u <= 1, because abs u is an opaque atom to every §5.3 method and no
 entry concludes it, so it could only be tagged none; and not 1 - u^2 >= 0,
-because sign product never closes a non-strict goal and the polynomial
-hides the two linear bounds that range reads directly. `_charge_formers`
+because the polynomial hides the two linear bounds that range reads
+directly (sign product closes it since E53, but only through a
+factorisation). `_charge_formers`
 emits them wherever a term enters (the goal's hypotheses at the hypotheses
 before each, and both sides at install; ftc's F and new goal; a rewrite's R;
 close's value; and a used fact's inst values at the using step's domain,
 E10), at the position domain, so the same
-E4, E5, E7, E8 and E24 apply as to a divisor. field is unchanged: it emits
+E56, E5, E7, E8 and E24 apply as to a divisor. field is unchanged: it emits
 its divisors and nothing for the partial builtins in its input, whose
 atoms were charged where they entered. Integral and Deriv nodes owe no
 condition, because none can be stated until regularity and `diverges`
@@ -535,7 +549,9 @@ GRAMMAR.md §1 codes that `check_goal` raises, and constructors can raise
 `rpow-literal-exponent` and `oo-misplaced`. Beyond those, there are
 **kernel-local codes, none reachable in any P1 run**: `state-not-minted`,
 `proof-finished`, `bad-move`, `bad-args`, `goal-shape`, `ftc-no-integral`,
-`close-no-mvar`, `field-fact-shape` and `power-too-large`. `field-fact-shape`
+`close-no-mvar`, `field-fact-shape` and `power-too-large`
+(`orientation-undecided`, `int-flip-no-integral` and `int-flip-ambiguous`
+are p1_expected's, REFUSAL_CODES_E56 and REFUSAL_CODES_INT_FLIP, §12). `field-fact-shape`
 is for a fact that is not `a^k == r`, such as `fact pi_pos` passed to field.
 `power-too-large` is field.py's bound on the literal powers ring, field and
 norm_num expand: a power b^n is refused when |n| > `POWER_BOUND` (10^4),
@@ -581,7 +597,7 @@ Each patch is the mutation's own text, written in `proof_of_life.py`:
 | `ring_reads_Int_as_atom`, `ring_reads_D_as_atom`, `field_reads_Int_as_atom`, `field_reads_D_as_atom` | `field._Normaliser.tree`, which `norm` calls for each Integral or Deriv node | a method that returns the spike's tree atom for that node kind in ring's (or field's) normaliser, and calls the original otherwise |
 | `norm_num_admits_Int`, `norm_num_admits_D`, `norm_num_ignores_domain` | `field.norm_num_tree(node, in_domain)`, which only norm_num calls, and `field.hypothesis_tree(node)`, install's gate on the goal's hypotheses | a wrapper on each that returns instead of raising for that node kind, or for any node in the domain (a hypothesis counts as one); both, because the data's caught_by names install cases the gate refuses first |
 | `deriv_d_const_on_Int_or_D` | `deriv.const_guard` | `lambda t: None` |
-| `rewrite_R_former_at_goal_domain`, `rewrite_R_former_on_ranges_only` | `kernel._charge_formers`, which only rewrite and int_subst call with `anc=` (these children run no int_subst) | a wrapper that charges R at the goal's domain, or at the position domain less the goal's items |
+| `rewrite_R_former_at_goal_domain`, `rewrite_R_former_on_ranges_only` | `kernel._charge_formers`, which only rewrite, int_subst and int_flip call with `anc=` (these children reach int_subst only in P1.1-sheet's s1, a top-level Int with no goal domain, where both patches charge what the rule does) | a wrapper that charges R at the goal's domain, or at the position domain less the goal's items |
 | `limit_former_on_own_range` | `kernel._encloses(slot)`, which `_positions` asks whether an Int's child is in its scope | `lambda slot: True` |
 
 Thirteen more serve p1_expected's DISCHARGE_NEW_PLANTED_BUGS, one per
@@ -601,7 +617,7 @@ patches that one function with `patch.object`:
 | `sign_skips_ring` | `discharge._sign_identity(g, total)` | always true |
 | `sign_zero_constant_strict` | `discharge._constant_ok(c0, strict)` | `c0 >= 0` |
 | `sign_any_exponent` | `discharge._square_ok(c, s, k)` | any rational c, any int k >= 1 |
-| `product_skips_parity` | `discharge._parity_ok(c, rels)` | always true |
+| `product_skips_parity` | `discharge._parity_ok(c, rels)` (counting `<` and `<=` since E53) | always true |
 | `product_skips_children` | `discharge._factors_hold(dom, factors)` | `()` |
 | `cite_skips_hypotheses` | `discharge._hyps_hold(dom, hyps, children)` | `()` |
 | `search_scales_wrongly` | `search._witness(multipliers)` | halves each fact label's multiplier first |
@@ -630,7 +646,12 @@ DEFINEDNESS_CASES and MATCH_ACCEPTS case and adds `[table, id]` for each
 that fails, which is the shape DEFINEDNESS_MUTATIONS' caught_by names; the
 parent requires every caught_by entry, and `admissions` where the data
 gives it (`sqrt_open_at_0` gives none, since it refuses the fallback's
-ftc). The mutation children run a few at a time. The control child runs
+ftc). Since E52, PROOFS holds P1.1-sheet, so every child that runs PROOFS
+runs it too, and each bug and mutation is asserted as P1_1_SHEET_TRACES
+re-traces it for the sheet: its N there (`sheet_N`, None when the sheet is
+refused), its added caught_by locations, and its retagged and refused rows
+(a refusal by code and message, `orientation-undecided`'s included). The
+mutation children run a few at a time. The control child runs
 the proofs and the cases unpatched and must find nothing. The patch lives
 and dies with a process that runs nothing else.
 
@@ -805,7 +826,10 @@ stage 0's, so a broken stage-0 import fails item 7 alone.
 **Stage 1** (`kernel/problems/stage1/`: SUB1, S2R and SUB2, the int_subst
 problem files, expected.py's section 12). Item 7 runs the same checks on
 them through a `Book`, the table bundle its functions read: stage 0's
-reads sections 1–11, stage 1's the `INT_SUBST_*` tables. Per proof: the file
+reads sections 1–11, stage 1's the `INT_SUBST_*` tables, and the
+consolidation's (`kernel/problems/consolidation/`, QC1, section 13) the
+`CONSOLIDATION_*` tables, with its own floor and its two wrong answers
+(§12). Per proof: the file
 against its data (each int_subst's `sub` against its DERIV row), the echo,
 each step's goal, obligations (with reasons and certificates) and deriv's
 trace, the final tracker, N, the verdict, the theorem, the loader against a
@@ -908,12 +932,13 @@ bug removes as its own function (the seams below):
   F := body[var := sub] and the images sub[new_var := lo], sub[new_var :=
   hi]; reverse f(g(x)) := f[new_var := sub] and sub[var := a], sub[var :=
   b].
-- **Orientation** (`_new_orientation`, E46): two rational literal limits
-  are ordered for the range and kept as given; otherwise `lo <= hi` at P,
-  then `hi <= lo`, is put to discharge's steps 3–5 alone (`_settles`, which
-  never refutes), the discharged one is emitted, and the second flips the
-  new integral, Int[new_var = hi .. lo] −body′; neither refuses
-  `int-subst-orientation-undecided`.
+- **Orientation** (`_new_orientation`, E46 as E56 generalises it): the
+  new range is `_range_of(new_var, lo, hi, P)`, E56's one rule (§12). Two
+  rational literal limits are ordered for the range and kept as given;
+  otherwise the order discharge proved is emitted, and `hi <= lo` flips the
+  new integral, Int[new_var = hi .. lo] −body′ (a choice since E56, kept);
+  neither refuses `orientation-undecided`. The reverse mode's old range is
+  E56's too (`_old_range`).
 - **Emissions**, in INT_SUBST_RULE's order: the reverse mode's old-range
   orientation; lo's and hi's formers at P; sub's (and reverse f(g(x))'s)
   formers on the closed range D; deriv's side conditions on D
@@ -932,21 +957,22 @@ bug removes as its own function (the seams below):
 
 **sqrt_nonneg** (E49): `entries.py` gains `sqrt a >= 0 @ a >= 0`. The
 Farkas checker reads a label `('fact', 'sqrt_nonneg', u)` as `sqrt u >= 0`
-when a sqrt atom with u's ring normal form occurs in the key
-(`discharge._sqrt_fact`, a seam), with no child for its hypothesis (the
-atom is defined wherever the key's terms are). The search and the tagger
-add one such constraint per distinct sqrt atom (`tagger.sqrt_atoms`).
+when a sqrt atom with u's ring normal form occurs in the key, with no child
+for its hypothesis (the atom is defined wherever the key's terms are). The
+search and the tagger add one such constraint per distinct sqrt atom. Since
+E54 this is ATOM_FACT_RULE's first row (`discharge._atom_fact`, a seam;
+`tagger.atom_facts`), §12.
 
-**Item S** (`proof_of_life.py`): P1.1-sheet, staged outside PROOFS (E47),
-through the PROOFS runner with a `Tables` bundle for the INT_SUBST_* tables
-(its echo is the fallback's, whose goal it is); every INT_SUBST_ACCEPTS case
+**Item S** (`proof_of_life.py`): P1.1-sheet was staged outside PROOFS
+(E47) and asserted here; since E52 it is in PROOFS, ROUTE['P1.1'], and
+items 1–2 assert it (§12). Item S keeps every INT_SUBST_ACCEPTS case
 with its continuation, certificates and reasons (the int_subst step's
 fields located as (INT_SUBST_ACCEPTS, id, prop, dom, what)); every
 INT_SUBST_BAD_MOVES case by code, message filled from INT_SUBST_MESSAGES or
 DECIDED_FALSE_MESSAGES, and residual under `compare`. REFUSAL_CODES_INT_SUBST
 joins the refusal-code coverage. Item 3 runs INT_SUBST_PLANTED_BUGS and
 INT_SUBST_SEAMS as `--int-subst NAME` children (the control as
-`--int-subst-control`): P1.1-sheet, both case tables, stage 1's files and
+`--int-subst-control`): P1.1-sheet (from PROOFS since E52), both case tables, stage 1's files and
 wrong answers (locations prefixed `S0`), SQRT_FACT_MUST_REJECT and the
 property test's named families. Item D asserts SQRT_FACT_MUST_REJECT and
 SQRT_FACT_CHECKER_ACCEPTS, and the property test's Farkas family holds sqrt
@@ -956,7 +982,7 @@ atoms.
 |---|---|---|
 | `int_subst_no_sub_formers` (REVIEW_PLANTED_BUGS) | `kernel._sub_formers` | a no-op (step 9 charges nothing) |
 | `int_subst_reverse_no_old_orient` (REVIEW_PLANTED_BUGS) | `kernel._old_range` | the old range, its orientation not owed |
-| `sqrt_fact_any_u` (REVIEW_PLANTED_BUGS) | `discharge._sqrt_fact` | any u once the key holds some sqrt atom |
+| `sqrt_fact_any_u` (REVIEW_PLANTED_BUGS) | `discharge._atom_fact` | any u once the key holds some sqrt atom |
 | `f3_no_root_candidates` (REVIEW_PLANTED_BUGS) | `refute.roots` | no roots (COUNTERPOINT_CANDIDATES (4) not walked) |
 | `int_subst_skips_endpoint_check` | `kernel._endpoint` | records the equation discharged, unchecked |
 | `int_subst_drops_phi_prime` | `kernel._new_integrand` | F alone |
@@ -970,4 +996,115 @@ atoms.
 | `int_subst_under_D_unchecked` | `kernel._subst_under_D` | a no-op |
 | `int_subst_reverse_skips_check` | `kernel._reverse_check` | records the identity, unchecked |
 | `int_subst_reverse_premise_on_new_range` | `kernel._reverse_premises` | f in C^0 between the new limits |
-| `sqrt_fact_strict` | `discharge._sqrt_fact` | the constraint strict |
+| `sqrt_fact_strict` | `discharge._atom_fact` | the sqrt constraint strict |
+
+## 12. The consolidation (p1_expected sections 13 and 14)
+
+Built in one commit, as CONSOLIDATION_SWITCH states; the suite switches by
+one constant, `CONSOLIDATED` in `proof_of_life.py`.
+
+**E56, one orientation rule** (`kernel._range_of(v, lo, hi, dom)`, trusted,
+a seam). Every step that builds an interval from an Int's limits calls it,
+through `_range(integral, dom)` or directly: installation's and every new
+goal's formers and rewrite's position domain (through `_positions`), ftc's
+premises and open interval, int_subst's old range (`_old_range`) and new
+range (`_new_orientation`), and int_flip's new integral (its formers). Two
+infinite ends, one infinite end, and two rational literals are as E4 had
+them. Otherwise `lo <= hi`, then `hi <= lo`, each at the Int's position
+domain, goes to DISCHARGE_RULE's steps 3–5 with no refutation
+(`kernel._settles`); the first that holds is the orientation key, emitted
+with source `orient`, and the interval is `[lo, hi]` or `[hi, lo]`
+accordingly. Neither refuses `orientation-undecided`, one code for every
+step, replacing int_subst's `int-subst-orientation-undecided`. A proved
+order is never wrong, so the interval is never empty.
+
+`_positions` decides each Int's order as the walk reaches it, but defers an
+undecided one: the range stands as `[lo, hi]` and its `_IntScope` carries
+the refusal, which `_emit_at` raises, before emitting the key, when a key's
+domain uses that range. So an Int whose body owes nothing needs no order
+(INT_FLIP_ACCEPTS flip_reversed_symbolic_to_value's goal), and ftc and
+int_subst, whose premises always use their range, refuse at once.
+
+**int_flip (E51)** is the sixth move. `_flip_select` is int_subst's
+selector without a variable (`int-flip-no-integral`, with the occurrence
+message when one is given, and `int-flip-ambiguous`). `_flip_under_D` is
+E48's D[y] test for the selected Int. `_flipped` builds `Integral(x, b, a,
+Neg(f))`, which replaces the selected Int at its position. The new
+integral's formers are charged as a new term's at the position, so its
+orientation is owed when a key uses its new range; then `check_goal` runs.
+It emits nothing else.
+
+**E53, the sign product on non-strict targets.** `discharge._product`
+accepts every ordering and `# 0` key. `_relation_ok` (a seam) allows `>`
+and `<` factors under a strict target and all four under a non-strict one,
+and `# 0` under a `# 0` key; `_parity_ok` counts `<` and `<=` factors. The
+search and the tagger try each factor's relation strict first, then
+non-strict (`tagger.product_form`, `split_relations`). Their factors come
+from the rational root factoriser with positive leading coefficients, the
+content taking the sign (`tagger.normalised_factors`). E18's content split
+is not tried for a content of -1 under a non-strict target (`tagger.splits`),
+because there the factor's goal is the key's own proposition restated; so
+1 - x^2 >= 0 on [0, 1] is -(x - 1)(x + 1), flat, as the data writes it.
+
+**E54, six entries** in `entries.py`, after `sqrt_nonneg`: `pyth`,
+`pyth_cos`, `sin_nonneg_on`, `cos_nonneg_on`, `cos_le_one` and
+`cos_ge_neg_one`. ATOM_FACT_RULE generalises E49's label. `('fact', name,
+u)` is in a key's constraint set when three things hold: name is one of
+`discharge.ATOM_FACTS` (`sqrt_nonneg` for sqrt atoms, `cos_le_one` and
+`cos_ge_neg_one` for cos atoms), the entry is in ENTRIES, and an atom of
+its head with u's ring normal form occurs in the key. The constraint is the
+statement at u read as a target, non-strict (`discharge._atom_fact`, a
+seam). The search and the tagger build theirs through `tagger.atom_facts`,
+with cites in ENTRIES order. `sin_nonneg_on` and `cos_nonneg_on` are
+cite's only. `pyth_cos` serves as a rewrite (a tree match at (cos b)^2) and
+as a field fact. `schema.py`'s E27 (a) counts `pyth` (a structural match)
+and never `pyth_cos` (`_READINGS`).
+
+**E52.** P1.1-sheet joins PROOFS (P1_1_SHEET_JOIN) and is ROUTE['P1.1']; it
+leaves INT_SUBST_PROOFS, and the int_subst children run it from PROOFS.
+Every PROOFS child asserts it as P1_1_SHEET_TRACES re-traces it (§7). The
+suite applies E56_CHANGES and CONSOLIDATION_CHANGES to the tables they
+name:
+
+- decided_false_reversed_range is dropped;
+- rewrite_under_D_through_Int and orientation_undecided are refused
+  `orientation-undecided`;
+- reverse_symbolic_old_range_reversed moves to INT_SUBST_ACCEPTS;
+- cos_theta_canonical's two keys are discharged by sign product;
+- pi_pos_not_in_constraint_set and search_scales_wrongly get their new
+  admissions, retags, certificate and refusals.
+
+**Item C** (`proof_of_life.py`) asserts:
+
+- CONSOLIDATION_ENTRIES pinned, E27's reading of pyth and pyth_cos, and
+  MOVES six long;
+- every INT_FLIP_ACCEPTS and E56_ACCEPTS case with its continuation, as the
+  int_subst accepts are asserted;
+- every INT_FLIP_BAD_MOVES and E56_BAD_MOVES case by code and message.
+
+**Items D, 7 and 3.**
+
+- Item D adds SIGN_PRODUCT_* and CONSOLIDATION_CHECKER_ACCEPTS /
+  _MUST_REJECT, and QC1's certificates. It also adds two families to the
+  property test. The first is non-strict products: a factor zero at a
+  closed end is non-strict, and one key in four is then strict and false
+  there. The second is cos-atom Farkas keys, evaluated where the argument
+  is 0, cos_zero's point, and skipped elsewhere.
+- Item 7 runs QC1 (`kernel/problems/consolidation/QC1.json`) through its
+  own Book and floor, with QC1-W1 and QC1-W2.
+- Item 3 runs CONSOLIDATION_PLANTED_BUGS and E56_PLANTED_BUGS as
+  `--consolidation NAME` children, with the control as
+  `--consolidation-control`. Each child runs the int_flip and E56 cases,
+  BAD_MOVES' DISCHARGE_BAD_MOVES_CHANGED cases, the must-reject verdicts
+  beyond DISCHARGE_MUST_REJECT, and the property families its caught_by
+  names.
+
+| Consolidation planted bug | Seam | The child's patch |
+|---|---|---|
+| `int_flip_drops_negation` | `kernel._flipped` | `Integral(x, b, a, f)` |
+| `int_flip_under_D_unchecked` | `kernel._flip_under_D` | a no-op |
+| `product_nonstrict_factor_on_strict` | `discharge._relation_ok` | any ordering under an ordering target |
+| `cos_fact_strict` | `discharge._atom_fact` | the constraint strict |
+| `atom_fact_any_entry` | `discharge._atom_fact` | any ENTRIES ordering with one schema variable |
+| `orientation_tries_one_order` | `kernel._range_of` | only `lo <= hi` tried |
+| `orientation_order_unproved` | `kernel._range_of` | `[hi, lo]`, owing `hi <= lo`, whenever `lo <= hi` is not proved |

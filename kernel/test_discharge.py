@@ -82,6 +82,14 @@ DISCHARGE_UNDECIDED = [c for c in X.DISCHARGE_UNDECIDED
     + list(X.F3_ROOTS_UNDECIDED)
 DISCHARGE_BAD_MOVES_ADDED = list(X.DISCHARGE_BAD_MOVES_ADDED) \
     + list(_ROOTS["DISCHARGE_BAD_MOVES_ADDED_add"])
+# E56_CHANGES (CONSOLIDATION_SWITCH): decided_false_reversed_range installs
+# now, and rewrite_under_D_through_Int is refused 'orientation-undecided'
+# before its orientation key is emitted, so neither states a decided-false
+# key any more; E56_BAD_MOVES decided_false_closed_negation is F2's example.
+DISCHARGE_BAD_MOVES_ADDED = [c for c in DISCHARGE_BAD_MOVES_ADDED
+                             if c["id"] != "decided_false_reversed_range"]
+DISCHARGE_BAD_MOVES_CHANGED = {i: c for i, c in X.DISCHARGE_BAD_MOVES_CHANGED.items()
+                               if i != "rewrite_under_D_through_Int"}
 
 
 # ---------------------------------------------------------------- data to calls
@@ -253,6 +261,28 @@ def expected_certificates():
         tags = _tags(c.get("goal_emits", ()))
         for (p, d), cc in c.get("certificates", {}).items():
             rows.append(((where, p, d), key(p, d), tags[(p, d)], cc))
+    # the consolidation (sections 13-14, stage 0's section 13): QC1's, the
+    # new certificates of cos_theta_canonical (CONSOLIDATION_CHANGES), and
+    # those of INT_FLIP_ACCEPTS and E56_ACCEPTS, tagged as their lists tag
+    for proof, table in S0.CONSOLIDATION_EXPECTED.items():
+        for (p, d), (tag, c) in table.items():
+            rows.append((("stage0 CONSOLIDATION_EXPECTED", proof, p, d), key(p, d),
+                         tag, c))
+    ch = X.CONSOLIDATION_CHANGES["INT_SUBST_ACCEPTS cos_theta_canonical"]
+    tags = _tags(list(ch["goal_emits"]) + [ch["emits_change"]])
+    for (p, d), c in ch["certificates_add"].items():
+        rows.append((("CONSOLIDATION_CHANGES cos_theta_canonical", p, d), key(p, d),
+                     tags[(p, d)], c))
+    for table, cases in (("INT_FLIP_ACCEPTS", X.INT_FLIP_ACCEPTS),
+                         ("E56_ACCEPTS", X.E56_ACCEPTS)):
+        for c in cases:
+            steps = [c] + list(c.get("then", ()))
+            tags = _tags([ob for st in steps for name in ("goal_emits", "emits")
+                          for ob in st.get(name, ())])
+            for st in steps:
+                for (p, d), cc in st.get("certificates", {}).items():
+                    rows.append(((f"{table} {c['id']}", p, d), key(p, d),
+                                 tags[(p, d)], cc))
     return rows
 
 
@@ -295,7 +325,9 @@ REJECT_REASONS = {
     "sign_negative_coefficient": "bad-square",
     "sign_zero_constant_strict": "constant-too-small",
     "product_forged_factorisation": "identity-fails",
-    "product_nonstrict_target": "non-strict-target",
+    # CONSOLIDATION_CHANGES (E53): the target is allowed, and the child
+    # x > 0 @ [-1, 1] fails
+    "product_nonstrict_target": "child-rejected/positive-constant",
     "product_parity": "parity",
     "product_child_at_closed_end": "child-rejected/zero-without-strict",
     "cite_pi_pos_for_e_const": "conclusion-does-not-imply",
@@ -313,6 +345,12 @@ REJECT_REASONS = {
     "sqrt_fact_nonstrict_pair": "zero-without-strict",
     "sqrt_fact_absent_atom": "unknown-label",
     "sqrt_fact_label_for_absent_atom": "unknown-label",
+    # SIGN_PRODUCT_MUST_REJECT (E53) and CONSOLIDATION_MUST_REJECT (E54)
+    "product_nonstrict_factor_changes_sign": "child-rejected/positive-constant",
+    "product_nonstrict_parity": "parity",
+    "product_nonstrict_factor_under_strict_target": "bad-relation",
+    "cos_fact_nonstrict_pair": "zero-without-strict",
+    "sin_fact_not_a_label": "unknown-label",
 }
 
 
@@ -324,6 +362,17 @@ def _sqrt_case(c):
 SQRT_FACT_MUST_REJECT = [_sqrt_case(c) for c in X.SQRT_FACT_MUST_REJECT
                          + X.REVIEW_SQRT_FACT_MUST_REJECT]
 SQRT_FACT_CHECKER_ACCEPTS = [_sqrt_case(c) for c in X.SQRT_FACT_CHECKER_ACCEPTS]
+# The consolidation's (sections 13c-13d), in the same shape: E53's
+# non-strict sign product and E54's atom labels and cites.
+SIGN_PRODUCT_MUST_REJECT = [_sqrt_case(c) for c in X.SIGN_PRODUCT_MUST_REJECT]
+SIGN_PRODUCT_CHECKER_ACCEPTS = [_sqrt_case(c) for c in X.SIGN_PRODUCT_CHECKER_ACCEPTS]
+CONSOLIDATION_MUST_REJECT = [_sqrt_case(c) for c in X.CONSOLIDATION_MUST_REJECT]
+CONSOLIDATION_CHECKER_ACCEPTS = [_sqrt_case(c) for c in X.CONSOLIDATION_CHECKER_ACCEPTS]
+# Every must-reject case beyond DISCHARGE_MUST_REJECT, by table name, for
+# the planted-bug children (consolidation_accepted).
+MORE_MUST_REJECT = {"SQRT_FACT_MUST_REJECT": SQRT_FACT_MUST_REJECT,
+                    "SIGN_PRODUCT_MUST_REJECT": SIGN_PRODUCT_MUST_REJECT,
+                    "CONSOLIDATION_MUST_REJECT": CONSOLIDATION_MUST_REJECT}
 
 
 def sqrt_fact_accepted():
@@ -436,6 +485,29 @@ def checker_accept_problems(case):
                                                     f"expected {case['tag']}"]
 
 
+def more_must_reject_failures(tables=None):
+    """[table, id] for each case of MORE_MUST_REJECT (or of the named
+    tables) that fails in full: accepted, or rejected for another reason,
+    or its truth or if-emitted outcome other than the data's."""
+    return [[t, c["id"]] for t, cases in MORE_MUST_REJECT.items()
+            if tables is None or t in tables
+            for c in cases if must_reject_problems(c)]
+
+
+def more_must_reject_verdicts():
+    """[table, id] for each MORE_MUST_REJECT case whose certificate the
+    checker accepts, or rejects for another reason than REJECT_REASONS
+    gives: the verdict alone, apart from the truth and the if-emitted
+    outcome, which the search's own certificates decide."""
+    out = []
+    for t, cases in MORE_MUST_REJECT.items():
+        for c in cases:
+            got, why = DC.verdict(key(*c["key"]), cert_of(c["cert"]))
+            if got is not None or why != REJECT_REASONS[c["id"]]:
+                out.append([t, c["id"]])
+    return out
+
+
 def must_reject_accepted():
     """[table, id] for each DISCHARGE_MUST_REJECT case whose certificate the
     checker accepts (none, unless a seam is patched)."""
@@ -455,7 +527,9 @@ def decided_false_cases():
     rows.append(("DISCHARGE_OCCURRENCE_CASE all",
                  X.DISCHARGE_OCCURRENCE_CASE["all"]["message"]))
     rows += [(f"DISCHARGE_BAD_MOVES_CHANGED {i}", c["message"])
-             for i, c in X.DISCHARGE_BAD_MOVES_CHANGED.items()]
+             for i, c in DISCHARGE_BAD_MOVES_CHANGED.items()]
+    rows += [(f"E56_BAD_MOVES {c['id']}", c["message"]) for c in X.E56_BAD_MOVES
+             if c["refusal"] == X.OBLIGATION_DECIDED_FALSE]
     rows += [(f"DISCHARGE_BAD_MOVES_ADDED {c['id']}", c["message"])
              for c in DISCHARGE_BAD_MOVES_ADDED if "message" in c]
     rows += [(f"F3_ROOTS_CASES {c['id']}", c["message"]) for c in X.F3_ROOTS_CASES
@@ -510,8 +584,10 @@ def tan_zero_problems():
 def entries_problems():
     """DISCHARGE_NEW_ENTRIES pinned at their positions (sqrt_zero
     immediately before sqrt_sq, cos_zero after exp_one), SQRT_NONNEG_ENTRY
-    after cos_zero, and EXACT_VALUE_ENTRIES as ENTRIES' equations with no
-    schema variable and no hypothesis."""
+    after cos_zero, CONSOLIDATION_ENTRIES' six after it (E54), each
+    statement, schema and hypotheses as pinned, and EXACT_VALUE_ENTRIES as
+    ENTRIES' equations with no schema variable and no hypothesis (none of
+    the six is one)."""
     out, names = [], list(ENTRIES)
     for name, e in X.DISCHARGE_NEW_ENTRIES.items():
         got = ENTRIES.get(name)
@@ -526,13 +602,16 @@ def entries_problems():
             out.append(f"{name}: hyps")
     if "sqrt_zero" in names and names.index("sqrt_zero") + 1 != names.index("sqrt_sq"):
         out.append(f"sqrt_zero is not immediately before sqrt_sq: {names}")
-    # cos_zero was appended last (DISCHARGE_NEW_ENTRIES), and sqrt_nonneg
-    # after it (SQRT_NONNEG_ENTRY, E49): ENTRIES goes from 16 to 17
-    if names[-2:] != ["cos_zero", "sqrt_nonneg"]:
-        out.append(f"cos_zero then sqrt_nonneg are not last: {names}")
-    if len(names) != 17:
-        out.append(f"ENTRIES has {len(names)} entries, expected 17")
-    for name, e in X.SQRT_NONNEG_ENTRY.items():
+    # cos_zero was appended last (DISCHARGE_NEW_ENTRIES), sqrt_nonneg after
+    # it (SQRT_NONNEG_ENTRY, E49), and CONSOLIDATION_ENTRIES after that, in
+    # their order (E54): ENTRIES goes from 16 to 17 to 23
+    tail = ["cos_zero", "sqrt_nonneg", *X.CONSOLIDATION_ENTRIES]
+    if names[-len(tail):] != tail:
+        out.append(f"cos_zero, sqrt_nonneg and CONSOLIDATION_ENTRIES are not "
+                   f"last, in that order: {names}")
+    if len(names) != 23:
+        out.append(f"ENTRIES has {len(names)} entries, expected 23")
+    for name, e in {**X.SQRT_NONNEG_ENTRY, **X.CONSOLIDATION_ENTRIES}.items():
         got = ENTRIES.get(name)
         if got is None or got.statement != judgement(e["statement"]) \
                 or tuple(got.schema) != e["schema"] \
@@ -947,7 +1026,11 @@ def mutate(rng, cert):
         if r < 0.35 and fs:
             i = rng.randrange(len(fs))
             f, rel, cc = fs[i]
-            fs[i] = (f, {">": "<", "<": ">", "# 0": "# 0"}[rel], cc)
+            # the sign flipped, or (E53) the strictness toggled
+            flip = ({">": "<", "<": ">", ">=": "<=", "<=": ">=", "# 0": "# 0"}
+                    if rng.random() < 0.6 else
+                    {">": ">=", ">=": ">", "<": "<=", "<=": "<", "# 0": "# 0"})
+            fs[i] = (f, flip[rel], cc)
         elif r < 0.6:
             c["content"] = -c["content"]
         elif r < 0.8 and fs:
@@ -1018,8 +1101,9 @@ def _farkas_key(rng):
 
 def _sqrt_key(rng):
     """E49's family: c0 + c1*sqrt(p) REL 0 for a linear p over an Interval,
-    with the points where p is a rational square as targets, so that sqrt p
-    is evaluated exactly (others are skipped and counted)."""
+    with the points where p is a rational square as targets, p's root among
+    them, so that sqrt p is evaluated exactly (others are skipped and
+    counted)."""
     iv, (lo, hi) = _interval(rng)
     a, b, p = _linear(rng, lo, hi, root_at_end=rng.random() < 0.5)
     g = _lit_sum([(Fraction(rng.randint(-2, 3), rng.randint(1, 2)), None),
@@ -1029,7 +1113,24 @@ def _sqrt_key(rng):
     prop = T.NonZero(g) if rng.random() < 0.25 else _rel(rng, g, strict)
     targets = [{"x": (Fraction(n, d) ** 2 - b) / a}
                for n, d in ((rng.randint(0, 12), rng.randint(1, 6)) for _ in range(8))]
-    return _key(prop, (iv,)), targets
+    # p's root always among them: there sqrt p = 0, where a label read as
+    # strict (sqrt p > 0) is false
+    return _key(prop, (iv,)), targets + [{"x": -b / a}]
+
+
+def _cos_key(rng):
+    """ATOM_FACT_RULE's cos family (E54): c0 + c1*cos(p) REL 0 for a linear
+    p over an Interval, near the bounds 1 - cos p >= 0 and cos p + 1 >= 0,
+    with the root of p as the target, where cos p = cos 0 = 1 is exact
+    (cos_zero); every other point is skipped and counted."""
+    iv, (lo, hi) = _interval(rng)
+    a, b, p = _linear(rng, lo, hi, root_at_end=rng.random() < 0.5)
+    c1 = Fraction(rng.choice((1, -1, 2, -2, Fraction(1, 2))))
+    c0 = abs(c1) * Fraction(rng.choice((-2, -1, -1, 0, 1, 1, 2)), rng.choice((1, 1, 2)))
+    g = _lit_sum([(c0, None), (c1, T.App("cos", p))])
+    strict = rng.random() < 0.5
+    prop = T.NonZero(g) if rng.random() < 0.2 else _rel(rng, g, strict)
+    return _key(prop, (iv,)), [{"x": -b / a}]
 
 
 def _root_key(rng):
@@ -1118,24 +1219,32 @@ def _sign_key(rng):
 def _product_key(rng):
     """A key built from a product c * f1 * ... * fn of linear factors whose
     roots lie outside the Interval or at an end, with each factor's sign
-    taken at the Interval's middle and its certificate from the search."""
+    taken at the Interval's middle and its certificate from the search. A
+    factor whose root is a closed end is 0 there, so its relation is
+    non-strict, and the key is then non-strict (E53), except one time in
+    four, when the key is strict and false at that end, which only a
+    checker that allows a non-strict factor under a strict target accepts;
+    a non-strict key's strict factors are sometimes written non-strict."""
     lo, hi = _q(rng), _q(rng)
     while lo == hi:
         hi = _q(rng)
     lo, hi = min(lo, hi), max(lo, hi)
-    iv = T.Interval("x", T.lit(lo), rng.random() < 0.5, T.lit(hi), rng.random() < 0.5)
+    lc, hc = rng.random() < 0.5, rng.random() < 0.5
+    iv = T.Interval("x", T.lit(lo), lc, T.lit(hi), hc)
     dom, mid = (iv,), (lo + hi) / 2
-    factors, sign = [], 1
+    factors, sign, zero_at_end = [], 1, False
     for _ in range(rng.randint(1, 3)):
         a = Fraction(rng.choice((1, -1, 2)))
         r = rng.choice((lo, hi, lo - rng.randint(1, 3), hi + rng.randint(1, 3)))
         f = T.Add(T.Mul(T.lit(a), XV), T.lit(-a * r))
         s = 1 if a * (mid - r) > 0 else -1
         sign *= s
-        factors.append((f, s))
+        zero = (r == lo and lc) or (r == hi and hc)
+        zero_at_end |= zero
+        factors.append((f, s, zero))
     c = Fraction(rng.choice((1, -1, 2, Fraction(-1, 3))))
     total = T.lit(c)
-    for f, _ in factors:
+    for f, _, _ in factors:
         total = T.Mul(total, f)
     if rng.random() < 0.3:
         (p,), atoms = FD.ring_polys([total])
@@ -1147,11 +1256,17 @@ def _product_key(rng):
         # The key states total's true sign, except one time in four, when
         # its certificate's parity is then wrong while every child holds.
         positive = ((c > 0) == (sign > 0)) != (rng.random() < 0.25)
-        prop = T.Rel(">" if positive else "<", total, T.Num(0))
+        strict = not zero_at_end if rng.random() < 0.75 else zero_at_end
+        if not zero_at_end and rng.random() < 0.3:
+            strict = False
+        op = (">" if positive else "<") if strict else (">=" if positive else "<=")
+        prop = T.Rel(op, total, T.Num(0))
         sense, content = None, c if positive else -c
-        rels = [">" if s > 0 else "<" for _, s in factors]
+        rels = [(">" if s > 0 else "<") + ("=" if zero or (not strict and rng.random() < 0.3)
+                                          else "")
+                for _, s, zero in factors]
     cfs = []
-    for (f, _), rel in zip(factors, rels):
+    for (f, _, _), rel in zip(factors, rels):
         child = T.NonZero(f) if rel == "# 0" else T.Rel(rel, f, T.Num(0))
         cc = SR.propose(_key(child, dom))
         if cc is None:
@@ -1258,6 +1373,10 @@ def property_results(seed=SEED, families=None):
             trial(rng, "farkas", k, random_certs=farkas_candidates(k)[:10])
         for _ in range(80):  # E49's sqrt label (SQRT_FACT_RULE)
             k, targets = _sqrt_key(rng)
+            trial(rng, "farkas", k, targets=targets,
+                  random_certs=farkas_candidates(k)[:10])
+        for _ in range(80):  # E54's cos labels (ATOM_FACT_RULE)
+            k, targets = _cos_key(rng)
             trial(rng, "farkas", k, targets=targets,
                   random_certs=farkas_candidates(k)[:10])
 
@@ -1382,7 +1501,9 @@ class Expected(unittest.TestCase):
 class MustReject(unittest.TestCase):
     def test_reasons_cover_the_cases(self):
         self.assertEqual(set(REJECT_REASONS), {c["id"] for c in X.DISCHARGE_MUST_REJECT
-                                               + SQRT_FACT_MUST_REJECT})
+                                               + SQRT_FACT_MUST_REJECT
+                                               + SIGN_PRODUCT_MUST_REJECT
+                                               + CONSOLIDATION_MUST_REJECT})
         self.assertEqual(len(X.DISCHARGE_MUST_REJECT), 32)
 
     def test_each_is_rejected_for_its_reason(self):
@@ -1395,6 +1516,14 @@ class MustReject(unittest.TestCase):
             with self.subTest(case=c["id"]):
                 self.assertEqual(must_reject_problems(c), [])
         for c in SQRT_FACT_CHECKER_ACCEPTS:
+            with self.subTest(case=c["id"]):
+                self.assertEqual(checker_accept_problems(c), [])
+
+    def test_consolidation_cases(self):
+        for c in SIGN_PRODUCT_MUST_REJECT + CONSOLIDATION_MUST_REJECT:
+            with self.subTest(case=c["id"]):
+                self.assertEqual(must_reject_problems(c), [])
+        for c in SIGN_PRODUCT_CHECKER_ACCEPTS + CONSOLIDATION_CHECKER_ACCEPTS:
             with self.subTest(case=c["id"]):
                 self.assertEqual(checker_accept_problems(c), [])
 

@@ -201,10 +201,19 @@ def _sqrt_sq_val(s):
             and s.base.fn == "sqrt")
 
 
+def _never(s):
+    """pyth_cos, (cos u)^2 == 1 - (sin u)^2, never counts (ATOM_FACT_RULE,
+    E54): it trades one atom for another and evaluates nothing, as a
+    rewrite that swaps atoms is not an evaluation."""
+    return False
+
+
 # EVALUATED_RULE (a2): the reading of each schema entry in force. A schema
-# entry added later is read structurally (_counts) until it states one.
+# entry added later is read structurally (_counts) until it states one;
+# pyth is read so, at a subterm tree-equal to (sin b)^2 + (cos b)^2, which
+# is 1 unevaluated (E54).
 _READINGS = {"sqrt_sq": _sqrt_sq, "atan_odd": _atan_odd,
-             "sqrt_sq_val": _sqrt_sq_val}
+             "sqrt_sq_val": _sqrt_sq_val, "pyth_cos": _never}
 
 
 def _rat_sqrt(q):
