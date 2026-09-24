@@ -14,9 +14,9 @@ lives only once.
 `PASS: 225 of 225 checks passed` for items 1–6, exit 0. The unit tests
 (`python3 -m unittest discover -s kernel`) pass 69 of 69. Both were re-run
 independently after the last change, on 2026-09-24. Since then the suite has
-grown to 582: item 7 added the problem files, E27 the evaluated-answer
-cases, discharge its certificate checks, and `int_subst` its moves and
-files.
+grown to 655: item 7 added the problem files, E27 the evaluated-answer
+cases, discharge its certificate checks, `int_subst` its moves and files,
+and the consolidation step its moves, entries and review cases.
 
 | Proof | Verdict |
 |---|---|
@@ -397,6 +397,45 @@ the regularity admissions. `ftc` alone had the same hole.
   its endpoint gives 1 ≠ π²/4. §8.6's probe value for it was wrong too.
 - §6.4 did not say where φ′'s side conditions live.
 - §11.1's endpoint obligation is two obligations, not one.
+
+## Since: consolidation, and a false `Proved` caught in review (2026-09-24)
+
+Decisions E51–E58 in `p1_expected.py`. Where the owner decided, it is noted:
+- **P1.1 from the sheet's goal** (E52) joins the main proofs as the
+  official route. Every planted bug and mutation is re-traced against it.
+- **Reversed ranges everywhere** (E56, owner). With non-literal ends, a
+  range's interval is built from whichever order discharge proves. If
+  neither order is proved, the step is refused with `orientation-undecided`.
+  Orders are decided only when a key uses the range, and each decision is
+  memoised. So ∫_{π/2}^0 2x installs and is proved by `ftc` alone.
+- **`int_flip`** (E51, owner): ∫_a^b f → ∫_b^a −f.
+- **The non-strict sign product** (E53). 1 − x² ≥ 0 on [0, 1] is
+  −(x − 1)(x + 1).
+- **Six entries** (E54): `pyth`, `pyth_cos`, `sin_nonneg_on`,
+  `cos_nonneg_on`, `cos_le_one` and `cos_ge_neg_one`.
+- **QC1**: ∫₀¹ √(1 − x²) = π/4 by x := cos θ, Proved modulo 5 admissions,
+  all regularity.
+
+**A false `Proved.` reached the committed kernel, and review caught it
+before any push.** `rewrite pyth` with u := D[x](|x|), or with a divergent
+integral, erased the term, and `close 1` then reported a plain `Proved.`.
+`pyth` is the first entry whose right side drops its variable, and
+`rewrite`'s exact-match path skipped the check that refuses an Int or D.
+- **E57, the fix:** no rule may erase an Int or D node unless its
+  definedness is owed, which means never until regularity lands. The check
+  runs on every match path, and `ftc`, `int_subst` and `int_flip` also
+  refuse an Int or D in an integral's limits.
+- **The second review:** it was independent and covered the whole erasure
+  class, including `ln(−1)`, `1/0` and `tan(π/2)` hidden in an
+  instantiation. It found no remaining way to a false `Proved`.
+- **Its minor findings are fixed:**
+  - each half of E57's check is now tested on its own;
+  - 0⁰ is 1 for an integer exponent 0 (E58);
+  - a memo stability issue.
+- **Also fixed:** a 33-second install caused by deciding orders eagerly now
+  takes under a millisecond.
+
+The suite is at 655 of 655.
 
 ## What is in `kernel/`
 

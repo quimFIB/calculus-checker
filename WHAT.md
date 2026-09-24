@@ -77,34 +77,25 @@ kill it. Nothing else is required reading before stage 1; Waterproof's course
 evaluations are optional, since adoption evidence for the class is not this
 tool's falsifier.
 
-## Start here: a small consolidation step, then regularity
+## Start here: regularity, the last piece of stage 1
 
-The kernel proves readiness P1 **from the sheet's own goal**, and stage 0's
-S1–S3. Discharge and `int_subst` are built. `python3 kernel/proof_of_life.py`
-passes 582 checks (`PROOF_OF_LIFE.md`). Every proof reads *Proved modulo N
-admissions*, and every one of those admissions is a regularity premise: 3
-for `ftc`, plus 2 per substitution.
+The kernel proves readiness P1 from the sheet's own goal, stage 0's S1–S3,
+three substitution files, and ∫₀¹ √(1 − x²) = π/4.
+`python3 kernel/proof_of_life.py` passes 655 checks (`PROOF_OF_LIFE.md`).
+Every proof reads *Proved modulo N admissions*, and every one of those
+admissions is a regularity premise: 3 for `ftc`, plus 2 per substitution.
 
-1. **Consolidation, next.** These are small items found along the way:
-   - **P1.1 from the sheet's goal joins the main proof set.** It is staged
-     today. This means re-tracing the planted bugs and mutations against it.
-   - **The sign-product method closes non-strict goals.** `1 − x² ≥ 0` on
-     [0, 1] is (1 − x)(1 + x), each factor ≥ 0.
-   - **Two new entries:** `pyth` (sin² + cos² = 1), and a sign fact for cos
-     on [0, π/2].
+**The C⁰/C¹ subset of regularity (§6.9)** that `ftc` and `int_subst` need
+closes every remaining admission and gives the first plain `Proved.`.
 
-   Together these let ∫₀¹ √(1 − x²) finish by x := cos θ. The substitution
-   is accepted today, but the goal owes `1 − x² ≥ 0`, which nothing closes.
-2. **The C⁰/C¹ subset of regularity (§6.9)** that `ftc` and `int_subst`
-   need. This closes every remaining admission and gives the first plain
-   `Proved.`. It is also where `Int` and `D` get their definedness. §18 Q23
-   is settled (2026-09-24): they become formers, like `/` and `ln`.
-   `Int[x = a .. b] f` owes f integrable on [a, b], and `D[x] e` owes e
-   differentiable at x. After that, `ring` treats them as atoms, which is
-   what makes "solve for I" after integration by parts work. Until then,
-   E26 (b)'s refusal stays.
+It is also where `Int` and `D` get their definedness. §18 Q23 is settled
+(2026-09-24): they become formers, like `/` and `ln`. `Int[x = a .. b] f`
+owes f integrable on [a, b], and `D[x] e` owes e differentiable at x. After
+that, `ring` treats them as atoms, which is what makes "solve for I" after
+integration by parts work. Until then, E26 (b)'s refusal and E57 (no rule
+erases an Int or D) stand.
 
-Each piece works as before:
+It works as before:
 - write the expected results by hand, and commit them before the code;
 - build against them;
 - have a skeptic try to break it;
@@ -209,6 +200,21 @@ recognizer table scored on a held-out set (revision 8), then the UI.
    - **Review:** a skeptic found no false substitution step. It did expose
      a missed pole, now refused by trying rational roots as counter-points
      (E50), and two crashes, now fixed.
+9. **Consolidation — done 2026-09-24.**
+   - **P1.1 from the sheet's own goal** is now the official route.
+   - **Reversed ranges work everywhere** (E56, owner): the interval is built
+     from whichever order discharge proves.
+   - **`int_flip`** (owner): ∫_a^b f → ∫_b^a −f.
+   - **The sign product closes non-strict goals.**
+   - **Six trig entries:** `pyth`, `pyth_cos`, sign facts for sin and cos,
+     and cos bounds.
+   - **QC1:** ∫₀¹ √(1 − x²) = π/4 by x := cos θ.
+
+   The skeptic found a **false plain `Proved.`**, caught before any push.
+   `rewrite pyth` could erase an undefined `D` or a divergent `Int`. It is
+   fixed by E57: no rule may erase an Int or D node. An independent second
+   review found no further way to a false `Proved`. Its minors are fixed,
+   including 0⁰ = 1 (E58).
 
 **Stage 0b is closed** (2026-09-21 and 2026-09-22; setup and notes in
 `_scratch/holpy-trial/` — outside this tool, and a dangling pointer if it is ever published; findings in §4.2). Its verdict: reimplement the core

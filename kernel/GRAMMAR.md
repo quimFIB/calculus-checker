@@ -213,6 +213,12 @@ This table is also a constructor invariant (§7, D17): no `RPow` with a
 literal integer exponent can be built by any path, so the parser's choice
 cannot be undone later by substitution.
 
+**`Pow(a, 0)` is 1 for every `a`, including 0** (E58, 2026-09-24). This is
+`ring`'s convention: an integer power is repeated multiplication, and the
+empty product is 1. So `0^0` is 1 and owes nothing. `RPow` is unaffected and
+still owes `a > 0`, and a limit of the form 0⁰ is §6.7's business, not a
+term's value.
+
 **D9: unary minus binds tighter than `*` and `/`, and looser than application
 and `^`.** So `-x^2` is `-(x^2)`, `-t*sin t` is `(-t)*(sin t)`, and `a*-b`
 parses. This agrees with the spike and with how §6.3 writes `-(sin u) * D[x]u`.
