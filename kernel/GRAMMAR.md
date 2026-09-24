@@ -60,6 +60,7 @@ were added, not by section.)
 | `D11-bound-and-free` | a goal with bv ∩ fv ≠ ∅ (D11) |
 | `D13-unnamed-interval` | a bare interval on a judgement without exactly one free variable |
 | `oo-misplaced` | `oo` anywhere but an `Int` limit or the open end on its own side of an interval (D18) |
+| `nesting-too-deep` | a term nested too deeply for the parser, e.g. 200 parenthesised `sin(…)`. The parser converts its own stack overflow into this refusal, so no input crashes it (2026-09-25) |
 | `chained-cmp` | `a < x < b` (D12) |
 | `hash-nonzero` | `a # b` with b not the literal 0 (D12) |
 | `mvar-misplaced` | `?A` anywhere but the whole right side of one `==` in a goal (D15) |

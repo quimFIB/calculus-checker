@@ -4578,6 +4578,11 @@ PARSE_REFUSALS = [
     ("sinx", {}, "D4-not-a-name"),
     ("2 + Int[x = 0 .. 1] x", {}, "D7-int-in-arith"),
     ("oo + 1", {}, "oo-misplaced"),   # GRAMMAR.md §5: oo is not arithmetic
+    # regularity review 2026-09-25 (main session, delegated by the owner): a
+    # term nested too deeply for the parser is refused, never a crash. The
+    # parser converts any RecursionError into this ParseError (E21 applies
+    # to the parser too, since every goal enters through it).
+    ("sin(" * 200 + "x" + ")" * 200, {}, "nesting-too-deep"),
 ]
 
 # The same, read by parse_judgement rather than parse_term: GRAMMAR.md D18,
@@ -5579,7 +5584,17 @@ DECISIONS = {
            "DECIDED_FALSE_MESSAGES_REG['reg_undefined']. This is what "
            "refuses the FTC-across-a-pole integrand by regularity as well "
            "as by its former (REG_BAD_MOVES, REG_PLANTED_BUGS "
-           "former_div_dropped)",
+           "former_div_dropped)"
+           ". Amended by the regularity review (main session, delegated by "
+           "the owner 2026-09-25): a Reg whose domain is empty is still "
+           "refused when a CLOSED side is decided false, since E5 keys a "
+           "closed side at domain true: sqrt(-1) + x in C^0(x > 1, x < 0) "
+           "is refused through -1 >= 0, though vacuously true. Intended: "
+           "it is E7's treatment of a closed former (sqrt(-1) owes -1 >= 0 "
+           "wherever it enters, whatever the domain), no move emits a Reg on "
+           "an empty domain (every range is built from a proved order, E56, "
+           "and a goal's own domain is the learner's), and the cost is only "
+           "a refusal (REG_REVIEW_DECIDED_FALSE)",
     "E64": "§18 Q23's formers (the owner's option A, settled; the shapes "
            "decided by the main session, delegated by the owner "
            "2026-09-24). An Int node is STATABLE when neither limit is oo "
@@ -7547,6 +7562,30 @@ DATA_CHANGES = (
      "REG_SWITCH's second commit names REG_TEXT_CHANGES; the prose is the "
      "spec's to edit, and no check reads it",
      "regularity build 2026-09-25, adjudicated"),
+    # regularity review 2026-09-25: spec only, staged (REG_REVIEW_SWITCH)
+    ("DECISIONS E63 (amended)",
+     "a Reg on an empty domain is refused when a closed side is decided "
+     "false, recorded as intended",
+     "the review's minor; the main session's decision, delegated by the "
+     "owner: E7 treats a closed former the same way, no move emits a Reg "
+     "on an empty domain, and the cost is a refusal",
+     "regularity review 2026-09-25"),
+    ("section 18 (new): REG_SIDE_KEY_RULE, REG_REVIEW_MUST_REJECT, "
+     "REG_REVIEW_DECIDED_FALSE, REG_REVIEW_DEEP_CASES, "
+     "REG_DEEP_ADMIT_REASONS, REG_REVIEW_PLANTED_BUGS, REG_REVIEW_NOTES, "
+     "REG_REVIEW_CHANGES, REG_REVIEW_SWITCH",
+     "two must-reject certificates whose hyp side names the item one past "
+     "the Reg's domain (child-rejected/unknown-item), the rule that a side "
+     "is keyed at exactly with_domain(prop, key.dom), the vacuous-domain "
+     "refusal pinned, and three deep-term installs (two that crashed, one "
+     "control)",
+     "the review's major (the M3 suite gap), its minor, and its crash "
+     "note; no existing expected value changes",
+     "regularity review 2026-09-25"),
+    ("PARSE_REFUSALS: nesting-too-deep (new)",
+     "a 200-deep parenthesised sin(...) is refused nesting-too-deep; the parser converts any RecursionError into that ParseError",
+     "the regularity review's spec agent found parse_term raising RecursionError on sin(sin(...(x))) at depth ~150-200: a crash in trusted code under E21, since every goal enters through the parser. Converting the overflow (rather than a fixed depth bound) keeps juxtaposed forms that parse at depth 350 working. Main session, delegated by the owner",
+     'regularity review 2026-09-25'),
 )
 
 
@@ -14261,3 +14300,153 @@ REG_TEXT_CHANGES = {
     "E26 (b) comment, E7, REWRITE_RULE steps 5 and 9, E57_RULE": "read with "
         "FORMER_RULE's E66 paragraphs",
 }
+
+
+# ---------------------------------------------------------------------------
+# 18. The regularity review (regularity review 2026-09-25)
+#
+# A skeptic of the regularity build (eeb1a8b) found no false 'Proved.', one
+# suite gap, one intended-but-unstated behaviour and one crash. Specified
+# before any code; staged (REG_REVIEW_SWITCH).
+
+# The suite gap: no REG_MUST_REJECT side certificate referenced a domain
+# item, so a checker that decided each side on D + (the side itself) passed
+# every case (the skeptic's M3). The rule, stated so the build can assert
+# it, and two cases that fail under M3.
+REG_SIDE_KEY_RULE = (
+    "Every side condition a regularity certificate carries is decided on "
+    "exactly the key terms.with_domain(prop, key.dom): the Reg's own domain "
+    "tuple, unchanged, with nothing appended (never the side itself, an "
+    "earlier side, or the parent's children's sides), and E5 alone may "
+    "shorten it (to true, for a closed side). So an item index in a side's "
+    "hyp or farkas certificate ranges over key.dom only, and one past its "
+    "end is 'unknown-item'. The build asserts it directly: for every side "
+    "of every certificate in REG_EXPECTED (both files), REG_CASE_CERTS and "
+    "REG_CHECKER_ACCEPTS, the key the checker decides equals "
+    "with_domain(prop, key.dom) as a tree (REG_CHECK_RULE, Sides, which "
+    "already says 'a side is always keyed at the Reg's whole domain D').",
+)
+REG_REVIEW_MUST_REJECT = [
+    {"id": "side_assumes_itself_pole",
+     "key": ("1/x in C^0([-1, 1])", "[-1, 1]"),
+     "cert": _REG(_N("div", _K, _X, side=[("x # 0", _member(1))])),
+     "rejects_because": "child-rejected/unknown-item",
+     "note": "the domain has one item, [-1, 1], at index 0; member 1 names "
+             "the side x # 0 itself only if the checker appended it (M3)",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("refused", _reg_undefined(
+         "1/x in C^0([-1, 1])", "x # 0 @ [-1, 1]",
+         _point("x # 0 @ [-1, 1]", "0 # 0", x="0")))},
+    {"id": "side_assumes_itself_sqrt_C1",
+     "key": _SQRTX_C1_CLOSED,
+     "cert": _REG(_N("sqrt", _X, side=[("x > 0", _member(1))])),
+     "rejects_because": "child-rejected/unknown-item",
+     "note": "the C^1 twin: x > 0 assumed from itself would certify sqrt x "
+             "C^1 at 0",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("admitted", T_NONE, REASON_NONE)},
+]
+# The contrast, already pinned: REG_CHECKER_ACCEPTS tan_by_hypothesis and
+# d_former_by_hypothesis certify a side by hyp member 0, a real item of D.
+
+# The minor, pinned as intended (E63's amendment).
+REG_REVIEW_DECIDED_FALSE = [
+    {"id": "vacuous_domain_closed_side",
+     "key": ("sqrt(-1) + x in C^0(x > 1, x < 0)", "x > 1, x < 0"),
+     "if_emitted": ("refused", _reg_undefined(
+         "sqrt(-1) + x in C^0(x > 1, x < 0)", "-1 >= 0",
+         _negation("-1 >= 0", "-1 < 0", T_NORM_NUM))),
+     "why": "the domain is empty, so the claim is vacuously true, but the "
+            "side -1 >= 0 is closed and E5 keys it at true; it is literal "
+            "as emitted, so F1 (which needs the exact values to change it) "
+            "does not apply, and F2 decides it: its negation -1 < 0 is "
+            "discharged by norm_num. Consistent with E7, which refuses the "
+            "same former wherever sqrt(-1) enters"},
+]
+
+# The crash: kernel._discharge_reg's _frozen(cert) is recursive and raised
+# RecursionError out of install at term depth ~330-600. The build makes it
+# iterative and maps a RecursionError anywhere in a Reg's search, check or
+# refutation to 'no certificate' (ARCHITECTURE.md §5's rule for a key
+# deeper than the stack). Each goal installs, with no exception and no
+# refusal; it owes exactly one obligation, its Int's former (the integrand
+# owes no E6/E26 former, and the range is literal, so no orientation).
+_DEEP_SUM = " + ".join("x^%d" % i for i in range(400))
+_DEEP_SIN = "sin " * 350 + "x"      # juxtaposed: sin(sin(...)) is D6's
+_DEEP_SIN_300 = "sin " * 300 + "x"  # form, but see REG_REVIEW_NOTES
+REG_DEEP_ADMIT_REASONS = (REASON_NONE, REASON_REJECTED)
+REG_REVIEW_DEEP_CASES = [
+    {"id": "deep_sum_400",
+     "goal": "Int[x = 0 .. 1] " + _DEEP_SUM + " == ?A",
+     "outcome": "installs",
+     "emits_one": (_DEEP_SUM + " in C^0([0, 1])", "[0, 1]", (S_FORMER,)),
+     "status": ("discharged", T_REG_OK, "or admitted, reason in "
+                "REG_DEEP_ADMIT_REASONS, when the derivation is deeper than "
+                "the stack"),
+     "report": "Open: the goal as installed",
+     "was": "RecursionError out of install (the skeptic; committed "
+            "eeb1a8b, reproduced 2026-09-25)",
+     "why": "the certificate's depth follows the left-nested sum, 400 add "
+            "nodes; every rule is side-free here (pow with n >= 0, E58's "
+            "x^0 included), so a derivation that fits the stack is "
+            "accepted ('reg', ()). Whether it fits is the stack's business "
+            "(ARCHITECTURE.md §5), so the case asserts no exception, the one "
+            "key, and one of the two statuses; the build records which on "
+            "its machine"},
+    {"id": "deep_sin_350",
+     "goal": "Int[x = 0 .. 1] " + _DEEP_SIN + " == ?A",
+     "outcome": "installs",
+     "emits_one": (_DEEP_SIN + " in C^0([0, 1])", "[0, 1]", (S_FORMER,)),
+     "status": ("discharged", T_REG_OK, "or admitted, reason in "
+                "REG_DEEP_ADMIT_REASONS"),
+     "report": "Open: the goal as installed",
+     "was": "RecursionError out of install (reproduced 2026-09-25)",
+     "why": "350 nested sin nodes, total, side-free"},
+    {"id": "deep_sin_300_control",
+     "goal": "Int[x = 0 .. 1] " + _DEEP_SIN_300 + " == ?A",
+     "outcome": "installs",
+     "emits_one": (_DEEP_SIN_300 + " in C^0([0, 1])", "[0, 1]",
+                   (S_FORMER,)),
+     "status": ("discharged", T_REG_OK),
+     "report": "Open: the goal as installed",
+     "why": "the control: at depth 300 the committed kernel installs and "
+            "discharges the former (checked 2026-09-25), so the fix must "
+            "keep that"},
+]
+
+REG_REVIEW_PLANTED_BUGS = {
+    "reg_side_assumes_itself": {
+        "mutation": "each side is decided on D + (prop,) instead of D (the "
+                    "skeptic's M3, in the checker's side function)",
+        "caught_by": [("REG_REVIEW_MUST_REJECT", "side_assumes_itself_pole"),
+                      ("REG_REVIEW_MUST_REJECT",
+                       "side_assumes_itself_sqrt_C1")]},
+}
+
+REG_REVIEW_NOTES = (
+    "Not a regularity matter, for the main session: the parser raises "
+    "RecursionError on sin(...) nested with parentheses 200 deep "
+    "(Int[x = 0 .. 1] sin(sin(...(x))) == ?A, reproduced 2026-09-25), where "
+    "the juxtaposed sin sin ... x parses at 350. The parser is trusted "
+    "(§15.2 item 8) and E21 reads an exception out of it as a crash, not a "
+    "refusal. That is why the deep cases above are written juxtaposed.",
+)
+
+REG_REVIEW_CHANGES = {
+    "expected values": "none change: the two must-reject cases and the "
+                       "vacuous case already behave as stated on eeb1a8b; "
+                       "the deep cases change a crash into an install",
+    "DECISIONS E63": "amended (the vacuous closed-side refusal, intended)",
+    "test_discharge.py's count of REG_MUST_REJECT (22)": "unchanged: the "
+        "new cases are their own table, asserted the same way",
+}
+REG_REVIEW_SWITCH = (
+    "One commit: kernel._discharge_reg's freeze made iterative, and a "
+    "RecursionError in a Reg's search, check or refutation read as no "
+    "certificate. The suite asserts REG_REVIEW_MUST_REJECT as "
+    "REG_MUST_REJECT is asserted (rejected for exactly its reason, its "
+    "point, its outcome if emitted), REG_REVIEW_DECIDED_FALSE by its "
+    "message, REG_SIDE_KEY_RULE over every certificate it names, "
+    "REG_REVIEW_DEEP_CASES by their outcome, and REG_REVIEW_PLANTED_BUGS in "
+    "a child process.",
+)
