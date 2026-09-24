@@ -5,15 +5,20 @@ one way, course to tool (§18 Q6, settled revision 6). The course problems are a
 separable package `./calc` loads, not part of the tool, which is §1's
 replaceability test made operational.
 
-Design, plus two spikes: the tool itself is not built. Design 2026-09-20,
-stage 0b first pass 2026-09-21, decoupling pass and stage 0 first pass
-2026-09-22, the stage 0c `ring`/`field` spike (`spike/ring/`) and a recognizer
-spike (`spike/recognizer/`) 2026-09-23.
+A design, two spikes, and **a headless kernel that proves readiness P1**
+(`kernel/`, the proof-of-life, 2026-09-24). The tool a learner would use is not
+built yet: there is no API, UI or assistance tier, and discharge is stubbed.
+Design 2026-09-20, stage 0b first pass 2026-09-21, decoupling pass and stage 0
+first pass 2026-09-22, the stage 0c `ring`/`field` spike (`spike/ring/`) and a
+recognizer spike (`spike/recognizer/`) 2026-09-23, the proof-of-life kernel
+2026-09-23 to 2026-09-24.
 
 `DESIGN.md` is the design; `STAGE0.md` is the first attempt to *use* it —
 forty-one goals and two table sweeps, fourteen gaps, all folded back in.
+`PROOF_OF_LIFE.md` is the record of the first code against it: what was
+built, what was decided, and what it found wrong in the design.
 
-`DESIGN.md` is **revision 9** (2026-09-23), and is **the whole record** — the adversarial review
+`DESIGN.md` is **revision 10** (2026-09-24), and is **the whole record** — the adversarial review
 that produced revision 2 and the revision-1 draft were folded into it and
 deleted before the project was under version control. Its closing sections
 carry what the review established, what was attacked and held, and how much to
@@ -62,154 +67,46 @@ and says so in its own UI; §15.4 states what carries soundness instead.
 **The falsifier.** §17's gate: work readiness P1–P5 and unit 00's quadrature
 cases, and plot the maximum hint rung per problem against time. If the average
 does not fall, the tool is a crutch rather than a trainer and §1's claim has
-failed. ~4,300 lines to find out.
+failed.
 
 Read `DESIGN.md` §1, §8.5 and §17 first — the idea, the product, and what would
 kill it. Nothing else is required reading before stage 1; Waterproof's course
 evaluations are optional, since adoption evidence for the class is not this
 tool's falsifier.
 
-## Start here: the proof-of-life (chosen 2026-09-23, reviewed the same day)
+## Start here: the first problem files (S1–S3)
 
-The next step is the first real code: **a headless kernel that proves
-readiness P1** (`DESIGN.md` §11.1 and §11.2). It is the smallest thing that
-runs the whole check-mode loop end to end, and it should land inside the
-roughly four-month motivation window §17 warns about. A six-dimension review,
-with each finding checked by a skeptic, shaped what follows. Its design-level
-findings are `DESIGN.md` revision 9.
+The proof-of-life is done: `python3 kernel/proof_of_life.py` proves both parts
+of readiness P1 and passes 225 checks (`PROOF_OF_LIFE.md`). The next step is
+the one it was built to unlock. **Run the first course goals through the
+kernel as its first problem files** (§16.4), and fix each encoding until the
+kernel accepts it with a correct obligation list. §17 says the kernel, not a
+reader, is the right reviewer of an encoding.
 
-`ring`/`field` are promoted from the ring spike rather than rewritten (see
-*Scope*).
+**Read for this step**, beyond §1, §8.5 and §17:
+- `PROOF_OF_LIFE.md`, for what the kernel does now and its caveats;
+- `kernel/ARCHITECTURE.md`, for the `step()` contract and the tracker;
+- §16.4, for the problem files;
+- §6.8, for the named entries S3 needs.
 
-**Read for this milestone**, beyond §1, §8.5 and §17:
-- §5.3–§5.4 (discharge, obligations);
-- §6.1–§6.4 (structural rules, algebra, derivatives, `ftc`);
-- §6.8 (the named entries);
-- §9 (`?A` and `close`);
-- §11 (the two proofs);
-- §15.3 (handles);
-- §18 Q21 (the matcher).
+**What it involves:**
+1. **A problem-file format and loader**, the `problem … proof … qed` shape
+   below, driving `step()`. The loader is untrusted: it only feeds moves to
+   the kernel. The goal still parses through `terms.parse_goal`.
+2. **The goals as files, seeded with `STAGE0.md`'s S1–S3:**
+   - S1 is ∫₀¹ 3x²+2x;
+   - S2 is ∫₀¹ x·exp(x²), which `ftc` closes with F := exp(x²)/2 and no
+     substitution;
+   - S3's current encoding is below.
+3. **For each goal, write the expected obligation list by hand before
+   running it**, as the proof-of-life did. The mismatches are the output:
+   either the encoding or the kernel is wrong, and each one is a finding.
+4. **Add the §6.8 entries they need** (`ln_e`, `e_gt_one`) to
+   `kernel/entries.py`, pinned by their exact statements.
 
-**Where things go, by default:** the kernel in `kernel/` and the done script
-as `kernel/proof_of_life.py`. `spike/` stays untouched as the record.
-
-### Before any code
-
-1. **Write the concrete grammar**: precedence, reserved names (`e` vs
-   `e_const`), declared function symbols only, binders, `?A`, endpoints and
-   domains. The spike's `terms.py` reads `e^x` with `e` as a variable,
-   `x(x+1)` as a call to an undeclared function, and `x^2^3` as a real power.
-2. **Write both P1 proofs out step by step** as (move, args) data, before any
-   code:
-   - every §6.8 entry pinned by its exact statement
-     (`atan_one_sqrt3 : atan(1/sqrt 3) ≐ pi/6`);
-   - every rewrite explicitly instantiated;
-   - `rewrite`'s matching settled, which is §18 Q21. The default to trial is
-     that the left-hand side and target agree after **ring**-normalising atom
-     arguments.
-3. **Write the expected obligation lists by hand**, each obligation with its
-   domain and open and closed intervals kept distinct. Take them from §6.3,
-   §6.4's four split `ftc` premises, and §11 as revision 9 corrected it. With
-   discharge stubbed, these lists are the only thing the milestone shows about
-   soundness.
-
-### The route
-
-**P1.1 starts from §11.1's substituted goal**
-`Int[t = 0 .. pi/2] sin(sqrt(t^2)) * (2*t) ≐ ?A`. It runs §11.1's remaining
-steps: `rewrite sqrt_sq`, owing `0 ≤ t` by range and `pi_pos`; then `ftc`
-with F := 2 sin t − 2t cos t; then the endpoint rewrites; then `close`.
-`int_subst` waits for the next step.
-
-This route exercises `sqrt_sq` on a bound variable, which §11 calls the whole
-argument for the design, and the matcher's binder case. *(A direct route on
-x, with F = 2 sin√x − 2√x cos√x, also works: `field` owes `2·sqrt x # 0`,
-`d_sqrt` owes `x > 0`, both on (0, π²/4), and `sqrt(pi^2/4)` still needs
-`pi_pos`. It never touches `sqrt_sq` on a bound variable, so it is the
-fallback.)*
-
-**P1.2 is §11.2 as revision 9 states it**: `ftc` with the partial-fraction
-F, the check `field [sqrt_sq_val 3]`, the endpoint rewrites, and `close`
-owing `3*sqrt 3 # 0`.
-
-### Scope
-
-**In:**
-- **Terms, parser and plain-text printer**, rewritten against §5.1. The spike's
-  are spike-grade.
-- **`ring`/`field` with facts.** `poly.py` and `field.py`'s normaliser and fact
-  reduction are near kernel quality; copy them, do not move them. Their
-  *interface* is not:
-  - facts become theorem handles, and the result inherits each fact's
-    obligations (`3 ≥ 0` from `sqrt_sq_val 3`);
-  - obligations become (term, domain) pairs keyed structurally, not strings;
-  - there is no public `holds` flag;
-  - residual formatting moves out of the trusted files.
-- **`deriv` as kernel steps that collect side conditions** (§6.3, with revision
-  7's `d_const`, and `-u` and `u/v` routed through `ring`/`field`).
-- **`ftc`** with §6.4's four premises.
-- **§6.1's `refl`, `trans` and `cong`, `norm_num`, and `rewrite`** per the
-  Q21 default, with revision 9's restriction under `D[x]`.
-- **`close` for `?A`**, with the trusted scope check and the `closed`
-  whitelist (§9).
-- **A minimal linear proof state**: the goal (which may carry `?A`), live
-  obligations and handles. Moves go through an in-process
-  `step(state, move, args)` shaped like §16.3's `/step`, so the script survives
-  as the regression suite.
-- **The §6.8 entries P1 uses:** `sqrt_sq`, `pi_pos`, `sin_pi_half`,
-  `cos_pi_half`, `sin_zero`, `ln_one`, `atan_one_sqrt3`, `atan_odd`,
-  `sqrt_sq_val` and `sqrt_pos`. `sqrt_pos` is named but not used until
-  discharge exists.
-- **§15.3's handles by default**, with the sentinel only if handles prove
-  awkward. The script's header says which is in force.
-
-**Stubbed:** discharge (§5.3). The obligation tracker keeps §5.4's three
-states. Each undischarged side condition becomes a kernel-minted
-**admission** with reason `discharge not built`, tagged with the §5.3 method or
-§6.8 cite expected to close it. **An obligation tagged `none` fails the
-milestone**, which is how the π gap would have shown up. The result reads
-`Proved modulo N admissions`, never `Proved`. Literal divisors closed by
-`norm_num` count as discharged.
-
-**Out:** `int_subst`, real discharge, regularity beyond listing it, the HTTP
-API, the UI, the recognizer, and §11.2's `approx` step, which is stage 2.
-
-### Done when
-
-A script with no UI, which stays as the regression suite, does all of this:
-
-1. **Proves** P1.1 ≐ 2 and P1.2 ≐ ⅓ ln 2 + π/(3√3). It also accepts P1.2 in
-   the form ⅓ ln 2 + π√3/9.
-2. **Asserts each obligation list**, with domains, against the list written
-   before coding, and checks every admission's tag.
-3. **Fails on three planted bugs:** `d_ln` emitting nothing; `ftc`'s derivative
-   premise attached to [a,b] instead of (a,b); the tracker dropping one
-   obligation.
-4. **Rejects wrong answers, asserting the residual each time:**
-   - P1.1 with F := sin t − t cos t (residual −t·sin t);
-   - P1.2 with ln coefficient 1/3 in place of 1/6;
-   - P1.2 without the `sqrt_sq_val` fact.
-5. **Refuses bad moves:**
-   - rewriting `D[x] sqrt(x^2)` with `sqrt_sq` (§6.1, revision 9);
-   - `close ?A := t` with t bound;
-   - `close ?A := Int[x = 0 .. 1] 1/(1 + x^3)`;
-   - a raw equation passed to `field` as a fact;
-   - the handle forgeries: constructing a theorem directly or through
-     `object.__new__`, a copy or pickle round trip used as a handle, a
-     fabricated handle id, a direct write to the tracker, and printing
-     `Proved.` while N > 0.
-6. **Round-trips the parser**: `parse(print(t)) ≡ t` as structure, over every
-   term in the script plus `-x^2`, `sin x^2`, `1/sqrt 3*x` and `pi^2/4`. Each
-   parsed goal is echoed before it is proved, and undeclared function symbols
-   are refused.
-
-**Then:** run the first course goals through the kernel as its first problem
-files (§16.4), fixing each encoding until the kernel accepts it with a correct
-obligation list. Seed them with `STAGE0.md`'s S1–S3:
-
-- S1 is ∫₀¹ 3x²+2x;
-- S2 is ∫₀¹ x·exp(x²);
-- S3's current encoding is below.
+**Done when** each of S1–S3 is accepted with its hand-written obligation list,
+that list is asserted by the regression suite, and every mismatch found along
+the way is either fixed or listed for `DESIGN.md`.
 
 `STAGE0.md` is a frozen record, and its S3 is the revision-5 version.
 
@@ -234,6 +131,10 @@ qed
 Restated for revision 9, and checked against `spike/ring/`: `field` closes
 the derivative owing `x # 0`, and the close needs `ln_e` and `ln_one`. It
 needs `e_gt_one` (§6.8), so add that to the §6.8 entries when S3 is used.
+Revision 10 adds more: `ln x` now owes `x > 0` where it enters (E26), so the
+goal owes it on [1, e_const] at installation. The range also owes its
+orientation `1 ≤ e_const` (E4). Neither is in the block above, which is why
+step 3 writes the list by hand before running it.
 
 **After it:** the rest of stage 1 (real discharge, `int_subst`, regularity),
 then the in-process `step` becomes §16.3's API, then the recognizer table
@@ -274,6 +175,19 @@ scored on a held-out set (revision 8), then the UI.
    algebra (normal forms, `trig_norm`) and a chain-rule row §8.5 lacks. Both
    want stage 1's kernel first, so revision 8 puts **stage 1's headless
    kernel next**, and this table after it.
+4. **The proof-of-life — done 2026-09-24, see `PROOF_OF_LIFE.md`.** A
+   headless kernel in `kernel/` proves readiness P1: P1.1 ≐ 2 modulo 6
+   admissions, and P1.2 ≐ ⅓ ln 2 + π/(3√3), in both forms, modulo 14 and 13.
+   Discharge is stubbed, so the verdict is never a bare `Proved`.
+   `python3 kernel/proof_of_life.py` stays as the regression suite, with 225
+   checks. It covers the obligation lists written before any code, planted
+   bugs, wrong answers with residuals, refused moves and handle forgeries. The
+   spec came first and was frozen (`kernel/GRAMMAR.md`,
+   `kernel/p1_expected.py`). It found holes in the design, folded in as
+   revision 10:
+   - `ftc` did not require a ≤ b, so it proved the divergent ∫₁⁻¹ 1/x² = 2;
+   - partial functions owed nothing, so `0*ln(-1)` proved. They now owe
+     their natural domain (E26).
 
 **Stage 0b is closed** (2026-09-21 and 2026-09-22; setup and notes in
 `_scratch/holpy-trial/` — outside this tool, and a dangling pointer if it is ever published; findings in §4.2). Its verdict: reimplement the core

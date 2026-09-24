@@ -1,8 +1,10 @@
 # A calculus proof checker
 
-**Status: design, revision 9, 2026-09-23. The tool is not built; two spikes
-are** — stage 0c's `ring`/`field` in `spike/ring/`, and the recognizer in
-`spike/recognizer/` (§8.5, §17). This proposes a
+**Status: design, revision 10, 2026-09-24. The tool is not built, but its
+kernel's first milestone is:** `WHAT.md`'s proof-of-life in `kernel/`, a
+headless kernel that proves readiness P1. Two spikes sit beside it: stage 0c's
+`ring`/`field` in `spike/ring/`, and the recognizer in `spike/recognizer/`
+(§8.5, §17). This proposes a
 system, states exactly what it would and would not guarantee, tests the design
 against real problems from the course, and ends with what it would cost and
 what would show it was the wrong idea.
@@ -55,8 +57,8 @@ revision 2 did not have — a **progress signal**, a **speculative probe**, an
 integrator out of the first implementation on pedagogical rather than
 architectural grounds (§2, §8.2). §17's stage plan and its gate were redone
 against that: the gate now asks whether the average hint rung *falls* over a
-corpus, which is a falsifier for §1's central claim and arrives after ~4,500
-lines.
+corpus, which is a falsifier for §1's central claim and arrives at the end of
+stage 1.
 
 **What revisions 4–6 changed** is in the colophon in full. In short: revision 4
 chose OCaml and revision 5 withdrew the premise, settling on **Python in three
@@ -112,8 +114,42 @@ handoff:
 - **§11's obligation lists were stale.** They still showed the closed-interval
   `ftc` of revision 5.
 
-What `rewrite` matches up to is now an open question (§18 Q21), to be settled
-by writing the P1 scripts out first.
+What `rewrite` matches up to was left open (§18 Q21), to be settled by
+writing the P1 scripts out first. Revision 10 settles it.
+
+**Revision 10 is the first one written against the kernel.** `WHAT.md`'s
+proof-of-life is built in `kernel/`: a headless kernel, standard library only,
+that proves both parts of readiness P1 — P1.1 ≐ 2, and P1.2 ≐ ⅓ ln 2 + π/(3√3)
+in both of its accepted forms — **modulo 6 and 14 admissions**, because
+discharge is stubbed and every undischarged obligation is admitted, tagged
+with the §5.3 method expected to close it. Its regression script passes 225
+checks: every obligation list against one written by hand before the code,
+planted bugs, wrong answers with their residuals, refusals, and handle
+forgeries. Building it found:
+- **Two unsound rules.** §6.4's `ftc` never required a ≤ b, so with reversed
+  limits its four premises held vacuously and it proved ∫₁⁻¹ 1/x² ≐ 2. Every
+  step over a range now owes `lo ≤ hi` (§6.1, §6.4). And **partial functions
+  owed nothing**: `0*ln(-1) ≐ ?A` and `tan(pi/2) − tan(pi/2) ≐ ?A` closed as
+  a plain `Proved.`, because `ring` cancelled atoms that denote nothing. Each
+  partial builtin is now a former that owes its natural domain, and `ring`,
+  `field` and `norm_num` refuse integrals and derivatives, whose definedness
+  cannot be stated yet (§5.1, §6.2). §14's claim that the total and partial
+  readings agree had silently depended on both.
+- **`D[x]` is not a plain binder** (§5.1). It binds inside its body and is
+  evaluated at x, so x stays free.
+- **Ten underspecified points, each now decided**: when `/` is charged, which
+  atom a/d is, `# 0` under `D[x]`, two §5.3 method preconditions, how `^` is
+  parsed, what `deriv`'s trust status is while `ftc` accepts its output, the
+  refusal shape §16.3 lacked, where untrusted code called from trusted code
+  sits (§15.2), and which of §15.3's two mechanisms is in force (both).
+- **§11's obligation lists were still incomplete.** They now show what the
+  kernel emits.
+
+§18 Q21 is settled. The line-count estimates are gone from §15.2 and §17: the
+trusted base is kept small because it has to be audited, and that is argued
+from what each part does. The record is `PROOF_OF_LIFE.md`, and the frozen
+specification the kernel was built against is `kernel/GRAMMAR.md` (D1–D18)
+and `kernel/p1_expected.py` (E1–E26).
 
 Scope agreed at the outset, and revised since: it targets **scalar real
 analysis** as §13 now bounds it; it is a design document, not a prototype; and
@@ -771,6 +807,10 @@ polynomials and lets `ring` prove x · x^(−1) ≐ 1 @ ⊤. Worse, it created a
 *spelling asymmetry in the trusted base*: `deriv` on 1/x fires `d_inv` and
 emits `x # 0`, while `deriv` on x^(−1) fired `d_pow_int` and emitted nothing.
 Both spellings now emit the same obligation, and §17's bank tests both.
+*(Revision 10: how a parser tells `e^n` from `e ^ e` is syntactic. The exponent
+is an integer power exactly when it is a literal n or −n, and anything else is
+a real power owing base > 0. `x^2^3` is refused as ambiguous rather than read
+either way — `kernel/GRAMMAR.md` D8.)*
 
 A *function* is not a first-class object: "the function x ↦ e" is the pair
 (variable, expression), and `D[x]`, `Int[x=..]`, `Sum[n=..]`, `lim[x->..]` bind
@@ -781,6 +821,55 @@ what keeps the kernel small enough to review.
 goal state may carry one, a kernel theorem never does, and `?A` may not mention
 a bound variable of the goal. §9 defines what it means and what `close` does
 with it.
+
+**`D[x]` binds inside its body and is evaluated outside it (revision 10).** The
+grammar lists it beside the three binders, and within `e` the x of `D[x] e` is
+bound. But `D[x] e` denotes the derivative *at* x, so x is also free in the
+whole term: fv(`D[x] e`) = fv(e) ∪ {x}, and `D[x]` is not alpha-convertible.
+§6.4's `D[x] F ≐ f @ (a,b)` needs exactly this, since its domain constrains x.
+§9's scope check must not count that x as bound, or it would refuse
+`?A := 2*x` for `D[x] x^2 ≐ ?A`. Substitution into `D[x] e`, which §15.2 item 1
+puts in the trusted base, is defined accordingly in `kernel/GRAMMAR.md` §5
+(D10).
+
+**Every former is charged when its term enters the proof** (revision 10) —
+at installation, in each new goal, in a `close` value, in a goal hypothesis
+and in a fact's instance values — not when `field` happens to meet it. §5.1's
+grammar says `/` and negative powers "carry a nonvanishing obligation", and
+nothing said when.
+
+**The partial builtins are formers too (revision 10).** Seven builtins are
+defined on only part of ℝ, and each owes its natural domain exactly as
+`e / d` owes `d # 0`:
+
+| former | owes |
+|---|---|
+| `ln u` | `u > 0` |
+| `sqrt u` | `u ≥ 0` |
+| `tan u` | `cos u # 0` |
+| `asin u`, `acos u` | `u ≥ -1` and `u ≤ 1` |
+| `acosh u` | `u ≥ 1` |
+| `atanh u` | `u > -1` and `u < 1` |
+
+Each bound is one linear item, closed where the function is defined at the end
+and open where it is not, and none is a divisor. `abs u ≤ 1` would be an
+opaque atom no §5.3 method reads, and `1 - u^2 ≥ 0` would hide the linear
+bounds that method 2 reads. A literal instance is decided by `norm_num` at
+once, and a false one refuses the step: `0*ln(-1) ≐ ?A` is now refused because
+`-1 > 0` is false, where before this revision `ring` cancelled the atom and
+reported `Proved.`. A former is charged at its term's *position* domain, so
+`ln(1 + x)` under `Int[x = 0 .. 1]` owes `1 + x > 0 @ [0, 1]`, which is a
+different obligation from `d_ln`'s `1 + x > 0 @ (0, 1)`.
+
+**`Int` and `D[x]` subterms have no statable definedness condition** until
+§6.9's regularity and §5.2's `diverges` are built. So `ring`, `field` and
+`norm_num` refuse any side that contains one, rather than treat it as an atom
+that denotes (§6.2). No P1 step needs otherwise: `ftc` consumes the top-level
+integral, and its derivative premise is decided on `deriv`'s output. *(Found
+by the proof-of-life, `kernel/p1_expected.py` E6 and E26. One consequence to
+know: `tan(pi/2) − tan(pi/2) ≐ ?A` now reads `Proved modulo 1 admissions`,
+owing `cos(pi/2) # 0`, which is false and which no §5.3 method can decide. **An
+admission tagged `none` may be false**, which is what the tag is for.)*
 
 ### 5.2 Judgements
 
@@ -855,6 +944,8 @@ A goal may first be `field`-normalised. Then, **in the order tried**:
    inequalities.
 2. **by range** — inside `Int[t = a .. b] ...` the domain is extended with
    `min(a,b) ≤ t ≤ max(a,b)`, so a rewrite under the integral sign may use it.
+   *(Revision 10: the step that uses a range now owes its orientation `a ≤ b`
+   (§6.4), so the order method 2 needs is established rather than hoped for.)*
 3. **by linear arithmetic** — Fourier–Motzkin over ℚ on the linear constraints,
    complete for that fragment. **FM emits its Farkas witness** — the
    non-negative combination — and the kernel re-checks it with `norm_num`/`ring`.
@@ -906,7 +997,11 @@ A goal may first be `field`-normalised. Then, **in the order tried**:
    `d_atan`'s own denominator in §11.2, `1 + ((2x − 1)/sqrt 3)^2 # 0`, which
    ring-normalises to a quadratic in x with coefficients in the atom
    `1/sqrt 3`, where the discriminant test no longer applies. *(Stage 0c,
-   revision 7.)*
+   revision 7.)* **On a non-strict `≥ 0` goal**, a non-negative rational
+   constant, zero included, also serves as the constant term: a non-negative
+   combination of even powers is ≥ 0. Neither strict form reaches the
+   fallback route's `0 ≤ pi^2/4`, which ring-normalises to `(1/4)*pi^2` with
+   constant 0. *(Revision 10, E20.)*
 5. **by sign product** — the goal is ring-normalised, a factorisation into
    strictly lower-degree factors is supplied, and the sign of the whole follows
    from the signs of the parts. **The factorisation is emitted and re-checked
@@ -916,6 +1011,12 @@ A goal may first be `field`-normalised. Then, **in the order tried**:
    and `# 0` goals alike — for `#` it is enough that every factor is nonzero.
    The factorisation itself is untrusted input, from the learner or from
    §8.2's factoriser; the kernel checks it and never searches for it.
+   **It may also split off a nonzero rational content**, c·p with p of the
+   same degree, and take the sign of c times the sign of p. `3*sqrt 3 # 0`
+   and `2*sqrt x # 0` need this: ring-normalised they are degree 1 in their
+   atom, so the strict-degree precondition let neither through, and no other
+   method reaches them alone. The split is not applied again to p, so the
+   recursion still terminates. *(Revision 10, E18.)*
 6. **by `cite`** — a named library fact (§6.8), with its own hypotheses
    emitted as obligations.
 
@@ -945,7 +1046,7 @@ leave the general shape open — the next integrand over `4 - x^2` or
 **What it costs.** Nothing in the trusted base beyond the sign-combination
 step, because the factorisation arrives from outside and is re-checked: a bug
 in §8.2's factoriser costs a rejected step, never a false `Proved`, which is
-§7's discipline applied unchanged. §17's obligation-tracker line absorbs it.
+§7's discipline applied unchanged.
 
 **Before Fourier–Motzkin is consulted, the constraint set is checked
 satisfiable.** This closes a class rather than an instance: *any* discharge
@@ -983,7 +1084,11 @@ proof:
 
 - **discharged** — with the method that discharged each one;
 - **open** — blocking; the proof is `Stuck`, not `Proved`;
-- **admitted** — the learner wrote `admit "reason"`.
+- **admitted** — the learner wrote `admit "reason"`. *(Revision 10: until
+  discharge is built, the kernel itself admits every obligation it cannot
+  discharge, with the reason `discharge not built` and a tag naming the §5.3
+  method expected to close it, or `none` if no method can. The proof-of-life's
+  verdicts all read `Proved modulo N admissions`.)*
 
 A proof with admissions reports `Proved modulo 3 admissions`, listing them,
 and never `Proved`. This is `Admitted` from Rocq, and it is what makes the
@@ -1051,6 +1156,34 @@ The proof-of-life review found this. No worked example needs the forbidden
 case, which is why it had gone unnoticed; §17's bank now carries it as a
 must-refuse.
 
+**`# 0` counts as open, beside the strict inequalities (revision 10).** Read
+literally, "strict inequalities only" forbids §6.3's own routing of `u / v`
+through `u * (1/v)`, which holds at `v # 0`, and `D[x](x/(x+1))` would have no
+route at all. For a term continuous on an open domain, the set where it is
+`> 0`, `< 0` or `# 0` is open, so `# 0` is admitted too, and a domain item that
+does not mention x does not count against the rule. A hypothesis mentioning x
+must still avoid the non-open partial formers (`sqrt`, `asin`, `acos`,
+`acosh`) and `Int` or `D` subterms, and so must anything the rewrite charges at the position
+(`kernel/p1_expected.py` E11).
+
+**Rewriting under `Int` owes the range's orientation (revision 10).** The range
+domain `a ≤ t ≤ b` is only the range once `a ≤ b` is known; with the limits
+reversed it is empty, and an empty domain makes every obligation on it
+vacuous. So a rewrite whose position lies under an integral owes `a ≤ b`,
+exactly as `ftc` does (§6.4).
+
+**`rewrite` matches up to ring-normalised atom arguments, and acts on every
+occurrence it is given** (revision 10, settling §18 Q21). The rule is
+instantiated explicitly. It fires where the instantiated left-hand side and the
+target subterm agree once the arguments of their atoms are ring-normalised,
+which is the congruence §6.2 already uses for atom identity. With no position
+given, it rewrites every occurrence, which is the same as applying `rewrite h
+at p` once at each, since each position carries its own domain and its own
+side conditions. A bound variable is matched by the binder case, with the side
+condition discharged from the enclosing integral's range; that is §11.1's
+`sqrt_sq` on t. The full statement is `kernel/p1_expected.py`'s
+`REWRITE_RULE`.
+
 ### 6.2 Algebra — the three places a normal form is allowed
 
 These are decision procedures, complete for their fragment, implemented
@@ -1063,7 +1196,10 @@ never claims to know anything about `sin`.
   polynomials, exact rational coefficients. Decides its fragment. Division
   by a nonzero literal is a coefficient. **Division by anything else is itself
   an opaque atom**, so `m * (1/m) ≐ 1` is not a `ring` fact, and neither is
-  `1/x^2 ≐ (1/x)^2`. Relating them is `field`'s job, and `ring` emits no
+  `1/x^2 ≐ (1/x)^2`. The atom is the inverse: `a / d` is read as
+  `a * inv(d)`, with `inv(d)` keyed by d's normal form. Matching `atan_odd`
+  against `atan((2*0 - 1)/sqrt 3)` needs exactly that reading (revision 10,
+  E3). Relating them is `field`'s job, and `ring` emits no
   obligations because it cancels nothing.
 - **`field`** — equality in the field of fractions. Normalises lhs − rhs to a
   numerator over a product of denominator factors and holds when the
@@ -1074,6 +1210,10 @@ never claims to know anything about `sin`.
   careless implementation becomes unsound, and it is the one to review
   hardest.
 - **`norm_num`** — closes goals over rational literals exactly.
+- **All three refuse a side containing `Int` or `D[x]`** (revision 10, §5.1).
+  An opaque atom is assumed to denote, and neither of those can be shown to
+  until regularity and `diverges` exist, so `ring` may not cancel
+  `Int[…] - Int[…]` to 0.
 
 **Why "every divisor" and not "every denominator it cancels".** Revisions
 1–6 said the latter, and stage 0c found it cannot be implemented as a
@@ -1116,8 +1256,8 @@ normalizer that guessed would be the unsound kind.
 That is handled by naming the missing facts as rules (§6.8's `sqrt_sq_val` and
 `sqrt_pos`) and handing them to `field` as facts (above), not by teaching
 `field` about radicals. Extending the coefficient
-field to ℚ(√d₁,…,√dₖ) is explicitly declined until someone sizes it against
-§15's budget.
+field to ℚ(√d₁,…,√dₖ) is explicitly declined until someone argues it into
+§15's trusted base.
 
 ### 6.3 Derivatives
 
@@ -1212,6 +1352,16 @@ SymPy has no obligations.*
 emitting each application as a kernel step and collecting the side conditions.
 It is untrusted — if it has a bug, the kernel rejects its output.
 
+**That holds once a kernel step re-derives `ftc`'s derivative premise, and in
+the proof-of-life none does** (revision 10). There, `ftc` accepts `deriv`'s
+output and records the premise as discharged by `deriv; ring` or
+`deriv; field`, so `deriv`'s output forms and side conditions *are* the rule
+table and it is trusted, under §15.2 item 2. The planted bug `d_ln` emitting
+nothing is exactly a false theorem from it. Two entries, `d_chain` (`f'`) and
+`d_pow_int` (a literal n as a parameter), are written above in a schema
+notation that has no term syntax, so they are built in code rather than parsed
+from a pinned statement.
+
 ### 6.4 Integrals — the keystone
 
 The single most important design decision in this document:
@@ -1223,6 +1373,18 @@ The single most important design decision in this document:
   ftc ─────────────────────────────────────────────────────────────────────────────────
                     Γ ⊢ Int[x = a .. b] f  ≐  F(b) − F(a)
 ```
+
+**The range must be oriented (revision 10).** With b < a, [a,b] and (a,b) are
+empty, all four premises hold vacuously, and the rule as drawn proves
+∫₁⁻¹ 1/x² dx ≐ 2, which gives a divergent integral a value. §5.1 says what a
+reversed integral denotes, and §5.3's method 2 guarded its own use of the
+range, but `ftc` itself was unguarded, and so was rewriting under `Int` (§6.1).
+**Every step that uses a range now owes `a ≤ b`.** It is decided by `norm_num`
+when both ends are literals, fixed by an infinite end, and otherwise emitted as
+an ordinary obligation. Readiness P1.1's is `0 ≤ pi/2`, closed by linear
+arithmetic with `pi_pos`. `ftc` refuses an infinite endpoint outright, since
+F(∞) is not a term, and `int_improper` is the route. *(Found by the
+proof-of-life: `kernel/p1_expected.py` E4 and E9.)*
 
 **The regularity premises split across the closed and the open interval, and
 that is a correction rather than a refinement** (stage 0, `STAGE0.md` gap 1).
@@ -1471,7 +1633,14 @@ A small table of exact values — `sin_zero`, `cos_pi_half`, `ln_one`,
 `atan_one ≐ pi/4`, `atan_one_sqrt3`, `atan_odd`, `sin_pi_sixth`,
 `cos_pi_fourth`, `ln_e`, `exp_zero`, `exp_one`, `atan_zero` and the rest —
 plus `pyth`, the circular addition formulas, `log_mul` (with positivity),
-`exp_add`, and `sqrt_sq` (√(t²) ≐ t @ t ≥ 0).
+`exp_add`, and `sqrt_sq` (√(u²) ≐ u @ u ≥ 0).
+
+*(Revision 10: entries are stated in one notation, `c @ h`, where some were
+sequents (`h ⊢ c`); a pointwise hypothesis on the free variable is exactly a
+domain. Schema variables are u, a and the like, never a name a worked example
+binds: `sqrt_sq` was stated over t, §11.1's bound variable, which hid the
+instantiation §15.2 item 3 says is trusted. Each rule owes its obligation in
+its own orientation, so §11.1's is `t ≥ 0`, not `0 ≤ t`.)*
 
 **Three entries §8.9 needs, named here because "the addition formulas" did not
 cover them** (stage 0's third pass, `STAGE0.md` gaps 12 and 14):
@@ -1489,7 +1658,7 @@ cover them** (stage 0's third pass, `STAGE0.md` gaps 12 and 14):
 
 **Three more for `abs`, admitted to goals in revision 6** (§5.1):
 `abs_nonneg : abs u ≐ u @ u ≥ 0`, `abs_neg : abs u ≐ -u @ u ≤ 0`, and
-`abs_pos : u # 0 ⊢ abs u > 0`. The first two are how a `cases` split on the
+`abs_pos : abs u > 0 @ u # 0`. The first two are how a `cases` split on the
 sign of *u* discharges an `abs` in a goal, which is the route
 `∫₋₁¹ |x| dx` takes after `int_split` at 0; the third is what `d_abs`'s
 `abs u # 0` obligation closes on, and is a positivity fact about an opaque
@@ -1584,7 +1753,7 @@ because the corpus raises them; they are stated by the mathematics:
   obligation is **false as annotated**, since `field` over ℚ(x, s) with *s*
   opaque gives residual (3/2 − s²/2)/(…), zero iff s² = 3. It enters as a
   **fact passed to `field`** (§6.2), never as a rewrite before it.
-- `sqrt_pos : a > 0 ⊢ sqrt a > 0` — `close … by ring` in §11.2 divides by the
+- `sqrt_pos : sqrt a > 0 @ a > 0` — `close … by ring` in §11.2 divides by the
   atom `sqrt 3`, which is not a ring operation; the step is `by field` with
   `sqrt 3 # 0` discharged here.
 - `exp_pos : exp u > 0` — any integrating factor emits `exp u # 0`, and `exp u`
@@ -1633,8 +1802,11 @@ The closure rules, roughly 25 entries and mostly one-liners:
   u ≥ 0 but C¹ only on u > 0; `ln` on u > 0; `tan` needing `cos u # 0`;
   `asin`/`acos` C⁰ on |u| ≤ 1 and C¹ on |u| < 1; `atanh` on |u| < 1; `acosh`
   C⁰ on u ≥ 1 and C¹ on u > 1; `sin`, `cos`, `exp`, `sinh`, `cosh`, `tanh`,
-  `atan`, `asinh` everywhere; **`abs` is C⁰ only**, which is one of the reasons
-  §5.1 keeps it out of goals.
+  `atan`, `asinh` everywhere; **`abs` is C⁰ everywhere and C¹ where its
+  argument is nonzero**, as §5.1 says since revision 6 admitted it to goals.
+  (This line said "C⁰ only" and that §5.1 kept `abs` out of goals, and was
+  stale until revision 10.) The C⁰ sets above are exactly the domains §5.1's
+  partial formers owe.
 - **A hypothesis form for declared function symbols**, so `v ∈ C¹` can enter
   from Γ as §12.1 needs.
 
@@ -1790,9 +1962,9 @@ heuristic as it likes:
 |---|---|---|
 | Table and linearity | the standard forms | trivial |
 | Derivative patterns | *f*′·*g*(*f*) → *G*(*f*); *f*′/*f* → ln\|*f*\| (see §8.5) | trivial |
-| Substitution heuristics | the shape table of §8.5, executed rather than suggested | ~200 lines |
-| By parts | LIATE ordering, with cycle detection for ∫e^x sin x | ~150 lines |
-| **Rational functions** | squarefree decomposition, Hermite reduction, Lazard–Rioboo–Trager with Rioboo's real-arctan conversion | ~300 lines, **complete for denominators that factor over ℚ into linear and irreducible quadratic factors** |
+| Substitution heuristics | the shape table of §8.5, executed rather than suggested | heuristic |
+| By parts | LIATE ordering, with cycle detection for ∫e^x sin x | heuristic |
+| **Rational functions** | squarefree decomposition, Hermite reduction, Lazard–Rioboo–Trager with Rioboo's real-arctan conversion | **complete for denominators that factor over ℚ into linear and irreducible quadratic factors** |
 | Elementary functions in general | the Risch algorithm | a large lift; probably never |
 
 **The fifth row's completeness claim is now bounded, and the bound is the
@@ -1812,7 +1984,7 @@ logarithms; producing §11.2's displayed answer
 Rioboo's complex-log-to-real-arctan conversion — which is where the √3 and the
 `atan` come from at all, and which is the integrator's most branch-cut-sensitive
 code. (SymPy 1.14 returns exactly that form, so the step is known, implemented
-and nameable.) And the ~300 lines **reuse stage 1's factoriser and
+and nameable.) And that tier **reuses stage 1's factoriser and
 partial-fraction solver** (§8.4) rather than re-implementing them.
 
 When the integrator fails it says *which kind* of failure, because the
@@ -2236,7 +2408,7 @@ subsumes it. Incommensurate angles (`sin x` and `sin(pi*x)` together) stay
 outside, as do §6.4's algebraic constants — `(√3)² ≐ 3` is `sqrt_sq_val`, a
 different kind of fact about a different kind of atom.
 
-**Cost.** ~200 lines in the assistance layer, in stage 1 (§17).
+**Cost.** One assistance-layer component, in stage 1 (§17).
 Nothing to reuse: the reduction has to emit *these* kernel steps against
 *this* rule table.
 
@@ -2383,15 +2555,15 @@ measurement above is retained because it is the evidence for the
 directed-rounding claim, which does not depend on the binding.)*
 
 **What it costs, stated rather than smuggled.** §15's reviewability claim
-changes shape: "~1,100 auditable lines plus MPFR", and nobody reads MPFR in an
+changes shape: the trusted base now includes MPFR, and nobody reads MPFR in an
 afternoon. The honest comparison is not *reviewed* versus *unreviewed* but
-"~700 lines one person read once" versus "the reference implementation behind
+"bespoke code one person read once" versus "the reference implementation behind
 GCC and Sage, with twenty-five years of adversarial testing concentrated on
 precisely the hard cases" — and this is the one trusted component where bespoke
 code fails **silently** (§17's bank cannot see an enclosure that is too narrow)
 and where the library's entire specification *is* the property needed. Two
 smaller costs: it buys point evaluation only, so the interval extension and
-composition (~250 lines) remain bespoke; and it is LGPL, which §18 Q6 must
+composition remain bespoke; and it is LGPL, which §18 Q6 must
 answer before this is published anywhere.
 
 The `enclose(atom, interval, precisionBits) → [lo, hi]` interface is the hedge,
@@ -2435,17 +2607,20 @@ exercises the whole design.
 problem readiness.P1.1
   answer schema  closed
   goal  Int[x = 0 .. pi^2/4] sin(sqrt x)  ≐  ?A
+       obl  0 ≤ pi^2/4                                 by sign         ✓
+       obl  x ≥ 0  @ [0, pi^2/4]                       by range        ✓
 
 proof
   step subst (x := t^2) over t in [0, pi/2]
        obl  t^2 ∈ C¹([0, pi/2])                        by reg          ✓
        obl  0^2 ≐ 0 ∧ (pi/2)^2 ≐ pi^2/4                by ring         ✓
        obl  sin(sqrt(t^2)) ∈ C⁰([0, pi/2])             by reg          ✓
-            ⤷ obl  t^2 ≥ 0                             by sign         ✓
+       obl  0 ≤ pi/2                                   by linear, pi_pos ✓
+       obl  t^2 ≥ 0  @ [0, pi/2]                       by sign         ✓
   ⊢ Int[t = 0 .. pi/2] sin(sqrt(t^2)) * (2*t)  ≐  ?A
 
   step rewrite sqrt_sq
-       obl  0 ≤ t                                      by range, pi_pos ✓
+       obl  t ≥ 0  @ [0, pi/2]                         by range        ✓
   ⊢ Int[t = 0 .. pi/2] sin t * (2*t)  ≐  ?A
 
   step ftc  F := 2*sin t - 2*t*cos t
@@ -2460,6 +2635,17 @@ qed
 
   Proved.  0 admissions.
 ```
+
+*(Revision 10. The proof-of-life runs this from the substituted goal on, with
+discharge stubbed, and reports `Proved modulo 6 admissions`: the three `reg`
+premises, `t^2 ≥ 0`, `t ≥ 0` and `0 ≤ pi/2`. The derivative premise is decided
+in the step, and `pi/2`'s literal divisor `2 # 0` by `norm_num`. Three lines are
+new and one moved. `x ≥ 0` and `t^2 ≥ 0` are `sqrt`'s own domain, now a
+former (§5.1), and `t^2 ≥ 0` was listed before only as `reg`'s sub-obligation. The orientations
+`0 ≤ pi^2/4` and `0 ≤ pi/2` are now owed (§6.4), and `pi_pos` moves to the
+second, since by-range needs the order before it can supply `t ≥ 0`. `sqrt_sq`'s
+obligation is written as the entry states it, `t ≥ 0`, because obligations are
+keyed in each rule's own orientation.)*
 
 Three things to notice, and one correction from revision 1. *(Revision 9
 brought the `ftc` premises up to §6.4's split form, named `pi_pos` beside
@@ -2499,18 +2685,24 @@ is what `reg` needs from §6.9's `sqrt` entry.
 problem readiness.P1.2
   answer schema  closed
   goal  Int[x = 0 .. 1] 1/(1 + x^3)  ≐  ?A
+       obl  1 + x^3 # 0          @ [0,1]     by product (F's ln domains; ring) ✓
 
 proof
   step ftc  F := (1/3)*ln(1+x) - (1/6)*ln(x^2 - x + 1)
                  + (1/sqrt 3)*atan((2*x - 1)/sqrt 3)
-       obl  1 + x > 0            @ [0,1]     by domain (linear)             ✓
-       obl  x^2 - x + 1 > 0                  by sign ((x-1/2)² + 3/4)       ✓
+       obl  1 + x > 0            @ [0,1]     by range                       ✓
+       obl  x^2 - x + 1 > 0      @ [0,1]     by sign ((x-1/2)² + 3/4)       ✓
        obl  sqrt 3 # 0                       by sqrt_pos                    ✓
+       obl  F ∈ C⁰([0,1]) ∧ F ∈ C¹((0,1))    by reg                         ✓
        obl  D[x] F ≐ 1/(1 + x^3) @ (0,1)     by deriv;
                                                 field [sqrt_sq_val 3]       ✓
-       obl  1 + ((2*x - 1)/sqrt 3)^2 # 0     by sign (as written)           ✓
-       obl  1 + x^3 # 0          @ [0,1]     by product (lines 1–2; ring)   ✓
-       obl  F ∈ C⁰([0,1]) ∧ F ∈ C¹((0,1))    by reg                         ✓
+            ⤷ obl  1 + x > 0            @ (0,1)  (d_ln)   by range          ✓
+            ⤷ obl  x^2 - x + 1 > 0      @ (0,1)  (d_ln)   by sign           ✓
+            ⤷ obl  1 + x # 0            @ (0,1)  (field)  by range          ✓
+            ⤷ obl  x^2 - x + 1 # 0      @ (0,1)  (field)  by sign           ✓
+            ⤷ obl  1 + ((2*x - 1)/sqrt 3)^2 # 0
+                                        @ (0,1)  (field)  by sign (as written) ✓
+            ⤷ obl  1 + x^3 # 0          @ (0,1)  (field)  by product        ✓
        obl  1/(1+x^3) ∈ C⁰([0,1])            by reg                         ✓
   step rewrite [ln_one, atan_one_sqrt3, atan_odd]
   step close  ?A := (1/3)*ln 2 + pi/(3*sqrt 3)            by field          ✓
@@ -2520,6 +2712,13 @@ proof
        enclosure [0.8356487, 0.8356489]                                     ✓
 qed
 ```
+
+*(Revision 10. Literal obligations are decided by `norm_num` at once and are
+not listed: `3 # 0` and `6 # 0` from F's coefficients, `3 ≥ 0` from `sqrt 3`
+and from `sqrt_sq_val 3`, `2 > 0` from the answer's `ln 2`, and the four literal
+`ln` domains that `ftc`'s endpoint substitution produces. `approx`'s literals
+are not terms, since the term grammar has no decimals (`kernel/GRAMMAR.md`
+D1), so stage 2's `approx` brings its own numeric syntax.)*
 
 The learner did the partial fractions and the numerator split by hand — that is
 the exercise. The kernel's contribution is the one line that matters: the
@@ -2566,6 +2765,19 @@ After ring-normalisation it is a quadratic in x whose coefficients involve the
 atom `1/sqrt 3`, and the discriminant test no longer applies. §5.3 now tries
 the written form first. The spike runs this whole obligation, `deriv`
 included, in about a millisecond.
+
+**Revision 10: the list is now what the kernel emits.** The proof-of-life ran
+this script with discharge stubbed and reports `Proved modulo 14 admissions`:
+every `obl` line above except the derivative premise, which is decided in the
+step. Three things in revision 9's list were wrong. `1 + x > 0 @ [0,1]` was labelled a
+linear domain fact, when it is `ln`'s own domain on the closed range (§5.1)
+and a different obligation from `d_ln`'s copy on (0, 1). `x^2 - x + 1 > 0` had
+no domain at all. And `field`'s divisors `1 + x`, `x^2 - x + 1` and `1 + x^3`
+on (0, 1) were missing, with only the `atan` denominator listed. The goal's own
+`1 + x^3 # 0` on [0, 1] now closes by sign product on F's two `ln` domains,
+which were previously implicit. The answer's other accepted form,
+⅓ ln 2 + π√3/9, closes only as `close … by field [sqrt_sq_val 3]`, and owes no
+`3*sqrt 3 # 0`, so its count is 13.
 
 ---
 
@@ -2791,7 +3003,7 @@ is.
 
 ### Why
 
-The ledger is a one-time fixed cost, and a real one: ~250 lines of generator
+The ledger is a one-time fixed cost, and a real one: a generator
 plus 80–110 lemmas, plus installing and choosing a library
 stack that is not on this machine. Revision 1 priced it as an afterthought
 ("~60 lemmas") and the review repriced it as a small second project.
@@ -2905,7 +3117,11 @@ library lemma is a mathematical claim, not a translation.
 verified: `Rinv_0 : / 0 = 0`, and `Rdiv r1 r2 = r1 * / r2` — and Coquelicot's
 `Derive`, `RInt` and `Lim` are total functions returning junk outside their
 domains. For the rules §6 lists the total and partial readings coincide,
-because those rules carry their definedness conditions on the source side; the
+because those rules carry their definedness conditions on the source side.
+*(Revision 10: until then this was false of `ring` and `field`, which cancelled
+atoms such as `ln(-1)` and so proved `0*ln(-1) ≐ 0` with nothing owed. It holds
+now because §5.1's partial builtins are formers and the normalisers refuse
+`Int` and `D`.)* The
 Rocq statement must carry them too, with `D[x] e ≐ f` going through
 `is_derive` and never `Derive`, `Int[...]` through `is_RInt` and never `RInt`,
 `lim[x -> a^s]` through `is_lim`. The last is sharpest, since Coquelicot's
@@ -2984,7 +3200,9 @@ whether or not it looks like a kernel.
 1. **The term representation and syntactic equality**, including substitution
    and the metavariable scope check (§9).
 2. **The rule table** — 55–70 analysis rules plus a 25–45 entry identity and
-   exact-value table (§6), including §6.9's regularity rules.
+   exact-value table (§6), including §6.9's regularity rules, and — while
+   `ftc` accepts `deriv`'s output without a re-deriving kernel step, as the
+   proof-of-life does — `deriv`'s output forms and side conditions (§6.3).
 3. **The rule matcher and instantiator.** §11.1's `rewrite sqrt_sq` binds the
    schema's `u` to a bound `t`; "capture-avoidance is a solved problem" is a
    claim about the term language, not about the implementation.
@@ -3009,13 +3227,26 @@ eliminated variable. Having each emit a witness the kernel re-checks
 (§5.3) moves both out. That is the one place in this revision where the trusted
 base **shrinks**, and it is why §7's LCF claim is now true of `domain`.
 
-Expect roughly **1,300–1,400 auditable lines**, plus MPFR if §10's
-recommendation is taken. Revision 1 said 1,200 and derived it from nothing;
-this range is hedged on purpose, and the per-component budget is not fabricated
-for code nobody has written.
+**What keeps it small is that every item must be auditable, not a size.**
+Each item is a judgement someone has to be able to check by reading: a rule
+statement against its theorem, a normaliser against its specification, a
+matcher against its instantiation. The threat to that is not length. It is
+trusted code whose output nothing re-checks, so the argument for each item is
+made from what it does. *(Revision 10 dropped the line estimate that stood
+here. It was a budget, not an argument.)*
 
-Everything else — tactics, UI, problem files and **the whole of §8**, some
-~5,000 more lines — is untrusted and cannot produce a wrong `Proved`.
+**Untrusted code the kernel calls (revision 10).** The kernel calls three things
+that are not on the list: the admission tagger, which names the §5.3 method an
+admitted obligation expects (§5.4); the `closed` whitelist, untrusted by §9's
+own account; and residual rendering (§8.7). None of them can yield a false
+theorem, because the kernel's verdict does not depend on their being right. A
+tag decides no obligation's status, a wrong whitelist can at worst accept an
+answer of the wrong shape, and a residual is display. That is the condition
+under which trusted code may call untrusted code, and each new callee has to
+be argued the same way.
+
+Everything else — tactics, UI, problem files and **the whole of §8** — is
+untrusted and cannot produce a wrong `Proved`.
 
 That last point deserves its own paragraph, because it is the load-bearing
 claim of the revision that removed every pedagogical restriction from this
@@ -3065,6 +3296,15 @@ forgeable in five lines by anyone who wants to, and impossible to trip over by
 accident, which covers the realistic failure and not the adversarial one. Say
 which is in force; do not let it be ambiguous.
 
+**Both are in force, and that is stated (revision 10).** The proof-of-life uses
+handles for facts: a fact slot takes only the object `fact` minted, by
+identity, and copies, pickles and fabricated ids are refused. Proof states use
+the sentinel: a `ProofState` demands a kernel-private token. That is enough for
+proof states because a finished state is only ever produced by `step()`, and
+the realistic threat, a tactic building a result object, is exactly what the
+sentinel refuses. §16.3's API will replace in-process states with ids at the
+boundary, which is where the handle model ends up anyway.
+
 §17's bank carries the corresponding cases: a tactic that attempts to
 manufacture a proved result, one that writes directly to the obligation
 tracker, and one that round-trips a proof state through JSON and back. All must
@@ -3088,8 +3328,8 @@ meantime is three things, and they are not equally strong:
    correct answers that must be accepted as well as wrong ones that must be
    rejected. This is the main empirical evidence, and its coverage is
    measurable rather than asserted.
-3. **A kernel small enough to read.** This is real but weak, and revision 1
-   overclaimed it. HOL Light's ~400-line kernel, far smaller than this one, had
+3. **A kernel built to be read.** This is real but weak, and revision 1
+   overclaimed it. HOL Light's kernel, far smaller than this one, had
    genuine unsoundnesses found after years of expert reading; it is trusted
    today because of Harrison's self-verification, the CakeML/Candle verified
    kernel and decades of adversarial use — none of which is available here.
@@ -3111,7 +3351,10 @@ unstatable hypothesis, `d_pow_int` without its negative-exponent condition, and
 §8.5's `f′/f → ln|f|` against a `d_ln` that requires u > 0. That cuts both
 ways, and both ways are worth saying: careful reading *did* find them, which is
 evidence for item 3; and there were five, in a table of sixty, which is
-evidence for how much §14 would be worth.
+evidence for how much §14 would be worth. *(Revision 10: building the kernel
+found two more of the same kind, both passed by every reading before it: `ftc`
+without `a ≤ b` (§6.4), and the normalisers treating partial functions as total
+(§5.1).)*
 
 So the honest v1 statement is: **"sound by construction where certificates
 exist, sound by test against a mechanically generated adversarial bank
@@ -3133,14 +3376,14 @@ the property you need. Above the line reuse is free.
 
 | Layer | Verdict | Why |
 |---|---|---|
-| Terms, equality, substitution | **build** | ~350 lines defining the object everything else is about |
+| Terms, equality, substitution | **build** | the object everything else is about |
 | The rule table | **build the table; cite Coquelicot for its proofs later** | The rules are standard calculus with hypotheses restored. `Rules.v` should mostly be `cited`: Coquelicot has `is_RInt_derive`/`RInt_Derive` (`ftc`), `RInt_Chasles` (`int_split`), `is_RInt_comp` (`int_subst`, with exactly §6.4's hypotheses), the `Derive_*` family, `RInt_gen`, and `is_derive_RInt_param_bound_comp` (`leibniz`). Stdlib's `Rtrigo_calc` supplies §6.8's trig constants |
-| `ring` / `field` / `norm_num` | **build** | ~700 lines, reflective, and `field`'s cancellation obligation is *the* soundness-bearing behaviour. No library emits nonvanishing obligations, because no library wants them |
+| `ring` / `field` / `norm_num` | **build** | Reflective, and `field`'s cancellation obligation is *the* soundness-bearing behaviour. No library emits nonvanishing obligations, because no library wants them |
 | Enclosures of the six atoms | **reuse MPFR** (§10) | The one trusted component where bespoke code fails silently |
-| Interval extension and composition | **build** | MPFR answers point evaluation only; enclosing `sin` over an interval containing a critical point is bespoke either way, ~250 lines |
-| Obligation tracker + §5.3 | **build** | ~350 lines, and an SMT solver would put 500k lines of C++ under the one component whose bug is a false `Proved`, to decide 0 ≤ x ⟹ 0 ≤ x³ |
+| Interval extension and composition | **build** | MPFR answers point evaluation only; enclosing `sin` over an interval containing a critical point is bespoke either way |
+| Obligation tracker + §5.3 | **build** | An SMT solver would put 500k lines of C++ under the one component whose bug is a false `Proved`, to decide 0 ≤ x ⟹ 0 ≤ x³ |
 | Parser | **build** | A small ASCII script grammar, not LaTeX. `unified-latex` and friends parse LaTeX, whose AST is macro-level, so adopting one means a LaTeX-AST → term-AST translation that is itself new trusted code. MathQuill/MathLive are input widgets, and putting one in front of a trusted component adds a second place where what you see differs from what you proved |
-| `trig_norm` (§8.9) | **build** | ~200 lines, untrusted. It must emit `rewrite` steps against *this* rule table and *this* term language; a CAS simplifier returns an answer, not a sequence of §6.8 applications the kernel can check, which is the same reason §15.5 keeps SymPy out of the kernel |
+| `trig_norm` (§8.9) | **build** | Untrusted. It must emit `rewrite` steps against *this* rule table and *this* term language; a CAS simplifier returns an answer, not a sequence of §6.8 applications the kernel can check, which is the same reason §15.5 keeps SymPy out of the kernel |
 | Pretty-printer | **reuse KaTeX** | Already a dependency and already the parser mitigation. Note the pin: §16 says 0.16.9, current is 0.18.x |
 | §8 integrator, shipped | **build, scoped down** | §3's measurements: every shippable JS CAS returns *wrong* antiderivatives on this course's own integrals |
 | §8 integrator, authoring oracle | **reuse SymPy 1.14, offline** | 16/16 on the course sample, median 30 ms, and its `1/(1+x**3)` output *is* §11.2's answer. Attacks the dominant cost, not the line count. Never shipped |
@@ -3311,6 +3554,8 @@ the kernel is the realistic bug, and it cannot happen if there is no result
 object to build. A `Thm` class with a construction sentinel is the weaker
 alternative — forgeable in five lines of Python by anyone who wants to, but
 impossible to trip over — and is the fallback if handles prove awkward.
+*(Revision 10: the proof-of-life uses both, handles for facts and the sentinel
+for proof states, for the reasons in §15.3.)*
 
 **Assistance ↔ UI: rendered state, never proof state.**
 
@@ -3323,6 +3568,13 @@ impossible to trip over — and is the fallback if handles prove awkward.
   POST /parse    { text }                 →  { term, katex }   -- the echo
 ```
 
+**A rejected move returns a refusal in place of `node'`:**
+`{ refusal: { code, message, residual } }`. It carries a stable code from the
+kernel's list, a message for the learner, and §8.7's residual when the move was
+a failed check. *(Revision 10: the table had no shape for a refusal, and every
+must-refuse case in §17's bank needs one. The in-process `step()` returns
+`Refusal(code, message, residual)`.)*
+
 The client is a view with no authority: it cannot misrepresent the server's
 state because it never holds it. **One round trip per move, carrying
 everything** — §1's loop lives or dies on a move feeling instant, and the
@@ -3333,7 +3585,8 @@ round trips are sub-millisecond, but only if there is one of them.
 **The same API drives the headless harness.** §17's stage 1 wants the kernel
 proving §11.1 and §11.2 before the client exists; with this shape that is not a
 separate harness, it is a script against the API, and it stays as the
-regression suite afterwards.
+regression suite afterwards. *(Revision 10: `kernel/proof_of_life.py` is that
+script. It runs in-process against `step()` until this API exists.)*
 
 ### 16.4 The client
 
@@ -3507,10 +3760,9 @@ one where no library can be borrowed because none emits obligations, and — per
 It is also where §16.2's performance risk lives.
 
 **Stage 0c closed on 2026-09-23** (`spike/ring/`, with its own README).
-`ring` and `field` come to ~370 lines of code, against the size table's 600
-for `ring`/`field`/`norm_num`. There are 28 tests, including property tests
-that check every verdict against exact rational evaluation, and they catch
-each of four planted false-`Proved` bugs. It answered both of its
+`ring` and `field` come to ~370 lines of code. There are 28 tests, including
+property tests that check every verdict against exact rational evaluation,
+and they catch each of four planted false-`Proved` bugs. It answered both of its
 questions:
 
 - **Does the design work?** Mostly. It also corrected the flagship: §11.2's
@@ -3543,77 +3795,66 @@ and `buckingham`; and the series and limit rules.
 
 ### Size
 
+**Revision 10 removed the line estimates this section carried**: a
+per-component table, its stage-1 total and the later stages' figures. They were
+budgets rather than arguments, and nothing in the plan depends on them. What
+stays is what each stage contains, and the order.
+
 **Stage 1 — the exploration environment.** Target: readiness **P1, P3, P5**
 worked in the loop, plus unit 00's quadrature cases, which need no numerics.
 
-| Component | Lines |
-|---|---|
-| **Kernel** — terms, equality, substitution, matcher | 300 |
-| **Kernel** — `ring` / `field` / `norm_num`, **with `field`'s obligations** | 600 |
-| **Kernel** — `deriv` + the derivative table (§6.3) | 200 |
-| **Kernel** — `ftc`, forward moves, obligation tracker, discharge | 250 |
-| **Kernel** — regularity, the C⁰/C¹ subset `ftc` needs (§6.9) | 120 |
-| **Kernel** — `abs` in goals: `d_abs`, the two rewrites, the C⁰/C¹ entry (§5.1) | 60 |
-| **Kernel** — `diverges`: the judgement, `div_limit`/`compare`/`power`/`pole` (§5.2) | 140 |
-| **Kernel** — parser + KaTeX printer + round-trip property test | 300 |
-| **Assistance** — palette, antiderivative card, recognizer, progress signal (§8.5) | 400 † |
-| **Assistance** — residual reporting and the three kinds of stuck (§8.7) | 200 |
-| **Assistance** — speculative probe, floating-point quadrature (§8.6) | 120 |
-| **Assistance** — factoriser and partial-fraction solver, `ring`-verified | 200 |
-| **Assistance** — `trig_norm`, the trig canonicaliser (§8.9) | 200 |
-| **Assistance** — attempt tree, session state, the §16.3 API | 350 |
-| **UI** — three panes, tree rendering, stepping and retraction, the ladder | 800 |
-| Run: the `./calc` entry point, vendored KaTeX, no dependencies | 40 |
-| **Total** | **~4,300** |
-
-† *Probably low.* The recognizer spike's shape analysis and rows alone came to
-~560 lines, without the palette, the card or the progress signal, and without
-the chain-rule row or normalised matching (§8.5). The line count says the 400
-undercounts, likely by half or more.
+- **Kernel:** terms, equality, substitution and the matcher; `ring` / `field`
+  / `norm_num`, with `field`'s obligations; `deriv` and §6.3's table; `ftc`,
+  the forward moves, the obligation tracker and discharge; the C⁰/C¹ subset of
+  regularity `ftc` needs (§6.9); `abs` in goals (§5.1); `diverges` and its
+  rules (§5.2); the parser, the KaTeX printer and the round-trip property test.
+- **Assistance:** the palette, antiderivative card, recognizer and progress
+  signal (§8.5); residual reporting and the three kinds of stuck (§8.7); the
+  speculative probe with floating-point quadrature (§8.6); the factoriser and
+  partial-fraction solver, `ring`-verified; `trig_norm` (§8.9); the attempt
+  tree, session state and §16.3's API.
+- **UI:** three panes, tree rendering, stepping and retraction, the ladder,
+  and the `./calc` entry point with vendored KaTeX and no dependencies.
 
 Stage 1 also carries the symbolic falsifier bank and the recognizer corpus
 (below), and authoring readiness P1–P5 and unit 00's quadrature cases. Both are
-content rather than lines.
+content rather than code.
 
-**The first useful landing is much earlier:** the headless kernel proving
-§11.1 and §11.2. `WHAT.md`'s proof-of-life is `ring`/`field` + `deriv` + `ftc`
-against readiness P1 only, with discharge stubbed, plus terms, the matcher, the
-parser, `close`, the P1 rules from §6.8 and handles — landing inside the
-four-month window below.
+**The first useful landing has landed** (revision 10): the headless kernel
+proving §11.1 and §11.2. `WHAT.md`'s proof-of-life built `ring`/`field`,
+`deriv`, `ftc`, terms, the matcher, the parser, `close`, the P1 rules from §6.8
+and handles against readiness P1, with discharge stubbed, in `kernel/`. The
+rest of the kernel list — real discharge, `int_subst`, regularity, `abs`,
+`diverges` — and everything under assistance and UI are still to do.
 
-**Against revision 4's OCaml estimate** (~4,450 lines) this is slightly
-smaller, and Python is simpler to write for exactly this shape of code —
-dictionaries of exponent tuples, pattern dispatch over a term type, a small
-HTTP layer — and the parser, the server and the build story are each
-meaningfully simpler. What that simplicity costs is stated in §16.2 and
-should not be forgotten: no type checker over the term
-language, no enforcement of §15.3, and a verified kernel that would be a
-rewrite rather than a module swap.
+**Against revision 4's OCaml plan**, Python is simpler to write for exactly this
+shape of code — dictionaries of exponent tuples, pattern dispatch over a term
+type, a small HTTP layer — and the parser, the server and the build story are
+each meaningfully simpler. What that simplicity costs is stated in §16.2 and
+should not be forgotten: no type checker over the term language, no enforcement
+of §15.3, and a verified kernel that would be a rewrite rather than a module
+swap.
 
-**The remaining uncertainty is `ring`/`field`, not the toolchain.** No library
+**The remaining uncertainty was `ring`/`field`, not the toolchain.** No library
 emits nonvanishing obligations, so nothing outside the spike exists to copy,
 and it is the one component whose bug is a false `Proved` rather than a
 rejected step. It is also, per §15.5, the one place where a one-line reach for
-SymPy would quietly end the project. Write the slow version first and profile
-before optimising.
+SymPy would quietly end the project. *(Revision 10: it is built, promoted from
+the spike, and property-tested against exact rational evaluation.)*
 
 **What comes after, if stage 1 earns it.**
 
-| Stage | Contents | Lines |
-|---|---|---|
-| **2. Certified numbers** | `enclose()` over MPFR, precision policy, interval extension and composition, `approx`, the certified probe and `quad_verified`, series and limit rules, dimensions and `buckingham`. Target: **unit 00 complete**, and readiness P1 including its five significant figures | ~1,650 |
-| **3. The integrator, then `auto` and `solve`** | table, derivative patterns, substitution heuristics, parts with cycle detection, the rational tier reusing stage 1's factoriser; then the search layers §2 prepared for | ~1,200 |
-| **4. Kernel completion** | Fourier–Motzkin with Farkas witnesses, the full §6.9 table, the ODE solver (§8.3) | ~600 |
-| **V. Machine-checked rules** | *deferred and unbound from any prover* (§14) — the rule table stated and proved in a prover, provenance tags, the assumption whitelist. 80–110 lemmas, most of them `cited`. **(A) only**; a verified kernel is §18 Q19 and is not planned | ~250 |
+| Stage | Contents |
+|---|---|
+| **2. Certified numbers** | `enclose()` over MPFR, precision policy, interval extension and composition, `approx`, the certified probe and `quad_verified`, series and limit rules, dimensions and `buckingham`. Target: **unit 00 complete**, and readiness P1 including its five significant figures |
+| **3. The integrator, then `auto` and `solve`** | table, derivative patterns, substitution heuristics, parts with cycle detection, the rational tier reusing stage 1's factoriser; then the search layers §2 prepared for |
+| **4. Kernel completion** | Fourier–Motzkin with Farkas witnesses, the full §6.9 table, the ODE solver (§8.3) |
+| **V. Machine-checked rules** | *deferred and unbound from any prover* (§14) — the rule table stated and proved in a prover, provenance tags, the assumption whitelist. 80–110 lemmas, most of them `cited`. **(A) only**; a verified kernel is §18 Q19 and is not planned |
 
-Everything through stage 4 is **~7,400 lines**; stage V on
-top of that is conditional spend, not planned spend, and the library install
-and two-lemma spike come with it rather than before it.
+Stage V is conditional spend, not planned spend, and the library install and
+two-lemma spike come with it rather than before it.
 
-**Against revision 1's figures.** Its three totals — 6,200, 7,000 and 8,000 —
-reconciled with each other in no reading, and its "~1,200 trusted lines" was
-asserted and never derived. The totals here are hedged on purpose. What matters
-is not the sum but the re-ordering: **the thing §1 says is the product now
+**What matters is the order, not a total.** **The thing §1 says is the product
 arrives in stage 1, and the two most expensive components in the document —
 the integrator and the certified numeric kernel — arrive after the question
 "does this actually help?" has an answer.**
@@ -3774,7 +4015,8 @@ ladder it went.
 > failed.*
 
 That is a real falsifier: it can come out against the project, it costs nothing
-to instrument, and the answer arrives after ~4,500 lines rather than ~7,950.
+to instrument, and the answer arrives at the end of stage 1 rather than after
+stage 3.
 
 What to do if it fails is not "stop" but "**stop building this one**": a tool
 that reliably gets you the answer without building fluency is still useful, and
@@ -3967,7 +4209,11 @@ the change of language and deployment, and reopen Q7.
     a wrong answer is indistinguishable from an unfound proof (§13). Is a v1
     `check` that can only ever say "yes" or "I don't know" worth shipping, or
     does it wait for §8.6's certified probe?
-21. **What does `rewrite` match modulo?** *(Revision 9.)* `ftc` substitutes
+21. ~~**What does `rewrite` match modulo?**~~ **Settled, revision 10: the
+    default below, as trialled, with every occurrence rewritten when no
+    position is given (§6.1, `kernel/p1_expected.py` E1–E2).** Both P1 scripts
+    were written out this way before any code, and the kernel runs them.
+    *(Revision 9.)* `ftc` substitutes
     the endpoints literally, producing `ln(1+0)`, `atan((2*1-1)/sqrt 3)` and
     `sqrt(pi^2/4)`. None of these is syntactically the left-hand side of
     `ln_one`, `atan_one_sqrt3` or `sqrt_sq`, so §11.2's own rewrite step fires
@@ -3982,6 +4228,24 @@ the change of language and deployment, and reopen Q7.
     - every §6.8 entry used is pinned by its exact statement.
 
     Settle it by writing both P1 scripts out step by step before any code.
+22. **How does an admission tagged `none` get closed, or refused?**
+    *(Revision 10.)* The tagger names the §5.3 method an admitted obligation
+    expects, and `none` when no method can close it. Some `none` obligations
+    are simply false: `tan(pi/2) − tan(pi/2) ≐ ?A` owes `cos(pi/2) # 0`, and
+    no method can decide `cos(pi/2)`, so the kernel admits it rather than
+    refusing. Real discharge will close the true ones it can reach. What it
+    does with an obligation no method decides — keep admitting it, try §6.8's
+    exact values first (`cos_pi_half` would refute this one), or refuse
+    anything tagged `none` — is open, and it decides whether `Proved modulo N`
+    can ever hide a false admission.
+23. **How will `Int` and `D` state their definedness?** *(Revision 10.)*
+    `ring`, `field` and `norm_num` refuse them today, because an opaque atom
+    is assumed to denote and nothing yet shows that these do (§5.1). Once
+    §6.9's regularity and §5.2's `diverges` exist, the natural former is
+    "`Int[x = a .. b] f` owes f integrable on the range" and "`D[x] e` owes e
+    differentiable at x". Whether those are stated as formers, like `/`, or
+    only as `ftc`'s and `int_subst`'s premises, with the normalisers still
+    refusing, is open.
 
 ---
 
@@ -4103,6 +4367,18 @@ between three readings all below it. The remaining two disputes are untouched.
 What the exercise established beyond the number is that **a stated basis is
 what turns this from an argument into a count**, and §6.8's basis is now in
 §6.8; the other sections still need theirs.
+
+**What the kernel now checks, and what it does not (revision 10).** Every
+obligation list in §11 is now what code emits, asserted against a list written
+by hand before the code existed, and the rule statements of §5.1, §6.1–§6.4 and
+§6.8 that P1 exercises have been run rather than read. That is more evidence
+than any earlier revision had. But discharge is stubbed, so no obligation's
+*truth* is checked, and the tags that name how each would close are untrusted
+guesses. And the milestone's review and attack rounds never came back clean:
+each upheld findings, and the last round's fixes were applied and re-run but not
+reviewed again. The late findings were almost all bugs planted to test the
+suite that it failed to catch, fixed by adding tests without changing what the
+kernel does.
 
 **One thing worth reading, and it is optional.** Waterproof (TU Eindhoven,
 arXiv:2606.01875) is the closest existing artefact to the *interaction* §16
@@ -4355,6 +4631,39 @@ The review itself was folded in and not kept, as the revision-2 review was.
 **The pattern repeats a third time:** each round of *using* the design, by
 encoding goals, then by running code, now by planning the build, has found an
 unsound or unreachable step that every reading before it passed.
+
+**Revision 10, 2026-09-24 — the first milestone, built.** `WHAT.md`'s
+proof-of-life was built in `kernel/` against a frozen specification written
+first: `GRAMMAR.md`, and `p1_expected.py` with both P1 proofs as move/args data
+and their obligation lists derived by hand. The kernel proves readiness P1
+modulo 6 and 14 admissions, with discharge stubbed, and its regression script
+passes 225 checks. What reached this document:
+- **§6.1 / §6.4** — `ftc` and rewriting under `Int` owe the range's
+  orientation. Without it `ftc` proved ∫₁⁻¹ 1/x² ≐ 2.
+- **§5.1 / §6.2 / §14** — the partial builtins are formers owing their natural
+  domain, and `ring`, `field` and `norm_num` refuse `Int` and `D`. Without it
+  `0*ln(-1) ≐ ?A` proved as `Proved.`. The owner chose this over committing to
+  total semantics.
+- **§5.1** — `D[x]` binds inside and is evaluated at x, and every former is
+  charged at entry.
+- **§5.3** — methods 4 and 5 widened for non-strict goals and rational
+  content.
+- **§6.1** — `# 0` counts as open under `D[x]`, and §18 Q21 is settled.
+- **§6.2 / §6.3 / §6.8 / §6.9** — the a/d atom; `deriv` trusted while `ftc`
+  accepts its output; one notation for §6.8's entries; and a stale `abs` line
+  fixed.
+- **§11** — both obligation lists brought up to what the kernel emits.
+- **§15.2 / §15.3 / §16.3** — untrusted code called from trusted code, both
+  protection mechanisms named, and a refusal shape for `/step`.
+- **§15.2 / §17** — the line-count estimates removed, at the owner's call:
+  auditability is argued from what the code does. The figures in the colophon
+  above are kept as the record of what earlier revisions said.
+- **§18** — Q22 (what becomes of an admission tagged `none`) and Q23 (how
+  `Int` and `D` will state their definedness) are new.
+
+The record is `PROOF_OF_LIFE.md`. **The pattern holds a fourth time:** building
+the kernel found two unsound rule statements that the design review, the
+encoding pass and the spikes had all passed.
 
 **This file is the whole design record.** The review document and the
 revision-1 draft were folded in and deleted on 2026-09-20, before the project
