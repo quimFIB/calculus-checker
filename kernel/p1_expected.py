@@ -4302,7 +4302,8 @@ DEFINEDNESS_MUTATIONS = {
                     "everywhere ring_nf runs",
         "caught_by": [("BAD_MOVES", "ring_refuses_Int"),
                       ("BAD_MOVES", "divisor_test_refuses_Int"),
-                      ("BAD_MOVES", "match_refuses_Int"),
+                      # match_refuses_Int dropped: E57's step 2a refuses
+                      # it before ring_nf runs (DATA_CHANGES, adjudicated)
                       ("BAD_MOVES", "ftc_check_refuses_Int")],
         "admissions": _P1_UNCHANGED,
     },
@@ -4311,7 +4312,8 @@ DEFINEDNESS_MUTATIONS = {
         "caught_by": [("BAD_MOVES", "ring_refuses_D"),
                       ("BAD_MOVES", "close_D_goal_scope_passes"),
                       ("BAD_MOVES", "divisor_test_refuses_D"),
-                      ("BAD_MOVES", "match_refuses_D"),
+                      # match_refuses_D dropped: E57's step 2a refuses it
+                      # before ring_nf runs (DATA_CHANGES, adjudicated)
                       ("BAD_MOVES", "ftc_check_refuses_D")],
         "admissions": _P1_UNCHANGED,
     },
@@ -7123,6 +7125,10 @@ DATA_CHANGES = (
      "consolidation review 2026-09-24"),
     ("VERIFIED, one entry appended", "the record of the checks",
      "the record of the checks", "consolidation review 2026-09-24"),
+    ("DEFINEDNESS_MUTATIONS ring_reads_Int_as_atom and ring_reads_D_as_atom caught_by",
+     "('BAD_MOVES', 'match_refuses_Int') and ('BAD_MOVES', 'match_refuses_D') removed; the mutations stay caught at their other three and four locations",
+     "the E57 build: step 2a tests the target `at` too, so both cases are refused Int-or-D-not-normalisable before step 3's ring_nf runs, and a ring_nf that reads Int or D as an atom can no longer be observed there; REVIEW2_CHANGES' 'nothing changes' missed this. Checked by the main session",
+     'adjudicated during implementation'),
 )
 
 
