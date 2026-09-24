@@ -1,0 +1,4521 @@
+"""Readiness P1, written out before the kernel exists.
+
+This is WHAT.md's "Before any code" items 2 and 3: both P1 proofs as
+(move, args) data with every rewrite instantiated, and the obligation list
+each step is expected to emit. `kernel/proof_of_life.py` imports it and
+asserts the kernel against it. Everything here was derived by hand from
+DESIGN.md revision 9 and kernel/GRAMMAR.md, not from code. It was checked at
+build time with SymPy in a scratch directory, and that check is not part of
+this file (see VERIFIED at the end).
+
+Nothing here imports anything. Terms are strings in GRAMMAR.md's concrete
+syntax. The script parses them with the kernel's parser and compares trees,
+never strings: `parse_term(s) == kernel_term`. The printer's exact output
+is asserted only in PRINT_EXACT (section 9), for the Neg-base cases §15.6
+names.
+
+Two protection models are in force (§15.3: "say which is in force"), one
+per kind of object, and HANDLES_IN_FORCE says so. Fact slots take handles.
+A step that needs a theorem, such as `field`'s facts, names a handle that
+an earlier `fact` step bound (`("handle", "h_sqrt3")`), and the script
+passes the handle object the kernel returned for that step. Proof states,
+which carry the verdict, are protected by §15.3's sentinel fallback. The
+comment at HANDLES_IN_FORCE gives the reason that is enough here.
+
+E17, the handle model. It interprets §15.3's "opaque identifier", and
+WHAT.md Done-when item 5, which requires copies and pickles to be refused:
+  * A handle is an instance of a kernel-private class, minted only by `fact`.
+    It carries an integer id, unique across the whole kernel, and the
+    lineage of the proof state it was minted in. The states a step produces
+    inherit their predecessor's lineage and registry.
+  * The kernel keeps a private map from id to (minted object, lineage). A
+    step accepts a fact only if the map's entry for fact.id exists, its
+    object `is` fact, and its lineage is the lineage of the state the step
+    runs in. A minted object from another lineage gives
+    'fact-foreign-state-handle'. Anything else gives
+    'fact-not-minted-handle': a bare int, any other object, a Judgement, a
+    copy, an unpickled object, or a real handle whose id was altered.
+  * The handle class does NOT override __copy__, __deepcopy__ or __reduce__.
+    Copying and pickling therefore produce new objects, and the identity
+    check refuses them. Of the two options (identity check, or those
+    methods raising TypeError), this one is chosen because it does not
+    depend on the class cooperating. A copy built by hand, through
+    object.__new__ and a copied __dict__, is refused by the same check.
+  * A handle's lineage is a plain picklable token (e.g. an int), and the
+    handle class is defined at module level, so copy, deepcopy and pickle
+    round trips all succeed and are refused by the identity check, not by
+    copying or pickling failing (E21, FORGERIES).
+  * An id-only model is rejected, because it cannot tell a copy from the
+    original.
+
+Decisions are marked E1, E2, … and each cites the § it interprets. They are
+collected in DECISIONS near the end, and the places where DESIGN.md is wrong
+or self-contradictory are in DESIGN_DEFECTS.
+"""
+
+# ---------------------------------------------------------------------------
+# 0. Conventions
+
+# §15.3 asks which protection is in force. Both are, one per kind of object
+# (decided on the owner's behalf on 2026-09-24; the owner expressed no
+# preference on PROOF_OF_LIFE.md question 3):
+#   * handles for facts. A fact slot accepts only the object `fact` minted,
+#     by identity with the kernel's record for its id and lineage (E17), so
+#     a theorem cannot be built, copied, pickled or faked from outside the
+#     kernel;
+#   * the sentinel for proof states. A ProofState, which carries the verdict
+#     report() prints, demands a kernel-private token to construct, and
+#     step() and report() refuse any state the kernel did not make.
+# The sentinel is enough for states because a finished state, the only kind
+# report() gives a verdict for, is only ever produced by step(): install()
+# makes the first state, open, and every later one is step()'s output. No
+# caller assembles one. §15.3's realistic failure is a buggy tactic that
+# builds a result object instead of calling the kernel, and a state built
+# without the token, or copied, is refused. What the sentinel does not stop
+# is a deliberate write through private names (§15.3: "forgeable in five
+# lines by anyone who wants to"). §16.3's API boundary, not built in this
+# milestone, replaces in-process states with ids, so that no state crosses
+# it.
+HANDLES_IN_FORCE = "handles for facts, sentinel for proof states"
+SIG = {}  # P1 declares no function symbols (§5.1 f(e, ..., e))
+
+# The one report string the kernel may print for a finished proof with
+# admissions (§5.4, §15.6). PROVED is the report for N == 0. No PROOFS run
+# reaches it. DEFINEDNESS_CASES' literal cases do, which shows E26 charging a
+# literal condition and norm_num discharging it (E7).
+VERDICT = "Proved modulo {n} admissions"
+PROVED = "Proved."
+ADMISSION_REASON = "discharge not built"  # WHAT.md, Scope, Stubbed
+
+# Obligation statuses (§5.4 has three states; "open" never survives a
+# successful step in this milestone, because every undischarged side condition
+# is minted as an admission when it is emitted).
+DISCHARGED = "discharged"
+ADMITTED = "admitted"
+
+# Tags. A tag is (method, cites): the §5.3 method expected to close an
+# admission, or the procedure that closed a discharged obligation, plus the
+# §6.8 entries it cites. E15: methods for admissions are §5.3's list plus
+# `reg` (§6.9/§7, regularity closure, which is not a §5.3 method). E24
+# (TAG_RULES, below) says which method a given admission gets. WHAT.md says
+# an admission tagged `none` fails the milestone. The script asserts
+# `tag[0] != "none"` for every admission of every proof in PROOFS, run
+# unmutated, and asserts the whole tag equals the one given here. The no-none
+# assertion does not cover OCCURRENCE_CASE, DEFINEDNESS_CASES, BAD_MOVES or
+# planted-bug runs: OCCURRENCE_CASE's false t >= 0 @ [-1, 0] is expected to be
+# tagged none, as a positive test that the tagger flags a false obligation,
+# and so are DEFINEDNESS_CASES' false cos(pi/2) # 0 and x > 0 @ x < 0, the
+# same test for a definedness obligation (E26) (for x > 0 only:
+# ln_true_by_hyp is its true contrast; cos u # 0 is tagged none unless the
+# goal's own domain Γ states it, or an order item it follows from
+# (cos u > 0, cos u < 0), which hyp closes (§5.3 method 1). This holds until
+# cos_nonzero_on is pinned, as DEFINEDNESS_CASES tan_zero_true pins. So a
+# PROOFS run with tan on a goal whose domain does not state that condition
+# cannot yet pass the no-none check). Tag
+# equality is asserted everywhere a tag is given.
+ADMISSION_METHODS = {
+    "none": "no method's feasibility check passed (E24). Fails the milestone "
+            "in an unmutated PROOFS run",
+    "hyp": "§5.3 method 1, by hypothesis",
+    "range": "§5.3 method 2 then 3: linear over the domain's range interval",
+    "linear": "§5.3 method 3, Fourier–Motzkin; pi and e_const bring their "
+              "sign facts (§5.3 rev 9)",
+    "sign": "§5.3 method 4, sign certificate (the goal as written first). "
+            "Per E20, for a non-strict `>= 0` goal it also accepts a zero "
+            "rational constant, which §5.3 as written does not state (see "
+            "DESIGN_DEFECTS)",
+    "sign product": "§5.3 method 5, factorisation re-checked by ring. Per "
+                    "E18 it also splits off a nonzero rational content "
+                    "(3*sqrt 3, 2*sqrt x), which §5.3 as written does not "
+                    "allow (see DESIGN_DEFECTS)",
+    "cite": "§5.3 method 6, a §6.8 entry",
+    "reg": "§6.9 closure rules via §7's reg tactic (regularity is only "
+           "listed in this milestone)",
+}
+DISCHARGE_METHODS = {
+    "norm_num": "§6.2, closes a goal over rational literals exactly (E7)",
+    "deriv+ring": "§6.3 deriv then §6.2 ring, run inside the ftc step (E9)",
+    "deriv+field": "§6.3 deriv then §6.2 field, facts as cited (E9)",
+}
+
+T_NONE = ("none", ())
+T_REG = ("reg", ())
+T_HYP = ("hyp", ())
+T_RANGE = ("range", ())
+T_LINEAR = ("linear", ())
+T_LINEAR_PI = ("linear", ("pi_pos",))
+T_SIGN = ("sign", ())
+T_PRODUCT = ("sign product", ())
+T_PRODUCT_SQRT = ("sign product", ("sqrt_pos",))
+T_SQRT_POS = ("cite", ("sqrt_pos",))
+T_NORM_NUM = ("norm_num", ())
+T_DERIV_RING = ("deriv+ring", ())
+T_DERIV_FIELD = ("deriv+field", ())
+T_DERIV_FIELD_FACT = ("deriv+field", ("sqrt_sq_val",))
+
+# E24, the tagger. It interprets §5.3's "in the order tried" and WHAT.md's
+# "an admission tagged `none` fails the milestone". Without a stated rule the
+# tagger could only be fitted to the lists below, and a tagger that picked by
+# the domain's shape (and cited pi_pos wherever pi occurs) would never
+# produce `none`, so the check WHAT.md relies on would be empty. The tagger
+# is untrusted (§7): it proposes a method, the kernel relies on it for
+# nothing, and discharge stays stubbed. A discharged obligation is not
+# tagged by it; its tag is the procedure that closed it (DISCHARGE_METHODS).
+TAG_RULES = (
+    "An admission (prop, dom) is tagged with the first method below, in "
+    "§5.3's order, whose cheap untrusted feasibility check passes. The cites "
+    "are the §6.8 entries that check used, including those its "
+    "sub-obligations used, without repeats. If no check passes, the tag is "
+    "('none', ()).",
+
+    "reg. A regularity judgement e in C^k(D) is tagged ('reg', ()) by its "
+    "shape alone. Regularity is only listed in this milestone (WHAT.md Out, "
+    "§6.9). No other method sees a regularity judgement, and reg sees "
+    "nothing else.",
+
+    "hyp (§5.3 method 1). prop is in Γ, or follows from Γ's ordering "
+    "hypotheses by reflexive-transitive closure. Γ is the goal's own "
+    "hypotheses: the items the goal's own domain contributed to dom (E1 "
+    "step 7, first part). The interval items that Int ranges and ftc's "
+    "[a, b] and (a, b) put into dom belong to method 2, not to Γ. Every P1 "
+    "goal's domain is true, so hyp never fires in P1.",
+
+    "range, linear (§5.3 methods 2 and 3). Run Fourier–Motzkin over Q on "
+    "three things: the negated goal; dom's items, where an interval item on "
+    "v gives c <= v and v <= d, with < at an open end and nothing at an "
+    "infinite end; and the sign fact of each named constant that occurs in "
+    "prop or dom (pi_pos : pi > 0, e_gt_one : e_const > 1; §5.3 rev 9). "
+    "Every atom and every non-linear monomial (pi^2, sqrt x, x^3, "
+    "x*inv(x)) is treated as a fresh opaque variable, so only the linear "
+    "fragment is used. A goal e # 0 is tried as e > 0, then as e < 0. If "
+    "the set is infeasible, the tag is 'range' when some item of dom has a "
+    "nonzero multiplier in the Farkas combination, and 'linear' otherwise. "
+    "A sign fact goes into cites only if its multiplier is nonzero. The "
+    "combination is an irreducible one: no constraint in it can be dropped. "
+    "So when the negated goal is infeasible by itself, as when ring cancels "
+    "it to a false constant, no item of dom is used and the tag is "
+    "'linear': 1/x - 1/x + 1 > 0 @ [1, 2] normalises to 1 > 0 (MATCH_ACCEPTS "
+    "ring_cancels_inv_atom, E26).",
+
+    "sign (§5.3 method 4). First the goal as written, then its ring normal "
+    "form, is matched against two forms: a positive rational plus a sum of "
+    "even powers, each with a positive rational coefficient; or a "
+    "quadratic in one variable or atom with a positive leading coefficient "
+    "and a negative discriminant. For a non-strict `e >= 0` or `0 <= e` "
+    "goal, a zero constant is also accepted (E20). A goal e # 0 is tried "
+    "as e > 0.",
+
+    "sign product (§5.3 method 5). It closes >, < and # 0 goals only, never "
+    ">= or <=. (i) E18: the ring normal form is c*p with c a rational other "
+    "than 0 and 1, and p's obligation at dom (p # 0, or p's sign goal with "
+    "c's sign decided by norm_num) is not tagged none. (ii) Otherwise, an "
+    "untrusted factorisation into factors of strictly lower degree, in which "
+    "every factor's obligation at dom is not tagged none. The factorisation "
+    "comes from a step argument or, failing that, from a small stdlib "
+    "rational-root factoriser in the untrusted layer (§5.3 allows §8.2's "
+    "factoriser). It need not come from F: 1 + x^3 # 0 @ [0, 1] is emitted "
+    "when the goal is installed, before any F exists. The cites are the "
+    "union of the parts' cites.",
+
+    "cite (§5.3 method 6). A §6.8 entry whose instantiated conclusion "
+    "implies prop syntactically, and whose instantiated hypotheses at dom "
+    "are each not tagged none. 'Implies syntactically' means one of two "
+    "things. Either the conclusion is prop as a tree, or the conclusion is "
+    "`a > 0` (or `0 < a`) and prop is `a # 0`, `a >= 0` or `0 <= a` with "
+    "the same a as a tree. So sqrt_pos's sqrt a > 0 gives sqrt a # 0, and "
+    "pi_pos's pi > 0 gives neither pi/2 >= 0 nor 0 <= pi/2.",
+
+    "Sub-obligations (a factor's sign, the p of a content split, a cited "
+    "entry's hypotheses) are tagged by this same list, recursively. "
+    "Termination is §5.3's own: strictly lower degree in (ii), a literal "
+    "content in (i). Sub-obligations are not recorded as admissions. They "
+    "only decide whether the parent's check passes, and they contribute "
+    "cites.",
+)
+
+# Sources: which rule emitted an obligation. One key may have several.
+# The kernel reports these codes verbatim as an obligation's sources. They are
+# the stable thing to assert, like REFUSAL_CODES, and the prose is
+# documentation only, so no § reference has to be copied into trusted code.
+SOURCES = {
+    "former": "a former in a term entering the proof (§5.1): '/' or a "
+              "negative power owes its divisor d # 0 and a real power its "
+              "base > 0 (E6), and a partial builtin its natural domain "
+              "(E26: ln u owes u > 0, sqrt u owes u >= 0, tan u owes "
+              "cos u # 0, and so on)",
+    "orient": "range orientation lo <= hi (E4; §5.1 reversed limits, §5.3 "
+              "method 2)",
+    "rewrite_hyp": "rewrite by a §6.8 entry: its hypothesis instantiated "
+                   "(sqrt_sq u >= 0; §6.8, §6.1)",
+    "ftc_F_C0": "ftc premise F in C^0([a, b]) (§6.4)",
+    "ftc_F_C1": "ftc premise F in C^1((a, b)) (§6.4)",
+    "ftc_D": "ftc premise D[x] F == f @ (a, b) (§6.4)",
+    "ftc_f_C0": "ftc premise f in C^0([a, b]) (§6.4)",
+    "d_ln": "d_ln: u > 0 (§6.3)",
+    "d_sqrt": "d_sqrt: u > 0 (§6.3)",
+    "route_div": "deriv routes u / v as u * (1/v) by field, owing v # 0 "
+                 "(§6.3 rev 7)",
+    "field_div": "field: every divisor in its input, atom arguments included "
+                 "(§6.2 rev 7)",
+    "fact_hyp": "fact hypothesis inherited by the result (§6.2 facts; "
+                "sqrt_sq_val a >= 0)",
+}
+S_FORMER, S_ORIENT, S_SQRT_SQ = "former", "orient", "rewrite_hyp"
+S_FTC_C0F, S_FTC_C1F, S_FTC_D, S_FTC_C0f = (
+    "ftc_F_C0", "ftc_F_C1", "ftc_D", "ftc_f_C0")
+S_D_LN, S_D_SQRT, S_ROUTE_DIV = "d_ln", "d_sqrt", "route_div"
+S_FIELD, S_FACT = "field_div", "fact_hyp"
+assert all(s in SOURCES for s in (
+    S_FORMER, S_ORIENT, S_SQRT_SQ, S_FTC_C0F, S_FTC_C1F, S_FTC_D, S_FTC_C0f,
+    S_D_LN, S_D_SQRT, S_ROUTE_DIV, S_FIELD, S_FACT))
+
+# ---------------------------------------------------------------------------
+# 1. The §6.8 entries P1 uses, pinned by exact statement
+#
+# `statement` is a judgement for parse_judgement. `schema` lists the
+# variables `inst` must bind; in GRAMMAR.md's §9 pinning they are the ordinary
+# variables u and a. `hyps` are the statement's domain items. Each becomes an
+# obligation when the entry is used, at the position's domain (E1 step 8).
+#
+# §6.8 writes sqrt_sq with t (√(t²) ≐ t @ t ≥ 0). It is stated with u here,
+# as GRAMMAR.md pins it, so that the schema variable is never the same name as
+# §11.1's bound t. The instantiation u := t is then visible, not a coincidence
+# of names (§15.2 item 3).
+#
+# No entry had to be added. The fallback route's `sqrt 0` closes by sqrt_sq
+# with u := 0 (hypothesis 0 >= 0, norm_num), so §6.8's table row
+# "sqrt: 0, 1" is not needed as a separate entry. `cos 0` is never evaluated,
+# because ring removes 2*0*cos 0 (§11.1 revision 9 dropped cos_zero).
+
+NAMED_ENTRIES = {
+    "sqrt_sq": {
+        "statement": "sqrt(u^2) == u @ u >= 0",
+        "schema": ("u",),
+        "lhs": "sqrt(u^2)",
+        "rhs": "u",
+        "hyps": ("u >= 0",),
+        "use": "rewrite",
+        "cite": "§6.8 (sqrt_sq)",
+        "used_in": ("P1.1 s1 (u := t, under Int)",
+                    "P1.1-fallback s2 (u := pi/2), s3 (u := 0)",
+                    "BAD_MOVES rewrite_under_D (u := x, refused)"),
+    },
+    "pi_pos": {
+        "statement": "pi > 0",
+        "schema": (),
+        "hyps": (),
+        "use": "sign fact: joins §5.3's constraint set whenever pi occurs "
+               "(rev 9); appears here only as a cite in tags",
+        "cite": "§6.8 rev 9 (Rocq PI_RGT_0, per §6.8)",
+        "used_in": ("tags of 0 <= pi/2 and pi/2 >= 0",),
+    },
+    "sin_pi_half": {
+        "statement": "sin(pi/2) == 1",
+        "schema": (),
+        "lhs": "sin(pi/2)",
+        "rhs": "1",
+        "hyps": (),
+        "use": "rewrite",
+        "cite": "§6.8 table, sin at π/2",
+        "used_in": ("P1.1 s3", "P1.1-fallback s4"),
+    },
+    "cos_pi_half": {
+        "statement": "cos(pi/2) == 0",
+        "schema": (),
+        "lhs": "cos(pi/2)",
+        "rhs": "0",
+        "hyps": (),
+        "use": "rewrite",
+        "cite": "§6.8 (cos_pi_half)",
+        "used_in": ("P1.1 s4", "P1.1-fallback s5"),
+    },
+    "sin_zero": {
+        "statement": "sin 0 == 0",
+        "schema": (),
+        "lhs": "sin 0",
+        "rhs": "0",
+        "hyps": (),
+        "use": "rewrite",
+        "cite": "§6.8 (sin_zero)",
+        "used_in": ("P1.1 s5", "P1.1-fallback s6"),
+    },
+    "ln_one": {
+        "statement": "ln 1 == 0",
+        "schema": (),
+        "lhs": "ln 1",
+        "rhs": "0",
+        "hyps": (),
+        "use": "rewrite",
+        "cite": "§6.8 (ln_one)",
+        "used_in": ("P1.2 s3, s4, s5",
+                    "BAD_MOVES rewrite_needs_field (refused)"),
+    },
+    "atan_one_sqrt3": {
+        # The divisor sqrt 3 in the statement is part of a trusted library
+        # statement (§6.8, §15.2 item 7) and is not re-charged when the entry
+        # is used, and neither is its sqrt's 3 >= 0 (E26). The target the
+        # rewrite acts on was charged when it entered the goal (E6, E26).
+        "statement": "atan(1/sqrt 3) == pi/6",
+        "schema": (),
+        "lhs": "atan(1/sqrt 3)",
+        "rhs": "pi/6",
+        "hyps": (),
+        "use": "rewrite",
+        "cite": "§6.8 (atan_one_sqrt3)",
+        "used_in": ("P1.2 s6, s8", "BAD_MOVES rewrite_lhs_mismatch (refused)"),
+    },
+    "atan_odd": {
+        "statement": "atan(-u) == -atan u",
+        "schema": ("u",),
+        "lhs": "atan(-u)",
+        "rhs": "-atan u",
+        "hyps": (),
+        "use": "rewrite",
+        "cite": "§6.8 parity row (atan_odd)",
+        "used_in": ("P1.2 s7 (u := 1/sqrt 3)",),
+    },
+    "sqrt_sq_val": {
+        "statement": "(sqrt a)^2 == a @ a >= 0",
+        "schema": ("a",),
+        "lhs": "(sqrt a)^2",
+        "rhs": "a",
+        "hyps": ("a >= 0",),
+        "use": "fact for field (§6.2 facts), never a rewrite (§6.8, rev 7)",
+        "cite": "§6.8 (sqrt_sq_val)",
+        "used_in": ("P1.2 s1 (a := 3), consumed by s2 and by P1.2-alt's close",),
+    },
+    "sqrt_pos": {
+        "statement": "sqrt a > 0 @ a > 0",
+        "schema": ("a",),
+        "hyps": ("a > 0",),
+        "use": "named, not used until discharge exists (WHAT.md Scope); "
+               "appears as a cite in tags",
+        "cite": "§6.8 (sqrt_pos), written with @ per GRAMMAR.md D14",
+        "used_in": ("tags of sqrt 3 # 0, 3*sqrt 3 # 0, 2*sqrt x # 0",),
+    },
+}
+ADDED_ENTRIES = ()  # none were needed; see the note above NAMED_ENTRIES
+
+# ---------------------------------------------------------------------------
+# 2. How rewrite matches (§18 Q21, settled for this milestone) and where
+#    domains come from
+
+# E1. The Q21 default, made precise. WHAT.md names it as the default to trial.
+REWRITE_RULE = (
+    "Arguments: entry (a NAMED_ENTRIES key), inst (a dict from each schema "
+    "variable to a term; exactly the entry's schema, no more, no fewer), "
+    "at (the target subterm, a term), and optionally occurrence (E2): a "
+    "0-based index into the structural occurrences of `at` in the goal's "
+    "non-?A side (both sides, lhs first, for a goal with no ?A), enumerated "
+    "in pre-order, left to right over the tree (children in GRAMMAR.md §7's "
+    "field order, so an Int's lo and hi before its body). An "
+    "Int[v = lo .. hi] e encloses an occurrence only when the occurrence "
+    "lies in its body e. An occurrence in lo or hi is outside v's scope "
+    "(GRAMMAR.md §5: the bound variable may not occur in its own endpoints; "
+    "fv(Int[v = a .. b] e) = (fv(e) - {v}) ∪ fv(a) ∪ fv(b)). It gets "
+    "neither v nor v's range. It still gets the binder and range of any "
+    "outer Int whose body contains it. When given, it is §6.1's "
+    "position p: only that occurrence is matched, scope-checked (step 6), "
+    "given its domain (step 7), charged (steps 8 and 10) and replaced (step "
+    "11). An index out of range gives 'rewrite-target-not-found'. No P1 "
+    "step passes it.",
+
+    "1. L := lhs[inst], R := rhs[inst], H := [h[inst] for h in hyps]. The "
+    "substitution is capture-avoiding. Entry statements contain no binders, "
+    "so nothing can be captured inside them.",
+
+    "2. `at` must occur structurally (tree ==) in the goal's non-?A side. "
+    "When `occurrence` is absent, every occurrence is rewritten (E2), and "
+    "steps 6 to 10 apply to each one. When it is given, only that one is. No "
+    "occurrence gives refusal 'rewrite-target-not-found'. The ?A side is "
+    "never rewritten (§9).",
+
+    "3. Match. If L is an application h(a) of a builtin, `at` must be an "
+    "application of the same h, and ring_nf(a) == ring_nf(b), where b is the "
+    "argument of `at`. If L is anything else, L == at as trees. Every rewrite "
+    "entry P1 uses has an application on its left, so the first case is the "
+    "only one exercised. Mismatch gives 'rewrite-lhs-mismatch'.",
+
+    "4. ring_nf is §6.2's ring normal form over Q[atoms], and nothing more. A "
+    "division a/d by a nonzero rational literal d is a coefficient. A "
+    "division a/d by anything else is a * inv(d), with inv(d) an opaque atom "
+    "keyed by ring_nf(d) (E3). Negative powers are handled the same way. "
+    "Atoms (applications, inv, RPow) are identified by their head and the "
+    "ring_nf of their arguments, recursively (§6.2, atoms). It is never "
+    "field_nf, which cancels and would owe obligations (Q21). So ln(x/x) does "
+    "not match ln 1: x*inv(x) is not 1 in ring.",
+
+    "5. Why it is sound. ring_nf(a) == ring_nf(b) is an identity in "
+    "Q[atoms]: it holds for every value of every atom, inv atoms included. "
+    "Read inv(d) as 1/d, defined only where d # 0. That is the partial "
+    "reading §14 requires; the design gives no total 1/0. §5.1 keeps oo out "
+    "of arithmetic, so every atom is a real, and §6.2 makes every "
+    "non-literal divisor an opaque atom. So the identity specialises to "
+    "a = b at every point where every divisor of a and of b is nonzero: a "
+    "and b are equal wherever both are defined. The same holds for the "
+    "partial builtins' atoms (E26): ln u is a real only where u > 0, and so "
+    "on, so 'defined' means every divisor nonzero and every partial builtin "
+    "inside its domain. An Int or D atom has no domain the kernel can "
+    "state, so ring refuses to normalise one, and the match is refused "
+    "'Int-or-D-not-normalisable' (E26 (b)). ring cancels no divisor "
+    "(x*inv(x) is not 1, §6.2), which is why this equality never needs a "
+    "d # 0 obligation. But it does cancel monomials that sum to zero, "
+    "including monomials that contain an inv atom: inv(y) - inv(y) is 0. "
+    "So a and b need NOT have the same inverse atoms or the same divisors, "
+    "and soundness does not rest on that. For example sqrt(1/y - 1/y) "
+    "matches sqrt_sq's L = sqrt(0^2), and ln(1/x - 1/x + 1) matches ln 1 "
+    "(MATCH_ACCEPTS). The divisors and domains that matter are those of "
+    "terms left in the goal. The target's own were charged when it entered "
+    "the goal (E6, E26). Any divisor inst carries into the result appears "
+    "in R and is charged at P by step 10: atan_odd with u := x/x - x/x at "
+    "atan(0) matches, and its R, -atan(x/x - x/x), owes x # 0. So does any "
+    "partial builtin: atan_odd with u := y + (ln(-1) - ln(-1)) at atan(-y) "
+    "matches, and its R owes -1 > 0, which norm_num refutes (BAD_MOVES "
+    "rewrite_R_owes_domain). A divisor of L that does not reach R leaves "
+    "the goal and owes nothing; in P1 every schema variable of an entry's "
+    "lhs occurs in its rhs. So the matcher owes no divisor or domain that "
+    "has not been charged. Congruence then gives h(a) == h(b), the entry "
+    "gives L == R on H, and so at == R on H at every point where the "
+    "charged divisors are nonzero and the charged domains hold.",
+
+    "6. Scope. Every free variable of every inst value must be in scope at "
+    "each occurrence: free in the goal, or bound by an Int enclosing the "
+    "occurrence (step 2: the occurrence is in that Int's body). The binder "
+    "case is exactly this. sqrt_sq's u := t is legal "
+    "at sqrt(t^2) because t is bound by the enclosing Int[t = 0 .. pi/2]. "
+    "A free variable out of scope gives the refusal 'rewrite-scope'. In "
+    "particular, an inst value mentioning v at an occurrence in "
+    "Int[v = ..]'s own lo or hi is refused 'rewrite-scope' (BAD_MOVES "
+    "rewrite_in_own_endpoint).",
+
+    "7. Position domain P of an occurrence: the goal's own domain (true for "
+    "every P1 goal), plus the range interval of each Int[v = lo .. hi] "
+    "enclosing the occurrence in the step-2 sense (its body, not its "
+    "endpoints), built by DOMAIN_RULES E4, which says what an infinite end "
+    "gives. The E4 orientation obligation comes only from those Ints. Under "
+    "Int that interval is all "
+    "§6.1 asks for, since the integral depends only on values on the range.",
+
+    "8. Side conditions: for each occurrence and each h in H, emit h @ P. A "
+    "closed h, with no free variables, is emitted with domain true (E5). For "
+    "sqrt_sq at sqrt(t^2) under Int[t = 0 .. pi/2] this gives "
+    "t >= 0 @ [0, pi/2], plus the range orientation 0 <= pi/2 (E4). The "
+    "orientation is where pi_pos is needed.",
+
+    "9. Under D[x] (revision 9, §6.1). If an occurrence lies anywhere below a "
+    "D[x], the equation's whole domain in x must be open (E11). Two tests, "
+    "and failing either gives the refusal "
+    "'rewrite-under-D-needs-open-domain'. "
+    "(a) Every h in H that mentions x must be open: a strict < or >, a # 0, "
+    "or an open interval, and no subterm of h that mentions x may be an "
+    "application of sqrt, asin, acos or acosh, or a D or Int node. The "
+    "same test applies to every obligation step 10 charges from R at the "
+    "occurrence: each E6 former ('/', negative powers, RPow bases) and "
+    "each E26 former, formers nested inside a divisor included. Both bound "
+    "the equation's domain (step 5: at == R holds where H holds and where "
+    "R's charged divisors and domains hold), so both must be open in x. "
+    "In practice R may not carry sqrt, asin, acos or acosh of an x-term, "
+    "even buried in a divisor such as 1/(sqrt x + 1), whose d # 0 is "
+    "strict but holds exactly on [0, oo). The strict open formers stay "
+    "allowed: ln (u > 0), tan (cos u # 0), '/' and negative powers "
+    "(d # 0), RPow (base > 0) and atanh (u > -1, u < 1). An inst value "
+    "holding a D or Int is refused earlier, at step 3's ring_nf "
+    "(E26 (b)), whenever it lies in L's argument, as every P1 entry's "
+    "does; the subterm clause refuses it otherwise (BAD_MOVES "
+    "rewrite_under_D_R_closed_former, rewrite_under_D_R_divisor). An item "
+    "not mentioning x is allowed, because the set of x where it holds is "
+    "all of R or empty, and both are open. The subterm clause is needed "
+    "because 'strict' alone does not give an open set under the partial "
+    "reading of step 5. sqrt x + 1 > 0 and sqrt x + 1 # 0 are strict, but "
+    "both hold exactly on [0, oo). A term is continuous on its natural "
+    "domain, so its > 0, < 0 and # 0 sets are open whenever that domain is "
+    "open. That domain is open when every partial former in the term has an "
+    "open natural domain. '/', negative integer powers, ln, tan, atanh and "
+    "RPow (base > 0, §5.1) do. sqrt (u >= 0), asin and acos (|u| <= 1) and "
+    "acosh (u >= 1) do not (§6.9). D and Int are refused because this "
+    "argument does not cover them. "
+    "(b) If H or step 10's charges from R at the occurrence are "
+    "non-empty, then no Int[v = lo .. hi] that lies below the "
+    "D[x] and encloses the occurrence (in step 2's body sense) may have a "
+    "lo or hi that mentions x. Such an Int puts its range interval into P "
+    "(step 7), and steps 8 and 10 emit the equation's hypotheses and R's "
+    "charged formers on it. E4 always "
+    "builds that interval closed at every finite end, and it emits the "
+    "non-strict lo <= hi, so the equation's domain in x is closed (§6.1 rev "
+    "9). An Int whose ends are both x-free contributes an x-free interval. "
+    "Its set of x is R or empty, so it is allowed, by (a)'s argument. An "
+    "occurrence where H is empty and R charges nothing emits nothing at P, "
+    "and is not affected. Test (b) is "
+    "conservative. With continuous integrands the Leibniz rule would make "
+    "such a rewrite sound, but the design does not state that argument, so "
+    "the kernel follows §6.1's letter (BAD_MOVES "
+    "rewrite_under_D_through_Int, rewrite_under_D_through_Int_R_former). "
+    "sqrt_sq's u >= 0 with u := x is refused by (a). That is WHAT.md's "
+    "must-refuse D[x] sqrt(x^2). E16's cong inherits both tests unchanged. "
+    "No accepted P1 rewrite is under a D, so neither test changes a P1 "
+    "result. Test (a) on step 10's charges was added after E26 (a review "
+    "fix, DATA_CHANGES): E26 made step 10 charge closed domains (sqrt's "
+    "u >= 0 and the like), and the gap already existed before E26 through "
+    "a divisor holding sqrt of x.",
+
+    "10. Formers: every former in R, and so in the inst values it carries "
+    "into the goal, is charged at P: '/', negative powers and RPow bases "
+    "(E6), and the partial builtins (E26).",
+
+    "11. Result: when `occurrence` is absent, every occurrence of `at` is "
+    "replaced by R; when it is given, only that one. The step emits the "
+    "obligations of steps 8 and 10, and nothing else.",
+)
+
+# Accepted rewrites that pin REWRITE_RULE's reading: step 5's match, and
+# E4's infinite ends (DOMAIN_RULES). They are acceptances, so they are not in
+# BAD_MOVES, which holds only refusals. Each is run on a fresh goal; `emits`
+# is the step's whole obligation list.
+MATCH_ACCEPTS = [
+    {"id": "ring_cancels_inv_atom",
+     "goal": "Int[x = 1 .. 2] ln(1/x - 1/x + 1) == ?A",
+     # goal creation charges the former x # 0 @ [1, 2] (E6) and ln's own
+     # 1/x - 1/x + 1 > 0 @ [1, 2] (E26); the range is literal, so no
+     # orientation (E4). The ln key's ring normal form is 1 > 0, so its
+     # negated goal 1 <= 0 is infeasible by itself and TAG_RULES gives
+     # 'linear' with no dom item used.
+     "goal_emits": [("x # 0", "[1, 2]", (S_FORMER,), ADMITTED, T_RANGE,
+                     True),
+                    ("1/x - 1/x + 1 > 0", "[1, 2]", (S_FORMER,), ADMITTED,
+                     T_LINEAR, True)],
+     "move": ("rewrite", {"entry": "ln_one", "inst": {},
+                          "at": "ln(1/x - 1/x + 1)"}),
+     "goal_after": "Int[x = 1 .. 2] 0 == ?A",
+     "emits": [],
+     "why": "ring_nf(inv(x) - inv(x) + 1) = 1 = ring_nf(1), checked with "
+            "SymPy with inv(x) a free symbol. The match owes nothing beyond "
+            "what the goal's creation charged: x # 0, and ln's domain "
+            "1/x - 1/x + 1 > 0 (E26). Contrast BAD_MOVES "
+            "rewrite_needs_field, where x*inv(x) does not reduce to 1."},
+    {"id": "rewrite_under_infinite_range",
+     "goal": "Int[x = 0 .. oo] sqrt(x^2)*exp(-x) == ?A",
+     # no divisor in the integrand. Goal creation charges sqrt's domain
+     # x^2 >= 0 @ [0, oo) (E26), open at oo, with no orientation (E4). Its
+     # tag is sign by E20: range sees x^2 as opaque, and x^2 is an even
+     # power with constant 0 on a non-strict goal.
+     "goal_emits": [("x^2 >= 0", "[0, oo)", (S_FORMER,), ADMITTED, T_SIGN,
+                     True)],
+     "move": ("rewrite", {"entry": "sqrt_sq", "inst": {"u": "x"},
+                          "at": "sqrt(x^2)"}),
+     "goal_after": "Int[x = 0 .. oo] x*exp(-x) == ?A",
+     "emits": [("x >= 0", "[0, oo)", (S_SQRT_SQ,), ADMITTED, T_RANGE,
+                True)],
+     "why": "E4 with an infinite end: the hypothesis is emitted @ [0, oo), "
+            "open at oo, and no orientation obligation `0 <= oo` is "
+            "emitted, since that is not a term (§5.1). sqrt(x^2) == x holds "
+            "for x >= 0 (SymPy)."},
+    # Added (user decision 2026-09-24, review fix): E26's position domains
+    # at the two sites no other case inspects, a rewrite's R under an Int
+    # and a builtin in an Int's limit. BAD_MOVES assert only refusal codes,
+    # so an emission's domain is pinned only by an accepted case.
+    {"id": "rewrite_R_former_at_position",
+     "goal": "Int[x = 1 .. 2] atan(-ln x) == ?A",
+     # installation: ln x owes x > 0 @ [1, 2] (E26); the range is literal,
+     # so no orientation (E4). FM: the negated goal x <= 0 with the dom
+     # item 1 <= x is infeasible, a dom item used, so range.
+     "goal_emits": [("x > 0", "[1, 2]", (S_FORMER,), ADMITTED, T_RANGE,
+                     True)],
+     "move": ("rewrite", {"entry": "atan_odd", "inst": {"u": "ln x"},
+                          "at": "atan(-ln x)"}),
+     "goal_after": "Int[x = 1 .. 2] -atan(ln x) == ?A",
+     "emits": [("x > 0", "[1, 2]", (S_FORMER,), ADMITTED, T_RANGE, False)],
+     "why": "REWRITE_RULE step 10 charges R's formers at the occurrence's "
+            "position domain P (the goal's domain plus the enclosing range, "
+            "step 7), not at the goal's domain. R = -atan(ln x) re-owes "
+            "ln's x > 0 on [1, 2], the key installation minted, so it is "
+            "not new. A kernel charging at the goal's domain would emit "
+            "x > 0 @ true, a new key, tagged none. atan_odd has no "
+            "hypotheses, and the scope check passes because x is bound by "
+            "the enclosing Int (step 6). SymPy: atan(-ln x) + atan(ln x) "
+            "= 0."},
+    # Added (user decision 2026-09-24, review fix): the goal-domain half of
+    # step 7's P for step 10's charges of R. In rewrite_R_former_at_position
+    # Γ is true, so dropping Γ changes no key there.
+    {"id": "rewrite_R_former_at_goal_and_range",
+     "goal": "Int[x = 1 .. 2] atan(-ln(x + y)) == ?A @ y > 0",
+     # installation: ln(x + y) owes x + y > 0 at P = (y > 0, x in [1, 2]),
+     # the goal's domain then the enclosing range (step 7), the interval
+     # named since the judgement's free variables are {x, y} (GRAMMAR.md
+     # D13, R4). The range is literal, so no orientation (E4). hyp fails:
+     # y > 0 alone does not give x + y > 0. FM over the negated goal
+     # x + y <= 0 with the dom items y > 0 and 1 <= x <= 2 is infeasible
+     # (sum x + y <= 0, 1 - x <= 0 and -y < 0: 1 < 0), with dom items used,
+     # so range.
+     "goal_emits": [("x + y > 0", "y > 0, x in [1, 2]", (S_FORMER,),
+                     ADMITTED, T_RANGE, True)],
+     "move": ("rewrite", {"entry": "atan_odd", "inst": {"u": "ln(x + y)"},
+                          "at": "atan(-ln(x + y))"}),
+     "goal_after": "Int[x = 1 .. 2] -atan(ln(x + y)) == ?A @ y > 0",
+     "emits": [("x + y > 0", "y > 0, x in [1, 2]", (S_FORMER,), ADMITTED,
+                T_RANGE, False)],
+     "why": "step 10 charges R at P = Γ plus the enclosing range (step 7). "
+            "R = -atan(ln(x + y)) re-owes the key installation minted, so "
+            "it is not new. A kernel that drops Γ emits x + y > 0 on "
+            "x in [1, 2] alone: a new key, and FM over {x + y <= 0, "
+            "1 <= x <= 2} is feasible (x = 1, y = -5), sign and sign "
+            "product see a degree-1 sum with no content and no factor, and "
+            "no entry concludes it, so it is tagged none. atan_odd has no "
+            "hypotheses. The scope check passes, since y is free in the "
+            "goal and x is bound by the enclosing Int (step 6). SymPy: "
+            "atan(-ln(x + y)) + atan(ln(x + y)) = 0, and the LP "
+            "{x + y <= 0, 1 <= x <= 2, y >= 0} is infeasible."},
+    {"id": "limit_former_at_outer_domain",
+     "goal": "(Int[t = 0 .. sqrt y] t) + atan(-y) == ?A @ y >= 0",
+     # installation: the limit's sqrt y owes y >= 0 at the limit's position
+     # domain, which is the goal's, y >= 0. prop is in Γ, so hyp. The body t
+     # owes nothing, so no key uses the range [0, sqrt y] and no orientation
+     # 0 <= sqrt y is owed (E4, as DEFINEDNESS_MUTATIONS no_sqrt_former's
+     # trace of P1.1 reads it).
+     "goal_emits": [("y >= 0", "y >= 0", (S_FORMER,), ADMITTED, T_HYP,
+                     True)],
+     "move": ("rewrite", {"entry": "atan_odd", "inst": {"u": "y"},
+                          "at": "atan(-y)"}),
+     "goal_after": "(Int[t = 0 .. sqrt y] t) - atan y == ?A @ y >= 0",
+     "emits": [],
+     "why": "a limit is outside its Int's scope (REWRITE_RULE's "
+            "'encloses', GRAMMAR.md §5), so its formers are charged at the "
+            "outer position domain and never on [0, sqrt y]. A kernel that "
+            "charged it on its own range would emit a key whose domain "
+            "carries t's interval, and the orientation 0 <= sqrt y with "
+            "it. The move is a plain rewrite outside the Int (R = -atan y "
+            "owes nothing), so the case asserts installation's list and "
+            "that nothing is re-owed. SymPy: the integral is y/2."},
+]
+
+# E2's optional `occurrence`, pinned by one case (not required by
+# Done-when). Two sibling integrals over sqrt(t^2); D7 needs the
+# parentheses. Without `occurrence` the step acts on both and emits the false
+# t >= 0 @ [-1, 0], admitted while discharge is stubbed and tagged none by
+# E24. With occurrence := 0
+# (the first in pre-order, under Int[t = 0 .. 1]) it emits only
+# t >= 0 @ [0, 1]. A rewrite with `occurrence` given has "occurrences": 1.
+# Installing the goal charges sqrt's domain on both ranges, t^2 >= 0 @ [0, 1]
+# and t^2 >= 0 @ [-1, 0] (E26), both true and tagged sign. The case asserts
+# only the rewrite's list, and its t >= 0 keys are new either way.
+OCCURRENCE_CASE = {
+    "goal": "(Int[t = 0 .. 1] sqrt(t^2)) + (Int[t = -1 .. 0] sqrt(t^2)) == ?A",
+    "all": {"move": ("rewrite", {"entry": "sqrt_sq", "inst": {"u": "t"},
+                                 "at": "sqrt(t^2)"}),
+            "occurrences": 2,
+            "goal_after": "(Int[t = 0 .. 1] t) + (Int[t = -1 .. 0] t) == ?A",
+            # t >= 0 @ [-1, 0] is false, and E24 tags it none: the
+            # Fourier–Motzkin set {t < 0, -1 <= t, t <= 0} is feasible
+            # (t = -1/2), t is no sign-certificate form, sign product does
+            # not close >=, and no §6.8 entry concludes t >= 0. This is the
+            # positive test that the tagger flags a false obligation. It is
+            # outside the no-none assertion, which covers PROOFS runs only.
+            "emits": [("t >= 0", "[0, 1]", (S_SQRT_SQ,), ADMITTED, T_RANGE,
+                       True),
+                      ("t >= 0", "[-1, 0]", (S_SQRT_SQ,), ADMITTED, T_NONE,
+                       True)]},
+    "one": {"move": ("rewrite", {"entry": "sqrt_sq", "inst": {"u": "t"},
+                                 "at": "sqrt(t^2)", "occurrence": 0}),
+            "occurrences": 1,
+            "goal_after":
+                "(Int[t = 0 .. 1] t) + (Int[t = -1 .. 0] sqrt(t^2)) == ?A",
+            "emits": [("t >= 0", "[0, 1]", (S_SQRT_SQ,), ADMITTED, T_RANGE,
+                       True)]},
+}
+
+# E4 and friends: where the domain of an obligation comes from.
+DOMAIN_RULES = (
+    "E4 range orientation. Wherever the kernel turns Int[v = lo .. hi] into "
+    "an interval on v, it has to know the order of lo and hi. That happens in "
+    "rewrite under Int (E1 step 7), in ftc's premises, and in the formers of "
+    "a goal's integrand (E6, E26). If lo and hi are both rational literals, "
+    "norm_num orders them and the interval is [min, max], with no obligation "
+    "recorded. Otherwise the interval is [lo, hi] and the step emits "
+    "`lo <= hi`. Reason: [lo, hi] with hi < lo is empty, so every obligation "
+    "on it would be vacuously true. That is §5.1's reversed-limit exploit, "
+    "and §5.3 method 2 says the range is usable only once the order follows. "
+    "For P1.1 this obligation is 0 <= pi/2. It closes only with pi_pos, so it "
+    "is where the π gap of revision 9 shows up as a tag. It is first emitted "
+    "when the goal is installed, because sqrt(t^2) in the integrand owes "
+    "t^2 >= 0 on the range (E26); the fallback's 0 <= pi^2/4 likewise, for "
+    "sqrt x. In this milestone a "
+    "non-literal reversed range, such as Int[t = pi/2 .. 0], gets the false "
+    "obligation pi/2 <= 0. That is admitted with discharge stubbed, and "
+    "refused once discharge exists. An `orient` argument is future work. "
+    "Infinite ends (§5.1 class b endpoints; GRAMMAR.md §5 and §7): if either "
+    "end of Int[v = lo .. hi] is infinite, orientation is determined and no "
+    "`lo <= hi` is emitted. PosInf is always the open upper end and NegInf "
+    "always the open lower end, whichever limit it was written as (§5.1 "
+    "allows reversed limits). With one end infinite and the other a term c, "
+    "the interval is [c, oo) or (-oo, c]. With PosInf and NegInf it is "
+    "(-oo, oo). With both ends the same infinity the step that builds the "
+    "interval (or the goal installation, E6) is refused with "
+    "'range-same-infinity': the range is empty, and every obligation on it "
+    "would be vacuous. The interval is never closed at an oo end, and "
+    "PosInf is only ever its upper end and NegInf its lower (GRAMMAR.md "
+    "D18, which the Interval constructor enforces with 'oo-misplaced'; E4 "
+    "never trips it, because it orients before it builds). Reason: "
+    "`lo <= hi` with hi = oo is not a term "
+    "(§5.1 keeps oo out of arithmetic), and [c, oo] cannot exist. Pinned by "
+    "MATCH_ACCEPTS rewrite_under_infinite_range.",
+
+    "E5 closed obligations. An obligation whose proposition has no free "
+    "variable is emitted with domain true, whatever its position's domain. "
+    "This strengthens it, which is always sound, and it lets identical "
+    "closed facts share a key: sqrt 3 # 0 is one obligation, not one per "
+    "interval. §11.2 already writes it that way.",
+
+    "Open and closed intervals are distinct trees and distinct keys "
+    "(GRAMMAR.md §6). ftc's derivative premise and everything deriv and its "
+    "check emit are on the open (a, b). The two regularity premises and the "
+    "formers of F and of the integrand are on the closed [a, b] (§6.4).",
+
+    "A bare interval in an expected judgement names the judgement's only "
+    "free variable (GRAMMAR.md D13, R4).",
+)
+
+# E8: how obligations are keyed and merged.
+KEYING = (
+    "Key = the judgement tree parse_judgement(judgement_string(prop, dom)) "
+    "builds: the proposition and its domain tuple, compared structurally, "
+    "with bound names literal. There is no canonical orientation (GRAMMAR.md "
+    "D12). Each rule mints its obligation in the orientation its own "
+    "statement uses. sqrt_sq gives t >= 0, not §11.1's display 0 <= t. The "
+    "orientation obligation is lo <= hi. d_ln and d_sqrt give u > 0. field "
+    "gives d # 0. E26's formers give ln's u > 0, sqrt's u >= 0, tan's "
+    "cos u # 0, asin's and acos's u >= -1 and u <= 1, acosh's u >= 1, and "
+    "atanh's u > -1 and u < 1.",
+
+    "Two emissions with one key are one obligation and at most one admission. "
+    "The second emission adds its source and does not change the status.",
+
+    "Different domains are different keys: 1 + x^3 # 0 @ [0, 1] (the goal's "
+    "former) and 1 + x^3 # 0 @ (0, 1) (field's divisor) are two admissions. "
+    "No subsumption is attempted, because weakening one to the other is "
+    "discharge work (§6.1 weaken).",
+
+    "Per step, the expected list below gives each key once, with all of that "
+    "step's sources for it, and new = True when the key was not in the "
+    "tracker before the step. The script compares each step as a set, never "
+    "as a sequence.",
+
+    "A refused step emits nothing and leaves the state unchanged (E13).",
+
+    "Obligation propositions are not charged for their own formers, "
+    "divisors or partial builtins. Their subterms came from terms already "
+    "charged where they entered (E6, E26): tan(pi/2)'s cos(pi/2) # 0 owes "
+    "no second 2 # 0, because pi/2 was charged as part of tan(pi/2).",
+)
+
+
+def judgement_string(prop, dom):
+    """The parse_judgement input for an obligation. A regularity judgement
+    carries its domain inside C^k(...), so its prop is already complete."""
+    if " in C^" in prop or dom == "true":
+        return prop
+    return prop + " @ " + dom
+
+
+# ---------------------------------------------------------------------------
+# 3. The proofs
+#
+# A step is {"id", "move", "args", "goal_after"}. The script calls
+# step(state, move, args) and asserts the goal is goal_after as a tree.
+# Moves and their argument shapes:
+#
+#   ("rewrite", {"entry": str, "inst": {var: term}, "at": term,
+#                ["occurrence": int]})                               E1, E2
+#   ("fact",    {"entry": str, "inst": {var: term}, "bind": name})  E10
+#   ("ftc",     {"F": term, "check": "ring" | "field",
+#                "facts": [("handle", name), ...]})                  E9
+#   ("close",   {"value": term, "check": "ring" | "field",
+#                "facts": [("handle", name), ...]})                  §9
+#
+# E16. refl, trans and cong (§6.1, in scope per WHAT.md Scope) are not step
+# moves in this milestone. They live inside other rules. trans is the linear
+# proof state: each accepted step replaces the goal by one proved equal to
+# it. cong is REWRITE_RULE step 5, so it inherits rewrite's revision 9 check
+# (E11) and is refused by the same 'rewrite-under-D-needs-open-domain'. refl
+# is close proving lhs == value by `check` (§9), behind the scope check and
+# the `closed` whitelist. Reason: none of P1's proofs needs them as
+# standalone moves. Exposing cong as a move would open a second route to §6.1
+# rev 9's forbidden case, and that route would need its own must-refuse
+# (a 'cong_under_D' BAD_MOVES entry sharing the rewrite code). sym and weaken
+# are out for the same reason; weaken appears only as discharge work.
+#
+# "occurrences" records how many places a rewrite acts on (E2). A rewrite
+# with `occurrence` given has "occurrences": 1. No P1 step passes it.
+#
+# E9, ftc. The move takes F and the procedure that checks the derivative
+# premise. Before anything is emitted, ftc refuses with
+# 'ftc-infinite-endpoint' when lo or hi is PosInf or NegInf (§5.1: oo is
+# inadmissible inside arithmetic; §6.4's F(b) - F(a) needs ordinary terms;
+# infinite ranges are int_improper's, which this milestone does not
+# include; WHAT.md's Scope names no int_improper). By E13 a refused step
+# emits nothing (BAD_MOVES ftc_infinite_endpoint). In one step it (i) emits the orientation of [a, b] (E4), (ii)
+# emits F's formers on [a, b] (E6), (iii) emits the two regularity premises
+# and f in C^0([a, b]) as admissions tagged reg, (iv) runs deriv on F,
+# collecting each d_* side condition @ (a, b), (v) runs `check` on
+# deriv(F) == f @ (a, b) with the given facts, collecting every divisor @
+# (a, b) and every fact's hypotheses, and (vi) on success records the
+# derivative premise itself as DISCHARGED, then replaces the goal's integral
+# by F[x := b] - F[x := a], which is Add(F[b], Neg(F[a])). There is no
+# subtraction node. If check fails, the step is refused with the residual
+# deriv(F) - f (WRONG_ANSWERS) and emits nothing (E13). If deriv refuses in
+# (iv), for example on a Deriv subterm with x free (E12), the step is refused
+# with 'deriv-no-rule' before any substitution. So F[x := b] never meets a D
+# that mentions x, and substitution into D (GRAMMAR.md §5) only ever reaches
+# its unchanged case (BAD_MOVES ftc_F_contains_D). An x-free subterm of F
+# holding an Int or Deriv node is refused in (iv) as well, with
+# 'Int-or-D-not-normalisable' (E12's d_const guard, E26 (b); BAD_MOVES
+# ftc_F_holds_x_free_Int and ftc_F_holds_x_free_D), so no F holding an Int
+# or D gets past (iv) at all.
+#
+# E10, facts. `fact` instantiates a §6.8 entry and returns a theorem handle
+# for `stmt[inst]`, hypotheses included: (sqrt 3)^2 == 3 @ 3 >= 0. It emits
+# nothing. A step that uses the handle inherits its hypotheses as obligations
+# (WHAT.md: "the result inherits each fact's obligations"), and its inst
+# values' formers (E6, E26 (a)), charged at that step's domain. The
+# statement's own formers are not re-charged (the §6.8 library is trusted).
+# A raw judgement
+# where a handle is expected is refused (BAD_MOVES field_raw_fact).
+#
+# §9, close. The move checks the scope of `value`, then the `closed`
+# whitelist, then proves `lhs == value` with `check`, emitting that
+# procedure's obligations and the value's formers. The theorem reported is
+# the ORIGINAL goal with ?A := value.
+# E23, interpreting §9 "The `closed` schema, as a whitelist":
+#   * The whitelist admits these node kinds: Num, Const (pi, e_const), Var,
+#     Neg, Add, Mul, Div, Pow, RPow, and App over the sixteen builtins (sin
+#     cos tan asin acos atan exp ln sqrt abs sinh cosh tanh asinh acosh
+#     atanh; abs is admitted in goals, §5.1 rev 6).
+#   * It refuses Call (declared symbols, per §9's "declared symbols
+#     excluded"), Deriv, Integral and MVar. Sum and lim are not in this
+#     milestone's grammar (GRAMMAR.md D2).
+#   * Var is admitted, although §9's list does not name variables. §5.1
+#     lists `x variable` among the term formers §9 points to. §9's
+#     exclusions target opaque and non-elementary nodes, not leaves. An
+#     answer stated in a goal's free variables (a D goal, as in BAD_MOVES
+#     close_D_goal_scope_passes) needs Var. Bound names are handled by the
+#     trusted scope check (E19), which runs first, so the untrusted
+#     whitelist needs no variable rule.
+#   * The check runs on the raw value, before any unfolding (§9).
+#   * Every goal in PROOFS, BAD_MOVES, MATCH_ACCEPTS and the forgery bank
+#     carries `answer schema closed` (as §11 declares for P1.1 and P1.2),
+#     with no `+ f` extensions. So 'close-schema-not-closed' fires only for
+#     a value with a node outside the list above.
+#   If Var were excluded instead, close_D_goal_scope_passes would expect
+#   'close-schema-not-closed', or would use a value with no variable (`2`,
+#   which ring also fails to match against the opaque D atom).
+# E19, the scope check: fv(value) ∩ bv(ORIGINAL goal) = ∅ (GRAMMAR.md §5
+# bv; D's variable is not in bv, so ?A := 2*x passes for D[x] x^2 == ?A,
+# BAD_MOVES close_D_goal_scope_passes). That goal is the one the reported theorem instantiates, not
+# the current goal, which ftc may already have stripped of its binders.
+# GRAMMAR.md D11 must hold of the reported theorem, and D11 makes this a name
+# check. Decision, interpreting §9 and §15.2 item 1: the check is trusted, so
+# it must not depend on the untrusted whitelist or on `check` failing to
+# catch a bound name (BAD_MOVES close_bound_variable_after_ftc and
+# close_bound_variable_ring_true).
+
+P1_1_GOAL = "Int[t = 0 .. pi/2] sin(sqrt(t^2))*(2*t) == ?A"
+P1_1_F = "2*sin t - 2*t*cos t"
+P1_1_AFTER_FTC = (
+    "2*sin(pi/2) - 2*(pi/2)*cos(pi/2) - (2*sin 0 - 2*0*cos 0) == ?A")
+
+P1_1_FALLBACK_GOAL = "Int[x = 0 .. pi^2/4] sin(sqrt x) == ?A"
+P1_1_FALLBACK_F = "2*sin(sqrt x) - 2*sqrt x * cos(sqrt x)"
+
+P1_2_GOAL = "Int[x = 0 .. 1] 1/(1 + x^3) == ?A"
+P1_2_F = ("(1/3)*ln(1 + x) - (1/6)*ln(x^2 - x + 1)"
+          " + (1/sqrt 3)*atan((2*x - 1)/sqrt 3)")
+# F[x := 1] and F[x := 0], literally substituted. §18 Q21's point: none of
+# ln(1 + 0), ln(1^2 - 1 + 1), atan((2*1 - 1)/sqrt 3) is syntactically a §6.8
+# left-hand side.
+P1_2_F1 = ("(1/3)*ln(1 + 1) - (1/6)*ln(1^2 - 1 + 1)"
+           " + (1/sqrt 3)*atan((2*1 - 1)/sqrt 3)")
+P1_2_F0 = ("(1/3)*ln(1 + 0) - (1/6)*ln(0^2 - 0 + 1)"
+           " + (1/sqrt 3)*atan((2*0 - 1)/sqrt 3)")
+P1_2_ANSWER = "(1/3)*ln 2 + pi/(3*sqrt 3)"
+P1_2_ANSWER_ALT = "(1/3)*ln 2 + pi*sqrt 3 / 9"
+P1_2_BEFORE_CLOSE = (
+    "(1/3)*ln(1 + 1) - (1/6)*0 + (1/sqrt 3)*(pi/6)"
+    " - ((1/3)*0 - (1/6)*0 + (1/sqrt 3)*(-(pi/6))) == ?A")
+
+PROOFS = {
+    # WHAT.md "The route": P1.1 starts from §11.1's substituted goal, and
+    # int_subst waits for the next step. So what this proves is the t-form.
+    # It does not prove the original Int[x = 0 .. pi^2/4] sin(sqrt x) until
+    # int_subst exists. The fallback below proves that one directly.
+    "P1.1": {
+        "fallback": False,
+        "goal": P1_1_GOAL,
+        "steps": [
+            {"id": "s1", "move": "rewrite",
+             "args": {"entry": "sqrt_sq", "inst": {"u": "t"},
+                      "at": "sqrt(t^2)"},
+             "occurrences": 1,
+             # The binder case: u := t names the variable bound by the
+             # enclosing Int, and the hypothesis t >= 0 is emitted on the
+             # range [0, pi/2] (E1 steps 6-8, §6.1: under Int the range
+             # domain is enough).
+             "goal_after": "Int[t = 0 .. pi/2] sin t * (2*t) == ?A"},
+            {"id": "s2", "move": "ftc",
+             "args": {"F": P1_1_F, "check": "ring", "facts": []},
+             "goal_after": P1_1_AFTER_FTC},
+            {"id": "s3", "move": "rewrite",
+             "args": {"entry": "sin_pi_half", "inst": {}, "at": "sin(pi/2)"},
+             "occurrences": 1,
+             "goal_after":
+                 "2*1 - 2*(pi/2)*cos(pi/2) - (2*sin 0 - 2*0*cos 0) == ?A"},
+            {"id": "s4", "move": "rewrite",
+             "args": {"entry": "cos_pi_half", "inst": {}, "at": "cos(pi/2)"},
+             "occurrences": 1,
+             "goal_after": "2*1 - 2*(pi/2)*0 - (2*sin 0 - 2*0*cos 0) == ?A"},
+            {"id": "s5", "move": "rewrite",
+             "args": {"entry": "sin_zero", "inst": {}, "at": "sin 0"},
+             "occurrences": 1,
+             "goal_after": "2*1 - 2*(pi/2)*0 - (2*0 - 2*0*cos 0) == ?A"},
+            # ring: 2 - 0 - (0 - 0) == 2. The atom cos 0 is multiplied by 0,
+            # so no cos_zero is needed (§11.1 rev 9). pi/2 is a coefficient
+            # times the opaque pi, and ring emits nothing (§6.2).
+            {"id": "s6", "move": "close",
+             "args": {"value": "2", "check": "ring", "facts": []},
+             "goal_after": None},
+        ],
+        "theorem": "Int[t = 0 .. pi/2] sin(sqrt(t^2))*(2*t) == 2",
+    },
+
+    # WHAT.md's fallback: direct on x. It never uses sqrt_sq on a bound
+    # variable. Recorded, not the route.
+    "P1.1-fallback": {
+        "fallback": True,
+        "goal": P1_1_FALLBACK_GOAL,
+        "steps": [
+            {"id": "s1", "move": "ftc",
+             "args": {"F": P1_1_FALLBACK_F, "check": "field", "facts": []},
+             "goal_after":
+                 "2*sin(sqrt(pi^2/4)) - 2*sqrt(pi^2/4)*cos(sqrt(pi^2/4))"
+                 " - (2*sin(sqrt 0) - 2*sqrt 0 * cos(sqrt 0)) == ?A"},
+            # Q21's third example. ring_nf((pi/2)^2) = (1/4)*pi^2 =
+            # ring_nf(pi^2/4). Not under a binder, so the hypothesis is the
+            # closed pi/2 >= 0, which needs pi_pos (WHAT.md).
+            {"id": "s2", "move": "rewrite",
+             "args": {"entry": "sqrt_sq", "inst": {"u": "pi/2"},
+                      "at": "sqrt(pi^2/4)"},
+             "occurrences": 3,
+             "goal_after":
+                 "2*sin(pi/2) - 2*(pi/2)*cos(pi/2)"
+                 " - (2*sin(sqrt 0) - 2*sqrt 0 * cos(sqrt 0)) == ?A"},
+            # ring_nf(0^2) = 0 = ring_nf(0), and the hypothesis 0 >= 0 is
+            # closed by norm_num. This is why no sqrt_zero entry is needed.
+            # The key is not new: s1's goal already owed 0 >= 0 for its
+            # sqrt 0 (E26).
+            {"id": "s3", "move": "rewrite",
+             "args": {"entry": "sqrt_sq", "inst": {"u": "0"}, "at": "sqrt 0"},
+             "occurrences": 3,
+             "goal_after": P1_1_AFTER_FTC},
+            {"id": "s4", "move": "rewrite",
+             "args": {"entry": "sin_pi_half", "inst": {}, "at": "sin(pi/2)"},
+             "occurrences": 1,
+             "goal_after":
+                 "2*1 - 2*(pi/2)*cos(pi/2) - (2*sin 0 - 2*0*cos 0) == ?A"},
+            {"id": "s5", "move": "rewrite",
+             "args": {"entry": "cos_pi_half", "inst": {}, "at": "cos(pi/2)"},
+             "occurrences": 1,
+             "goal_after": "2*1 - 2*(pi/2)*0 - (2*sin 0 - 2*0*cos 0) == ?A"},
+            {"id": "s6", "move": "rewrite",
+             "args": {"entry": "sin_zero", "inst": {}, "at": "sin 0"},
+             "occurrences": 1,
+             "goal_after": "2*1 - 2*(pi/2)*0 - (2*0 - 2*0*cos 0) == ?A"},
+            {"id": "s7", "move": "close",
+             "args": {"value": "2", "check": "ring", "facts": []},
+             "goal_after": None},
+        ],
+        "theorem": "Int[x = 0 .. pi^2/4] sin(sqrt x) == 2",
+    },
+
+    # §11.2 as revision 9 states it. The approx step is stage 2 and is out
+    # (WHAT.md Scope).
+    "P1.2": {
+        "fallback": False,
+        "goal": P1_2_GOAL,
+        "steps": [
+            {"id": "s1", "move": "fact",
+             "args": {"entry": "sqrt_sq_val", "inst": {"a": "3"},
+                      "bind": "h_sqrt3"},
+             "conclusion": "(sqrt 3)^2 == 3 @ 3 >= 0",
+             "goal_after": P1_2_GOAL},
+            # WHAT.md: "the check field [sqrt_sq_val 3]". The fact goes into
+            # field, not in front of it (§6.2, §11.2 rev 7).
+            {"id": "s2", "move": "ftc",
+             "args": {"F": P1_2_F, "check": "field",
+                      "facts": [("handle", "h_sqrt3")]},
+             "goal_after": P1_2_F1 + " - (" + P1_2_F0 + ") == ?A"},
+            # ln_one fires at three different subterms. Each is its own step,
+            # because each has its own target.
+            {"id": "s3", "move": "rewrite",
+             "args": {"entry": "ln_one", "inst": {},
+                      "at": "ln(1^2 - 1 + 1)"},
+             "occurrences": 1,
+             "goal_after":
+                 "(1/3)*ln(1 + 1) - (1/6)*0"
+                 " + (1/sqrt 3)*atan((2*1 - 1)/sqrt 3) - (" + P1_2_F0 + ") == ?A"},
+            {"id": "s4", "move": "rewrite",
+             "args": {"entry": "ln_one", "inst": {}, "at": "ln(1 + 0)"},
+             "occurrences": 1,
+             "goal_after":
+                 "(1/3)*ln(1 + 1) - (1/6)*0"
+                 " + (1/sqrt 3)*atan((2*1 - 1)/sqrt 3)"
+                 " - ((1/3)*0 - (1/6)*ln(0^2 - 0 + 1)"
+                 " + (1/sqrt 3)*atan((2*0 - 1)/sqrt 3)) == ?A"},
+            {"id": "s5", "move": "rewrite",
+             "args": {"entry": "ln_one", "inst": {},
+                      "at": "ln(0^2 - 0 + 1)"},
+             "occurrences": 1,
+             "goal_after":
+                 "(1/3)*ln(1 + 1) - (1/6)*0"
+                 " + (1/sqrt 3)*atan((2*1 - 1)/sqrt 3)"
+                 " - ((1/3)*0 - (1/6)*0"
+                 " + (1/sqrt 3)*atan((2*0 - 1)/sqrt 3)) == ?A"},
+            # ring_nf((2*1 - 1)/sqrt 3) = 1 * inv(sqrt 3) = ring_nf(1/sqrt 3)
+            # (E3).
+            {"id": "s6", "move": "rewrite",
+             "args": {"entry": "atan_one_sqrt3", "inst": {},
+                      "at": "atan((2*1 - 1)/sqrt 3)"},
+             "occurrences": 1,
+             "goal_after":
+                 "(1/3)*ln(1 + 1) - (1/6)*0 + (1/sqrt 3)*(pi/6)"
+                 " - ((1/3)*0 - (1/6)*0"
+                 " + (1/sqrt 3)*atan((2*0 - 1)/sqrt 3)) == ?A"},
+            # ring_nf((2*0 - 1)/sqrt 3) = -1 * inv(sqrt 3) =
+            # ring_nf(-(1/sqrt 3)). u := 1/sqrt 3 is chosen so that the
+            # result is literally atan_one_sqrt3's left-hand side.
+            {"id": "s7", "move": "rewrite",
+             "args": {"entry": "atan_odd", "inst": {"u": "1/sqrt 3"},
+                      "at": "atan((2*0 - 1)/sqrt 3)"},
+             "occurrences": 1,
+             "goal_after":
+                 "(1/3)*ln(1 + 1) - (1/6)*0 + (1/sqrt 3)*(pi/6)"
+                 " - ((1/3)*0 - (1/6)*0"
+                 " + (1/sqrt 3)*(-atan(1/sqrt 3))) == ?A"},
+            {"id": "s8", "move": "rewrite",
+             "args": {"entry": "atan_one_sqrt3", "inst": {},
+                      "at": "atan(1/sqrt 3)"},
+             "occurrences": 1,
+             "goal_after": P1_2_BEFORE_CLOSE},
+            # field over Q(ln(1 + 1), pi, sqrt 3): (1/3)L + pi/(6s) + pi/(6s)
+            # - (1/3)L - pi/(3s) = 0, with no fact needed. ln(1 + 1) and
+            # ln 2 are one atom (§6.2, atoms up to normalised arguments),
+            # but their domain keys are two trees, 1 + 1 > 0 (s2) and the
+            # value's 2 > 0, both literal and discharged (E26, E7).
+            {"id": "s9", "move": "close",
+             "args": {"value": P1_2_ANSWER, "check": "field", "facts": []},
+             "goal_after": None},
+        ],
+        "theorem": "Int[x = 0 .. 1] 1/(1 + x^3) == " + P1_2_ANSWER,
+    },
+}
+
+# The accepted alternative (WHAT.md Done-when item 1): the same steps through
+# s8, then a close that needs the fact. With sqrt 3 opaque,
+# lhs - value = pi*(3 - s^2)/(9*s), which is zero only modulo s^2 = 3 (§8.7).
+# So it closes by `field [sqrt_sq_val 3]`, reusing the handle from s1. It owes
+# no 3*sqrt 3 # 0, since that divisor is not in its input. Its new divisor 9
+# is a literal, the fact's 3 >= 0 is already discharged, and the value's
+# ln 2 and sqrt 3 owe the literal 2 > 0 and 3 >= 0 (E26), as P1.2's value
+# does. So its N is one less than P1.2's.
+PROOFS["P1.2-alt"] = {
+    "fallback": False,
+    "goal": P1_2_GOAL,
+    "steps": PROOFS["P1.2"]["steps"][:-1] + [
+        {"id": "s9", "move": "close",
+         "args": {"value": P1_2_ANSWER_ALT, "check": "field",
+                  "facts": [("handle", "h_sqrt3")]},
+         "goal_after": None},
+    ],
+    "theorem": "Int[x = 0 .. 1] 1/(1 + x^3) == " + P1_2_ANSWER_ALT,
+}
+
+ROUTE = {"P1.1": "P1.1", "P1.2": "P1.2"}  # which entry of PROOFS is the route
+FALLBACKS = ("P1.1-fallback",)
+
+# ---------------------------------------------------------------------------
+# 4. deriv, rule by rule (§6.3), for every F the proofs and wrong answers use
+#
+# E12. deriv applies §6.3's output forms literally, with no tidying of 0*u or
+# u*1, and walks the term top-down:
+#   * d_const is tried first on any subterm with x not free in it, whatever
+#     its former (rev 7), so -1, 1/3, 1/sqrt 3 and 2 are d_const. d_inv never
+#     fires on a closed denominator (spike/ring README, finding 2). The one
+#     exception is an x-free subterm that holds an Integral or Deriv node
+#     anywhere: deriv refuses the step 'Int-or-D-not-normalisable' there
+#     instead of firing d_const. Giving it derivative 0 would treat it as an
+#     atom whose existence nothing can state, the reading E26 (b) forbids
+#     (Int[t = 0 .. oo] 1 - Int[t = 0 .. oo] 1 is undefined, not constant).
+#     The test sits inside the d_const branch, not in front of the walk: a
+#     Deriv or Integral with x free still matches no rule and refuses
+#     'deriv-no-rule' (below; BAD_MOVES ftc_F_contains_D). BAD_MOVES
+#     ftc_F_holds_x_free_Int and ftc_F_holds_x_free_D pin the refusal.
+#   * -u, with x free, is routed as (-1)*u by ring (no obligation), then d_mul.
+#   * u/v, with x free and u not the literal 1, is routed as u*(1/v) by
+#     field, owing v # 0, then d_mul. 1/v with x free in v is d_inv.
+#   * d_pow_int's n - 1 is folded to an integer literal (u^(n-1) with n = 2
+#     is x^1), and n != 0 is checked on the literal.
+#   * a Deriv subterm D[y] e with x free in it (GRAMMAR.md D10: always so
+#     when y is x) matches no §6.3 rule, and deriv refuses with
+#     'deriv-no-rule'. d_const does not apply, because x is free. Reading D
+#     as a binder would let d_const fire on D[x] x^2 and give 0, but D[x] x^2
+#     is 2*x, whose derivative is 2 (checked with SymPy).
+# Each entry is (rule, subterm it fires on, obligations it emits). The script
+# asserts the multiset of (rule, subterm) pairs as trees. The order given is
+# the top-down walk and is informative only.
+# `output` is deriv(F) exactly as those forms build it: the lhs `check` sees.
+
+DERIV = {
+    "P1.1": {
+        "var": "t",
+        "F": P1_1_F,
+        "trace": [
+            ("d_add", "2*sin t - 2*t*cos t", ()),
+            ("d_mul", "2*sin t", ()),
+            ("d_const", "2", ()),
+            ("d_sin", "sin t", ()),
+            ("d_var", "t", ()),
+            ("route_neg", "-(2*t*cos t)", ()),
+            ("d_mul", "-1*(2*t*cos t)", ()),
+            ("d_const", "-1", ()),
+            ("d_mul", "2*t*cos t", ()),
+            ("d_mul", "2*t", ()),
+            ("d_const", "2", ()),
+            ("d_var", "t", ()),
+            ("d_cos", "cos t", ()),
+            ("d_var", "t", ()),
+        ],
+        "output": ("0*sin t + 2*(cos t * 1)"
+                   " + (0*(2*t*cos t) + (-1)*((0*t + 2*1)*cos t"
+                   " + 2*t*(-sin t * 1)))"),
+        "emits": (),
+    },
+    "P1.1-fallback": {
+        "var": "x",
+        "F": P1_1_FALLBACK_F,
+        "trace": [
+            ("d_add", P1_1_FALLBACK_F, ()),
+            ("d_mul", "2*sin(sqrt x)", ()),
+            ("d_const", "2", ()),
+            ("d_sin", "sin(sqrt x)", ()),
+            ("d_sqrt", "sqrt x", ("x > 0 @ (0, pi^2/4)",)),
+            ("d_var", "x", ()),
+            ("route_neg", "-(2*sqrt x * cos(sqrt x))", ()),
+            ("d_mul", "-1*(2*sqrt x * cos(sqrt x))", ()),
+            ("d_const", "-1", ()),
+            ("d_mul", "2*sqrt x * cos(sqrt x)", ()),
+            ("d_mul", "2*sqrt x", ()),
+            ("d_const", "2", ()),
+            ("d_sqrt", "sqrt x", ("x > 0 @ (0, pi^2/4)",)),
+            ("d_var", "x", ()),
+            ("d_cos", "cos(sqrt x)", ()),
+            ("d_sqrt", "sqrt x", ("x > 0 @ (0, pi^2/4)",)),
+            ("d_var", "x", ()),
+        ],
+        "output": ("0*sin(sqrt x) + 2*(cos(sqrt x)*(1/(2*sqrt x)))"
+                   " + (0*(2*sqrt x * cos(sqrt x))"
+                   " + (-1)*((0*sqrt x + 2*(1/(2*sqrt x)))*cos(sqrt x)"
+                   " + 2*sqrt x * (-sin(sqrt x)*(1/(2*sqrt x)))))"),
+        "emits": ("x > 0 @ (0, pi^2/4)",),
+    },
+    "P1.2": {
+        "var": "x",
+        "F": P1_2_F,
+        "trace": [
+            ("d_add", P1_2_F, ()),
+            ("d_add", "(1/3)*ln(1 + x) - (1/6)*ln(x^2 - x + 1)", ()),
+            ("d_mul", "(1/3)*ln(1 + x)", ()),
+            ("d_const", "1/3", ()),
+            ("d_ln", "ln(1 + x)", ("1 + x > 0 @ (0, 1)",)),
+            ("d_add", "1 + x", ()),
+            ("d_const", "1", ()),
+            ("d_var", "x", ()),
+            ("route_neg", "-((1/6)*ln(x^2 - x + 1))", ()),
+            ("d_mul", "-1*((1/6)*ln(x^2 - x + 1))", ()),
+            ("d_const", "-1", ()),
+            ("d_mul", "(1/6)*ln(x^2 - x + 1)", ()),
+            ("d_const", "1/6", ()),
+            ("d_ln", "ln(x^2 - x + 1)", ("x^2 - x + 1 > 0 @ (0, 1)",)),
+            ("d_add", "x^2 - x + 1", ()),
+            ("d_add", "x^2 - x", ()),
+            ("d_pow_int", "x^2", ()),
+            ("d_var", "x", ()),
+            ("route_neg", "-x", ()),
+            ("d_mul", "-1*x", ()),
+            ("d_const", "-1", ()),
+            ("d_var", "x", ()),
+            ("d_const", "1", ()),
+            ("d_mul", "(1/sqrt 3)*atan((2*x - 1)/sqrt 3)", ()),
+            ("d_const", "1/sqrt 3", ()),
+            # d_atan has no side condition in §6.3. Its output divides by
+            # 1 + u^2, and field charges that divisor.
+            ("d_atan", "atan((2*x - 1)/sqrt 3)", ()),
+            ("route_div", "(2*x - 1)/sqrt 3", ("sqrt 3 # 0",)),
+            ("d_mul", "(2*x - 1)*(1/sqrt 3)", ()),
+            ("d_add", "2*x - 1", ()),
+            ("d_mul", "2*x", ()),
+            ("d_const", "2", ()),
+            ("d_var", "x", ()),
+            ("d_const", "-1", ()),
+            ("d_const", "1/sqrt 3", ()),
+        ],
+        "output": (
+            "0*ln(1 + x) + (1/3)*((0 + 1)/(1 + x))"
+            " + (0*((1/6)*ln(x^2 - x + 1))"
+            " + (-1)*(0*ln(x^2 - x + 1)"
+            " + (1/6)*((2*x^1*1 + (0*x + (-1)*1) + 0)/(x^2 - x + 1))))"
+            " + (0*atan((2*x - 1)/sqrt 3)"
+            " + (1/sqrt 3)*(((0*x + 2*1 + 0)*(1/sqrt 3) + (2*x - 1)*0)"
+            "/(1 + ((2*x - 1)/sqrt 3)^2)))"),
+        "emits": ("1 + x > 0 @ (0, 1)", "x^2 - x + 1 > 0 @ (0, 1)",
+                  "sqrt 3 # 0"),
+    },
+    # WRONG_ANSWERS W1. The same shape as P1.1's F without the factor 2.
+    "W1": {
+        "var": "t",
+        "F": "sin t - t*cos t",
+        "trace": [
+            ("d_add", "sin t - t*cos t", ()),
+            ("d_sin", "sin t", ()),
+            ("d_var", "t", ()),
+            ("route_neg", "-(t*cos t)", ()),
+            ("d_mul", "-1*(t*cos t)", ()),
+            ("d_const", "-1", ()),
+            ("d_mul", "t*cos t", ()),
+            ("d_var", "t", ()),
+            ("d_cos", "cos t", ()),
+            ("d_var", "t", ()),
+        ],
+        "output": ("cos t * 1 + (0*(t*cos t)"
+                   " + (-1)*(1*cos t + t*(-sin t * 1)))"),
+        "emits": (),
+    },
+}
+
+# ---------------------------------------------------------------------------
+# 5. Expected obligations, step by step
+#
+# Each obligation is (prop, dom, sources, status, tag, new):
+#   prop     the proposition in GRAMMAR.md syntax (a regularity judgement
+#            carries its own domain);
+#   dom      the domain string, "true" for ⊤;
+#   sources  the SOURCES codes, as the kernel reports them, of the rules in
+#            this step that emitted it (E8); compared as a set;
+#   status   DISCHARGED or ADMITTED. An admitted one has reason
+#            ADMISSION_REASON;
+#   tag      (method, cites): for an admission, what is expected to close
+#            it; for a discharged one, what closed it;
+#   new      True if the key was not in the tracker before this step.
+#
+# "goal" is the state's creation: parsing and installing the goal emits its
+# formers (E6, E26).
+#
+# E6. §5.1 says '/' carries a nonvanishing obligation but not when it is
+# charged. It is charged when a term enters the proof: the goal at creation,
+# ftc's F (on [a, b]) and the goal ftc produces, a rewrite's right-hand side,
+# close's value, and a fact's inst values at the step that uses it (E10).
+# The position's domain applies, and E5 gives domain true
+# when the divisor is closed. §11.2 says the same of F: "writing F at all
+# requires it". A goal integrand's formers are charged on the range interval
+# E4 builds (DOMAIN_RULES), infinite ends included, so goal installation
+# follows the same rule as rewrite and ftc. Negative powers and RPow bases
+# are charged the same way, but P1 has none. E26 adds the partial builtins,
+# charged at the same moments and at the same position domains.
+#
+# E26, definedness formers (user decision 2026-09-24, option (a) of
+# PROOF_OF_LIFE.md's first question; interprets §5.1, §6.2, §6.9 and §14).
+# (a) Each partial builtin is a former, charged exactly like E6's '/': when
+#     a term enters the proof, at the occurrence's position domain, keyed
+#     structurally (E8), then E5, E7 and E24 as for any obligation, with
+#     source `former`. Each owes its natural domain, the set on which §6.9
+#     makes it C^0:
+#         ln u      u > 0
+#         sqrt u    u >= 0
+#         tan u     cos u # 0
+#         asin u    u >= -1  and  u <= 1
+#         acos u    u >= -1  and  u <= 1
+#         acosh u   u >= 1
+#         atanh u   u > -1   and  u < 1
+#     sin, cos, atan, exp, abs, sinh, cosh, tanh and asinh are total and owe
+#     nothing. The shapes, and why:
+#       * One atomic judgement per bound, so a two-sided domain is two keys.
+#         GRAMMAR.md D12 has no chains (a < x < b is refused), and a single
+#         bound is a linear order item that Fourier–Motzkin reads directly
+#         whenever u is linear on the domain (§5.3 methods 2 and 3).
+#       * Each is written u REL c, the orientation of §6.3's d_ln and d_sqrt
+#         (u > 0), so one table states every condition. KEYING mints each
+#         rule's obligation in its own statement's orientation, and this
+#         table is E26's statement.
+#       * Not abs u <= 1 or abs u < 1, §6.3's d_asin form: abs u is an opaque
+#         atom to §5.3 methods 2 to 5, and no §6.8 entry concludes it, so it
+#         could only ever be tagged none. Not 1 - u^2 >= 0 either: method 5
+#         never closes a non-strict goal (TAG_RULES), and the polynomial
+#         hides the two linear bounds. The pairs are the same sets as §6.9's
+#         |u| <= 1 and |u| < 1, written in the fragment discharge reads.
+#       * Closed where the function is defined at the end (sqrt at 0, asin
+#         and acos at 1 and -1, acosh at 1), open where it is not (ln at 0,
+#         tan where cos u = 0, atanh at 1 and -1). That is E11 (a)'s
+#         classification of natural domains, and §6.9's C^0 domains.
+#     A literal argument's condition is decided by norm_num at once (E7).
+#     ln 2 owes 2 > 0, ln 1 owes 1 > 0 and sqrt 3 owes 3 >= 0, all
+#     DISCHARGED. A false one refuses the step 'obligation-refuted': ln(-1)
+#     owes -1 > 0, acos 2 owes 2 <= 1, atanh 1 owes 1 < 1 (BAD_MOVES). A goal
+#     is refused at installation this way, since installation is a charge.
+#     tan's cos u # 0 is a domain, not a divisor, so E25 does not test it:
+#     cos u is a single ring atom and never the zero polynomial. It is never
+#     literal either, so it is always admitted, and the false cos(pi/2) # 0
+#     is tagged none (DEFINEDNESS_CASES tan_pi_half). So is every cos u # 0
+#     whose goal domain does not state it, true ones included: hyp fires
+#     only when Γ contains it or an order item it follows from; no other
+#     method sees more than an opaque atom; no pinned entry concludes it;
+#     §6.8's cos_nonzero_on is not in this milestone (DEFINEDNESS_CASES
+#     tan_zero_true).
+#     field is unchanged. It emits d # 0 for its divisors (§6.2) and nothing
+#     for the partial builtins in its input. Every atom of its input came
+#     from a term charged where it entered, on a domain that contains the
+#     check's (ftc's F on [a, b] against the check on (a, b); close's goal
+#     and value at G), or is new in deriv's output and is defined wherever
+#     that rule's side condition holds. Either the condition implies the
+#     atom's domain (d_sqrt's u > 0 covers sqrt u, d_asin's abs u < 1
+#     covers sqrt(1 - u^2), d_acosh's u > 1 covers sqrt(u^2 - 1),
+#     d_pow_real's u > 0 covers ln u), or the atom's domain holds wherever
+#     u is defined and needs no condition (d_asinh's sqrt(u^2 + 1), since
+#     u^2 + 1 >= 1). Of these rules only d_sqrt is in this milestone
+#     (deriv.APP_RULES; d_pow_real is not in it either). The general statement is the check a new §6.3 entry must
+#     pass when it is added: every partial atom its output introduces must
+#     be defined on the rule's side-condition set. Keeping field to divisors also keeps
+#     d_ln's (0, 1) keys d_ln's alone, which PLANTED_BUGS d_ln_emits_nothing
+#     needs: F's own ln formers are on [0, 1], a different key (E8).
+#     Reason: under the partial reading that REWRITE_RULE step 5 and E11 rely
+#     on, ring's identity a = b holds only where every atom of a and b is
+#     defined. Before E26 only '/', negative powers and RPow bases carried
+#     their domain, so ring cancelled undefined atoms freely: 0*ln(-1) == ?A
+#     and tan(pi/2) - tan(pi/2) == ?A closed by ring as 'Proved.' with
+#     nothing owed. §14 says the total and partial readings coincide
+#     "because those rules carry their definedness conditions on the source
+#     side", which needs every partial former to carry its condition. §11.1
+#     and §11.2 already list three of these obligations (t^2 >= 0,
+#     1 + x > 0 @ [0,1], x^2 - x + 1 > 0), which is evidence the design meant
+#     them (see DESIGN_DEFECTS).
+# (b) Int and D have no definedness condition the kernel can state until
+#     regularity and `diverges` exist (§5.2, §6.4, §6.9): Int[x = 0 .. oo] 1
+#     diverges, and D[x](abs x) does not exist at 0. So no normaliser treats
+#     an Int or Deriv node as an atom. ring and field refuse, with
+#     'Int-or-D-not-normalisable', any side they would normalise that holds
+#     an Int or Deriv node anywhere, atom arguments included. That covers
+#     rewrite's match (REWRITE_RULE steps 3 and 4), E25's charge-time
+#     ring_nf(d), field's divisor test and fact reduction, and the checks of
+#     ftc and close. deriv's d_const refuses the same way on an x-free
+#     subterm holding an Int or Deriv node (E12), since d_const's 0 would
+#     read that subterm as an atom. So an Int or D in ftc's F is refused in
+#     step (iv) (E9): by that guard when x is not free in it, by
+#     'deriv-no-rule' when it is. F's regularity admissions and the ftc_D
+#     premise are never minted for such an F (BAD_MOVES
+#     ftc_F_holds_x_free_Int, ftc_F_holds_x_free_D, ftc_F_contains_D).
+#     norm_num refuses the same way: an obligation reaching
+#     E7 with an Int or Deriv node in its proposition or its domain refuses
+#     the step with that code, and is neither decided nor admitted. This
+#     holds whether or not its other terms are literal and whether or not it
+#     is closed. ln(D[x] x^2) owes D[x] x^2 > 0 with x free, and is refused
+#     the same way (BAD_MOVES norm_num_refuses_D; norm_num_refuses_open_Int
+#     for an Int; norm_num_refuses_Int_in_domain and
+#     norm_num_refuses_D_in_domain for the domain half). E7 is
+#     not run on a regularity judgement (tagged reg by its shape, E24) or on
+#     ftc's derivative premise (discharged in the step, E9), so F and f
+#     themselves never reach it; an Int or D in F reaches E7 only inside a
+#     former's condition, as ln(Int[...] ...)'s would. BAD_MOVES
+#     ftc_F_contains_D, whose F is D[x] x^2 and owes no former, keeps
+#     'deriv-no-rule'.
+#     No P1 step is affected, and that was checked step by step. ftc
+#     consumes the goal's top-level Int, and decides its derivative premise
+#     on deriv's output, which holds no Int or D. No P1 F holds one, so
+#     d_const's guard never fires in P1 (DERIV's d_const subterms are -1,
+#     1/3, 1/sqrt 3, 2 and the like). Every other ring, field
+#     and norm_num input in P1 (rewrite arguments, E25's divisors, the
+#     closes, every emitted proposition) holds none either.
+#     Reason: ring would otherwise prove
+#     (Int[x = 0 .. oo] 1) - (Int[x = 0 .. oo] 1) == 0, whose left side is
+#     undefined, and norm_num would decide a judgement after cancelling the
+#     same atoms. A refusal, not an admission, because an obligation about an
+#     Int's or a D's value presupposes that it exists, which is the one
+#     thing nothing can state yet. One rule, that no procedure normalises,
+#     decides or differentiates as a constant an Int or D node, is also
+#     easier to audit than a split one.
+#
+# E7. norm_num decides every obligation whose terms are rational literals
+# only (no variable, constant or atom) at the moment it is emitted: true
+# gives DISCHARGED, false refuses the step ('obligation-refuted'). WHAT.md
+# names literal divisors. The fact hypothesis 3 >= 0 and sqrt_sq's 0 >= 0
+# are the same kind of goal, and §6.2's norm_num "closes goals over rational
+# literals exactly". So is a partial builtin's condition on a literal
+# argument (E26): 2 > 0 from ln 2, 3 >= 0 from sqrt 3 and 1^2 - 1 + 1 > 0
+# from ln(1^2 - 1 + 1) are DISCHARGED, and -1 > 0 from ln(-1) refuses the
+# step. A literal divisor that is 0, as in 1/0, never reaches E7: E25
+# refuses it first. An Int or D node is never a literal, but E7 does not
+# leave an obligation holding one admitted. Any obligation reaching E7
+# (every emitted one except a regularity judgement and ftc's derivative
+# premise) that holds an Int or Deriv node in its proposition or its domain
+# is refused 'Int-or-D-not-normalisable'. This holds whether or not the
+# obligation is literal or closed (E26 (b)).
+#
+# E25, zero divisors (interprets §6.2 field's "a divisor that normalises to
+# zero is refused", and its "coincide exactly with what §5.1's / former
+# already charges").
+#   * Every divisor charged as `d # 0` is checked before it is emitted. That
+#     is a '/' or negative-power former at E6, deriv's route_div, and
+#     field's field_div. tan's cos u # 0 (E26) is a domain, not a divisor,
+#     and is not tested. A divisor holding an Int or D node is refused
+#     'Int-or-D-not-normalisable' by the test's own ring_nf (E26 (b)).
+#   * At charge time (E6, route_div) the step is refused
+#     'divisor-normalises-to-zero' if ring_nf(d) is the zero polynomial.
+#     E3 already computes ring_nf(d) as the key of inv(d), so the test costs
+#     nothing extra. Goal installation is a charge (E6), so a goal is refused
+#     at installation the same way.
+#   * Inside `field`, every divisor of its input is also tested, before
+#     lhs - rhs is normalised: the step is refused if the numerator of d's
+#     field normal form is zero. This is §6.2's own wording, and it catches
+#     divisors like x/x - 1, whose ring_nf x*inv(x) - 1 is nonzero. The
+#     test comes first, so such a step is never reported as
+#     'ftc-check-failed' or 'close-check-failed'.
+#   * A refused step emits nothing (E13).
+#   Reason: §6.2 mandates the refusal for field, and says field's divisors
+#   are exactly the ones the former already charges, so the former charge is
+#   where a zero divisor first enters the proof. Refusing it there, rather
+#   than admitting a false `d # 0` whose tag cannot close it, keeps E6 and
+#   field consistent. The charge-time test is ring_nf only, so a divisor such
+#   as x/x - 1 is still admitted at installation (and E24 tags that false
+#   admission none) and is refused only when field sees it. BAD_MOVES
+#   install_zero_divisor and field_zero_divisor pin both tests.
+
+OB_FIELDS = ("prop", "dom", "sources", "status", "tag", "new")
+
+EXPECTED_OBLIGATIONS = {
+    "P1.1": {
+        "goal": [
+            # pi/2 in the Int's upper limit, outside t's scope, so at the
+            # goal's domain
+            ("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+            # sqrt(t^2) in the integrand owes its domain on the range (E26).
+            # §11.1 lists it as "t^2 ≥ 0 by sign", the sub-obligation of
+            # sin(sqrt(t^2)) ∈ C⁰. Range cannot close it, since t^2 is an
+            # opaque monomial to Fourier–Motzkin; sign can, by E20 (an even
+            # power, constant 0, on a non-strict goal).
+            ("t^2 >= 0", "[0, pi/2]", (S_FORMER,), ADMITTED, T_SIGN, True),
+            # That key uses the range, so the orientation is owed here, at
+            # installation, and not first at s1 (E4)
+            ("0 <= pi/2", "true", (S_ORIENT,), ADMITTED, T_LINEAR_PI, True),
+        ],
+        "s1": [
+            # §11.1's "0 ≤ t by range, pi_pos", split in two. The hypothesis
+            # itself is on the range [0, pi/2] (by range). What needs pi_pos is
+            # that [0, pi/2] is the range at all (E4), already owed since the
+            # goal was installed. R = t has no former.
+            ("t >= 0", "[0, pi/2]", (S_SQRT_SQ,), ADMITTED, T_RANGE, True),
+            ("0 <= pi/2", "true", (S_ORIENT,), ADMITTED, T_LINEAR_PI, False),
+        ],
+        "s2": [
+            ("0 <= pi/2", "true", (S_ORIENT,), ADMITTED, T_LINEAR_PI, False),
+            ("2*sin t - 2*t*cos t in C^0([0, pi/2])", "[0, pi/2]",
+             (S_FTC_C0F,), ADMITTED, T_REG, True),
+            ("2*sin t - 2*t*cos t in C^1((0, pi/2))", "(0, pi/2)",
+             (S_FTC_C1F,), ADMITTED, T_REG, True),
+            # deriv emits nothing on this F (DERIV["P1.1"]). ring emits
+            # nothing at all (§6.2).
+            ("D[t](2*sin t - 2*t*cos t) == sin t * (2*t)", "(0, pi/2)",
+             (S_FTC_D,), DISCHARGED, T_DERIV_RING, True),
+            ("sin t * (2*t) in C^0([0, pi/2])", "[0, pi/2]",
+             (S_FTC_C0f,), ADMITTED, T_REG, True),
+            # the new goal contains pi/2 (F at b). F and the new goal hold
+            # only sin and cos, which are total (E26), so nothing else.
+            ("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, False),
+        ],
+        "s3": [],  # right-hand side 1: no formers, no hypotheses
+        "s4": [],
+        "s5": [],
+        "s6": [],  # ring emits nothing, and the value 2 has no divisor
+    },
+
+    "P1.1-fallback": {
+        "goal": [
+            # pi^2/4 in the Int's upper limit, at the goal's domain
+            ("4 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+            # sqrt x in the integrand owes its domain on the range (E26):
+            # x < 0 against the range's 0 <= x is infeasible, so range, and
+            # pi's sign fact is not used
+            ("x >= 0", "[0, pi^2/4]", (S_FORMER,), ADMITTED, T_RANGE, True),
+            # pi^2 is not linear in pi, so the orientation closes by a sign
+            # certificate on the goal as written. E20: §5.3 method 4 states
+            # only strict forms, a positive rational plus even powers, or a
+            # negative discriminant. For a non-strict `>= 0` goal it is read
+            # as also accepting a non-negative rational constant, zero
+            # included: a non-negative combination of even powers is `>= 0`.
+            # Here (1/4)*pi^2 has constant 0 and discriminant 0 (SymPy), so
+            # only this reading closes it. It is owed at installation because
+            # the key above uses the range (E4).
+            ("0 <= pi^2/4", "true", (S_ORIENT,), ADMITTED, T_SIGN, True),
+        ],
+        "s1": [
+            ("0 <= pi^2/4", "true", (S_ORIENT,), ADMITTED, T_SIGN, False),
+            # F's three sqrt x on [a, b]: the installation's key again
+            ("x >= 0", "[0, pi^2/4]", (S_FORMER,), ADMITTED, T_RANGE, False),
+            ("2*sin(sqrt x) - 2*sqrt x * cos(sqrt x) in C^0([0, pi^2/4])",
+             "[0, pi^2/4]", (S_FTC_C0F,), ADMITTED, T_REG, True),
+            ("2*sin(sqrt x) - 2*sqrt x * cos(sqrt x) in C^1((0, pi^2/4))",
+             "(0, pi^2/4)", (S_FTC_C1F,), ADMITTED, T_REG, True),
+            ("D[x](2*sin(sqrt x) - 2*sqrt x * cos(sqrt x)) == sin(sqrt x)",
+             "(0, pi^2/4)", (S_FTC_D,), DISCHARGED, T_DERIV_FIELD, True),
+            ("sin(sqrt x) in C^0([0, pi^2/4])", "[0, pi^2/4]",
+             (S_FTC_C0f,), ADMITTED, T_REG, True),
+            # d_sqrt fires three times on the same u = x: one key
+            ("x > 0", "(0, pi^2/4)", (S_D_SQRT,), ADMITTED, T_RANGE, True),
+            # d_sqrt's output divides by 2 * sqrt u. The divisor is the term
+            # 2*sqrt x, as WHAT.md states it. field does not split it. The
+            # tag relies on E18: method 5 splitting off the content 2.
+            ("2*sqrt x # 0", "(0, pi^2/4)", (S_FIELD,), ADMITTED,
+             T_PRODUCT_SQRT, True),
+            # The new goal, F(pi^2/4) - F(0), at the goal's domain: its three
+            # pi^2/4 owe 4 # 0 (E6), its three sqrt(pi^2/4) owe
+            # pi^2/4 >= 0, and its three sqrt 0 owe 0 >= 0 (E26, both
+            # closed, so domain true by E5). pi^2/4 >= 0 is tagged sign as
+            # 0 <= pi^2/4 is (E20; range sees pi^2 as opaque). 0 >= 0 is
+            # literal (E7).
+            ("4 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, False),
+            ("pi^2/4 >= 0", "true", (S_FORMER,), ADMITTED, T_SIGN, True),
+            ("0 >= 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+        ],
+        "s2": [
+            ("pi/2 >= 0", "true", (S_SQRT_SQ,), ADMITTED, T_LINEAR_PI, True),
+            ("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+        ],
+        "s3": [
+            ("0 >= 0", "true", (S_SQRT_SQ,), DISCHARGED, T_NORM_NUM, False),
+        ],
+        "s4": [],
+        "s5": [],
+        "s6": [],
+        "s7": [],
+    },
+
+    "P1.2": {
+        "goal": [
+            # The integrand's divisor on the range. The range is literal, so
+            # norm_num orients it and no orientation obligation is recorded
+            # (E4). This is §11.2's "1 + x^3 # 0 @ [0,1] by product (lines
+            # 1–2; ring)". The factorisation is (1 + x)*(x^2 - x + 1), with
+            # 1 + x > 0 on [0, 1] by range and x^2 - x + 1 > 0 by the
+            # certificate (x - 1/2)^2 + 3/4.
+            ("1 + x^3 # 0", "[0, 1]", (S_FORMER,), ADMITTED, T_PRODUCT, True),
+        ],
+        "s1": [],  # `fact` emits nothing; the hypothesis stays in the theorem
+        "s2": [
+            ("3 # 0", "true", (S_FORMER, S_FIELD), DISCHARGED, T_NORM_NUM,
+             True),
+            ("6 # 0", "true", (S_FORMER, S_FIELD), DISCHARGED, T_NORM_NUM,
+             True),
+            # F's 1/sqrt 3 and (2*x - 1)/sqrt 3; deriv's u/v routing; field's
+            # divisors, including the one inside atan's argument; and the new
+            # goal's F(1), F(0). All closed, so one key (E5).
+            ("sqrt 3 # 0", "true", (S_FORMER, S_ROUTE_DIV, S_FIELD),
+             ADMITTED, T_SQRT_POS, True),
+            # F's sqrt 3, twice, and the new goal's, owe 3 >= 0 (E26); the
+            # handle h_sqrt3 brings the same key as its hypothesis (WHAT.md:
+            # 3 >= 0 from sqrt_sq_val 3). Literal, so norm_num (E7).
+            ("3 >= 0", "true", (S_FORMER, S_FACT), DISCHARGED, T_NORM_NUM,
+             True),
+            # F's two ln on [a, b] = [0, 1] (E26). §11.2 lists these two as
+            # "1 + x > 0 @ [0,1] by domain (linear)" and "x^2 - x + 1 > 0 by
+            # sign". They are also §6.9's sub-obligations of F in C^0([0, 1])
+            # (REGULARITY_LISTING). Different keys from d_ln's on (0, 1)
+            # (E8). The first is range (x >= 0 from dom closes 1 + x <= 0);
+            # the second is sign, the certificate (x - 1/2)^2 + 3/4, since
+            # range sees x^2 as opaque.
+            ("1 + x > 0", "[0, 1]", (S_FORMER,), ADMITTED, T_RANGE, True),
+            ("x^2 - x + 1 > 0", "[0, 1]", (S_FORMER,), ADMITTED, T_SIGN,
+             True),
+            (P1_2_F + " in C^0([0, 1])", "[0, 1]", (S_FTC_C0F,), ADMITTED,
+             T_REG, True),
+            (P1_2_F + " in C^1((0, 1))", "(0, 1)", (S_FTC_C1F,), ADMITTED,
+             T_REG, True),
+            ("D[x](" + P1_2_F + ") == 1/(1 + x^3)", "(0, 1)", (S_FTC_D,),
+             DISCHARGED, T_DERIV_FIELD_FACT, True),
+            ("1/(1 + x^3) in C^0([0, 1])", "[0, 1]", (S_FTC_C0f,), ADMITTED,
+             T_REG, True),
+            # deriv's d_ln, on the open interval. The closed-interval keys
+            # above are ln's formers, not d_ln's.
+            ("1 + x > 0", "(0, 1)", (S_D_LN,), ADMITTED, T_RANGE, True),
+            # certificate (x - 1/2)^2 + 3/4 (§11.2, §5.3 method 4)
+            ("x^2 - x + 1 > 0", "(0, 1)", (S_D_LN,), ADMITTED, T_SIGN, True),
+            # field's divisors from d_ln's outputs D[x]u / u
+            ("1 + x # 0", "(0, 1)", (S_FIELD,), ADMITTED, T_RANGE, True),
+            ("x^2 - x + 1 # 0", "(0, 1)", (S_FIELD,), ADMITTED, T_SIGN, True),
+            # d_atan's denominator. The sign certificate reads it as written:
+            # 1 plus an even power (§5.3 method 4, rev 7).
+            ("1 + ((2*x - 1)/sqrt 3)^2 # 0", "(0, 1)", (S_FIELD,), ADMITTED,
+             T_SIGN, True),
+            # the integrand, as field's input, on the open interval. A
+            # different key from the goal's former on [0, 1] (E8).
+            ("1 + x^3 # 0", "(0, 1)", (S_FIELD,), ADMITTED, T_PRODUCT, True),
+            # The new goal F(1) - F(0) holds four ln with literal arguments.
+            # Each owes its argument > 0 as a tree (E8), so 1 + 1 > 0 and not
+            # 2 > 0, and each is literal and true (E26, E7).
+            ("1 + 1 > 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+            ("1^2 - 1 + 1 > 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM,
+             True),
+            ("1 + 0 > 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+            ("0^2 - 0 + 1 > 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM,
+             True),
+        ],
+        "s3": [],  # ln_one: right-hand side 0, no hypotheses
+        "s4": [],
+        "s5": [],
+        "s6": [
+            ("6 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, False),
+        ],
+        "s7": [
+            # the right-hand side -atan(1/sqrt 3) carries the divisor sqrt 3,
+            # and its sqrt 3 owes 3 >= 0 (E26)
+            ("sqrt 3 # 0", "true", (S_FORMER,), ADMITTED, T_SQRT_POS, False),
+            ("3 >= 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, False),
+        ],
+        "s8": [
+            ("6 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, False),
+        ],
+        "s9": [
+            ("3 # 0", "true", (S_FORMER, S_FIELD), DISCHARGED, T_NORM_NUM,
+             False),
+            ("6 # 0", "true", (S_FIELD,), DISCHARGED, T_NORM_NUM, False),
+            ("sqrt 3 # 0", "true", (S_FIELD,), ADMITTED, T_SQRT_POS, False),
+            # §11.2: "close ... by field, obl 3*sqrt 3 # 0 by product
+            # (sqrt_pos)". It is both the value's former and field's divisor.
+            # The tag relies on E18: method 5 splitting off the content 3.
+            ("3*sqrt 3 # 0", "true", (S_FORMER, S_FIELD), ADMITTED,
+             T_PRODUCT_SQRT, True),
+            # the value's ln 2 and sqrt 3 (E26): 2 > 0 is a new key, not
+            # s2's 1 + 1 > 0; 3 >= 0 is s2's
+            ("2 > 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+            ("3 >= 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, False),
+        ],
+    },
+}
+_alt = dict(EXPECTED_OBLIGATIONS["P1.2"])
+_alt["s9"] = [
+    ("3 # 0", "true", (S_FORMER, S_FIELD), DISCHARGED, T_NORM_NUM, False),
+    ("6 # 0", "true", (S_FIELD,), DISCHARGED, T_NORM_NUM, False),
+    ("9 # 0", "true", (S_FORMER, S_FIELD), DISCHARGED, T_NORM_NUM, True),
+    ("sqrt 3 # 0", "true", (S_FIELD,), ADMITTED, T_SQRT_POS, False),
+    # the value's sqrt 3 (E26) and the fact's hypothesis, one key
+    ("3 >= 0", "true", (S_FORMER, S_FACT), DISCHARGED, T_NORM_NUM, False),
+    ("2 > 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),  # ln 2
+]
+EXPECTED_OBLIGATIONS["P1.2-alt"] = _alt
+del _alt
+
+# The tracker at the end of each proof: every key once, with its final
+# status. Written out by hand. It is not computed from the per-step lists,
+# so the two act as a cross-check on each other.
+FINAL_TRACKER = {
+    "P1.1": [
+        ("2 # 0", "true", DISCHARGED, T_NORM_NUM),
+        ("t^2 >= 0", "[0, pi/2]", ADMITTED, T_SIGN),
+        ("t >= 0", "[0, pi/2]", ADMITTED, T_RANGE),
+        ("0 <= pi/2", "true", ADMITTED, T_LINEAR_PI),
+        ("2*sin t - 2*t*cos t in C^0([0, pi/2])", "[0, pi/2]", ADMITTED, T_REG),
+        ("2*sin t - 2*t*cos t in C^1((0, pi/2))", "(0, pi/2)", ADMITTED, T_REG),
+        ("D[t](2*sin t - 2*t*cos t) == sin t * (2*t)", "(0, pi/2)",
+         DISCHARGED, T_DERIV_RING),
+        ("sin t * (2*t) in C^0([0, pi/2])", "[0, pi/2]", ADMITTED, T_REG),
+    ],
+    "P1.1-fallback": [
+        ("4 # 0", "true", DISCHARGED, T_NORM_NUM),
+        ("x >= 0", "[0, pi^2/4]", ADMITTED, T_RANGE),
+        ("0 <= pi^2/4", "true", ADMITTED, T_SIGN),
+        ("2*sin(sqrt x) - 2*sqrt x * cos(sqrt x) in C^0([0, pi^2/4])",
+         "[0, pi^2/4]", ADMITTED, T_REG),
+        ("2*sin(sqrt x) - 2*sqrt x * cos(sqrt x) in C^1((0, pi^2/4))",
+         "(0, pi^2/4)", ADMITTED, T_REG),
+        ("D[x](2*sin(sqrt x) - 2*sqrt x * cos(sqrt x)) == sin(sqrt x)",
+         "(0, pi^2/4)", DISCHARGED, T_DERIV_FIELD),
+        ("sin(sqrt x) in C^0([0, pi^2/4])", "[0, pi^2/4]", ADMITTED, T_REG),
+        ("x > 0", "(0, pi^2/4)", ADMITTED, T_RANGE),
+        ("2*sqrt x # 0", "(0, pi^2/4)", ADMITTED, T_PRODUCT_SQRT),
+        ("pi^2/4 >= 0", "true", ADMITTED, T_SIGN),
+        ("0 >= 0", "true", DISCHARGED, T_NORM_NUM),
+        ("pi/2 >= 0", "true", ADMITTED, T_LINEAR_PI),
+        ("2 # 0", "true", DISCHARGED, T_NORM_NUM),
+    ],
+    "P1.2": [
+        ("1 + x^3 # 0", "[0, 1]", ADMITTED, T_PRODUCT),
+        ("3 # 0", "true", DISCHARGED, T_NORM_NUM),
+        ("6 # 0", "true", DISCHARGED, T_NORM_NUM),
+        ("sqrt 3 # 0", "true", ADMITTED, T_SQRT_POS),
+        ("3 >= 0", "true", DISCHARGED, T_NORM_NUM),
+        ("1 + x > 0", "[0, 1]", ADMITTED, T_RANGE),
+        ("x^2 - x + 1 > 0", "[0, 1]", ADMITTED, T_SIGN),
+        (P1_2_F + " in C^0([0, 1])", "[0, 1]", ADMITTED, T_REG),
+        (P1_2_F + " in C^1((0, 1))", "(0, 1)", ADMITTED, T_REG),
+        ("D[x](" + P1_2_F + ") == 1/(1 + x^3)", "(0, 1)", DISCHARGED,
+         T_DERIV_FIELD_FACT),
+        ("1/(1 + x^3) in C^0([0, 1])", "[0, 1]", ADMITTED, T_REG),
+        ("1 + x > 0", "(0, 1)", ADMITTED, T_RANGE),
+        ("x^2 - x + 1 > 0", "(0, 1)", ADMITTED, T_SIGN),
+        ("1 + x # 0", "(0, 1)", ADMITTED, T_RANGE),
+        ("x^2 - x + 1 # 0", "(0, 1)", ADMITTED, T_SIGN),
+        ("1 + ((2*x - 1)/sqrt 3)^2 # 0", "(0, 1)", ADMITTED, T_SIGN),
+        ("1 + x^3 # 0", "(0, 1)", ADMITTED, T_PRODUCT),
+        ("1 + 1 > 0", "true", DISCHARGED, T_NORM_NUM),
+        ("1^2 - 1 + 1 > 0", "true", DISCHARGED, T_NORM_NUM),
+        ("1 + 0 > 0", "true", DISCHARGED, T_NORM_NUM),
+        ("0^2 - 0 + 1 > 0", "true", DISCHARGED, T_NORM_NUM),
+        ("3*sqrt 3 # 0", "true", ADMITTED, T_PRODUCT_SQRT),
+        ("2 > 0", "true", DISCHARGED, T_NORM_NUM),
+    ],
+}
+# The same tracker without s9's 3*sqrt 3 # 0 and with its 9 # 0. Its 2 > 0,
+# from ln 2, is in both values.
+FINAL_TRACKER["P1.2-alt"] = (
+    [ob for ob in FINAL_TRACKER["P1.2"] if ob[0] != "3*sqrt 3 # 0"]
+    + [("9 # 0", "true", DISCHARGED, T_NORM_NUM)])
+
+# N, the admission count in "Proved modulo N admissions". E26 (user decision
+# 2026-09-24) added t^2 >= 0 to P1.1, x >= 0 @ [0, pi^2/4] and pi^2/4 >= 0 to
+# the fallback, and F's two ln domains on [0, 1] to P1.2 and P1.2-alt. Every
+# other domain it charges in P1 is literal, and norm_num discharges it.
+ADMISSIONS = {
+    "P1.1": 6,           # t^2 >= 0, t >= 0, 0 <= pi/2, three regularity
+    "P1.1-fallback": 9,  # x >= 0, orientation, x > 0, 2*sqrt x # 0,
+                         # pi^2/4 >= 0, pi/2 >= 0, three regularity
+    "P1.2": 14,          # 1 + x^3 # 0 twice, sqrt 3 # 0, 1 + x > 0 and
+                         # x^2 - x + 1 > 0 on [0, 1] and on (0, 1), 1 + x # 0,
+                         # x^2 - x + 1 # 0, the atan denominator,
+                         # 3*sqrt 3 # 0, three regularity
+    "P1.2-alt": 13,      # no 3*sqrt 3 # 0
+}
+
+# What §6.9's closure rules would ask for under each admitted regularity
+# premise, once reg exists. This is listed only, never asserted: regularity
+# is "listing it" in this milestone (WHAT.md Out). It is recorded because
+# §11.2's closed-interval lines come from here (see DESIGN_DEFECTS), and
+# because it shows why §6.4's split matters for the fallback. Since E26 the
+# kernel also emits those closed-interval conditions itself, as the partial
+# builtins' formers when F enters on [a, b]: 1 + x > 0 and x^2 - x + 1 > 0
+# @ [0, 1] for P1.2's ln, and x >= 0 @ [0, pi^2/4] for the fallback's sqrt.
+# They coincide because E26 charges each builtin's C^0 domain (§6.9).
+# sqrt is C^0 on u >= 0 but C^1 only on u > 0, so the C^1 premise on the closed
+# [0, pi^2/4] would be unreachable by §6.9's rules, and the open (0, pi^2/4)
+# is what makes it reachable.
+REGULARITY_LISTING = {
+    "P1.1": {
+        "2*sin t - 2*t*cos t in C^0([0, pi/2])": (),   # sin, cos everywhere
+        "2*sin t - 2*t*cos t in C^1((0, pi/2))": (),
+        "sin t * (2*t) in C^0([0, pi/2])": (),
+    },
+    "P1.1-fallback": {
+        "2*sin(sqrt x) - 2*sqrt x * cos(sqrt x) in C^0([0, pi^2/4])":
+            ("x >= 0 @ [0, pi^2/4]",),
+        "2*sin(sqrt x) - 2*sqrt x * cos(sqrt x) in C^1((0, pi^2/4))":
+            ("x > 0 @ (0, pi^2/4)",),
+        "sin(sqrt x) in C^0([0, pi^2/4])": ("x >= 0 @ [0, pi^2/4]",),
+    },
+    # The quotient conditions (3 # 0, 6 # 0, sqrt 3 # 0) and sqrt's own
+    # condition on its argument 3 (>= 0 for C^0, > 0 for C^1, §6.9) are
+    # listed even though they are literals, so that P1.2 applies §6.9 the
+    # same way as the P1.1-fallback. None of them changes ADMISSIONS, because
+    # the listing is never asserted.
+    "P1.2": {
+        P1_2_F + " in C^0([0, 1])":
+            ("3 # 0", "6 # 0", "sqrt 3 # 0", "3 >= 0",
+             "1 + x > 0 @ [0, 1]", "x^2 - x + 1 > 0 @ [0, 1]"),
+        P1_2_F + " in C^1((0, 1))":
+            ("3 # 0", "6 # 0", "sqrt 3 # 0", "3 > 0",
+             "1 + x > 0 @ (0, 1)", "x^2 - x + 1 > 0 @ (0, 1)"),
+        "1/(1 + x^3) in C^0([0, 1])": ("1 + x^3 # 0 @ [0, 1]",),
+    },
+}
+
+# ---------------------------------------------------------------------------
+# 6. Answers
+
+ANSWERS = {
+    "P1.1": "2",
+    "P1.1-fallback": "2",
+    "P1.2": P1_2_ANSWER,
+    "P1.2-alt": P1_2_ANSWER_ALT,
+}
+# For the script's own numeric sanity check (math module only). These are not
+# terms, and decimals are not in the grammar (GRAMMAR.md D1).
+NUMERIC = {
+    "P1.1": 2.0,
+    "P1.2": 0.83564884826472105,  # the integral of 1/(1 + x^3) over [0, 1]
+}
+VERDICTS = {name: VERDICT.format(n=n) for name, n in ADMISSIONS.items()}
+
+# ---------------------------------------------------------------------------
+# 7. Wrong answers (Done-when item 4)
+#
+# Each is refused. The refusal carries the residual lhs - rhs of the equation
+# that failed to close: deriv(F) - f for ftc (§8.7: "D[t] F − integrand"),
+# and goal lhs - value for close. The state is unchanged and nothing is
+# emitted (E13).
+#
+# E14. The residual is compared by equality in the named procedure, never as
+# a string: the script asserts that `compare` proves
+# reported_residual == expected. For W3 and W4 the comparison runs WITHOUT
+# the sqrt_sq_val fact. With the fact both residuals are 0, and the
+# comparison would pass vacuously. The script also asserts the reported
+# residual is not zero under `compare`. The divisors a comparison would owe
+# are irrelevant to the assertion and are not tracked.
+#
+# Every residual below was computed with SymPy, treating sqrt 3 as a free
+# symbol s where the case says the fact is absent.
+
+WRONG_ANSWERS = [
+    {
+        "id": "W1",
+        "what": "P1.1 with F := sin t - t*cos t (the factor 2 missing, §11.1, "
+                "§8.7)",
+        "state": ("P1.1", "s1"),  # the state after step s1 of P1.1
+        "move": ("ftc", {"F": "sin t - t*cos t", "check": "ring",
+                         "facts": []}),
+        "refusal": "ftc-check-failed",
+        "residual": "-t*sin t",
+        "compare": ("ring", ()),
+    },
+    {
+        "id": "W2",
+        "what": "P1.2 with ln coefficient 1/3 in place of 1/6",
+        "state": ("P1.2", "s1"),  # h_sqrt3 is bound
+        "move": ("ftc", {"F": "(1/3)*ln(1 + x) - (1/3)*ln(x^2 - x + 1)"
+                              " + (1/sqrt 3)*atan((2*x - 1)/sqrt 3)",
+                         "check": "field",
+                         "facts": [("handle", "h_sqrt3")]}),
+        "refusal": "ftc-check-failed",
+        # Run with the fact, so the coefficient is the only error. The
+        # reported numerator is reduced modulo s^2 = 3, but its denominator
+        # can still hold sqrt 3, so the comparison uses the fact too.
+        "residual": "-(2*x - 1)/(6*(x^2 - x + 1))",
+        "compare": ("field", ("h_sqrt3",)),
+    },
+    {
+        "id": "W3",
+        "what": "P1.2 without the sqrt_sq_val fact (§11.2, §6.8)",
+        "state": ("P1.2", "s1"),
+        "move": ("ftc", {"F": P1_2_F, "check": "field", "facts": []}),
+        "refusal": "ftc-check-failed",
+        # §11.2's form, (3/2 − s²/2)/(s²x² − s²x + s² + 4x⁴ − 8x³ + 9x² −
+        # 5x + 1) with s = sqrt 3 opaque. Confirmed equal to deriv(F) - f
+        # with s free.
+        "residual": ("(3/2 - (sqrt 3)^2/2)/((sqrt 3)^2*x^2 - (sqrt 3)^2*x"
+                     " + (sqrt 3)^2 + 4*x^4 - 8*x^3 + 9*x^2 - 5*x + 1)"),
+        # the same rational function in factored form
+        "residual_factored": ("-((sqrt 3)^2 - 3)/(2*(x^2 - x + 1)"
+                              "*((sqrt 3)^2 + 4*x^2 - 4*x + 1))"),
+        "compare": ("field", ()),
+    },
+    # Added (not in WHAT.md's three): §8.7's surd case, which is the reason
+    # the alternative close needs the fact.
+    {
+        "id": "W4",
+        "added": True,
+        "what": "P1.2-alt's close without the fact (§8.7)",
+        "state": ("P1.2", "s8"),
+        "move": ("close", {"value": P1_2_ANSWER_ALT, "check": "field",
+                           "facts": []}),
+        "refusal": "close-check-failed",
+        "residual": "pi*(3 - (sqrt 3)^2)/(9*sqrt 3)",  # (3π − s²π)/(9s)
+        "compare": ("field", ()),
+    },
+]
+
+# ---------------------------------------------------------------------------
+# 8. Bad moves (Done-when item 5)
+#
+# (goal, move, args, expected refusal). The goal is installed fresh, and any
+# handles named come from running the listed steps first. An entry with a
+# "state" (proof, step id) instead starts from the state after that step of
+# that proof, as WRONG_ANSWERS do; its "goal" is that proof's original goal.
+# An entry whose move is ("install", {}) expects the refusal from installing
+# the goal itself (parse_goal, then creating the proof state, which charges
+# the goal's formers, E6); no step is called. Refusal codes are the stable
+# thing to assert. The message wording is the kernel's.
+
+REFUSAL_CODES = {
+    "rewrite-under-D-needs-open-domain": "§6.1 rev 9 (E1 step 9)",
+    "rewrite-lhs-mismatch": "§18 Q21 (E1 steps 3-4)",
+    "rewrite-target-not-found": "E1 step 2",
+    "rewrite-scope": "E1 step 6",
+    "close-scope-bound-variable": "§9, §5.1; GRAMMAR.md D11",
+    "close-schema-not-closed": "§9, the closed whitelist (E23: a node "
+                               "outside it)",
+    "divisor-normalises-to-zero": "§6.2 field: a divisor that normalises to "
+                                  "zero is refused; extended to every "
+                                  "charged divisor by E25",
+    # Decision: the earlier 'field-fact-not-a-handle' is folded into this
+    # code. A raw Judgement is one more kind of object that is not a minted
+    # handle, and one code for every fact position (field, ftc and close
+    # alike) keeps the kernel from having to classify what a non-handle is.
+    "fact-not-minted-handle": "§15.3, E17: not the object the kernel minted "
+                              "(any fact position: ftc, field, close)",
+    "fact-foreign-state-handle": "§15.3, E17: minted in another proof state",
+    "deriv-no-rule": "§6.3: no rule applies, e.g. a Deriv subterm with x "
+                     "free (E12)",
+    "subst-under-D": "GRAMMAR.md §5, substitution into D[x] e; unreachable "
+                     "in P1 (E9)",
+    "ftc-check-failed": "§6.4, §8.7 (carries a residual)",
+    "ftc-infinite-endpoint": "§5.1, §6.4 (E9)",
+    "range-same-infinity": "E4: Int[v = oo .. oo] or Int[v = -oo .. -oo] "
+                           "has an empty range; unreachable in P1",
+    "rpow-literal-exponent": "GRAMMAR.md §7 D17: an RPow constructed with a "
+                             "Num or Neg(Num) exponent, by substitution or "
+                             "instantiation; unreachable in P1 (no RPow)",
+    "close-check-failed": "§9 (carries a residual)",
+    "obligation-refuted": "E7: norm_num decides a literal obligation false, "
+                          "a partial builtin's domain on a literal included "
+                          "(E26: ln(-1) owes -1 > 0). A literal zero divisor "
+                          "(1/0) is not this code: E25 refuses it first with "
+                          "divisor-normalises-to-zero",
+    # Added by user decision 2026-09-24 (E26 (b)).
+    "Int-or-D-not-normalisable": "E26 (b), §5.2, §6.2, §14: ring, field or "
+                                 "norm_num met an Int or D node in a side it "
+                                 "must normalise or decide, or deriv's "
+                                 "d_const met one in an x-free subterm it "
+                                 "would differentiate to 0 (E12). Neither has a "
+                                 "definedness condition the kernel can "
+                                 "state until regularity and diverges "
+                                 "exist, so neither may be an atom",
+}
+
+BAD_MOVES = [
+    {
+        "id": "rewrite_under_D",
+        "goal": "D[x](sqrt(x^2)) == ?A",
+        "setup": [],
+        "move": ("rewrite", {"entry": "sqrt_sq", "inst": {"u": "x"},
+                             "at": "sqrt(x^2)"}),
+        "refusal": "rewrite-under-D-needs-open-domain",
+        "why": "sqrt_sq holds @ x >= 0, which is not open, and the position "
+               "is under D[x]. Accepted, it would give D[x] sqrt(x^2) == 1 "
+               "@ x >= 0, which is false at 0 (§6.1 rev 9).",
+    },
+    {
+        # WHAT.md's own phrasing of the same must-refuse, with no ?A
+        "id": "rewrite_under_D_stated",
+        "goal": "D[x](sqrt(x^2)) == 1 @ x >= 0",
+        "setup": [],
+        "move": ("rewrite", {"entry": "sqrt_sq", "inst": {"u": "x"},
+                             "at": "sqrt(x^2)"}),
+        "refusal": "rewrite-under-D-needs-open-domain",
+        "why": "as above. The goal's own domain x >= 0 does not help, "
+               "because the equation's domain is what must be open.",
+    },
+    {
+        "id": "close_bound_variable",
+        "goal": P1_1_GOAL,
+        "setup": [],
+        "move": ("close", {"value": "t", "check": "ring", "facts": []}),
+        "refusal": "close-scope-bound-variable",
+        "why": "t is bound by the goal's Int, and ?A may not mention it (§9).",
+    },
+    {
+        "id": "close_bound_variable_after_ftc",
+        "goal": P1_1_GOAL,
+        "state": ("P1.1", "s2"),
+        "move": ("close", {"value": "t", "check": "ring", "facts": []}),
+        "refusal": "close-scope-bound-variable",
+        "why": "ftc removed the Int, but the reported theorem is the original "
+               "goal, where t is bound (§9, D11, E19). The refusal must come "
+               "from the scope check, not from ring failing.",
+    },
+    {
+        "id": "close_bound_variable_ring_true",
+        "goal": P1_1_GOAL,
+        "state": ("P1.1", "s5"),
+        "move": ("close", {"value": "t - t + 2", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-scope-bound-variable",
+        "why": "ring proves 2*1 - 2*(pi/2)*0 - (2*0 - 2*0*cos 0) == t - t + 2 "
+               "(checked with SymPy, pi and cos 0 opaque). A scope check "
+               "against the current goal would accept this and report "
+               "'Int[t = 0 .. pi/2] ... == t - t + 2', which violates D11 "
+               "(E19).",
+    },
+    {
+        "id": "close_not_closed_form",
+        "goal": P1_2_GOAL,
+        "setup": [],
+        "move": ("close", {"value": "Int[x = 0 .. 1] 1/(1 + x^3)",
+                           "check": "ring", "facts": []}),
+        "refusal": "close-schema-not-closed",
+        "why": "Int is not on the closed whitelist. Without the whitelist "
+               "refl would close this and the goal would say nothing (§9). "
+               "The scope check passes, because the value has no free "
+               "variable and its x is its own binder. So the refusal must "
+               "come from the whitelist.",
+    },
+    {
+        "id": "field_raw_fact",
+        "goal": P1_2_GOAL,
+        "setup": [],
+        # ("raw", s): the script passes parse_judgement(s), a Judgement
+        # object and not a handle.
+        "move": ("ftc", {"F": P1_2_F, "check": "field",
+                         "facts": [("raw", "(sqrt 3)^2 == 3")]}),
+        "refusal": "fact-not-minted-handle",
+        "why": "a fact must be a theorem handle (§6.2: soundness needs only "
+               "that each fact is a theorem, passed as a handle, §15.3).",
+    },
+    # Added: two matcher refusals that pin Q21's "ring, never field".
+    {
+        "id": "rewrite_lhs_mismatch",
+        "added": True,
+        "goal": PROOFS["P1.2"]["steps"][1]["goal_after"],
+        "setup": [],
+        "move": ("rewrite", {"entry": "atan_one_sqrt3", "inst": {},
+                             "at": "atan((2*0 - 1)/sqrt 3)"}),
+        "refusal": "rewrite-lhs-mismatch",
+        "why": "ring_nf of the argument is -inv(sqrt 3), not inv(sqrt 3). "
+               "atan_odd is needed first.",
+    },
+    {
+        "id": "rewrite_needs_field",
+        "added": True,
+        "goal": "Int[x = 1 .. 2] ln(x/x) == ?A",
+        "setup": [],
+        "move": ("rewrite", {"entry": "ln_one", "inst": {}, "at": "ln(x/x)"}),
+        "refusal": "rewrite-lhs-mismatch",
+        "why": "x/x is 1 only in field, owing x # 0. ring reads it as "
+               "x*inv(x) (E3), and Q21 never field-normalises.",
+    },
+    # Added: D10's consequence for deriv (E12, E9).
+    {
+        "id": "ftc_F_contains_D",
+        "added": True,
+        "goal": P1_2_GOAL,
+        "setup": [],
+        "move": ("ftc", {"F": "D[x] x^2", "check": "ring", "facts": []}),
+        "refusal": "deriv-no-rule",
+        "why": "x is free in D[x] x^2 (GRAMMAR.md D10), so d_const does not "
+               "apply and no §6.3 rule does. The step is refused before any "
+               "substitution F[x := b], so subst-under-D is never reached. "
+               "Read as a binder, d_const would give 0 where the derivative "
+               "of 2*x is 2.",
+    },
+    # Added: E9's infinite-endpoint refusal (DOMAIN_RULES E4, §5.1).
+    {
+        "id": "ftc_infinite_endpoint",
+        "added": True,
+        "goal": "Int[x = 0 .. oo] exp(-x) == ?A",
+        "setup": [],
+        "move": ("ftc", {"F": "-exp(-x)", "check": "ring", "facts": []}),
+        "refusal": "ftc-infinite-endpoint",
+        "why": "the derivative check itself would pass (SymPy: "
+               "d/dx(-exp(-x)) = exp(-x)), so the refusal must come from "
+               "the endpoint check and not from ftc-check-failed. Accepted, "
+               "it would put oo inside F[x := oo] - F[x := 0], which §5.1 "
+               "forbids.",
+    },
+    # Added: REWRITE_RULE step 2's "encloses" (GRAMMAR.md §5).
+    {
+        "id": "rewrite_in_own_endpoint",
+        "added": True,
+        "goal": "Int[t = 0 .. sqrt(1)] t == ?A",
+        "setup": [],
+        "move": ("rewrite", {"entry": "sqrt_sq", "inst": {"u": "t - t + 1"},
+                             "at": "sqrt(1)"}),
+        "refusal": "rewrite-scope",
+        "why": "the match passes (ring_nf((t - t + 1)^2) = 1 = ring_nf(1), "
+               "SymPy), but the occurrence is in Int[t = ..]'s own hi, "
+               "outside t's scope, so the inst value's t is not in scope "
+               "(step 6). Read with 'enclosing' as tree ancestor, it would "
+               "be accepted, emitting t - t + 1 >= 0 @ [0, sqrt 1] and the "
+               "orientation 0 <= sqrt 1, for a t that is not bound where "
+               "the rewrite acts.",
+    },
+    # Added: D11 and E19 accept a goal with D[x] (GRAMMAR.md §5 bv).
+    {
+        "id": "close_D_goal_scope_passes",
+        "added": True,
+        "goal": "D[x] x^2 == ?A",
+        "setup": [],
+        "move": ("close", {"value": "2*x", "check": "ring", "facts": []}),
+        "refusal": "Int-or-D-not-normalisable",
+        "why": "a regression for D10/D11/E19. The goal installs (D's x is in "
+               "fv, not bv, so D11 holds) and the scope check passes (x is "
+               "not in bv of the original goal). ring then refuses to "
+               "normalise the side D[x] x^2 (E26 (b)); before E26 it read "
+               "it as an opaque atom and the check failed with "
+               "close-check-failed. Either way the refusal comes after the "
+               "scope check and the whitelist, so it must never be "
+               "close-scope-bound-variable or a D11 refusal at goal "
+               "installation. It also depends on Var being on the closed "
+               "whitelist (E23); otherwise the refusal would be "
+               "close-schema-not-closed.",
+    },
+    # Added: REWRITE_RULE step 9 (b), an Int range mentioning x below D[x].
+    {
+        "id": "rewrite_under_D_through_Int",
+        "added": True,
+        "goal": "D[x](Int[t = 0 .. x] sqrt(t^2)) == ?A",
+        "setup": [],
+        "move": ("rewrite", {"entry": "sqrt_sq", "inst": {"u": "t"},
+                             "at": "sqrt(t^2)"}),
+        "refusal": "rewrite-under-D-needs-open-domain",
+        "why": "the match and the scope check pass (t is bound by the Int "
+               "whose body holds the occurrence), and H = [t >= 0] does not "
+               "mention x, so test (a) of step 9 passes. But the occurrence "
+               "is under Int[t = 0 .. x] below D[x]. Its hypothesis would be "
+               "emitted on the closed [0, x] with the orientation 0 <= x "
+               "(E4), so the equation's domain in x is x >= 0, which is not "
+               "open (§6.1 rev 9). Test (b) refuses it. (SymPy: the "
+               "integral is x*|x|/2 before and x^2/2 after, which differ "
+               "for x < 0.)",
+    },
+    # Added (user decision 2026-09-24, review fix): REWRITE_RULE step 9 (a)
+    # applied to step 10's charges from R, not only to H. Each case's H is
+    # empty, so (a) on H and (b) are vacuous, and each was accepted while
+    # (a) read H alone.
+    {
+        "id": "rewrite_under_D_R_closed_former",
+        "added": True,
+        "goal": "D[x](atan(-x)) == ?A @ x >= 0",
+        "setup": [],
+        "move": ("rewrite", {"entry": "atan_odd",
+                             "inst": {"u": "x + (sqrt x - sqrt x)"},
+                             "at": "atan(-x)"}),
+        "refusal": "rewrite-under-D-needs-open-domain",
+        "why": "installation owes nothing (atan is total). The match passes: "
+               "ring_nf(-(x + (sqrt x - sqrt x))) = -x (SymPy), the two sqrt "
+               "x atoms cancelling, and x is free, so step 6 passes. Step 10 "
+               "would charge R = -atan(x + (sqrt x - sqrt x)) with sqrt's "
+               "x >= 0, which mentions x and is not strict, so step 9 (a) "
+               "refuses it. Accepted, the new left side is undefined for "
+               "x < 0, so its derivative does not exist at 0, while "
+               "D[x] atan(-x) is -1 there (SymPy). The goal's own x >= 0 "
+               "would tag the charge hyp: a well-tagged charge is still "
+               "refused, because the domain below D is what must be open.",
+    },
+    {
+        "id": "rewrite_under_D_R_divisor",
+        "added": True,
+        "goal": "D[x](atan(-x)) == ?A @ x >= 0",
+        "setup": [],
+        "move": ("rewrite", {"entry": "atan_odd",
+                             "inst": {"u": "x + (1/(sqrt x + 1)"
+                                           " - 1/(sqrt x + 1))"},
+                             "at": "atan(-x)"}),
+        "refusal": "rewrite-under-D-needs-open-domain",
+        "why": "the same through a divisor, the gap as it stood before E26: "
+               "the inv(sqrt x + 1) atoms cancel in the match (SymPy, with "
+               "the atom a free symbol), and step 10 charges "
+               "sqrt x + 1 # 0, strict but with an x-mentioning sqrt "
+               "subterm, and sqrt x's x >= 0. Either fails step 9 (a). "
+               "Before E26 only the divisor was charged, and step 9 (a) did "
+               "not look at it, so the step was accepted.",
+    },
+    # Added (user decision 2026-09-24, review fix): REWRITE_RULE step 9 (b)
+    # applied to step 10's charges from R, not only to H.
+    {
+        "id": "rewrite_under_D_through_Int_R_former",
+        "added": True,
+        "goal": "D[x](Int[t = 1 .. x] atan(-t)) == ?A",
+        "setup": [],
+        "move": ("rewrite", {"entry": "atan_odd",
+                             "inst": {"u": "t + (sqrt t - sqrt t)"},
+                             "at": "atan(-t)"}),
+        "refusal": "rewrite-under-D-needs-open-domain",
+        "why": "installation owes nothing (atan is total). The match passes: "
+               "ring_nf(-(t + (sqrt t - sqrt t))) = -t (SymPy), and t is "
+               "bound by the enclosing Int (step 6). atan_odd's H is empty, "
+               "and step 10's only charge, sqrt t's t >= 0, does not mention "
+               "x, so step 9 (a) passes. But that charge is emitted at P, "
+               "which holds the closed range [1, x] with the orientation "
+               "1 <= x (step 7, E4), so the equation's domain in x is closed "
+               "and step 9 (b) refuses it. Accepted, the rewritten integral "
+               "is defined only for x >= 0, so its derivative does not exist "
+               "for x <= 0, while D[x] of the original is -atan(x) "
+               "everywhere (SymPy).",
+    },
+    {
+        "id": "rewrite_under_D_through_Int_R_former_ln",
+        "added": True,
+        "goal": "D[x](Int[t = 1 .. x] atan(-t)) == ?A",
+        "setup": [],
+        "move": ("rewrite", {"entry": "atan_odd",
+                             "inst": {"u": "t + (ln t - ln t)"},
+                             "at": "atan(-t)"}),
+        "refusal": "rewrite-under-D-needs-open-domain",
+        "why": "the ln twin of rewrite_under_D_through_Int_R_former. ln has "
+               "an open natural domain, so step 10's charge t > 0 is strict "
+               "and has no closed-domain subterm, and it does not mention x: "
+               "step 9 (a) passes on any reading. The charge is emitted at "
+               "P, which holds the closed [1, x] and 1 <= x (step 7, E4), so "
+               "step 9 (b) refuses it. ring_nf(-(t + (ln t - ln t))) = -t "
+               "(SymPy). Accepted, the rewritten integral is defined only "
+               "for x > 0, while D[x] of the original is -atan(x) "
+               "everywhere (SymPy).",
+    },
+    # Added: E25, a divisor that ring-normalises to zero, at installation.
+    {
+        "id": "install_zero_divisor",
+        "added": True,
+        "goal": "Int[x = 0 .. 1] 1/(x - x) == ?A",
+        "setup": [],
+        "move": ("install", {}),
+        "refusal": "divisor-normalises-to-zero",
+        "why": "E6 charges the integrand's divisor x - x at installation, "
+               "and ring_nf(x - x) = 0, so E25 refuses the goal before any "
+               "x - x # 0 @ [0, 1] is admitted.",
+    },
+    # Added: E25, field's own test, on a divisor ring does not see as zero.
+    {
+        "id": "field_zero_divisor",
+        "added": True,
+        "goal": "Int[x = 1 .. 2] 1/(x/x - 1) == ?A",
+        # Installation passes, because ring_nf(x/x - 1) = x*inv(x) - 1 is
+        # nonzero. It admits x # 0 @ [1, 2] (range) and the false
+        # x/x - 1 # 0 @ [1, 2] (tagged none by E24; outside the no-none
+        # assertion, since this is a BAD_MOVES run).
+        "setup": [],
+        "move": ("ftc", {"F": "x", "check": "field", "facts": []}),
+        "refusal": "divisor-normalises-to-zero",
+        "why": "deriv gives 1 (d_var). field's input 1 == 1/(x/x - 1) "
+               "carries the divisor x/x - 1, whose field normal form has "
+               "numerator 0 (SymPy: cancel(x/x - 1) = 0). field tests its "
+               "divisors before normalising, so the refusal is "
+               "divisor-normalises-to-zero, never ftc-check-failed (E25).",
+    },
+
+    # Added by user decision 2026-09-24: E26 (a), a partial builtin whose
+    # literal argument lies outside its domain. Each goal is refused when it
+    # is installed, since installation charges the goal's formers (E6, E26)
+    # and E7 refuses a false literal. Before E26 each installed, and ring
+    # closed it with ?A := 0 as 'Proved.' with nothing owed. The close is now
+    # never reached. One case per bound of each builtin, so that dropping any
+    # single condition is caught (DEFINEDNESS_MUTATIONS); the open ends
+    # (ln at 0, atanh at 1 and -1) are pinned here, and the closed ends by
+    # DEFINEDNESS_CASES.
+    {
+        "id": "ln_negative_literal", "added": True,
+        "goal": "0*ln(-1) == ?A", "setup": [], "move": ("install", {}),
+        "refusal": "obligation-refuted",
+        "why": "ln(-1) owes -1 > 0, which is literal and false (E26, E7). "
+               "SymPy: ln(-1) = I*pi, not a real.",
+    },
+    {
+        "id": "ln_zero_literal", "added": True,
+        "goal": "0*ln 0 == ?A", "setup": [], "move": ("install", {}),
+        "refusal": "obligation-refuted",
+        "why": "ln 0 owes 0 > 0, false: ln's domain is open at 0. A former "
+               "written u >= 0 would install it.",
+    },
+    {
+        "id": "sqrt_negative_literal", "added": True,
+        "goal": "0*sqrt(-1) == ?A", "setup": [], "move": ("install", {}),
+        "refusal": "obligation-refuted",
+        "why": "sqrt(-1) owes -1 >= 0, false (E26, E7). SymPy: sqrt(-1) = I.",
+    },
+    {
+        "id": "asin_above_literal", "added": True,
+        "goal": "0*asin 2 == ?A", "setup": [], "move": ("install", {}),
+        "refusal": "obligation-refuted",
+        "why": "asin 2 owes 2 >= -1, true and discharged, and 2 <= 1, false. "
+               "SymPy: asin(2) is not real.",
+    },
+    {
+        "id": "asin_below_literal", "added": True,
+        "goal": "0*asin(-2) == ?A", "setup": [], "move": ("install", {}),
+        "refusal": "obligation-refuted",
+        "why": "asin(-2) owes -2 >= -1, false, and -2 <= 1. The lower "
+               "bound's own case: a former that dropped it would install "
+               "this goal.",
+    },
+    {
+        "id": "acos_above_literal", "added": True,
+        "goal": "0*acos 2 == ?A", "setup": [], "move": ("install", {}),
+        "refusal": "obligation-refuted",
+        "why": "acos 2 owes 2 >= -1 and 2 <= 1, the second false (E26, E7). "
+               "SymPy: acos(2) is not real.",
+    },
+    {
+        "id": "acos_below_literal", "added": True,
+        "goal": "0*acos(-2) == ?A", "setup": [], "move": ("install", {}),
+        "refusal": "obligation-refuted",
+        "why": "acos(-2) owes -2 >= -1, false.",
+    },
+    {
+        "id": "acosh_below_literal", "added": True,
+        "goal": "0*acosh 0 == ?A", "setup": [], "move": ("install", {}),
+        "refusal": "obligation-refuted",
+        "why": "acosh 0 owes 0 >= 1, false (E26, E7). SymPy: acosh(0) = "
+               "I*pi/2.",
+    },
+    {
+        "id": "atanh_upper_end", "added": True,
+        "goal": "0*atanh 1 == ?A", "setup": [], "move": ("install", {}),
+        "refusal": "obligation-refuted",
+        "why": "atanh 1 owes 1 > -1, true, and 1 < 1, false: atanh's domain "
+               "is open at 1 (SymPy: atanh(1) = oo). A closed former would "
+               "install it.",
+    },
+    {
+        "id": "atanh_lower_end", "added": True,
+        "goal": "0*atanh(-1) == ?A", "setup": [], "move": ("install", {}),
+        "refusal": "obligation-refuted",
+        "why": "atanh(-1) owes -1 > -1, false (SymPy: atanh(-1) = -oo).",
+    },
+    # E26 (a) at the two other places a term enters, a rewrite's R and
+    # close's value (E6's list; installation is covered above, and ftc's F
+    # by P1.2's ln formers).
+    {
+        "id": "rewrite_R_owes_domain", "added": True,
+        "goal": "atan(-y) == ?A", "setup": [],
+        "move": ("rewrite", {"entry": "atan_odd",
+                             "inst": {"u": "y + (ln(-1) - ln(-1))"},
+                             "at": "atan(-y)"}),
+        "refusal": "obligation-refuted",
+        "why": "the match passes, since ring_nf(-(y + (ln(-1) - ln(-1)))) = "
+               "-y, the two ln(-1) atoms cancelling (REWRITE_RULE step 5). "
+               "Step 10 then charges R = -atan(y + (ln(-1) - ln(-1))), whose "
+               "ln(-1) owes -1 > 0, and E7 refutes it. Before E26 the step "
+               "was accepted and carried an undefined term into the goal "
+               "owing nothing. The partial-builtin twin of step 5's "
+               "atan_odd u := x/x - x/x example.",
+    },
+    {
+        "id": "close_value_owes_domain", "added": True,
+        "goal": "0 == ?A", "setup": [],
+        "move": ("close", {"value": "0*ln(-1)", "check": "ring",
+                           "facts": []}),
+        "refusal": "obligation-refuted",
+        "why": "the scope check and the whitelist pass (ln is on it, E23), "
+               "and close then charges the value's formers at G: -1 > 0, "
+               "false. Before E26 ring proved 0 == 0*ln(-1) and the report "
+               "was 'Proved.' for the theorem 0 == 0*ln(-1).",
+    },
+
+    # Added by user decision 2026-09-24: E26 (b), Int and D refused by every
+    # normaliser. The cases cover every normaliser and node pair (ring, field
+    # and norm_num, each on Int and on D) and every call site E26 (b) names on
+    # both nodes: close's check, ftc's check, E25's charge-time ring_nf(d),
+    # rewrite's match, deriv's d_const (E12), and both halves of E7's test, the
+    # proposition and the domain. field's fact reduction has no case of its
+    # own. A fact's inst values are charged by the step that uses it (E10, E6),
+    # so an Int or D in them meets E25's ring_nf or E7 there and is refused;
+    # and any Int or D the reduction would meet is in field's own input, which
+    # field's normaliser refuses (field_refuses_Int, field_refuses_D). So no
+    # verdict can come through the fact path. field's divisor test has no case
+    # of its own either. Every divisor in field's input was charged where it
+    # entered: goal installation, a rewrite's right-hand side, and ftc's F and
+    # new goal. There E25's ring_nf already refused one holding an Int or D
+    # (divisor_test_refuses_Int, divisor_test_refuses_D). close's value holds
+    # no Int or D, since E23's whitelist refuses them. A divisor new in deriv's
+    # output was charged by route_div, and deriv's output holds none (E12's
+    # d_const guard, E26 (b)). A fact's inst values are charged where the fact
+    # is used (E10), so their divisors also pass E25 there, and field's normal
+    # form refuses the same term with the same code. Int[x = 0 .. oo] 1
+    # diverges and D[x](abs x) does not exist at 0, so each left side below is
+    # undefined, and each case was 'Proved.' (or, for a divisor, a different
+    # refusal, or for an obligation, an admission) while ring and norm_num read
+    # them as atoms. The cases marked review fix were added after E26 was first
+    # written, to complete the pairs (DATA_CHANGES).
+    {
+        "id": "ring_refuses_Int", "added": True,
+        "goal": "(Int[x = 0 .. oo] 1) - (Int[x = 0 .. oo] 1) == ?A",
+        "setup": [],
+        "move": ("close", {"value": "0", "check": "ring", "facts": []}),
+        "refusal": "Int-or-D-not-normalisable",
+        "why": "installation owes nothing (the integrand 1 has no former, "
+               "and an infinite end brings no orientation, E4). close's "
+               "scope check and whitelist pass on the value 0, and ring "
+               "refuses the side holding the Ints. Before E26 the two Int "
+               "atoms cancelled and the report was 'Proved.' (SymPy: the "
+               "integral is oo).",
+    },
+    {
+        "id": "ring_refuses_D", "added": True,
+        "goal": "D[x](abs x) - D[x](abs x) == ?A", "setup": [],
+        "move": ("close", {"value": "0", "check": "ring", "facts": []}),
+        "refusal": "Int-or-D-not-normalisable",
+        "why": "abs is total, so installation owes nothing, and ring refuses "
+               "the side holding the D nodes. Before E26 they cancelled and "
+               "the report was 'Proved.' for a theorem @ true whose left "
+               "side is undefined at x = 0, where D[x](abs x) does not exist "
+               "(SymPy: the one-sided difference quotients tend to -1 and "
+               "1).",
+    },
+    {
+        "id": "field_refuses_D", "added": True,
+        "goal": "D[x](abs x) - D[x](abs x) == ?A", "setup": [],
+        "move": ("close", {"value": "0", "check": "field", "facts": []}),
+        "refusal": "Int-or-D-not-normalisable",
+        "why": "the same, by field: its normal form refuses the side "
+               "holding the D nodes (E26 (b)). The input has no divisor, so "
+               "this does not exercise field's divisor test; the block "
+               "comment above says why that test needs no case of its own.",
+    },
+    {
+        "id": "field_refuses_Int", "added": True,  # review fix
+        "goal": "(Int[x = 0 .. oo] 1) - (Int[x = 0 .. oo] 1) == ?A",
+        "setup": [],
+        "move": ("close", {"value": "0", "check": "field", "facts": []}),
+        "refusal": "Int-or-D-not-normalisable",
+        "why": "the same as ring_refuses_Int, by field. Installation owes "
+               "nothing, and field's normal form refuses the side holding "
+               "the Ints (E26 (b)). The input has no divisor, so this does "
+               "not exercise field's divisor test; the block comment above "
+               "says why that test needs no case of its own. Before E26 "
+               "this was a plain 'Proved.'.",
+    },
+    {
+        "id": "norm_num_refuses_Int", "added": True,
+        "goal": "sqrt((Int[x = 0 .. oo] 1) - (Int[x = 0 .. oo] 1)) == ?A",
+        "setup": [], "move": ("install", {}),
+        "refusal": "Int-or-D-not-normalisable",
+        "why": "sqrt's former owes (Int[x = 0 .. oo] 1) - (Int[x = 0 .. oo] "
+               "1) >= 0, closed, so domain true (E5). It reaches E7, and "
+               "norm_num refuses it rather than cancel the Ints to 0 >= 0 "
+               "or leave it admitted (E26 (b)).",
+    },
+    {
+        "id": "norm_num_refuses_D", "added": True,  # review fix
+        "goal": "ln(D[x] x^2) == ?A",
+        "setup": [], "move": ("install", {}),
+        "refusal": "Int-or-D-not-normalisable",
+        "why": "ln's former owes D[x] x^2 > 0 @ true. It is not closed (x is "
+               "free, GRAMMAR.md D10) and not literal, so it pins that the "
+               "refusal covers D nodes and non-closed obligations, not only "
+               "the closed Int of norm_num_refuses_Int. It is refused rather "
+               "than admitted (E26 (b), E7). Before E26 nothing was owed; "
+               "read as 2*x > 0 it would be false for x <= 0 (SymPy).",
+    },
+    {
+        "id": "norm_num_refuses_open_Int", "added": True,  # review fix
+        "goal": "sqrt(Int[t = 0 .. x] t) == ?A",
+        "setup": [], "move": ("install", {}),
+        "refusal": "Int-or-D-not-normalisable",
+        "why": "the non-closed Int twin: sqrt's former owes "
+               "(Int[t = 0 .. x] t) >= 0 @ true with x free. The Int's body "
+               "t owes nothing, so no key uses its range and no orientation "
+               "0 <= x is owed (E4); nothing else is emitted. The "
+               "proposition happens to be true (the integral is x^2/2, "
+               "SymPy), and it is refused all the same: an obligation about "
+               "an Int's value presupposes that the Int exists (E26 (b)).",
+    },
+    {
+        "id": "norm_num_refuses_Int_in_domain", "added": True,  # review fix
+        "goal": "ln x * 0 == ?A @ x > (Int[t = 0 .. oo] 1)"
+                " - (Int[t = 0 .. oo] 1)",
+        "setup": [], "move": ("install", {}),
+        "refusal": "Int-or-D-not-normalisable",
+        "why": "the domain half of E7's refusal. ln x owes x > 0 @ Γ (E26), "
+               "and its proposition holds no Int, but its domain, the "
+               "goal's own hypothesis, holds two. It reaches E7 and is "
+               "refused rather than admitted (E26 (b)). Accepted, it would "
+               "be admitted with a tag computed from a domain whose Ints "
+               "cancel, and close 0 by ring (the side ln x * 0 holds no "
+               "Int) would report 'Proved modulo 1 admissions' for a "
+               "theorem whose hypothesis compares x with a difference of "
+               "divergent integrals (SymPy: Int[t = 0 .. oo] 1 = oo). A "
+               "kernel that checks only the proposition passes every other "
+               "case.",
+    },
+    {
+        "id": "norm_num_refuses_D_in_domain", "added": True,  # review fix
+        "goal": "ln x * 0 == ?A @ x > D[y] y^2",
+        "setup": [], "move": ("install", {}),
+        "refusal": "Int-or-D-not-normalisable",
+        "why": "norm_num_refuses_Int_in_domain with a D node: ln x owes "
+               "x > 0 @ x > D[y] y^2, whose domain holds the D node (y is "
+               "free in it by GRAMMAR.md D10, so the goal is stated in x "
+               "and y). It is refused at E7 rather than admitted (E26 (b)). "
+               "Read as 2*y, the hypothesis would be x > 2*y (SymPy), and "
+               "close 0 by ring would report 'Proved modulo 1 admissions'.",
+    },
+    {
+        "id": "divisor_test_refuses_Int", "added": True,
+        "goal": "1/((Int[x = 0 .. oo] 1) - (Int[x = 0 .. oo] 1)) == ?A",
+        "setup": [], "move": ("install", {}),
+        "refusal": "Int-or-D-not-normalisable",
+        "why": "E25's charge-time test computes ring_nf of the divisor, and "
+               "ring refuses the Ints in it. Before E26 they cancelled and "
+               "the refusal was divisor-normalises-to-zero, which claimed a "
+               "value, 0, for a difference of two divergent integrals.",
+    },
+    {
+        "id": "divisor_test_refuses_D", "added": True,  # review fix
+        "goal": "1/(D[x](abs x) - D[x](abs x)) == ?A",
+        "setup": [], "move": ("install", {}),
+        "refusal": "Int-or-D-not-normalisable",
+        "why": "divisor_test_refuses_Int with D nodes: E25's ring_nf of the "
+               "divisor refuses them. Before E26 they cancelled and the "
+               "refusal was divisor-normalises-to-zero.",
+    },
+    {
+        "id": "match_refuses_Int", "added": True,
+        "goal": "atan((Int[x = 0 .. oo] 1) - (Int[x = 0 .. oo] 1)) == ?A",
+        "setup": [],
+        "move": ("rewrite", {"entry": "atan_odd", "inst": {"u": "0"},
+                             "at": "atan((Int[x = 0 .. oo] 1)"
+                                   " - (Int[x = 0 .. oo] 1))"}),
+        "refusal": "Int-or-D-not-normalisable",
+        "why": "atan is total, so installation owes nothing. REWRITE_RULE "
+               "step 3 compares ring_nf(-0) with ring_nf of the target's "
+               "argument, and ring refuses the Ints there. Before E26 both "
+               "were 0, the match passed, and the goal became "
+               "-atan 0 == ?A.",
+    },
+    {
+        "id": "match_refuses_D", "added": True,  # review fix
+        "goal": "atan(D[x](abs x) - D[x](abs x)) == ?A",
+        "setup": [],
+        "move": ("rewrite", {"entry": "atan_odd", "inst": {"u": "0"},
+                             "at": "atan(D[x](abs x) - D[x](abs x))"}),
+        "refusal": "Int-or-D-not-normalisable",
+        "why": "match_refuses_Int with D nodes. atan and abs are total, so "
+               "installation owes nothing, and step 3's ring_nf of the "
+               "target's argument refuses the D nodes.",
+    },
+    {
+        "id": "ftc_check_refuses_Int", "added": True,  # review fix
+        "goal": "Int[x = 0 .. 1] (1 + ((Int[t = 0 .. oo] 1)"
+                " - (Int[t = 0 .. oo] 1))) == ?A",
+        "setup": [],
+        "move": ("ftc", {"F": "x", "check": "ring", "facts": []}),
+        "refusal": "Int-or-D-not-normalisable",
+        "why": "installation owes nothing: the integrand has no former, "
+               "the outer range is literal (E4, no orientation) and the "
+               "inner ranges are infinite. ftc's endpoints 0 and 1 are "
+               "finite, F := x owes no former, and deriv gives 1 (d_var). "
+               "ftc's check then refuses the side f, which holds the Ints. "
+               "Before E26 the check passed (the Ints cancel), and close 1 "
+               "gave 'Proved modulo 3 admissions', one of them f in "
+               "C^0([0, 1]) for an f that is undefined (SymPy: the inner "
+               "integral is oo). ftc consumes only its own top-level Int "
+               "(E9); an Int nested in f reaches the check like any other "
+               "term.",
+    },
+    {
+        "id": "ftc_check_refuses_D", "added": True,  # review fix
+        "goal": "Int[x = -1 .. 1] (1 + (D[x](abs x) - D[x](abs x))) == ?A",
+        "setup": [],
+        "move": ("ftc", {"F": "x", "check": "ring", "facts": []}),
+        "refusal": "Int-or-D-not-normalisable",
+        "why": "ftc_check_refuses_Int with D nodes. abs is total and the "
+               "range is literal, so installation owes nothing (E4, no "
+               "orientation). D is not a binder for the no-shadowing rule "
+               "(GRAMMAR.md D10), so D[x] under Int[x] is legal. ftc's "
+               "endpoints are finite, F := x owes no former, and deriv gives "
+               "1 (d_var). ftc's check then refuses the side f, which holds "
+               "the D nodes. Before E26 the check passed (the D nodes "
+               "cancel), and close 2 gave 'Proved modulo 3 admissions' for "
+               "an integrand undefined at x = 0, where D[x](abs x) does not "
+               "exist (SymPy: the one-sided difference quotients tend to -1 "
+               "and 1). E7 never sees f: f in C^0 is reg, and the derivative "
+               "premise is decided in the step.",
+    },
+    {
+        "id": "ftc_F_holds_x_free_Int", "added": True,  # review fix
+        "goal": "Int[x = 0 .. 1] 1 == ?A",
+        "setup": [],
+        "move": ("ftc", {"F": "x + ((Int[t = 0 .. oo] 1)"
+                              " - (Int[t = 0 .. oo] 1))",
+                         "check": "ring", "facts": []}),
+        "refusal": "Int-or-D-not-normalisable",
+        "why": "E12's d_const guard. The range [0, 1] is literal (E4, no "
+               "orientation), and F's formers are none: the Ints' body 1 "
+               "owes nothing and their ends are infinite. deriv applies "
+               "d_add, then d_var on x, then meets the x-free subterm "
+               "holding the Ints, where d_const would give 0; it refuses "
+               "instead (E26 (b)). Without the guard deriv gives 1 + 0, "
+               "ring's sides 1 + 0 and 1 hold no Int, the check passes, and "
+               "D[x](x + (I - I)) == 1 @ (0, 1) is recorded DISCHARGED "
+               "(deriv+ring) with two reg admissions on an F that is "
+               "undefined (SymPy: Int[t = 0 .. oo] 1 = oo). No verdict "
+               "follows from that, since the new goal still holds the Ints "
+               "and every later ring or field close refuses them, but a "
+               "false premise is recorded as discharged. The refused step "
+               "emits nothing (E13).",
+    },
+    {
+        "id": "ftc_F_holds_x_free_D", "added": True,  # review fix
+        "goal": "Int[x = 0 .. 1] 1 == ?A",
+        "setup": [],
+        "move": ("ftc", {"F": "x + (D[y](abs y) - D[y](abs y))",
+                         "check": "ring", "facts": []}),
+        "refusal": "Int-or-D-not-normalisable",
+        "why": "ftc_F_holds_x_free_Int with D nodes. x is not free in "
+               "D[y](abs y) (GRAMMAR.md D10 puts y, not x, in its free "
+               "variables), so the subterm is x-free and d_const's guard "
+               "refuses it; abs is total, so F owes no former. Contrast "
+               "ftc_F_contains_D, whose D[x] x^2 has x free and gets "
+               "'deriv-no-rule'. D[y](abs y) does not exist at y = 0 "
+               "(SymPy: the one-sided difference quotients tend to -1 and "
+               "1).",
+    },
+]
+
+# Handle forgeries (§15.3, §17's bank). The script implements each one.
+# E21: every fact-slot forgery (a case passed at FORGERY_STATE, below) must
+# fail in one of two ways. (i) Forging raises: an exception while the forged
+# object is being built, before step() is called. This is accepted only
+# where the case's 'accept' lists "raise_at_forge". (ii) step() returns the
+# case's refusal code, written "refusal:<code>" in 'accept'. For every case,
+# fact-slot or not, an exception escaping step() is never a pass: it is a
+# crash, not a refusal (WHAT.md Done-when item 5: "are refused").
+# Amendment to E21 (§15.3, WHAT.md Done-when item 5): three cases are not
+# passed at the slot (direct_tracker_write, print_proved_with_admissions,
+# json_roundtrip_state). Each carries its own 'accept', whose outcome names
+# it defines, and its own 'post'. The script checks 'post' whichever
+# accepted outcome occurred, and any outcome not in 'accept' fails the case.
+# In every case the verdict and the tracker are unchanged. They are listed
+# by name because they are code, not data. The handle model they test is
+# E17 (module docstring).
+#
+# The discriminating slot. Every fact forgery is passed at the same place:
+# the state after P1.2 s8, with P1.2-alt's close, whose only need for a fact
+# is sqrt_sq_val 3. There, the three possible outcomes are told apart:
+#   accepted  the goal closes (the forgery worked: a failure of the case);
+#   ignored   close-check-failed with W4's residual
+#             pi*(3 - (sqrt 3)^2)/(9*sqrt 3) (the kernel dropped the fact
+#             silently: also a failure of the case);
+#   refused   the case's refusal code (the only pass at the slot);
+#   raised    step() raised instead of returning a refusal: a failure of the
+#             case.
+FORGERY_STATE = ("P1.2", "s8")
+FORGERY_MOVE = ("close", {"value": P1_2_ANSWER_ALT, "check": "field",
+                          "facts": ["FORGED"]})  # "FORGED" is replaced by
+                                                 # the forged object
+# After every forgery the script asserts two things. First, the state's
+# obligation list still equals TRACKER_AT_FORGERY_STATE, which is P1.2's
+# final tracker without the two keys s9 mints (3*sqrt 3 # 0, and 2 > 0 from
+# the value's ln 2, E26, are s9's only new keys). Second, the same close with
+# the genuine h_sqrt3 then succeeds and the report is VERDICTS["P1.2-alt"]
+# ('Proved modulo 13 admissions'). No forgery mutates h_sqrt3. A forgery that
+# needs a real handle to alter mints its own, as fabricated_handle_id (a)
+# does.
+TRACKER_AT_FORGERY_STATE = [ob for ob in FINAL_TRACKER["P1.2"]
+                            if ob[0] not in ("3*sqrt 3 # 0", "2 > 0")]
+
+FORGERIES = [
+    {"id": "construct_theorem_directly",
+     "does": "instantiate the kernel's internal theorem or judgement class by "
+             "any route, private names included, with conclusion "
+             "(sqrt 3)^2 == 3, and pass it at the slot",
+     # Either outcome passes. No public constructor may exist, and §15.3
+     # says Python cannot guarantee that no private route does. What it can
+     # guarantee is that no such object is the one the kernel minted.
+     "accept": ("raise_at_forge", "refusal:fact-not-minted-handle")},
+    {"id": "object_new_theorem",
+     "does": "object.__new__ on the handle class, fill its fields with "
+             "h_sqrt3's (id included), pass it at the slot",
+     # filling the fields may raise if the class uses __slots__ or is frozen
+     "accept": ("raise_at_forge", "refusal:fact-not-minted-handle")},
+    {"id": "copy_handle",
+     "does": "copy.copy(h_sqrt3) and copy.deepcopy(h_sqrt3), each passed at "
+             "the slot",
+     # both; E17 guarantees copy and deepcopy succeed, so only the refusal
+     # passes
+     "accept": ("refusal:fact-not-minted-handle",),
+     "then": "the same close with the original h_sqrt3 succeeds"},
+    {"id": "pickle_roundtrip_handle",
+     "does": "pickle.loads(pickle.dumps(h_sqrt3)) passed at the slot",
+     # E17: the lineage is a picklable token and the class is at module
+     # level, so the round trip succeeds and the identity check refuses it
+     "accept": ("refusal:fact-not-minted-handle",)},
+    {"id": "fabricated_handle_id",
+     "does": "three forgeries. (a) From FORGERY_STATE, run a second real "
+             "step `fact sqrt_sq_val 3` and bind it 'h_victim'. By E10 this "
+             "step emits nothing, so the new state's obligations still "
+             "equal TRACKER_AT_FORGERY_STATE. Change h_victim's id (through "
+             "object.__setattr__ if need be) to h_victim.id + 1, an id no "
+             "`fact` step in this run has minted, and pass it at the slot "
+             "from that post-fact state. Under E17 the refusal does not "
+             "depend on whether that id is in the map. (b) Pass that same "
+             "id as a bare int at the slot. (c) Pass h_sqrt3.id as a bare "
+             "int at the slot: a genuine id from the same lineage. Reading "
+             "the id does not change h_sqrt3, so the post-check above still "
+             "holds with the genuine handle",
+     # (a) catches a kernel that trusts the handle's own fields without a
+     # registry lookup. (b) catches one that accepts any int. (c) is the
+     # only case that catches a kernel that resolves ints through its
+     # registry before the identity check; (a), (b), copy_handle and
+     # pickle_roundtrip_handle all miss it. E17 does not promise sequential
+     # ids, so no case assumes them. All three keep the refusal
+     # fact-not-minted-handle (E17: an altered id, and a bare int).
+     "accept": ("refusal:fact-not-minted-handle",)},
+    {"id": "direct_tracker_write",
+     "state": ("P1.1", "s6"),  # finished P1.1, N = 6
+     "does": "public API only: take the object returned by the state's "
+             "public obligations or tracker accessor, delete the admission "
+             "t >= 0 @ [0, pi/2] from it, and mark 0 <= pi/2 discharged",
+     # raise_at_mutation: the delete or the mark-discharged operation on the
+     #   accessor's returned object raises. That raise is outside step() and
+     #   is a pass.
+     # no_effect: both operations complete, and 'post' holds.
+     "accept": ("raise_at_mutation", "no_effect"),
+     "post": "the accessor again returns FINAL_TRACKER['P1.1'], and the "
+             "report is VERDICTS['P1.1'] ('Proved modulo 6 admissions')",
+     "expect": "Mutation through private attributes is out of scope: §15.3 "
+               "says Python cannot prevent it"},
+    # The honest report of each proof is asserted through VERDICTS (§5.4,
+    # §15.6). This case covers only the forgery: §15.3's "there is no result
+    # object to build by mistake", and §17's "a tactic that attempts to
+    # manufacture a proved result".
+    {"id": "print_proved_with_admissions",
+     "state": ("P1.1", "s6"),
+     "does": "on a finished P1.1 state (N = 6), try to obtain 'Proved.' "
+             "through every public report path: (a) construct whatever the "
+             "report or verdict is, or its class, from outside the kernel, "
+             "directly and via object.__new__, with n = 0 or a 'Proved.' "
+             "string, then pass it to the printer or report function; (b) "
+             "call the report function with any caller-supplied count or "
+             "status argument set to 0 or 'Proved.', if such a parameter "
+             "exists; (c) ask for the report again after the "
+             "direct_tracker_write attempt; (d) have a script-side 'tactic' "
+             "return a result object claiming the goal closed, without a "
+             "kernel step, then ask for the report",
+     # For each sub-attempt (a)-(d), one of:
+     #   raise_at_forge     building the verdict object, or calling
+     #                      object.__new__ on its class, raises;
+     #   raise_at_call      the printer or report function raises TypeError
+     #                      or ValueError on a foreign object or an extra
+     #                      argument;
+     #   refused            the kernel returns a refusal;
+     #   no_such_parameter  (b) only: the report function has no count or
+     #                      status parameter to set.
+     #   honest_report      (c) only: the direct_tracker_write attempt ends
+     #                      in one of that case's accepted outcomes, and
+     #                      report(state) then returns VERDICTS['P1.1'].
+     # For (c) and (d), an exception escaping step() is a crash, as in E21.
+     "accept": ("raise_at_forge", "raise_at_call", "refused",
+                "no_such_parameter", "honest_report"),
+     "post": "every report string the kernel produces for the state equals "
+             "VERDICTS['P1.1'], and 'Proved.' is not a substring of any "
+             "captured stdout or report output",
+     "expect": "the case fails if any public report function accepts a "
+               "caller-supplied count or status and uses it, or if the "
+               "caller can build a verdict object the printer accepts "
+               "(§15.3: 'there is no result object to build by mistake'; "
+               "§15.6: admit never yields Proved)"},
+    # Added: the other two cases §15.3 names for §17's bank.
+    {"id": "json_roundtrip_state", "added": True,
+     "state": FORGERY_STATE,
+     "does": "serialise the proof state to JSON and load it back as a state",
+     # dump_raises: json.dumps(state), or the kernel's own serialiser if it
+     #   has one, raises TypeError.
+     # no_loader: the kernel's public API (the names without a leading
+     #   underscore that the kernel module and the state class export) has
+     #   no function that returns a proof state when given a str, bytes or
+     #   dict. The script checks this against the names the kernel
+     #   documents, not by scanning every name.
+     # loaded_holds_no_theorem: a loader exists, and the loaded state's
+     #   report is never 'Proved.', and never VERDICTS['P1.2'] without the
+     #   steps being replayed. Every handle-like object taken from it is
+     #   refused at FORGERY_STATE with fact-not-minted-handle or
+     #   fact-foreign-state-handle.
+     "accept": ("dump_raises", "no_loader", "loaded_holds_no_theorem"),
+     "post": "the original run's tracker still equals "
+             "TRACKER_AT_FORGERY_STATE",
+     "expect": "§15.3: nothing reconstructs a judgement from storage"},
+    {"id": "foreign_state_handle", "added": True,
+     "does": "mint h_sqrt3 in a second, fresh P1.2 run (its own s1) and pass "
+             "that handle at the slot of the first run",
+     "accept": ("refusal:fact-foreign-state-handle",)},
+]
+
+# Planted bugs (Done-when item 3). What each changes against the lists above,
+# so the script can check that its own assertions would catch it.
+#
+# The script runs every proof in PROOFS under each mutation and collects all
+# mismatches rather than stopping at the first. It requires that each
+# location in the bug's 'caught_by' appears among them, and it treats any
+# exception other than the suite's own mismatch type as a failure of the
+# planted-bug test, not as a catch. 'admissions' gives N for every proof
+# under the bug. 'caught_by' entries have these shapes:
+#   (proof, step, prop, dom)   the expected key (prop, dom) of that step's
+#                              list is absent from what the kernel emitted;
+#   (proof, step, prop, "new") the key is present but its `new` flag
+#                              differs;
+#   (proof, step, prop, "tag") the key is present but its tag differs from
+#                              the expected one;
+#   ("FINAL_TRACKER", proof, (prop, dom))  the key is absent from the final
+#                              tracker;
+#   ("N", proof)               the admission count differs from ADMISSIONS.
+PLANTED_BUGS = {
+    "d_ln_emits_nothing": {
+        "mutation": "d_ln returns its derivative and emits no side "
+                    "condition; field's 1 + x # 0 and x^2 - x + 1 # 0 are "
+                    "unaffected, and so are F's own ln formers on [0, 1] "
+                    "(E26), which are different keys (E8) and do not mask "
+                    "the missing (0, 1) ones",
+        "missing": {"P1.2": ["1 + x > 0 @ (0, 1)", "x^2 - x + 1 > 0 @ (0, 1)"],
+                    "P1.2-alt": ["1 + x > 0 @ (0, 1)",
+                                 "x^2 - x + 1 > 0 @ (0, 1)"]},
+        "admissions": {"P1.1": 6, "P1.1-fallback": 9, "P1.2": 12,
+                       "P1.2-alt": 11},
+        "caught_by": [("P1.2", "s2", "1 + x > 0", "(0, 1)"),
+                      ("P1.2", "s2", "x^2 - x + 1 > 0", "(0, 1)"),
+                      ("P1.2-alt", "s2", "1 + x > 0", "(0, 1)"),
+                      ("P1.2-alt", "s2", "x^2 - x + 1 > 0", "(0, 1)")],
+        "note": "P1.1 and its fallback have no ln and do not see it",
+    },
+    "ftc_derivative_premise_on_closed": {
+        # WHAT.md Done-when 3 says only that the derivative premise moves to
+        # the closed interval. The counts below depend on this reading, in
+        # which deriv and check run at the premise's domain. If only the
+        # premise's own domain moved, P1.2 would stay at 14.
+        "mutation": "ftc attaches the derivative premise D[x] F == f to "
+                    "[a, b], and deriv, field and check run at that domain, "
+                    "so every obligation they emit is on [a, b]. In P1.2 "
+                    "field's 1 + x^3 # 0 then merges with the goal's former "
+                    "on [0, 1], and d_ln's 1 + x > 0 and x^2 - x + 1 > 0 "
+                    "merge with F's ln formers there (E26): three merges. "
+                    "In the fallback d_sqrt's x > 0 moves to [0, pi^2/4] "
+                    "beside sqrt's x >= 0 there, a different key",
+        "affects": ("P1.1", "P1.1-fallback", "P1.2", "P1.2-alt"),
+        "admissions": {"P1.1": 6, "P1.1-fallback": 9, "P1.2": 11,
+                       "P1.2-alt": 10},
+        # Under this bug the fallback's x > 0 and 2*sqrt x # 0 on
+        # [0, pi^2/4] are false at 0, and E24 would tag both none (for
+        # x > 0 the set {x <= 0, 0 <= x} is feasible at x = 0; sqrt_pos's
+        # hypothesis x > 0 @ [0, pi^2/4] is itself none). That is why their
+        # tags are not asserted: the no-none assertion does not cover
+        # planted-bug runs, and these keys are not in the expected lists.
+        # Only the domain mismatch is asserted.
+        "caught_by": [
+            ("P1.1", "s2", "D[t](2*sin t - 2*t*cos t) == sin t * (2*t)",
+             "(0, pi/2)"),
+            ("P1.1-fallback", "s1",
+             "D[x](2*sin(sqrt x) - 2*sqrt x * cos(sqrt x)) == sin(sqrt x)",
+             "(0, pi^2/4)"),
+            ("P1.1-fallback", "s1", "x > 0", "(0, pi^2/4)"),
+            ("P1.1-fallback", "s1", "2*sqrt x # 0", "(0, pi^2/4)"),
+            ("P1.2", "s2", "D[x](" + P1_2_F + ") == 1/(1 + x^3)", "(0, 1)"),
+            ("P1.2-alt", "s2", "D[x](" + P1_2_F + ") == 1/(1 + x^3)",
+             "(0, 1)"),
+        ],
+    },
+    # WHAT.md Done-when item 3 says only "dropping one obligation". The
+    # mutation is named by key, never as "the first new admitted key",
+    # because order inside a step is unspecified (steps are compared as
+    # sets, KEYING). Each key below is an admission that, in every proof
+    # that emits it, is minted once (new = True) and never re-emitted
+    # (checked against EXPECTED_OBLIGATIONS), so N drops by exactly one in
+    # each such proof. Dropping a discharged key would leave N unchanged, and
+    # a re-emitted key could be re-added by the later emission; that case is
+    # the second variant below.
+    "tracker_drops_one": {
+        "mutation": "Tracker.add silently discards any emission whose key "
+                    "is one of `drop_keys`, in every proof run",
+        # A flat tuple of keys, not keyed by proof: the mutation is
+        # proof-agnostic, and every proof's tracker discards any emission
+        # whose (predicate, domain) key is here. P1.2-alt shares P1.2's
+        # goal-creation key and loses it too. P1.1-fallback emits neither
+        # key, so its N stays 9; neither proof family emits the other's key.
+        # E26 adds no second emission of either: P1.1's installation owes
+        # t^2 >= 0, not t >= 0, and F's formers in P1.2 hold no 1 + x^3.
+        "drop_keys": (
+            ("t >= 0", "[0, pi/2]"),     # P1.1: emitted at s1 only
+            # P1.2 and P1.2-alt (shared s1-s8): emitted at goal creation
+            # only. field's (0, 1) key in s2 is a different key (E8), and
+            # P1.2-alt's s9 does not emit it.
+            ("1 + x^3 # 0", "[0, 1]"),
+        ),
+        "missing_from_final_tracker": {
+            "P1.1": [("t >= 0", "[0, pi/2]")],
+            "P1.2": [("1 + x^3 # 0", "[0, 1]")],
+            "P1.2-alt": [("1 + x^3 # 0", "[0, 1]")],
+        },
+        "admissions": {"P1.1": 5, "P1.1-fallback": 9, "P1.2": 13,
+                       "P1.2-alt": 12},
+        # FINAL_TRACKER (key absent) and ADMISSIONS/VERDICTS (N one lower)
+        "caught_by": [("FINAL_TRACKER", "P1.1", ("t >= 0", "[0, pi/2]")),
+                      ("FINAL_TRACKER", "P1.2", ("1 + x^3 # 0", "[0, 1]")),
+                      ("FINAL_TRACKER", "P1.2-alt",
+                       ("1 + x^3 # 0", "[0, 1]")),
+                      ("N", "P1.1"), ("N", "P1.2"), ("N", "P1.2-alt")],
+        # The per-step emission lists are unchanged by this bug. They report
+        # what the rules emitted, and this mutation changes nothing a rule
+        # emitted; `new` is read from the tracker before the step, and the
+        # key was absent then either way. So the step lists do not catch it;
+        # the tracker-side assertions do.
+        "step_lists_changed": False,
+    },
+    "tracker_drops_reemitted": {
+        "mutation": "Tracker.add discards ('0 <= pi/2', 'true') only the "
+                    "first time it is inserted, when P1.1's goal is "
+                    "installed (sqrt's former in the integrand uses the "
+                    "range, so the orientation is owed there, E26)",
+        # s1 re-emits it, so FINAL_TRACKER and N are unchanged. The key is
+        # P1.1's only, so the other proofs are unaffected.
+        "admissions": {"P1.1": 6, "P1.1-fallback": 9, "P1.2": 14,
+                       "P1.2-alt": 13},
+        # P1.1 s1: the `new` flag of 0 <= pi/2 is True, expected False
+        "caught_by": [("P1.1", "s1", "0 <= pi/2", "new")],
+        # This shows the `new` flag is itself an assertion that does work.
+        # It depends on the script reading `new` from the tracker's state
+        # before each step, not from the rule.
+    },
+    # E24's tag check does work: the revision 9 gap, planted in the tagger.
+    "pi_pos_not_in_constraint_set": {
+        "mutation": "the tagger's Fourier–Motzkin set omits the named "
+                    "constants' sign facts (pi_pos, e_gt_one); everything "
+                    "else in E24 is unchanged",
+        # Without pi > 0 the set {pi/2 < 0} is feasible, pi/2 is no
+        # sign-certificate form, sign product does not close >= or <=, and
+        # cite's pi > 0 does not syntactically give pi/2 >= 0 (E24). So
+        # those two keys become ('none', ()). Unaffected: t >= 0 @ [0, pi/2]
+        # stays T_RANGE, because dom's own lower end 0 <= t closes it with no
+        # sign fact; x > 0 @ (0, pi^2/4) and x >= 0 @ [0, pi^2/4] stay
+        # T_RANGE the same way; 0 <= pi^2/4, pi^2/4 >= 0 and t^2 >= 0 @
+        # [0, pi/2] stay T_SIGN, since method 4 uses no sign fact (E20);
+        # P1.2 has no pi.
+        "retagged": {
+            "P1.1": [("0 <= pi/2", "true", T_NONE)],
+            "P1.1-fallback": [("pi/2 >= 0", "true", T_NONE)],
+        },
+        # A tag change moves no obligation and no status, so N is unchanged.
+        "admissions": {"P1.1": 6, "P1.1-fallback": 9, "P1.2": 14,
+                       "P1.2-alt": 13},
+        # 0 <= pi/2 is emitted three times in P1.1: at installation (E26),
+        # at s1 and at s2
+        "caught_by": [("P1.1", "goal", "0 <= pi/2", "tag"),
+                      ("P1.1", "s1", "0 <= pi/2", "tag"),
+                      ("P1.1", "s2", "0 <= pi/2", "tag"),
+                      ("P1.1-fallback", "s2", "pi/2 >= 0", "tag")],
+        # So the tag assertion, and with it the no-none check WHAT.md
+        # relies on, is not empty: a tagger that drops the rev 9 sign facts
+        # is caught.
+    },
+}
+
+# ---------------------------------------------------------------------------
+# 8b. Definedness (E26, user decision 2026-09-24)
+#
+# The goals that install and close, beside BAD_MOVES' E26 refusals. Each is
+# installed fresh and closed with `move`. `goal_emits` is the installation's
+# list and `emits` the close's, in EXPECTED_OBLIGATIONS' shape, with new
+# read against the tracker before the step. `final` is the tracker at the
+# end, in FINAL_TRACKER's shape, `report` is report(state) exactly, and
+# `theorem` is the reported theorem. `was` is what the kernel reported
+# before E26, for the record; it is not asserted.
+#
+# The first four are the point: an undefined or maybe-undefined term that
+# ring cancels now leaves its domain behind as a visible admission. The two
+# false ones are tagged none, and are outside the no-none assertion, which
+# covers PROOFS runs only. ln_false_on_goal_domain, contrasted with
+# ln_true_by_hyp, is its positive test for definedness, as OCCURRENCE_CASE's
+# t >= 0 @ [-1, 0] is for a rewrite hypothesis. tan_pi_half pins only that
+# tan is charged, since E24 tags cos u # 0 none whenever Γ does not state
+# it; tan_zero_true records
+# that limitation as a pinned fact, a true condition tagged none. The rest
+# pin each closed end, where the builtin is defined, as discharged by
+# norm_num, and atanh's interior, so that a former that is too strict, or
+# that drops a bound, fails a case (DEFINEDNESS_MUTATIONS).
+DEFINEDNESS_CASES = [
+    {"id": "tan_pi_half",
+     "goal": "tan(pi/2) - tan(pi/2) == ?A",
+     # tan's domain at pi/2 is cos(pi/2) # 0. It is closed, so domain true
+     # (E5), and not literal, so admitted. It is false (cos(pi/2) = 0), and
+     # E24 tags it none: both senses of FM are feasible with cos(pi/2) an
+     # opaque variable, even with pi_pos; it is no sign-certificate form;
+     # sign product has no content (c = 1) and nothing of lower degree; and
+     # no NAMED_ENTRIES entry concludes it (§6.8's cos_nonzero_on is not
+     # pinned in this milestone, and cos_pi_half concludes cos(pi/2) == 0).
+     # The same holds for every cos u # 0, true or false, when Γ is empty:
+     # E24 then tags the tan former none (hyp would fire if the goal's domain
+     # stated cos u # 0, or cos u > 0 or cos u < 0), so this case pins that
+     # tan is charged, not that
+     # the tagger tells a true condition from a false one (tan_zero_true is
+     # the true contrast, tagged none as well).
+     # The divisor 2 of pi/2 is charged once, as part of tan(pi/2) (KEYING).
+     "goal_emits": [
+         ("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+         ("cos(pi/2) # 0", "true", (S_FORMER,), ADMITTED, T_NONE, True)],
+     "move": ("close", {"value": "0", "check": "ring", "facts": []}),
+     "emits": [],  # the value 0 has no former, and ring emits nothing
+     "final": [("2 # 0", "true", DISCHARGED, T_NORM_NUM),
+               ("cos(pi/2) # 0", "true", ADMITTED, T_NONE)],
+     "report": VERDICT.format(n=1),
+     "theorem": "tan(pi/2) - tan(pi/2) == 0",
+     "was": PROVED},
+    {"id": "tan_zero_true",
+     "goal": "0*tan 0 == ?A",
+     # the true contrast to tan_pi_half, and the record of its limitation.
+     # tan 0 owes cos 0 # 0, closed, so domain true (E5), and not literal
+     # (cos 0 is an atom), so admitted. It is TRUE (cos 0 = 1), and E24 still
+     # tags it none, by the same trace as tan_pi_half: Γ is empty; FM's two
+     # senses are feasible with cos 0 an opaque variable; cos 0 is no
+     # sign-certificate form; its ring normal form is 1*cos 0, so sign
+     # product has no content and nothing of lower degree; and no
+     # NAMED_ENTRIES entry concludes cos 0 > 0 or cos 0 # 0. Until §6.8's
+     # cos_nonzero_on is pinned, every tan former whose goal domain does not
+     # state its condition is tagged none, true or false. So a PROOFS run
+     # containing tan on such a goal cannot pass the no-none check.
+     # A tagger that fitted this tag to the truth of the condition fails.
+     "goal_emits": [
+         ("cos 0 # 0", "true", (S_FORMER,), ADMITTED, T_NONE, True)],
+     "move": ("close", {"value": "0", "check": "ring", "facts": []}),
+     "emits": [],
+     "final": [("cos 0 # 0", "true", ADMITTED, T_NONE)],
+     "report": VERDICT.format(n=1),
+     "theorem": "0*tan 0 == 0",
+     "was": PROVED},
+    {"id": "ln_false_on_goal_domain",
+     "goal": "ln x * 0 == ?A @ x < 0",
+     # ln x owes x > 0 at the goal's own domain, which is Γ. False everywhere
+     # on it. E24: hyp fails (x > 0 does not follow from x < 0), FM's
+     # {x <= 0, x < 0} is feasible at x = -1, x is no certificate form, sign
+     # product has neither content nor factors, and no entry concludes x > 0.
+     "goal_emits": [
+         ("x > 0", "x < 0", (S_FORMER,), ADMITTED, T_NONE, True)],
+     "move": ("close", {"value": "0", "check": "ring", "facts": []}),
+     "emits": [],
+     "final": [("x > 0", "x < 0", ADMITTED, T_NONE)],
+     "report": VERDICT.format(n=1),
+     "theorem": "ln x * 0 == 0 @ x < 0",
+     "was": PROVED},
+    {"id": "ln_true_by_hyp",
+     "goal": "ln x * 0 == ?A @ x > 0",
+     # the contrast: the same key on a domain that makes it true is tagged
+     # hyp, the one E24 method P1 never reaches (every P1 goal's domain is
+     # true). So none above comes from falsity, not from the case's shape.
+     "goal_emits": [
+         ("x > 0", "x > 0", (S_FORMER,), ADMITTED, T_HYP, True)],
+     "move": ("close", {"value": "0", "check": "ring", "facts": []}),
+     "emits": [],
+     "final": [("x > 0", "x > 0", ADMITTED, T_HYP)],
+     "report": VERDICT.format(n=1),
+     "theorem": "ln x * 0 == 0 @ x > 0",
+     "was": PROVED},
+    {"id": "sqrt_closed_end",
+     "goal": "0*sqrt 0 == ?A",
+     # sqrt is defined at 0: 0 >= 0, literal and true (E7). A former written
+     # u > 0 would refuse this goal.
+     "goal_emits": [
+         ("0 >= 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True)],
+     "move": ("close", {"value": "0", "check": "ring", "facts": []}),
+     "emits": [],
+     "final": [("0 >= 0", "true", DISCHARGED, T_NORM_NUM)],
+     "report": PROVED,
+     "theorem": "0*sqrt 0 == 0",
+     "was": PROVED},
+    {"id": "asin_closed_ends",
+     "goal": "0*(asin 1 + asin(-1)) == ?A",
+     # asin is defined at both ends: four literal bounds, all true
+     "goal_emits": [
+         ("1 >= -1", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+         ("1 <= 1", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+         ("-1 >= -1", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+         ("-1 <= 1", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True)],
+     "move": ("close", {"value": "0", "check": "ring", "facts": []}),
+     "emits": [],
+     "final": [("1 >= -1", "true", DISCHARGED, T_NORM_NUM),
+               ("1 <= 1", "true", DISCHARGED, T_NORM_NUM),
+               ("-1 >= -1", "true", DISCHARGED, T_NORM_NUM),
+               ("-1 <= 1", "true", DISCHARGED, T_NORM_NUM)],
+     "report": PROVED,
+     "theorem": "0*(asin 1 + asin(-1)) == 0",
+     "was": PROVED},
+    {"id": "acos_closed_ends",
+     "goal": "0*(acos 1 + acos(-1)) == ?A",
+     # the same four keys as asin's: one table row each, the same domain
+     "goal_emits": [
+         ("1 >= -1", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+         ("1 <= 1", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+         ("-1 >= -1", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+         ("-1 <= 1", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True)],
+     "move": ("close", {"value": "0", "check": "ring", "facts": []}),
+     "emits": [],
+     "final": [("1 >= -1", "true", DISCHARGED, T_NORM_NUM),
+               ("1 <= 1", "true", DISCHARGED, T_NORM_NUM),
+               ("-1 >= -1", "true", DISCHARGED, T_NORM_NUM),
+               ("-1 <= 1", "true", DISCHARGED, T_NORM_NUM)],
+     "report": PROVED,
+     "theorem": "0*(acos 1 + acos(-1)) == 0",
+     "was": PROVED},
+    {"id": "acosh_closed_end",
+     "goal": "0*acosh 1 == ?A",
+     # acosh is defined at 1: 1 >= 1. A former written u > 1 would refuse it
+     "goal_emits": [
+         ("1 >= 1", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True)],
+     "move": ("close", {"value": "0", "check": "ring", "facts": []}),
+     "emits": [],
+     "final": [("1 >= 1", "true", DISCHARGED, T_NORM_NUM)],
+     "report": PROVED,
+     "theorem": "0*acosh 1 == 0",
+     "was": PROVED},
+    {"id": "atanh_interior",
+     "goal": "0*atanh 0 == ?A",
+     # atanh's two strict bounds at an interior point, both true. With
+     # BAD_MOVES atanh_upper_end and atanh_lower_end this pins the exact
+     # keys: a closed former would mint 0 >= -1 and 0 <= 1 instead.
+     "goal_emits": [
+         ("0 > -1", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+         ("0 < 1", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True)],
+     "move": ("close", {"value": "0", "check": "ring", "facts": []}),
+     "emits": [],
+     "final": [("0 > -1", "true", DISCHARGED, T_NORM_NUM),
+               ("0 < 1", "true", DISCHARGED, T_NORM_NUM)],
+     "report": PROVED,
+     "theorem": "0*atanh 0 == 0",
+     "was": PROVED},
+]
+
+# What each part of E26 guards, as mutations the suite must catch (a
+# data-review choice made to carry out E26 (a), the owner's decision of
+# 2026-09-24: removing any single partial former must be caught).
+# Each is a change to E26 (a)'s table, to its clause (b), or (the last
+# three) to where E26 (a)'s formers are charged. 'caught_by' lists
+# locations that must all show a failure under it, in PLANTED_BUGS' shapes
+# (a refused proof step is (proof, step, "refused"), and a sources mismatch
+# (proof, step, prop, "sources")), plus three shapes for cases:
+# ("BAD_MOVES", id), ("DEFINEDNESS_CASES", id) and ("MATCH_ACCEPTS", id),
+# each meaning that case fails, whether by a refusal that no longer happens
+# or by a list, tracker or report that differs. 'admissions' is N for every
+# proof in PROOFS under the mutation, given only where every PROOFS run still
+# completes. Every location was traced by hand against the lists above. The
+# script may plant each one in a child process, as it does PLANTED_BUGS, if
+# ARCHITECTURE.md names a seam that holds E26's table (read at call time, as
+# deriv.APP_RULES is); the seam is the architecture's to name, not this
+# file's. The three position mutations change no table, so they are traced
+# by hand only, unless the architecture names a seam for them too.
+_P1_UNCHANGED = {"P1.1": 6, "P1.1-fallback": 9, "P1.2": 14, "P1.2-alt": 13}
+DEFINEDNESS_MUTATIONS = {
+    # one per builtin: its former charges nothing
+    "no_ln_former": {
+        "mutation": "ln u owes nothing",
+        "caught_by": [("BAD_MOVES", "ln_negative_literal"),
+                      ("BAD_MOVES", "ln_zero_literal"),
+                      ("BAD_MOVES", "rewrite_R_owes_domain"),
+                      ("BAD_MOVES", "close_value_owes_domain"),
+                      ("DEFINEDNESS_CASES", "ln_false_on_goal_domain"),
+                      ("DEFINEDNESS_CASES", "ln_true_by_hyp"),
+                      ("MATCH_ACCEPTS", "ring_cancels_inv_atom"),
+                      ("P1.2", "s2", "1 + x > 0", "[0, 1]"),
+                      ("P1.2", "s2", "x^2 - x + 1 > 0", "[0, 1]"),
+                      ("P1.2", "s2", "1 + 1 > 0", "true"),
+                      ("P1.2", "s9", "2 > 0", "true"),
+                      ("P1.2-alt", "s9", "2 > 0", "true"),
+                      ("N", "P1.2"), ("N", "P1.2-alt")],
+        "admissions": {"P1.1": 6, "P1.1-fallback": 9, "P1.2": 12,
+                       "P1.2-alt": 11},
+    },
+    "no_sqrt_former": {
+        "mutation": "sqrt u owes nothing",
+        # Without t^2 >= 0 no key uses P1.1's range at installation, so its
+        # orientation is first owed at s1 again; the fallback's likewise at
+        # s1. P1.2's 3 >= 0 is still owed as h_sqrt3's hypothesis, but with
+        # that source only, and s7 no longer owes it.
+        "caught_by": [("BAD_MOVES", "sqrt_negative_literal"),
+                      ("DEFINEDNESS_CASES", "sqrt_closed_end"),
+                      ("MATCH_ACCEPTS", "rewrite_under_infinite_range"),
+                      ("P1.1", "goal", "t^2 >= 0", "[0, pi/2]"),
+                      ("P1.1", "goal", "0 <= pi/2", "true"),
+                      ("P1.1", "s1", "0 <= pi/2", "new"),
+                      ("P1.1-fallback", "goal", "x >= 0", "[0, pi^2/4]"),
+                      ("P1.1-fallback", "goal", "0 <= pi^2/4", "true"),
+                      ("P1.1-fallback", "s1", "0 <= pi^2/4", "new"),
+                      ("P1.1-fallback", "s1", "pi^2/4 >= 0", "true"),
+                      ("P1.1-fallback", "s1", "0 >= 0", "true"),
+                      ("P1.1-fallback", "s3", "0 >= 0", "new"),
+                      ("P1.2", "s2", "3 >= 0", "sources"),
+                      ("P1.2", "s7", "3 >= 0", "true"),
+                      ("N", "P1.1"), ("N", "P1.1-fallback")],
+        "admissions": {"P1.1": 5, "P1.1-fallback": 7, "P1.2": 14,
+                       "P1.2-alt": 13},
+    },
+    "no_tan_former": {
+        "mutation": "tan u owes nothing",
+        "caught_by": [("DEFINEDNESS_CASES", "tan_pi_half"),
+                      ("DEFINEDNESS_CASES", "tan_zero_true")],
+        "admissions": _P1_UNCHANGED,
+    },
+    "no_asin_former": {
+        "mutation": "asin u owes nothing",
+        "caught_by": [("BAD_MOVES", "asin_above_literal"),
+                      ("BAD_MOVES", "asin_below_literal"),
+                      ("DEFINEDNESS_CASES", "asin_closed_ends")],
+        "admissions": _P1_UNCHANGED,
+    },
+    "no_acos_former": {
+        "mutation": "acos u owes nothing",
+        "caught_by": [("BAD_MOVES", "acos_above_literal"),
+                      ("BAD_MOVES", "acos_below_literal"),
+                      ("DEFINEDNESS_CASES", "acos_closed_ends")],
+        "admissions": _P1_UNCHANGED,
+    },
+    "no_acosh_former": {
+        "mutation": "acosh u owes nothing",
+        "caught_by": [("BAD_MOVES", "acosh_below_literal"),
+                      ("DEFINEDNESS_CASES", "acosh_closed_end")],
+        "admissions": _P1_UNCHANGED,
+    },
+    "no_atanh_former": {
+        "mutation": "atanh u owes nothing",
+        "caught_by": [("BAD_MOVES", "atanh_upper_end"),
+                      ("BAD_MOVES", "atanh_lower_end"),
+                      ("DEFINEDNESS_CASES", "atanh_interior")],
+        "admissions": _P1_UNCHANGED,
+    },
+    # one per bound of a two-sided domain: the former keeps one bound only
+    "asin_no_upper_bound": {
+        "mutation": "asin u owes u >= -1 only",
+        "caught_by": [("BAD_MOVES", "asin_above_literal"),
+                      ("DEFINEDNESS_CASES", "asin_closed_ends")],
+        "admissions": _P1_UNCHANGED,
+    },
+    "asin_no_lower_bound": {
+        "mutation": "asin u owes u <= 1 only",
+        "caught_by": [("BAD_MOVES", "asin_below_literal"),
+                      ("DEFINEDNESS_CASES", "asin_closed_ends")],
+        "admissions": _P1_UNCHANGED,
+    },
+    "acos_no_upper_bound": {
+        "mutation": "acos u owes u >= -1 only",
+        "caught_by": [("BAD_MOVES", "acos_above_literal"),
+                      ("DEFINEDNESS_CASES", "acos_closed_ends")],
+        "admissions": _P1_UNCHANGED,
+    },
+    "acos_no_lower_bound": {
+        "mutation": "acos u owes u <= 1 only",
+        "caught_by": [("BAD_MOVES", "acos_below_literal"),
+                      ("DEFINEDNESS_CASES", "acos_closed_ends")],
+        "admissions": _P1_UNCHANGED,
+    },
+    "atanh_no_upper_bound": {
+        "mutation": "atanh u owes u > -1 only",
+        "caught_by": [("BAD_MOVES", "atanh_upper_end"),
+                      ("DEFINEDNESS_CASES", "atanh_interior")],
+        "admissions": _P1_UNCHANGED,
+    },
+    "atanh_no_lower_bound": {
+        "mutation": "atanh u owes u < 1 only",
+        "caught_by": [("BAD_MOVES", "atanh_lower_end"),
+                      ("DEFINEDNESS_CASES", "atanh_interior")],
+        "admissions": _P1_UNCHANGED,
+    },
+    # one per end whose closedness E26 decides: open and closed swapped
+    "ln_closed_at_0": {
+        "mutation": "ln u owes u >= 0",
+        "caught_by": [("BAD_MOVES", "ln_zero_literal"),
+                      ("DEFINEDNESS_CASES", "ln_false_on_goal_domain"),
+                      ("P1.2", "s2", "1 + x > 0", "[0, 1]"),
+                      ("P1.2", "s2", "x^2 - x + 1 > 0", "[0, 1]")],
+        "admissions": _P1_UNCHANGED,  # the same count, other keys
+    },
+    "sqrt_open_at_0": {
+        "mutation": "sqrt u owes u > 0",
+        # the fallback's ftc goal holds sqrt 0, whose 0 > 0 is refuted
+        "caught_by": [("DEFINEDNESS_CASES", "sqrt_closed_end"),
+                      ("P1.1", "goal", "t^2 >= 0", "[0, pi/2]"),
+                      ("P1.1-fallback", "s1", "refused")],
+    },
+    "asin_open": {
+        "mutation": "asin u owes u > -1 and u < 1",
+        "caught_by": [("DEFINEDNESS_CASES", "asin_closed_ends")],
+        "admissions": _P1_UNCHANGED,
+    },
+    "acos_open": {
+        "mutation": "acos u owes u > -1 and u < 1",
+        "caught_by": [("DEFINEDNESS_CASES", "acos_closed_ends")],
+        "admissions": _P1_UNCHANGED,
+    },
+    "acosh_open_at_1": {
+        "mutation": "acosh u owes u > 1",
+        "caught_by": [("DEFINEDNESS_CASES", "acosh_closed_end")],
+        "admissions": _P1_UNCHANGED,
+    },
+    "atanh_closed": {
+        "mutation": "atanh u owes u >= -1 and u <= 1",
+        "caught_by": [("BAD_MOVES", "atanh_upper_end"),
+                      ("BAD_MOVES", "atanh_lower_end"),
+                      ("DEFINEDNESS_CASES", "atanh_interior")],
+        "admissions": _P1_UNCHANGED,
+    },
+    # E26 (b): a normaliser that reads Int or D as an atom again. No P1 step
+    # normalises either, so PROOFS are unchanged.
+    "ring_reads_Int_as_atom": {
+        "mutation": "ring_nf treats an Int node as an opaque atom, "
+                    "everywhere ring_nf runs",
+        "caught_by": [("BAD_MOVES", "ring_refuses_Int"),
+                      ("BAD_MOVES", "divisor_test_refuses_Int"),
+                      ("BAD_MOVES", "match_refuses_Int"),
+                      ("BAD_MOVES", "ftc_check_refuses_Int")],
+        "admissions": _P1_UNCHANGED,
+    },
+    "ring_reads_D_as_atom": {
+        "mutation": "ring_nf treats a Deriv node as an opaque atom",
+        "caught_by": [("BAD_MOVES", "ring_refuses_D"),
+                      ("BAD_MOVES", "close_D_goal_scope_passes"),
+                      ("BAD_MOVES", "divisor_test_refuses_D"),
+                      ("BAD_MOVES", "match_refuses_D"),
+                      ("BAD_MOVES", "ftc_check_refuses_D")],
+        "admissions": _P1_UNCHANGED,
+    },
+    "field_reads_Int_as_atom": {  # review fix
+        "mutation": "field treats an Int node as an opaque atom",
+        "caught_by": [("BAD_MOVES", "field_refuses_Int")],
+        "admissions": _P1_UNCHANGED,
+    },
+    "field_reads_D_as_atom": {
+        "mutation": "field treats a Deriv node as an opaque atom",
+        "caught_by": [("BAD_MOVES", "field_refuses_D")],
+        "admissions": _P1_UNCHANGED,
+    },
+    "norm_num_admits_Int": {
+        "mutation": "E7 leaves an obligation holding an Int node undecided "
+                    "and admits it",
+        "caught_by": [("BAD_MOVES", "norm_num_refuses_Int"),
+                      ("BAD_MOVES", "norm_num_refuses_open_Int"),
+                      ("BAD_MOVES", "norm_num_refuses_Int_in_domain")],
+        "admissions": _P1_UNCHANGED,
+    },
+    "norm_num_admits_D": {  # review fix
+        "mutation": "E7 leaves an obligation holding a Deriv node undecided "
+                    "and admits it",
+        "caught_by": [("BAD_MOVES", "norm_num_refuses_D"),
+                      ("BAD_MOVES", "norm_num_refuses_D_in_domain")],
+        "admissions": _P1_UNCHANGED,
+    },
+    # review fix: the domain half of E7's refusal, named on its own because
+    # a proposition-only test is its own mistake, not a node-kind one.
+    "norm_num_ignores_domain": {
+        "mutation": "E7's Int-or-D refusal looks at an obligation's "
+                    "proposition only, not its domain",
+        "caught_by": [("BAD_MOVES", "norm_num_refuses_Int_in_domain"),
+                      ("BAD_MOVES", "norm_num_refuses_D_in_domain")],
+        "admissions": _P1_UNCHANGED,
+    },
+    # review fix: E12's d_const guard. No P1 F holds an Int or D, so PROOFS
+    # are unchanged; ftc_F_contains_D keeps 'deriv-no-rule' (x is free).
+    "deriv_d_const_on_Int_or_D": {
+        "mutation": "deriv's d_const fires on an x-free subterm holding an "
+                    "Int or Deriv node (the guard dropped); each case below "
+                    "becomes an accepted step with ftc_D DISCHARGED",
+        "caught_by": [("BAD_MOVES", "ftc_F_holds_x_free_Int"),
+                      ("BAD_MOVES", "ftc_F_holds_x_free_D")],
+        "admissions": _P1_UNCHANGED,
+    },
+    # Where E26 (a)'s formers are charged (review fix). Installation's own
+    # position domain is already pinned by P1.1's goal t^2 >= 0 @ [0, pi/2]
+    # and MATCH_ACCEPTS rewrite_under_infinite_range's goal_emits, and ftc's
+    # F by its fixed [a, b] rule (E9), so these three cover the sites that
+    # were left: a rewrite's R under an Int, both halves of its P (the
+    # enclosing range, and the goal's domain, added by a later review fix),
+    # and an Int's limit. No P1
+    # rewrite's R carries a former under an Int (P1.1 s1's R is t), and
+    # P1's only non-literal limits, pi/2 and pi^2/4, owe the closed 2 # 0
+    # and 4 # 0 at domain true (E5), so PROOFS are unchanged.
+    "rewrite_R_former_at_goal_domain": {
+        "mutation": "a rewrite's R is charged at the goal's domain, not at "
+                    "the occurrence's position domain P",
+        "caught_by": [("MATCH_ACCEPTS", "rewrite_R_former_at_position"),
+                      ("MATCH_ACCEPTS",
+                       "rewrite_R_former_at_goal_and_range")],
+        "admissions": _P1_UNCHANGED,
+    },
+    "rewrite_R_former_on_ranges_only": {  # review fix
+        "mutation": "a rewrite's R is charged on the enclosing ranges only, "
+                    "without the goal's domain",
+        "caught_by": [("MATCH_ACCEPTS", "rewrite_R_former_at_goal_and_range")],
+        "admissions": _P1_UNCHANGED,
+    },
+    "limit_former_on_own_range": {
+        "mutation": "an Int's lo and hi are charged at the domain that "
+                    "includes that Int's own range",
+        "caught_by": [("MATCH_ACCEPTS", "limit_former_at_outer_domain")],
+        "admissions": _P1_UNCHANGED,
+    },
+}
+del _P1_UNCHANGED
+
+# ---------------------------------------------------------------------------
+# 9. Parser round trip (Done-when item 6)
+#
+# parse(show(t)) == t, as trees, over every term in this file (collected by
+# all_term_strings below), plus WHAT.md's four precedence cases with the
+# trees GRAMMAR.md §9 gives them, plus §6.3's rule schemas
+# (ROUND_TRIP_SCHEMAS, E22), plus the grammar and printer cases of
+# ROUND_TRIP_GRAMMAR. ECHO and ECHO_NONCANONICAL are the data for item 6's
+# second clause, "each parsed goal is echoed before it is proved".
+
+# Done-when item 6, "each parsed goal is echoed before it is proved" (§15.6).
+# For each proof, proof_of_life.py asserts:
+#   (1) the first line the run prints for the proof, before step s1 is
+#       called, equals ECHO[proof];
+#   (2) that line equals show_goal(state.goal), where state.goal is the tree
+#       the kernel installed;
+#   (3) parse_goal(that line) == state.goal, compared as trees.
+# Every canonical P1 goal prints as itself, so (1) cannot show whether the
+# echo was printed from the tree or copied from the input string.
+# ECHO_NONCANONICAL fixes that: its input has non-canonical spacing and
+# redundant brackets, so an echo copied from the input fails (1).
+ECHO = {
+    "P1.1": P1_1_GOAL,
+    "P1.1-fallback": P1_1_FALLBACK_GOAL,
+    "P1.2": P1_2_GOAL,
+    "P1.2-alt": P1_2_GOAL,
+}
+# (input goal, expected echo). The input parses to the same tree as
+# P1_2_GOAL: `0..1` lexes as NAT, `..`, NAT (GRAMMAR.md §2, longest match),
+# and parentheses make no node (§8).
+ECHO_NONCANONICAL = ("Int[x=0..1] (1)/((1+x^3)) == ?A", P1_2_GOAL)
+
+ROUND_TRIP_EXTRA = [
+    ("term", "-x^2", "(neg (pow x 2))"),
+    ("term", "sin x^2", "(sin (pow x 2))"),
+    ("term", "1/sqrt 3*x", "(mul (div 1 (sqrt 3)) x)"),
+    ("term", "pi^2/4", "(div (pow pi 2) 4)"),
+    # From §15.6's "set of precedence-ambiguous inputs" and GRAMMAR.md R1's
+    # examples. `-x^2` alone cannot catch the `(-x)^2` misprint §15.6 names:
+    # no other term in this file has a negated power base, so a printer that
+    # dropped the brackets around a Neg base would pass everything else.
+    ("term", "(-x)^2", "(pow (neg x) 2)"),
+    ("term", "(-x)^(-1)", "(pow (neg x) -1)"),
+    ("term", "a - (-b)", "(add a (neg (neg b)))"),
+    ("term", "-(-x)", "(neg (neg x))"),
+    ("term", "a*(-b)", "(mul a (neg b))"),
+]
+
+# The only exact-output assertions in this file: (input, printed, must not
+# be). show(parse_term(input)) == printed, and != must-not-be, so a
+# regression shows up as a changed string, not only as a round-trip failure.
+# The printed forms are GRAMMAR.md §9's, spacing per R3.
+PRINT_EXACT = [
+    ("(-x)^2", "(-x)^2", "-x^2"),
+    ("(-x)^(-1)", "(-x)^(-1)", "-x^(-1)"),
+    ("a - (-b)", "a - (-b)", "a - -b"),
+    ("-(-x)", "-(-x)", "--x"),
+    ("a*(-b)", "a*(-b)", "a*-b"),
+]
+
+# Grammar and printer features the P1 strings never reach, including rows
+# GRAMMAR.md §9 says were round-tripped. (kind, string, sig, tree). A goal's
+# tree is a tuple of judgement trees. Every entry was round-tripped through
+# the scratch prototype of GRAMMAR.md. `-(-x)` is in ROUND_TRIP_EXTRA and
+# `a*(-b)` in the P1 strings, so neither is repeated here.
+ROUND_TRIP_GRAMMAR = [
+    # GRAMMAR.md §9 rows not otherwise present
+    ("goal", "0^2 == 0 /\\ (pi/2)^2 == pi^2/4", {},
+     ("(== (pow 0 2) 0)", "(== (pow (div pi 2) 2) (div (pow pi 2) 4))")),
+    ("judgement", "t^2 in C^1([0, pi/2])", {},
+     "(reg (pow t 2) 1 [(iv[] t 0 (div pi 2))])"),
+    ("term", "(x - 1/2)^2 + 3/4", {},
+     "(add (pow (add x (neg (div 1 2))) 2) (div 3 4))"),
+    ("term", "(1 + x)*(x^2 - x + 1)", {},
+     "(mul (add 1 x) (add (add (pow x 2) (neg x)) 1))"),
+    ("goal", "Int[x = 0 .. 1] 3*x^2 + 2*x == ?A", {},
+     ("(== (Int x 0 1 (add (mul 3 (pow x 2)) (mul 2 x))) ?A)",)),
+    ("goal", "Int[x = 0 .. 1] x*exp(x^2) == ?A", {},
+     ("(== (Int x 0 1 (mul x (exp (pow x 2)))) ?A)",)),
+    ("goal", "Int[x = 1 .. e_const] (ln x)/x == ?A", {},  # prints ln x / x
+     ("(== (Int x 1 e_const (div (ln x) x)) ?A)",)),
+    ("term", "(ln x)^2 / 2", {}, "(div (pow (ln x) 2) 2)"),
+    ("judgement", "x > 0 @ [1, e_const]", {}, "(> x 0 [(iv[] x 1 e_const)])"),
+    ("judgement", "x # 0 @ (1, e_const)", {}, "(# x [(iv() x 1 e_const)])"),
+    ("judgement", "e_const > 1", {}, "(> e_const 1)"),
+    ("judgement", "ln e_const == 1", {}, "(== (ln e_const) 1)"),
+    # one case per printer path P1 does not reach
+    ("term", "x^(-1)", {}, "(pow x -1)"),
+    ("term", "x^(1/2)", {}, "(rpow x (div 1 2))"),
+    ("term", "x^n", {}, "(rpow x n)"),
+    ("term", "x - (-y)", {}, "(add x (neg (neg y)))"),
+    ("term", "(a/b)/c", {}, "(div (div a b) c)"),               # R2
+    ("judgement", "x >= 0 @ [0, 1)", {}, "(>= x 0 [(iv[) x 0 1)])"),
+    ("goal", "Int[x = 0 .. oo] exp(-x) == ?A", {},
+     ("(== (Int x 0 oo (exp (neg x))) ?A)",)),
+    ("judgement", "x > 0 @ (0, oo)", {}, "(> x 0 [(iv() x 0 oo)])"),
+    # a named interval: fv is {x, y}, not {x}, so R4 keeps the name
+    ("judgement", "x + y > 0 @ x in [0, 1]", {},
+     "(> (add x y) 0 [(iv[] x 0 1)])"),
+    ("term", "f(x) + 1", {"f": 1}, "(add (f x) 1)"),
+]
+
+# E22. §6.3's rule schemas, as judgements. §15.6 asks for the round trip over
+# "every rule schema"; Done-when item 6 narrows that to "every term in the
+# script". This reads §15.6's "every rule schema" as the §6.3 entries this
+# milestone's deriv runs, parsed with SIG (u and v are ordinary variables, as
+# in GRAMMAR.md §9's §6.8 pinning). (kind, string, tree).
+#   * d_mul, d_sin, d_cos, d_sqrt, d_ln and d_atan put a D node as an operand
+#     of * or /, which is GRAMMAR.md D6's `D[x]u * v` case. No other P1
+#     string reaches it.
+#   * d_pow_int (literal n) and d_chain (f') stay out, per GRAMMAR.md §10.
+#   * d_const stays out for its own reasons: its schema variable `e` is
+#     refused by GRAMMAR.md D3, and its side condition "x not free in e" is
+#     a meta-level statement, not a proposition.
+#   * route_neg and route_div are ring/field routes, not §6.3 entries.
+#   * The other thirteen §6.3 entries (twenty-four in all, less these eight
+#     and the three excluded above) join this list when deriv implements
+#     them.
+# Each schema was checked with SymPy as an identity (u, v functions of x),
+# and each string round-trips under the scratch prototype of GRAMMAR.md.
+ROUND_TRIP_SCHEMAS = [
+    ("judgement", "D[x] x == 1", "(== (D x x) 1)"),                  # d_var
+    ("judgement", "D[x](u + v) == D[x]u + D[x]v",                    # d_add
+     "(== (D x (add u v)) (add (D x u) (D x v)))"),
+    ("judgement", "D[x](u * v) == D[x]u * v + u * D[x]v",            # d_mul
+     "(== (D x (mul u v)) (add (mul (D x u) v) (mul u (D x v))))"),
+    ("judgement", "D[x](sin u) == cos u * D[x]u",                    # d_sin
+     "(== (D x (sin u)) (mul (cos u) (D x u)))"),
+    ("judgement", "D[x](cos u) == -(sin u) * D[x]u",                 # d_cos
+     "(== (D x (cos u)) (mul (neg (sin u)) (D x u)))"),
+    ("judgement", "D[x](sqrt u) == D[x]u / (2 * sqrt u) @ u > 0",    # d_sqrt
+     "(== (D x (sqrt u)) (div (D x u) (mul 2 (sqrt u))) [(> u 0)])"),
+    ("judgement", "D[x](ln u) == D[x]u / u @ u > 0",                 # d_ln
+     "(== (D x (ln u)) (div (D x u) u) [(> u 0)])"),
+    ("judgement", "D[x](atan u) == D[x]u / (1 + u^2)",               # d_atan
+     "(== (D x (atan u)) (div (D x u) (add 1 (pow u 2))))"),
+]
+
+# The sig each ROUND_TRIP string must be parsed with. Decision: ROUND_TRIP
+# stays a list of (kind, string) pairs, as Done-when item 6's driver reads
+# it, and the one string that needs a declared symbol is looked up here.
+# Every other string is parsed with SIG.
+ROUND_TRIP_SIGS = {s: sig for _, s, sig, _ in ROUND_TRIP_GRAMMAR if sig}
+
+# Undeclared function symbols must be refused (GRAMMAR.md D5). Each is
+# (input, sig, code), where code is the ParseError code of GRAMMAR.md §1's
+# table (D16). The script asserts `err.code == code`; offset checks are
+# optional. The first four are WHAT.md's. The rest are GRAMMAR.md's
+# neighbouring refusals, added so the round trip is also a test of what the
+# parser refuses.
+PARSE_REFUSALS = [
+    ("x(x+1)", {}, "D5-undeclared"),  # x is not a declared function symbol
+    ("f(x)", {}, "D5-undeclared"),    # f undeclared
+    # erf undeclared (§9's closed + erf needs it declared). GRAMMAR.md §3's
+    # "undeclared call" row gives D5 before the variable and "anything
+    # else" rows.
+    ("erf(1)", {}, "D5-undeclared"),
+    ("g(x, y)", {}, "D5-undeclared"),  # g undeclared
+    ("f(x, y)", {"f": 1}, "D5-arity"),  # more arguments than declared
+    ("f(x)", {"f": 2}, "D5-arity"),     # fewer arguments than declared
+    ("f + 1", {"f": 1}, "D5-uncalled"),  # a declared name used without (
+    ("sin x", {"sin": 1}, "D5-sig-collision"),  # sig entry is a builtin
+    ("e^x", {}, "D3-bare-e"),
+    ("sin(x)^2", {}, "D6-ambiguous-app-power"),
+    ("x^2^3", {}, "D8-pow-chain"),
+    ("x^-1", {}, "D8-neg-exponent"),
+    ("2x", {}, "implicit-mul"),        # §2: no implicit multiplication
+    ("0.5", {}, "D1-decimal"),         # D1: no decimals
+    ("sinx", {}, "D4-not-a-name"),
+    ("2 + Int[x = 0 .. 1] x", {}, "D7-int-in-arith"),
+    ("oo + 1", {}, "oo-misplaced"),   # GRAMMAR.md §5: oo is not arithmetic
+]
+
+# The same, read by parse_judgement rather than parse_term: GRAMMAR.md D18,
+# an infinite interval end only on its own side, and only open.
+PARSE_REFUSALS_JUDGEMENT = [
+    ("x > 0 @ (oo, 0)", {}, "oo-misplaced"),    # oo as a lower end
+    ("x > 0 @ (0, -oo)", {}, "oo-misplaced"),   # -oo as an upper end
+    ("x > 0 @ [0, oo]", {}, "oo-misplaced"),    # a closed infinite end
+]
+
+
+def all_term_strings():
+    """Every (kind, string) in this file that the kernel parser must read.
+    kind is "term", "judgement" or "goal"."""
+    out = []
+
+    def add(kind, s):
+        if s is not None and (kind, s) not in out:
+            out.append((kind, s))
+
+    for e in NAMED_ENTRIES.values():
+        add("judgement", e["statement"])
+        for k in ("lhs", "rhs"):
+            if k in e:
+                add("term", e[k])
+        # REWRITE_RULE step 1 instantiates these as judgements
+        for h in e.get("hyps", ()):
+            add("judgement", h)
+    for p in PROOFS.values():
+        add("goal", p["goal"])
+        add("goal", p["theorem"])
+        for st in p["steps"]:
+            add("goal", st["goal_after"])
+            if "conclusion" in st:
+                add("judgement", st["conclusion"])
+            a = st["args"]
+            for k in ("at", "F", "value"):
+                if k in a:
+                    add("term", a[k])
+            for v in a.get("inst", {}).values():
+                add("term", v)
+    for d in DERIV.values():
+        add("term", d["F"])
+        add("term", d["output"])
+        for _, sub, emits in d["trace"]:
+            add("term", sub)
+            for j in emits:
+                add("judgement", j)
+    for steps in EXPECTED_OBLIGATIONS.values():
+        for obs in steps.values():
+            for ob in obs:
+                add("judgement", judgement_string(ob[0], ob[1]))
+    for obs in FINAL_TRACKER.values():
+        for ob in obs:
+            add("judgement", judgement_string(ob[0], ob[1]))
+    for w in WRONG_ANSWERS:
+        m = w["move"][1]
+        for k in ("F", "value"):
+            if k in m:
+                add("term", m[k])
+        add("term", w["residual"])
+        if "residual_factored" in w:
+            add("term", w["residual_factored"])
+    for b in BAD_MOVES:
+        add("goal", b["goal"])
+        m = b["move"][1]
+        for k in ("at", "F", "value"):
+            if k in m:
+                add("term", m[k])
+        for v in m.get("inst", {}).values():
+            add("term", v)
+        for kind, s in m.get("facts", ()):
+            if kind == "raw":
+                add("judgement", s)
+    for a in ANSWERS.values():
+        add("term", a)
+    for kind, s, _ in ROUND_TRIP_EXTRA:
+        add(kind, s)
+    for kind, s, _ in ROUND_TRIP_SCHEMAS:
+        add(kind, s)
+    for kind, s, _, _ in ROUND_TRIP_GRAMMAR:
+        add(kind, s)
+    for m in MATCH_ACCEPTS:
+        add("goal", m["goal"])
+        add("goal", m["goal_after"])
+        add("term", m["move"][1]["at"])
+        for ob in m["goal_emits"] + m["emits"]:
+            add("judgement", judgement_string(ob[0], ob[1]))
+    for c in DEFINEDNESS_CASES:
+        add("goal", c["goal"])
+        add("goal", c["theorem"])
+        add("term", c["move"][1]["value"])
+        for ob in c["goal_emits"] + c["emits"] + c["final"]:
+            add("judgement", judgement_string(ob[0], ob[1]))
+    add("goal", ECHO_NONCANONICAL[0])
+    add("goal", OCCURRENCE_CASE["goal"])
+    for k in ("all", "one"):
+        c = OCCURRENCE_CASE[k]
+        add("goal", c["goal_after"])
+        for ob in c["emits"]:
+            add("judgement", judgement_string(ob[0], ob[1]))
+    for listing in REGULARITY_LISTING.values():
+        for premise, subs in listing.items():
+            add("judgement", premise)
+            for j in subs:
+                add("judgement", j)
+    return out
+
+
+# Done-when item 6's list: every string in this file, as (kind, string).
+# Parse each with ROUND_TRIP_SIGS.get(string, SIG).
+ROUND_TRIP = all_term_strings()
+
+
+# ---------------------------------------------------------------------------
+# 10. The decisions, collected
+
+DECISIONS = {
+    "E1": "rewrite matching per §18 Q21's default, made precise "
+          "(REWRITE_RULE). An Int encloses an occurrence only when the "
+          "occurrence is in its body, not its endpoints (GRAMMAR.md §5)",
+    "E2": "rewrite with no `occurrence` acts on every occurrence of `at`. "
+          "This extends §6.1's single-position `rewrite h at p` and §18 "
+          "Q21's 'target subterm', and is not §6.1 itself. Reason: the "
+          "result is the same as applying §6.1 once at each position, and "
+          "each position carries its own domain P (step 7) and its own side "
+          "conditions (step 8), so it adds no soundness risk. It saves steps "
+          "where one subterm repeats, as in the fallback's s2 and s3 (3 "
+          "occurrences each). With `occurrence` given, it is §6.1's p "
+          "exactly (REWRITE_RULE arguments)",
+    "E3": "ring reads a/d, d not a nonzero literal, as a * inv(d), inv(d) an "
+          "opaque atom keyed by ring_nf(d) (§6.2, 'division by anything else "
+          "is itself an opaque atom')",
+    "E4": "range orientation: literal endpoints are ordered by norm_num; "
+          "an infinite end fixes the orientation, is always open, and emits "
+          "nothing, and two equal infinities are refused; otherwise the step "
+          "emits lo <= hi (§5.1, §5.3 method 2, §6.1, §6.4)",
+    "E5": "a closed obligation is keyed with domain true (§5.3)",
+    "E6": "'/', negative-power and RPow formers are charged when a term "
+          "enters the proof (§5.1, §11.2); E26 adds the partial builtins, "
+          "charged the same way",
+    "E7": "norm_num decides literal obligations at emission; false refuses "
+          "the step (§6.2, WHAT.md Stubbed). A partial builtin's domain on a "
+          "literal is one (E26: ln(-1) owes -1 > 0); an Int or D node is "
+          "never a literal and refuses (E26 (b))",
+    "E8": "obligations keyed structurally by (proposition, domain), in each "
+          "rule's own orientation, with no subsumption (WHAT.md Scope, "
+          "GRAMMAR.md D12)",
+    "E9": "ftc takes F and a check; the derivative premise is discharged "
+          "in-step and its children are on (a, b); an infinite endpoint is "
+          "refused 'ftc-infinite-endpoint' before anything is emitted (§5.1, "
+          "§6.4)",
+    "E10": "`fact` mints a handle and emits nothing; at use, its "
+           "hypotheses and its inst values' formers (E6, E26 (a)) are "
+           "charged at the using step's domain, and the statement's own "
+           "formers are not re-charged (§6.2, §6.8, §15.3, WHAT.md Scope)",
+    "E11": "under D[x], the equation's whole domain in x must be open (§6.1 "
+           "rev 9, §6.3 rev 7; REWRITE_RULE step 9). (a) Each hypothesis, "
+           "and each obligation step 10 charges from R (E6's and E26's "
+           "formers), mentioning x must be strict <, >, # 0 or an open "
+           "interval, with "
+           "no x-mentioning sqrt, asin, acos, acosh, D or Int subterm. "
+           "Reason: for a term continuous on an open domain, the set where "
+           "it is > 0, < 0 or # 0 is open. Under the partial reading (step "
+           "5) a term's domain is open when every partial former in it has "
+           "an open natural domain. '/', negative integer powers, ln, tan, "
+           "atanh and RPow (base > 0, §5.1) do; sqrt, asin, acos and acosh "
+           "do not (§6.9). So strictness alone is not enough: sqrt x + 1 > 0 "
+           "and sqrt x + 1 # 0 hold exactly on [0, oo). (b) If the entry has "
+           "hypotheses or R charges a former, no Int between the D[x] and "
+           "the occurrence may have "
+           "an endpoint mentioning x, because E4 puts a closed range and a "
+           "non-strict lo <= hi into the position's domain. This is "
+           "conservative (Leibniz would allow some such rewrites). Items not "
+           "mentioning x are allowed: their set of x is R or empty. E16's "
+           "cong inherits both tests",
+    "E12": "deriv tries d_const first on any x-free subterm, and refuses "
+           "'Int-or-D-not-normalisable' instead when that subterm holds an "
+           "Int or Deriv node (E26 (b)); -u and u/v are "
+           "routed; d_pow_int's n - 1 is a literal (§6.3)",
+    "E13": "a refused step emits nothing and changes nothing",
+    "E14": "residuals are lhs - rhs, compared by ring or field equality "
+           "with the stated facts, never as strings (§8.7)",
+    "E15": "tags are (method, cites) over §5.3's methods plus reg, computed "
+           "by E24's TAG_RULES; 'none' is never expected of an admission in "
+           "an unmutated PROOFS run (WHAT.md). OCCURRENCE_CASE's false "
+           "t >= 0 @ [-1, 0] is expected to be tagged none, and so are "
+           "DEFINEDNESS_CASES' false cos(pi/2) # 0 and x > 0 @ x < 0 (E26), "
+           "and the true cos 0 # 0 of tan_zero_true: E24 tags cos u # 0 "
+           "none, unless the goal's domain states it (hyp), until §6.8's "
+           "cos_nonzero_on is pinned",
+    "E16": "refl/trans/cong are internal to rewrite/close and the proof "
+           "state, not moves (WHAT.md Scope, §6.1)",
+    "E17": "handles: a kernel-private object minted by `fact`, accepted "
+           "only by identity with the kernel's record for its id and "
+           "lineage; copies, pickles and altered ids are refused. The "
+           "lineage is a picklable token, so copying and pickling succeed "
+           "and the identity check does the refusing. A genuine id passed "
+           "as a bare int is refused too, and FORGERIES "
+           "fabricated_handle_id (c) tests it (§15.3, WHAT.md Done-when "
+           "item 5). Handles protect fact slots only; proof states are "
+           "protected by §15.3's sentinel, and HANDLES_IN_FORCE says both "
+           "(decided on the owner's behalf, 2026-09-24)",
+    "E18": "§5.3 method 5 also splits off a nonzero rational content c*p, "
+           "with no degree drop needed (§5.3, §11.2; see DESIGN_DEFECTS)",
+    "E19": "close's scope check is fv(value) ∩ bv(original goal) = ∅, "
+           "against the original goal, the one the reported theorem "
+           "instantiates, not the current goal; D's variable is not in bv "
+           "(§9, §15.2 item 1, GRAMMAR.md §5 bv and D11)",
+    "E20": "§5.3 method 4 on a non-strict `>= 0` goal also accepts a "
+           "non-negative rational constant, zero included: a non-negative "
+           "combination of even powers is >= 0. Needed for the fallback's "
+           "0 <= pi^2/4 (§5.3; see DESIGN_DEFECTS)",
+    "E21": "a fact-slot forgery passes only by raising while it is built, "
+           "where its 'accept' lists raise_at_forge, or by step() returning "
+           "its refusal code. In every case an exception escaping step() is "
+           "a crash and fails the case. Amended: the three cases not passed "
+           "at the slot (direct_tracker_write, print_proved_with_admissions, "
+           "json_roundtrip_state) carry their own 'accept' outcomes and "
+           "'post', and the script checks 'post' whichever accepted outcome "
+           "occurred (§15.3, WHAT.md Done-when item 5)",
+    "E22": "the round trip covers §6.3's rule schemas that deriv runs in "
+           "this milestone (ROUND_TRIP_SCHEMAS), reading §15.6's 'every rule "
+           "schema'; d_const, d_pow_int and d_chain stay out (GRAMMAR.md D3, "
+           "§10)",
+    "E23": "the closed whitelist admits Num, Const, Var, Neg, Add, Mul, "
+           "Div, Pow, RPow and App over the sixteen builtins, and refuses "
+           "Call, Deriv, Integral and MVar. Var is admitted: §5.1 lists "
+           "variables among the formers §9 points to, §9's exclusions target "
+           "opaque and non-elementary nodes, and bound names are the trusted "
+           "scope check's (E19). It runs on the raw value. Every P1 goal "
+           "carries `answer schema closed` with no extensions (§9, §11)",
+    "E24": "the tagger (TAG_RULES) tags an admission with the first §5.3 "
+           "method, in §5.3's order, whose cheap untrusted feasibility check "
+           "passes, citing the §6.8 entries used, and ('none', ()) if none "
+           "passes; regularity is tagged reg by shape. Reason: an exact tag "
+           "assertion is only a check if the rule that produces the tag is "
+           "stated (§5.3, §7, WHAT.md)",
+    "E25": "a charged divisor d is refused 'divisor-normalises-to-zero' when "
+           "ring_nf(d) is 0 (at E6, route_div and field) or, inside field, "
+           "when its field normal form's numerator is 0; the test runs "
+           "before anything is emitted or normalised, and a literal 0 "
+           "divisor gets this code, not E7's obligation-refuted (§6.2). "
+           "tan's cos u # 0 is a domain, not a divisor, and is not tested "
+           "(E26)",
+    "E26": "definedness formers (user decision 2026-09-24). (a) Each partial "
+           "builtin owes its natural domain, §6.9's C^0 set, as a former "
+           "charged exactly like '/' (E6): ln u owes u > 0, sqrt u owes "
+           "u >= 0, tan u owes cos u # 0, asin u and acos u owe u >= -1 and "
+           "u <= 1, acosh u owes u >= 1, and atanh u owes u > -1 and u < 1. "
+           "One linear item per bound, in the "
+           "orientation u REL c, closed where the builtin is defined at the "
+           "end and open where it is not. A literal one is decided by "
+           "norm_num (E7), and a false one refuses the step. field still "
+           "emits only divisors. (b) ring, field and norm_num refuse "
+           "'Int-or-D-not-normalisable' on any side holding an Int or D "
+           "node, and deriv refuses it where d_const would fire on an "
+           "x-free subterm holding one (E12). Such a node "
+           "has no definedness condition the kernel can state "
+           "until regularity and diverges exist; no P1 step normalises one. "
+           "Reason: ring's identities hold only where every atom is "
+           "defined, and before E26 0*ln(-1) == ?A and "
+           "tan(pi/2) - tan(pi/2) == ?A closed as 'Proved.'; §14's "
+           "agreement of the total and partial readings rests on every "
+           "partial former carrying its condition (§5.1, §6.2, §6.9, §14)",
+}
+
+DESIGN_DEFECTS = [
+    "§6.4 ftc does not require a <= b. With b < a the intervals [a, b] and "
+    "(a, b) are empty, all four premises are vacuous, and ftc proves "
+    "Int[x = 1 .. -1] 1/x^2 == 2, which diverges. Rewriting under Int "
+    "(§6.1) has the same hole, and §5.3 method 2 is where it is patched. "
+    "Either the rules state their intervals between min(a, b) and max(a, b) "
+    "with the order established, or they emit a <= b. E4 does the latter.",
+    "§6.1 rev 9 allows rewriting under D[x] only on 'open domain (strict "
+    "inequalities only)', but §6.3 rev 7 routes D[x](u / v) through "
+    "u / v == u * (1/v) by field, which holds @ v # 0. That is a # 0 item, "
+    "not a strict inequality. Read literally, rev 9 forbids the routing "
+    "whenever v mentions x, so D[x](x/(x + 1)) has no route. E11 counts "
+    "# 0 as open and allows items that do not mention x. The reason: for a "
+    "term continuous on an open domain, the set where it is > 0, < 0 or "
+    "# 0 is open, and under the partial reading a term's domain is open "
+    "when every partial former in it has an open natural domain ('/', "
+    "negative integer powers, ln, tan, atanh and RPow do; sqrt, asin, acos "
+    "and acosh do not). §6.1 rev 9's own 'strict inequalities only' has "
+    "the same hole: a strict inequality over a term involving sqrt of x "
+    "can hold on a closed set (sqrt x + 1 > 0 holds exactly on [0, oo)). So "
+    "§6.1 needs to say 'open truth set', not 'strict', and needs a rule "
+    "for when a syntactic item has one; E11 (a) is this milestone's rule. "
+    "§6.1 also does not say that the domain includes the ranges of Ints "
+    "between the D[x] and the position, which E4 makes closed; E11 (b) "
+    "covers them.",
+    "§11.2's obligation block mixes sources and domains. '1 + x > 0 @ [0,1]' "
+    "is ln's definedness former on F's closed [0, 1] (E26), which is also "
+    "the regularity sub-obligation; deriv's d_ln gives the separate key "
+    "1 + x > 0 @ (0, 1). 'x^2 - x + 1 > 0' has no domain, and is owed twice, "
+    "by ln's former on [0, 1] and by d_ln on (0, 1). field's divisors "
+    "1 + x, x^2 - x + 1 and 1 + x^3 on (0, 1) are not listed. Only the atan "
+    "denominator is.",
+    "§11.1 displays sqrt_sq's obligation as '0 ≤ t', while §6.8 states it "
+    "as t ≥ 0. Under GRAMMAR.md D12 those are different keys. §6.8 also "
+    "names the schema variable t, the same name as §11.1's bound variable, "
+    "which hides the instantiation §15.2 item 3 says is trusted.",
+    "§6.2's 'division by anything else is itself an opaque atom' does not "
+    "say whether the atom is a/d or 1/d. Matching atan_odd against "
+    "atan((2*0 - 1)/sqrt 3) works only if a/d is a * inv(d) (E3, the "
+    "spike's reading).",
+    "§5.1 says '/' carries a nonvanishing obligation, but nothing says when "
+    "it is charged: at goal statement, at use, or only when field sees it. "
+    "E6 charges it on entry.",
+    "WHAT.md counts only literal divisors as discharged by norm_num, but "
+    "the milestone also emits literal non-divisor obligations: 3 >= 0 from "
+    "sqrt_sq_val 3, and 0 >= 0 from sqrt_sq at u := 0. E7 closes them the "
+    "same way.",
+    "WHAT.md Done-when item 1 accepts (1/3)*ln 2 + pi*sqrt 3/9 but does not "
+    "say how it closes. It needs close by field [sqrt_sq_val 3] (§8.7), and "
+    "it owes no 3*sqrt 3 # 0, so its N differs from the main form's.",
+    "§5.1 lists D[x] among the binders, but §6.4's `D[x] F ≐ f @ (a, b)` "
+    "needs x free (the domain constrains it). D[x] e binds x inside e and "
+    "evaluates the derivative at x, so fv(D[x] e) = fv(e) ∪ {x} and D is "
+    "not alpha-convertible (GRAMMAR.md D10). §6.3 d_const's 'x not free in "
+    "e' uses the inner, bound reading. §5.1 should say D[x] both binds and "
+    "evaluates. Substitution on D (§15.2 item 1) must then be defined, as "
+    "in GRAMMAR.md §5; deriv refuses a Deriv with x free (E12), so ftc "
+    "never needs more than its unchanged case (E9).",
+    "§5.3 method 5 requires a factorisation into strictly lower-degree "
+    "factors, but §11.2 tags 3*sqrt 3 # 0 'by product (sqrt_pos)', and the "
+    "fallback's 2*sqrt x # 0 needs the same move. Ring-normalised, these "
+    "are 3·s and 2·a, degree 1 in their atom. The only split is a rational "
+    "content times the atom, and the atom's factor has the same degree, so "
+    "neither the precondition nor the termination argument applies as "
+    "written. No other method reaches them alone: cite gives sqrt a > 0, "
+    "not c*sqrt a # 0, and sqrt_pos is not in method 3's automatic "
+    "constraint set. E18 reads method 5 as also allowing a nonzero rational "
+    "content to be split off: c·p with c ∈ ℚ∖{0}. For # 0 the goal then "
+    "follows from p # 0. For > 0 or < 0 it follows from p's sign and c's "
+    "sign, where c's sign is decided by norm_num. This step needs no degree "
+    "drop and terminates because the content is a literal. p then goes "
+    "back through the list, here to method 6 (cite sqrt_pos, with its "
+    "hypothesis a > 0 emitted: 3 > 0 by norm_num, x > 0 by range on "
+    "(0, pi^2/4)). §5.3 should state this case.",
+    "§5.3 method 4 calls its witness a positivity witness: a sum of even "
+    "powers plus a positive rational, or for a quadratic a positive leading "
+    "coefficient and a negative discriminant. Both forms are strict. It "
+    "does not say whether it closes non-strict `>= 0` goals. The fallback's "
+    "range orientation 0 <= pi^2/4 (E4) ring-normalises to (1/4)*pi^2, with "
+    "constant 0 and discriminant 0, so neither form applies. No other "
+    "method reaches it: pi^2 is not linear for method 3, method 5 closes "
+    "only `>`, `<` and `#`, and no §6.8 entry states it. E20 reads method 4 "
+    "as also accepting a non-negative rational constant, zero included, "
+    "when the goal is `>= 0`: a non-negative combination of even powers is "
+    "`>= 0`, and ring re-checks the decomposition as before. §5.3 should "
+    "state this case.",
+    "§5.1 gives '/', negative integer powers and real powers a definedness "
+    "obligation, but not ln, sqrt, tan, asin, acos, acosh or atanh, and "
+    "§6.2 makes all of these, with Int and D, opaque atoms that ring and "
+    "field cancel freely. So 0*ln(-1) == ?A and tan(pi/2) - tan(pi/2) == ?A "
+    "closed by ring as 'Proved.' with nothing owed: a false Proved under the "
+    "partial reading that §6.1 rev 9 and REWRITE_RULE step 5 rely on. §14 "
+    "says the total and partial readings 'coincide, because those rules "
+    "carry their definedness conditions on the source side' (the claim "
+    "PROOF_OF_LIFE.md cites as §15.4), and that depends on every partial "
+    "former carrying its condition. §15.4 names the class: a side condition "
+    "missing from the rule table is missing from the falsifier bank "
+    "generated from it too. The design meant these conditions: §11.1 lists "
+    "t^2 >= 0, and §11.2 lists 1 + x > 0 @ [0,1] and x^2 - x + 1 > 0. "
+    "Resolved by E26 (user decision 2026-09-24): each partial builtin is a "
+    "former owing its §6.9 C^0 domain, and ring, field and norm_num refuse "
+    "Int and D, which have no statable condition until regularity and "
+    "diverges exist. §5.1 should list each builtin's condition beside it, "
+    "as it does for '/', and §6.2 should say that Int and D are not atoms.",
+]
+
+# What was checked at build time, in scratch, with SymPy 1.14 and mpmath.
+# None of it is imported here.
+VERIFIED = (
+    "every string above parses under a scratch prototype of GRAMMAR.md, and "
+    "parse(show(t)) == t for each",
+    "deriv of each F equals its integrand (P1.1, the fallback, P1.2), and "
+    "each DERIV output, read as a function, equals the true derivative",
+    "each DERIV output as a tree equals a literal application of §6.3's "
+    "forms under E12",
+    "each rewrite step: goal_after is goal_before with every occurrence of "
+    "`at` replaced by R, and ring_nf of the arguments agrees",
+    "each ftc goal_after is F[b] - F[a] as a tree",
+    "each close: lhs - value is 0 under the stated procedure, with sqrt 3 "
+    "opaque, and P1.2-alt is nonzero without the fact",
+    "each named entry is true (numerically at sample points for schemas)",
+    "each obligation is true on its domain (numeric sampling for relations; "
+    "continuity of each regularity premise checked by hand, and "
+    "definedness sampled)",
+    "each field divisor list equals the set of divisors in deriv(F) and f",
+    "the answers equal the integrals numerically, to 30 digits",
+    "each residual equals lhs - rhs symbolically (sqrt 3 as a free symbol "
+    "for W3 and W4) and is nonzero",
+    "per-step lists and FINAL_TRACKER agree, and the admission counts match",
+    "GRAMMAR.md §5's substitution-into-D examples: (D[x] x^2)[x := 1] = 2 "
+    "against the naive 0, (D[x](x*y))[y := x] = x against 2x, and "
+    "(D[x](x*z))[x := z] = z against the renamed 2z",
+    "ring_nf cancels inv atoms additively: inv(x) - inv(x) + 1 and "
+    "x*inv(x) - x*inv(x) + 1 both normalise to 1, x*inv(x) does not "
+    "(REWRITE_RULE step 5, MATCH_ACCEPTS)",
+    "close_bound_variable_ring_true's lhs minus t - t + 2 is 0 by ring, and "
+    "the post-ftc lhs minus t is not",
+    "each PLANTED_BUGS tracker_drops_one drop_keys entry, in every proof in "
+    "PROOFS whose EXPECTED_OBLIGATIONS contain it, is minted once and never "
+    "re-emitted, and the stated counts follow",
+    "the E24 rule was traced by hand through every admission in "
+    "EXPECTED_OBLIGATIONS, MATCH_ACCEPTS and OCCURRENCE_CASE and reproduces "
+    "each expected tag, and through the pi_pos_not_in_constraint_set "
+    "variant. SymPy confirmed what the trace rests on: 1 + x^3 = "
+    "(1 + x)*(x^2 - x + 1); discriminant -3 for x^2 - x + 1; a Farkas "
+    "combination for each set that must be infeasible; and a feasible "
+    "point for each set that must not be (t = -1/2 for t >= 0 @ [-1, 0], "
+    "pi = -1 without pi_pos, and the opaque-monomial sets of the sign and "
+    "product cases)",
+    "E25's examples: ring_nf(x - x) = 0; ring_nf(x/x - 1) = x*inv(x) - 1 is "
+    "nonzero while cancel(x/x - 1) = 0; and the integral in "
+    "rewrite_under_D_through_Int is x*|x|/2 before the rewrite and x^2/2 "
+    "after",
+    "ECHO_NONCANONICAL's input and every new BAD_MOVES goal round-trip "
+    "under the scratch prototype, and the former parses to P1_2_GOAL's tree",
+    "every ROUND_TRIP_EXTRA, ROUND_TRIP_SCHEMAS, ROUND_TRIP_GRAMMAR, "
+    "MATCH_ACCEPTS and OCCURRENCE_CASE string round-trips under the scratch "
+    "prototype, and PRINT_EXACT's forms are what it prints",
+    "each ROUND_TRIP_SCHEMAS entry is an identity of calculus with u, v "
+    "functions of x; d/dx(-exp(-x)) = exp(-x) (ftc_infinite_endpoint); "
+    "ring_nf((t - t + 1)^2) = 1 (rewrite_in_own_endpoint); (1/4)*pi^2 has "
+    "constant 0 and discriminant 0 in pi (E20)",
+    # Added with E26 (user decision 2026-09-24), with SymPy 1.14 in the
+    # session scratchpad. The lists were derived by hand from E26's rules,
+    # never from kernel code.
+    "E26's new obligations are true on their domains: t^2 >= 0 on "
+    "[0, pi/2] and x >= 0 on [0, pi^2/4] (minimum 0), pi^2/4 >= 0, 1 + x > 0 "
+    "on [0, 1] (minimum 1), x^2 - x + 1 > 0 on [0, 1] (minimum 3/4, at "
+    "x = 1/2), the literal 1 + 1, 1^2 - 1 + 1, 1 + 0, 0^2 - 0 + 1 and 2 "
+    "positive and 3 and 0 non-negative, 1/x - 1/x + 1 = 1 on [1, 2], and "
+    "x^2 >= 0 on [0, oo); DEFINEDNESS_CASES' cos(pi/2) = 0 and x > 0 on "
+    "x < 0 are false, as their none tags say, and x > 0 on x > 0 true",
+    "E26's case arguments: ln(-1) = I*pi, ln 0 = zoo, sqrt(-1) = I, asin 2, "
+    "asin(-2), acos 2 and acos(-2) are not real, acosh 0 = I*pi/2, "
+    "atanh(1) = oo, atanh(-1) = -oo and tan(pi/2) = zoo; sqrt 0 = 0, "
+    "asin(1) = pi/2, asin(-1) = -pi/2, acos 1 = 0, acos(-1) = pi, "
+    "acosh 1 = 0 and atanh 0 = 0 are real; Int[x = 0 .. oo] 1 = oo; and "
+    "|x|'s one-sided difference quotients at 0 tend to -1 and 1",
+    "the E24 tags of E26's keys, traced by hand, with the Fourier–Motzkin "
+    "sets under them checked: feasible points for t^2 >= 0 @ [0, pi/2] "
+    "(t^2 opaque, -1, at t = 0, pi = 1), pi^2/4 >= 0 (pi^2 opaque, -1), "
+    "x^2 - x + 1 > 0 @ [0, 1] and x^2 >= 0 @ [0, oo) (x^2 opaque, -1, at "
+    "x = 0), both senses of cos(pi/2) # 0 (the atom 0, pi = 1) and "
+    "x > 0 @ x < 0 (x = -1); Farkas combinations for x >= 0 @ [0, pi^2/4] "
+    "and 1 + x > 0 @ [0, 1] (a dom item used, so range), and for "
+    "1/x - 1/x + 1 > 0 @ [1, 2] (the negated goal 1 <= 0 alone, so "
+    "linear); discriminant -3 and (x - 1/2)^2 + 3/4 for x^2 - x + 1",
+    # Added with the review fixes (user decision 2026-09-24), SymPy 1.14.
+    "the review fixes' maths: cos(0) = 1 and cos(pi/2) = 0 (tan_zero_true, "
+    "tan_pi_half); -(x + (sqrt x - sqrt x)) and -(x + (a - a)) expand to "
+    "-x, and d/dx atan(-x) = -1 at 0 (step 9's cases); d/dx x = 1, "
+    "Int[t = 0 .. oo] 1 = oo, D[x] x^2 = 2x, Int[t = 0 .. x] t = x^2/2 "
+    "(E26 (b)'s cases); atan(-ln x) + atan(ln x) = 0, ln x > 0 on [1, 2], "
+    "and Int[t = 0 .. sqrt y] t = y/2 (the position cases)",
+    "p1_expected checked against itself by a scratch script that keys "
+    "judgements with kernel/terms.py's parser and nothing else: every step's "
+    "new flags against the running tracker, the per-step lists against "
+    "FINAL_TRACKER and ADMISSIONS, TRACKER_AT_FORGERY_STATE against P1.2 "
+    "through s8, PLANTED_BUGS' counts by simulating each mutation on the "
+    "lists, DEFINEDNESS_MUTATIONS' removal counts, every caught_by location "
+    "against an existing entry or case, DEFINEDNESS_CASES' finals, reports "
+    "and theorems, and all ROUND_TRIP strings round-tripping under "
+    "terms.py's parser and printer",
+    # Added with the second round of review fixes (user decision
+    # 2026-09-24), SymPy 1.14.
+    "the second review round's maths: Int[t = 0 .. oo] 1 = oo, d/dx of "
+    "x + (c - c) is 1, and Int[x = -1 .. 1] 1 = 2 = F(1) - F(-1) for "
+    "F = x (the ftc cases); |h|/h tends to -1 and 1 at 0 (D[x](abs x) and "
+    "D[y](abs y)); D[y] y^2 = 2y; atan(-ln(x + y)) + atan(ln(x + y)) = 0, "
+    "the LP {x + y <= 0, 1 <= x <= 2, y >= 0} is infeasible (with the "
+    "Farkas sum of x + y <= 0, 1 - x <= 0, -y < 0 giving 1 < 0) and "
+    "x = 1, y = -5 satisfies the set without y > 0; d/du asin u = "
+    "1/sqrt(1 - u^2), d/du acosh u = 1/(sqrt(u - 1)*sqrt(u + 1)), d/du "
+    "asinh u = 1/sqrt(u^2 + 1), and u^2 + 1 < 1 has no real solution",
+    "every string added in the second review round parses under "
+    "kernel/terms.py, and parse(show(t)) == t for each; p1_expected "
+    "imports",
+)
+
+# Changes to this file made after it was frozen. The first was adjudicated
+# during implementation because the frozen data contradicted itself, not to
+# fit the code. The rest carry out the owner's decisions of 2026-09-24
+# (option (a) for question 1, dropping line-count budgets), or choices made
+# on the owner's behalf in carrying them out, as each entry's last field
+# says. They were derived by hand from the rules before any kernel change,
+# without running or reading the kernel's charging code. The entries marked
+# 'user decision 2026-09-24, review fix' are corrections found by reviewing
+# this data after E26 was written, made in carrying out the same decision.
+# Entries are (location, what changed, why, how it was decided).
+DATA_CHANGES = (
+    ("FORGERIES['print_proved_with_admissions'], 'accept' and its comment",
+     "added the outcome honest_report, (c) only: the direct_tracker_write "
+     "attempt ends in one of that case's accepted outcomes (raise_at_mutation "
+     "or no_effect), and report(state) then returns VERDICTS['P1.1']",
+     "a correct kernel's only behaviour for (c) is to return the honest "
+     "verdict string with no exception and no refusal, and none of the four "
+     "listed outcomes named it, so read literally under the E21 amendment "
+     "('any outcome not in accept fails the case') a correct kernel failed "
+     "its own case. The new outcome demands what 'post' already demands for "
+     "(c), plus that the write attempt lands in direct_tracker_write's "
+     "accepted outcomes, so the check is not weakened",
+     "adjudicated during implementation"),
+    ("HANDLES_IN_FORCE and its comment, the module docstring, DECISIONS E17",
+     "'handles' became 'handles for facts, sentinel for proof states'. The "
+     "comment gives the reason: a finished ProofState, the only kind "
+     "report() gives a verdict for, is only ever produced by step(); "
+     "§15.3's realistic failure is a buggy tactic, which the sentinel stops; "
+     "§16.3's API boundary will replace in-process states with ids",
+     "the old value claimed only the first of the two models in force, "
+     "while ProofState uses §15.3's sentinel fallback. §15.3 says to say "
+     "which is in force and not leave it ambiguous. The kernel's own "
+     "HANDLES_IN_FORCE must match the new string, since the script "
+     "compares them",
+     "decided on the owner's behalf 2026-09-24 (PROOF_OF_LIFE.md question "
+     "3): the owner expressed no preference beyond dropping line budgets; "
+     "kept both models and made the claim honest, for the reason given"),
+    ("section 5's comments (E6 amended, E26 added, E7 and E25 amended); "
+     "DECISIONS E6, E7, E15, E25 and E26; SOURCES['former']; KEYING; "
+     "DOMAIN_RULES E4; REWRITE_RULE steps 5 and 10; REFUSAL_CODES; the "
+     "NAMED_ENTRIES atan_one_sqrt3 comment (comment only: its sqrt's "
+     "3 >= 0 is not re-charged, E26)",
+     "E26 added. (a) ln, sqrt, tan, asin, acos, acosh and atanh are formers "
+     "owing their natural domain (for ln u, u > 0; sqrt u, u >= 0; tan u, "
+     "cos u # 0; asin u and acos u, u >= -1 and u <= 1; acosh u, u >= 1; "
+     "atanh u, u > -1 and u < 1), charged like '/'. (b) ring, "
+     "field and norm_num refuse an Int or D node with the new code "
+     "'Int-or-D-not-normalisable'. obligation-refuted's note names E26",
+     "PROOF_OF_LIFE.md question 1: E6 charged only '/', negative powers and "
+     "RPow bases, so ring cancelled undefined atoms, and 0*ln(-1) == ?A and "
+     "tan(pi/2) - tan(pi/2) == ?A closed as a plain 'Proved.'. §14's "
+     "agreement of the total and partial readings needs every partial "
+     "former to carry its condition. E26 records its choice of shapes (one "
+     "linear item per bound, u REL c) and why",
+     "user decision 2026-09-24, option (a): undefined terms owe their "
+     "domain"),
+    ("EXPECTED_OBLIGATIONS, all four proofs",
+     "re-derived under E26. P1.1: installation adds t^2 >= 0 @ [0, pi/2] "
+     "(sign) and 0 <= pi/2, so s1's 0 <= pi/2 is no longer new. "
+     "P1.1-fallback: installation adds x >= 0 @ [0, pi^2/4] (range) and "
+     "0 <= pi^2/4; s1 re-emits both (new False) and adds pi^2/4 >= 0 (sign) "
+     "and 0 >= 0 (norm_num) for the new goal's sqrt(pi^2/4) and sqrt 0; "
+     "s3's 0 >= 0 is no longer new. P1.2: s2 adds 1 + x > 0 @ [0, 1] "
+     "(range) and x^2 - x + 1 > 0 @ [0, 1] (sign) for F's ln, and the "
+     "discharged 1 + 1 > 0, 1^2 - 1 + 1 > 0, 1 + 0 > 0 and 0^2 - 0 + 1 > 0 "
+     "for the new goal's ln; its 3 >= 0 gains the source former; s7 adds "
+     "3 >= 0; s9 adds 2 > 0 (new) and 3 >= 0. P1.2-alt's s9: 3 >= 0 gains "
+     "the source former, and 2 > 0 is added",
+     "every ln, sqrt, tan, asin, acos, acosh and atanh in each goal, each F, "
+     "each new goal, each close value and each rewrite's R now owes its "
+     "domain at its position domain (E26 (a)), keyed per E8 and tagged per "
+     "E24; none of the new admissions is tagged none, and each was checked "
+     "true on its domain (VERIFIED)",
+     "user decision 2026-09-24, option (a)"),
+    ("FINAL_TRACKER, ADMISSIONS, VERDICTS (derived)",
+     "the new keys added; N is 6 for P1.1 (was 5), 9 for P1.1-fallback "
+     "(was 7), 14 for P1.2 (was 12) and 13 for P1.2-alt (was 11)",
+     "E26's admissions: t^2 >= 0; x >= 0 and pi^2/4 >= 0; F's two ln "
+     "domains on [0, 1]. Every other domain it charges in P1 is literal "
+     "and discharged by norm_num",
+     "user decision 2026-09-24, option (a)"),
+    ("MATCH_ACCEPTS goal_emits of both cases; TAG_RULES range/linear; "
+     "OCCURRENCE_CASE, REGULARITY_LISTING and PROOFS comments",
+     "ring_cancels_inv_atom's installation adds 1/x - 1/x + 1 > 0 @ [1, 2] "
+     "tagged ('linear', ()); rewrite_under_infinite_range's adds "
+     "x^2 >= 0 @ [0, oo) tagged sign. TAG_RULES now says the Farkas "
+     "combination is an irreducible one. The comments note the formers "
+     "each place now owes",
+     "both goals hold ln or sqrt in their integrand. The first key's "
+     "negated goal normalises to 1 <= 0 and is infeasible by itself, and "
+     "Farkas combinations are not unique, so without the sentence its tag "
+     "('range' or 'linear') would depend on the implementation's search. "
+     "Irreducibility makes it 'linear' and changes no tag given before "
+     "(each earlier set has one irreducible core, or is the one the suite "
+     "pins by tagger.py's deletion order)",
+     "user decision 2026-09-24, option (a); the TAG_RULES sentence is its "
+     "consequence, kept so tags stay computed by a stated rule (E24)"),
+    ("BAD_MOVES close_D_goal_scope_passes",
+     "refusal close-check-failed became Int-or-D-not-normalisable, and its "
+     "'why' was rewritten",
+     "ring now refuses the side D[x] x^2 instead of reading it as an atom "
+     "(E26 (b)). The refusal still comes after the scope check and the "
+     "whitelist, so the case still pins what it was for: D11 and E19 "
+     "accept a goal with D[x]",
+     "user decision 2026-09-24, option (a)"),
+    ("BAD_MOVES, 18 cases added",
+     "ln_negative_literal, ln_zero_literal, sqrt_negative_literal, "
+     "asin_above_literal, asin_below_literal, acos_above_literal, "
+     "acos_below_literal, acosh_below_literal, atanh_upper_end and "
+     "atanh_lower_end (installation refused obligation-refuted); "
+     "rewrite_R_owes_domain and close_value_owes_domain (the same code at "
+     "a rewrite's R and at close's value); ring_refuses_Int, "
+     "ring_refuses_D, field_refuses_D, norm_num_refuses_Int, "
+     "divisor_test_refuses_Int and match_refuses_Int "
+     "(Int-or-D-not-normalisable)",
+     "one refusal per bound of each builtin, so that dropping any single "
+     "condition is caught, and six for E26 (b): ring on Int and D, field "
+     "on D, norm_num on Int, E25 on Int and the match on Int. That was not "
+     "every normaliser and node pair, nor every call site, as this entry "
+     "first claimed; the review fix below completes both. 0*ln(-1) == ?A "
+     "is refused when it is installed, not at the close: "
+     "installation charges the goal's formers (E6), so the close is never "
+     "reached",
+     "user decision 2026-09-24, option (a)"),
+    ("DEFINEDNESS_CASES and DEFINEDNESS_MUTATIONS (new, section 8b); "
+     "PROVED, T_HYP and T_LINEAR; all_term_strings; the no-none comment",
+     "eight accepted cases: tan_pi_half and ln_false_on_goal_domain "
+     "('Proved modulo 1 admissions', the admission tagged none), "
+     "ln_true_by_hyp (tagged hyp), and five literal cases reporting "
+     "'Proved.' that pin each closed end and atanh's interior. 23 "
+     "mutations, each with the cases and P1 locations that catch it: every "
+     "builtin's former removed, every bound of a two-sided domain removed, "
+     "every end's closedness swapped, and each normaliser reading Int or D "
+     "as an atom",
+     "so that removing any single partial former is caught (a data-review "
+     "choice, made to carry out option (a); the owner did not specify "
+     "coverage); the cases also pin E26's open and closed ends exactly. "
+     "ln_false_on_goal_domain, against ln_true_by_hyp, is the no-none "
+     "check's positive test for definedness. tan_pi_half's none is "
+     "unconditional until §6.8's cos_nonzero_on is pinned, so it pins "
+     "only that tan is charged (corrected by the review fix below, which "
+     "added tan_zero_true)",
+     "user decision 2026-09-24, option (a)"),
+    ("TRACKER_AT_FORGERY_STATE and its comment; FORGERIES "
+     "direct_tracker_write and print_proved_with_admissions",
+     "the forgery-state tracker now drops both keys s9 mints, 3*sqrt 3 # 0 "
+     "and 2 > 0; the texts' counts became N = 6 and 'Proved modulo 13 "
+     "admissions'",
+     "P1.2's close owes the value's ln 2 domain, 2 > 0 (E26), a new key",
+     "user decision 2026-09-24, option (a)"),
+    ("PLANTED_BUGS",
+     "every 'admissions' updated; tracker_drops_reemitted's key is first "
+     "inserted at P1.1's installation, so it is caught at s1, not s2; "
+     "pi_pos_not_in_constraint_set is also caught at P1.1's installation; "
+     "the texts of d_ln_emits_nothing and ftc_derivative_premise_on_closed "
+     "name the ln formers",
+     "E26 moves P1.1's orientation to installation and adds admissions. "
+     "d_ln_emits_nothing is still caught at the same four places, because "
+     "F's ln formers are on [0, 1] and d_ln's keys on (0, 1) (E8), and "
+     "field still emits only divisors",
+     "user decision 2026-09-24, option (a)"),
+    ("DESIGN_DEFECTS",
+     "the §11.2 entry now reads its 1 + x > 0 @ [0,1] as ln's former; a new "
+     "entry records that §5.1 and §6.2 lacked partial formers and that "
+     "§14's agreement claim (PROOF_OF_LIFE.md cites it as §15.4) depended "
+     "on them, resolved by E26",
+     "the §11.2 entry called that line a regularity sub-obligation only, "
+     "which E26 made incomplete",
+     "user decision 2026-09-24, option (a)"),
+    ("VERIFIED",
+     "four entries appended, for what was checked with SymPy and by a "
+     "scratch consistency script",
+     "the record of the checks behind the changes above",
+     "user decision 2026-09-24"),
+    ("GRAMMAR.md §3, D12 and §10 (notes only; no syntax, tree or parse code "
+     "changed)",
+     "a paragraph saying the seven partial builtins, Int and D[x] parse "
+     "with any operand, definedness being E26's obligation and not syntax; "
+     "D12 gives E26's orientation (u REL c, two items for a two-sided "
+     "domain); §10 names sqrt's t^2 >= 0 @ [0, pi/2] beside sqrt_sq's key",
+     "so that a reader of the grammar does not expect ln(-1) to be a parse "
+     "refusal, and so that E26's keys follow D12 visibly",
+     "user decision 2026-09-24, option (a)"),
+    ("DEFINEDNESS_CASES tan_pi_half comment and the new tan_zero_true; the "
+     "section 8b header; the no-none comment; the E26 (a) note; DECISIONS "
+     "E15; DEFINEDNESS_MUTATIONS no_tan_former",
+     "tan_zero_true added: 0*tan 0 == ?A owes the true cos 0 # 0, admitted "
+     "and tagged none, 'Proved modulo 1 admissions'. The comments now say "
+     "E24 tags every cos u # 0 none, true or false, unless the goal's "
+     "domain Γ states it, which hyp closes; that no NAMED_ENTRIES "
+     "entry concludes it (§6.8's cos_nonzero_on is not pinned); and that a "
+     "PROOFS run containing tan on a goal whose domain does not state it "
+     "cannot yet pass the no-none check. "
+     "no_tan_former is also caught by tan_zero_true. No tag or expected "
+     "value of an earlier case changed",
+     "the data presented tan_pi_half's none as the tagger detecting a false "
+     "obligation, but by TAG_RULES, with Γ empty, as in both cases, the "
+     "tag is none for every u: "
+     "cos u is an opaque variable to FM, a degree-1 atom to sign and sign "
+     "product, and no pinned entry concludes it. The old comment's 'no "
+     "§6.8 entry concludes it' was also wrong: §6.8 lists cos_nonzero_on. "
+     "tan_zero_true records the limitation as a pinned fact rather than "
+     "prose. SymPy: cos(pi/2) = 0, cos(0) = 1",
+     "user decision 2026-09-24, review fix"),
+    ("REWRITE_RULE step 9; DECISIONS E11; BAD_MOVES "
+     "rewrite_under_D_R_closed_former and rewrite_under_D_R_divisor",
+     "step 9 (a)'s openness test now applies to every obligation step 10 "
+     "charges from R at an occurrence below D[x] (E6's and E26's formers, "
+     "nested ones included), not only to H, with the same refusal "
+     "'rewrite-under-D-needs-open-domain'. Two cases pin it: atan_odd "
+     "under D[x] with u := x + (sqrt x - sqrt x) (sqrt's x >= 0), and with "
+     "u := x + (1/(sqrt x + 1) - 1/(sqrt x + 1)) (a divisor with an "
+     "x-mentioning sqrt)",
+     "E26 made step 10 charge closed domains (sqrt, asin, acos, acosh), and "
+     "step 9 (a) checked H only, so a rewrite below D[x] whose R carried "
+     "one was accepted, leaving the equation's domain in x closed: the case "
+     "§6.1 rev 9 and step 9 (a)'s subterm clause exist to refuse. The gap "
+     "predates E26 through a divisor such as 1/(sqrt x + 1), which step 10 "
+     "charged but step 9 never tested. No verdict could be reached from it "
+     "in this milestone (E26 (b) refuses ring and field on a side holding "
+     "a D), so it was latent. No P1 rewrite is under a D, so no P1 result "
+     "changes. SymPy: both inst values' match normalises to -x, and "
+     "D[x] atan(-x) is -1 at 0",
+     "user decision 2026-09-24, review fix"),
+    ("BAD_MOVES field_refuses_Int, norm_num_refuses_D, "
+     "norm_num_refuses_open_Int, divisor_test_refuses_D, match_refuses_D "
+     "and ftc_check_refuses_Int (6 cases); the E26 (b) block comment; E7 "
+     "and E26 (b) prose; DEFINEDNESS_MUTATIONS field_reads_Int_as_atom and "
+     "norm_num_admits_D, and new caught_by locations for "
+     "ring_reads_Int_as_atom, ring_reads_D_as_atom and norm_num_admits_Int",
+     "the E26 (b) cases now cover every normaliser and node pair (ring, "
+     "field and norm_num, each on Int and D) and every call site on both "
+     "nodes (close's check, ftc's check, E25's ring_nf(d), the match). "
+     "field's fact reduction is covered through field's normaliser and "
+     "E7's refusal of the fact's hypothesis, as the block comment says. "
+     "E7 now says an obligation holding an Int or D is refused, not "
+     "admitted, whether or not it is literal or closed. The mutation table "
+     "has 25 entries for E26's table and clause (b), 27 in all with the "
+     "two position mutations below",
+     "a kernel that skipped the refusal in one uncovered place would pass "
+     "the suite and could still give a false verdict: with ftc's check "
+     "skipping it, Int[x = 0 .. 1] (1 + ((Int[t = 0 .. oo] 1) - "
+     "(Int[t = 0 .. oo] 1))) closed as 'Proved modulo 3 admissions' for an "
+     "integrand that diverges. And E7's prose read as 'never literal, so "
+     "admitted', which the one closed Int case could not tell from "
+     "'refused'; no D obligation was pinned at all. No P1 step normalises "
+     "an Int or D, so no P1 result changes. SymPy: the inner integral is "
+     "oo, D[x] x^2 = 2x, and Int[t = 0 .. x] t = x^2/2",
+     "user decision 2026-09-24, review fix"),
+    ("MATCH_ACCEPTS rewrite_R_former_at_position and "
+     "limit_former_at_outer_domain; DEFINEDNESS_MUTATIONS "
+     "rewrite_R_former_at_goal_domain and limit_former_on_own_range, and "
+     "its header",
+     "two accepted cases pinning E26's position domain at the sites no "
+     "case inspected: ln x in a rewrite's R under Int[x = 1 .. 2] re-owes "
+     "x > 0 @ [1, 2] (not new, tagged range), and sqrt y in an Int's hi "
+     "owes y >= 0 at the goal's domain y >= 0 (tagged hyp), with no "
+     "orientation. Two mutations record what they catch",
+     "every case whose R carried a former was at domain true, and no case "
+     "had a non-closed builtin in an Int limit, while BAD_MOVES assert "
+     "only refusal codes; so a kernel charging R, or a limit, at the "
+     "wrong domain emitted keys no assertion inspected. No P1 result "
+     "changes (P1.1 s1's R is t; P1's non-literal limits owe only closed, "
+     "discharged divisors). SymPy: atan(-ln x) + atan(ln x) = 0, and the "
+     "integral is y/2",
+     "user decision 2026-09-24, review fix"),
+    ("HANDLES_IN_FORCE's comment, DECISIONS E17, the DATA_CHANGES preamble "
+     "and its HANDLES_IN_FORCE and DEFINEDNESS entries, the "
+     "DEFINEDNESS_MUTATIONS header (comments and strings only; no data "
+     "value changed)",
+     "question 3's model is marked as decided on the owner's behalf, and "
+     "the single-former coverage as a data-review choice, not as the "
+     "owner's words",
+     "the owner chose option (a) for question 1 and dismissed line-count "
+     "budgets; they stated no preference on question 3 and did not ask "
+     "for a coverage rule. The data credited them with both",
+     "user decision 2026-09-24, review fix"),
+    ("VERIFIED",
+     "one entry appended, for the review fixes' SymPy checks",
+     "the record of the checks behind the review fixes above",
+     "user decision 2026-09-24, review fix"),
+    ("E12's d_const bullet; E9; E26 (b); DECISIONS E12 and E26; "
+     "REFUSAL_CODES['Int-or-D-not-normalisable']; GRAMMAR.md §3's definedness "
+     "paragraph; BAD_MOVES ftc_F_holds_x_free_Int and ftc_F_holds_x_free_D; "
+     "DEFINEDNESS_MUTATIONS deriv_d_const_on_Int_or_D",
+     "d_const no longer fires on an x-free subterm holding an Int or Deriv "
+     "node: deriv refuses the step 'Int-or-D-not-normalisable' there. The "
+     "test sits inside the d_const branch, so an Int or D with x free still "
+     "gets 'deriv-no-rule' (ftc_F_contains_D unchanged). E26 (b) now binds "
+     "deriv as well as ring, field and norm_num, and says an Int or D in "
+     "ftc's F is refused in step (iv), so F's reg admissions and ftc_D are "
+     "never minted for it. Two cases pin the guard, and one mutation drops "
+     "it",
+     "E26 (b) bound only the normalisers, while E12 let d_const fire on any "
+     "x-free subterm whatever its former, Int and Deriv included. With "
+     "goal Int[x = 0 .. 1] 1 == ?A and F := x + ((Int[t = 0 .. oo] 1) - "
+     "(Int[t = 0 .. oo] 1)), deriv gave 1 + 0, ring's check passed on sides "
+     "holding no Int, and D[x] F == 1 @ (0, 1) was recorded DISCHARGED for "
+     "an undefined F. No verdict followed (the new goal still holds the "
+     "Ints, which every later close refuses), but a false premise was "
+     "discharged. No P1 F holds an Int or D, so no P1 result changes",
+     "user decision 2026-09-24, review fix"),
+    ("the no-none comment; the E26 (a) note; the section 8b header; "
+     "DEFINEDNESS_CASES tan_pi_half and tan_zero_true comments; DECISIONS "
+     "E15; the tan_zero_true DATA_CHANGES entry above (comments and strings "
+     "only; no tag, key or expected value changed)",
+     "each statement that cos u # 0 is tagged none for every u, and that a "
+     "PROOFS run containing tan cannot pass the no-none check, now says: "
+     "unless the goal's own domain Γ states it, or an order item it "
+     "follows from (cos u > 0, cos u < 0), which hyp closes (§5.3 method 1)",
+     "by TAG_RULES hyp fires first whenever Γ contains the condition, as in "
+     "tan x * 0 == ?A @ cos x # 0, whose tan former is exactly Γ's item. "
+     "tan_pi_half and tan_zero_true have Γ empty, so their tags stand; the "
+     "general statements had dropped that qualifier",
+     "user decision 2026-09-24, review fix"),
+    ("E26 (a), the paragraph on why field emits nothing for partial "
+     "builtins (comment only)",
+     "the justification is a case split: an atom of field's input was "
+     "charged where it entered, or is new in deriv's output and either "
+     "covered by the rule's side condition (d_sqrt, d_asin, d_acosh, "
+     "d_pow_real) or defined wherever u is (d_asinh's sqrt(u^2 + 1)). It "
+     "states the check a new §6.3 entry must pass: every partial atom its "
+     "output introduces is defined on the rule's side-condition set",
+     "the old text said every new atom was covered by its rule's side "
+     "condition, and §6.3's d_asinh introduces sqrt(u^2 + 1) with no side "
+     "condition. The conclusion held (u^2 + 1 >= 1), the stated reason did "
+     "not. Only d_sqrt of these rules is in this milestone, so nothing "
+     "changes in behaviour",
+     "user decision 2026-09-24, review fix"),
+    ("BAD_MOVES ftc_check_refuses_D; DEFINEDNESS_MUTATIONS "
+     "ring_reads_D_as_atom caught_by",
+     "a case running E26 (b)'s refusal at ftc's check on D nodes: goal "
+     "Int[x = -1 .. 1] (1 + (D[x](abs x) - D[x](abs x))) == ?A, ftc F := x "
+     "by ring, refused 'Int-or-D-not-normalisable'. ring_reads_D_as_atom is "
+     "also caught there",
+     "the earlier review fix claimed every call site on both nodes, but no "
+     "D case ran at ftc's check; with ftc skipping the refusal, "
+     "Int[x = -1 .. 1] (1 + (D[x](abs x) - D[x](abs x))) closed as 'Proved "
+     "modulo 3 admissions' for an integrand undefined at x = 0. With it, "
+     "the earlier entry's 'every call site on both nodes' is true",
+     "user decision 2026-09-24, review fix"),
+    ("BAD_MOVES norm_num_refuses_Int_in_domain and "
+     "norm_num_refuses_D_in_domain; DEFINEDNESS_MUTATIONS "
+     "norm_num_ignores_domain (new), and new caught_by locations for "
+     "norm_num_admits_Int and norm_num_admits_D",
+     "two install cases whose ln former's proposition x > 0 holds no Int "
+     "or D but whose domain, the goal's hypothesis, does: "
+     "ln x * 0 == ?A @ x > (Int[t = 0 .. oo] 1) - (Int[t = 0 .. oo] 1) and "
+     "ln x * 0 == ?A @ x > D[y] y^2, each refused "
+     "'Int-or-D-not-normalisable' at E7. A separate mutation names the "
+     "proposition-only test",
+     "E7 and E26 (b) say an obligation with an Int or D in its proposition "
+     "or its domain is refused, and every E7 case put it in the "
+     "proposition, so a kernel testing the proposition only passed the "
+     "suite and would admit the obligation, closing by ring as 'Proved "
+     "modulo 1 admissions' for a theorem whose hypothesis compares x with "
+     "a difference of divergent integrals. The rule is kept as written (one "
+     "rule at E7, no second check at installation). No P1 goal has a "
+     "non-true domain, so PROOFS are unchanged",
+     "user decision 2026-09-24, review fix"),
+    ("the BAD_MOVES E26 (b) block comment; field_refuses_D's and "
+     "field_refuses_Int's 'why' (comments and strings only)",
+     "the block comment now argues why field's divisor test needs no case "
+     "of its own: every divisor in field's input was charged at entry, "
+     "where E25's ring_nf refuses an Int or D; close's value holds none "
+     "(E23); deriv's output holds none (E12's guard); and a fact's "
+     "uncharged terms carry any Int or D into a hypothesis E7 refuses. "
+     "The two field cases no longer claim to exercise the divisor test. "
+     "The block comment also names deriv's d_const and E7's domain half "
+     "among the covered call sites",
+     "E26 (b) lists field's divisor test as a call site, and field_refuses_D "
+     "said 'its divisor test and its normal form both refuse', but neither "
+     "field case has a divisor, so the coverage was stated without either "
+     "a case or an argument that the case cannot arise",
+     "user decision 2026-09-24, review fix"),
+    ("MATCH_ACCEPTS rewrite_R_former_at_goal_and_range; "
+     "DEFINEDNESS_MUTATIONS rewrite_R_former_on_ranges_only (new), "
+     "rewrite_R_former_at_goal_domain caught_by, and the header's and "
+     "position comment's counts",
+     "an accepted rewrite whose R re-owes a former at P = (y > 0, "
+     "x in [1, 2]): Int[x = 1 .. 2] atan(-ln(x + y)) == ?A @ y > 0 with "
+     "atan_odd, u := ln(x + y), x + y > 0 tagged range at installation and "
+     "re-owed (not new) by the rewrite. The linear key keeps the tags "
+     "derivable from TAG_RULES alone. The mutation table now has 30 "
+     "entries: 27 for E26's table and clause (b), and three position "
+     "mutations",
+     "step 7's P is the goal's domain plus the enclosing ranges, and every "
+     "accepted rewrite whose R carried a former had Γ = true, so a kernel "
+     "charging R on the ranges alone passed: it would emit x + y > 0 @ "
+     "x in [1, 2], feasible at x = 1, y = -5 and tagged none. Every P1 "
+     "goal's Γ is true, so PROOFS are unchanged",
+     "user decision 2026-09-24, review fix"),
+    ("VERIFIED",
+     "two entries appended, for the second review round's SymPy checks and "
+     "the parse and import checks",
+     "the record of the checks behind the review fixes above",
+     "user decision 2026-09-24, review fix"),
+    ("REWRITE_RULE step 9 (b); DECISIONS E11; BAD_MOVES "
+     "rewrite_under_D_through_Int_R_former and "
+     "rewrite_under_D_through_Int_R_former_ln",
+     "step 9 (b)'s test on Int ends mentioning x now applies when step 10 "
+     "charges a former from R at the occurrence, not only when H is "
+     "non-empty, as 9 (a) already does. Two cases added, the sqrt one and "
+     "its ln twin",
+     "step 10 charges R at P, which holds each enclosing range closed with "
+     "a non-strict lo <= hi (steps 7, E4), so a charge there closes the "
+     "equation's domain in x just as an H item does; the text said an "
+     "entry with empty H was unaffected. The gap existed before E26 "
+     "through a divisor in R. It was latent (E26 (b) refuses ring, field "
+     "and norm_num on a side holding a D). No P1 rewrite is under a D, so "
+     "no P1 result changes. SymPy: the match normalises to -t, and "
+     "D[x] Int[t = 1 .. x] atan(-t) = -atan(x)",
+     "user decision 2026-09-24, review fix"),
+    ("the E10 comment, DECISIONS E10, E6's entry list, the BAD_MOVES E26 "
+     "(b) block comment (comments and strings only)",
+     "a step that uses a fact handle now also inherits the formers of the "
+     "fact's inst values (E6, E26 (a)), charged at that step's domain; the "
+     "statement's own formers are not re-charged. The E26 (b) comment no "
+     "longer says sqrt_sq_val is the only fact entry, or that fact insts "
+     "go uncharged",
+     "under option (a) a fact instance holding ln(-1) is not a theorem, and "
+     "§6.2 grounds field's soundness on each fact being one. Without "
+     "charging, atan(-3) == ?A with atan_odd u := 3 + 0*ln(-1) closed as "
+     "'Proved.'. E10 admits any §6.8 entry, and atan_odd has no hypothesis "
+     "to carry the term. P1's only fact inst is 3, which has no formers, "
+     "so PROOFS are unchanged",
+     "user decision 2026-09-24, option (a), review fix"),
+)
