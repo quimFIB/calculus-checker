@@ -6,6 +6,7 @@
     python3 kernel/proof_of_life.py --control       the same child, unpatched
     python3 kernel/proof_of_life.py --backstop NAME one closing check_goal, reached through a seam (a child)
     python3 kernel/proof_of_life.py --isolate NAME  one E26 (b) seam weakened alone (a child)
+    python3 kernel/proof_of_life.py --s0-seam NAME  the problem files under one P1 seam (a child)
 
 It asserts every item of WHAT.md's "Done when" against p1_expected.py, which
 was written before the kernel and is never changed to fit it. The header
@@ -45,6 +46,16 @@ mirroring the implementation.
      read-only cite library and deriv rule table;
   6  the echo of each goal, ROUND_TRIP, the S-expression trees, PRINT_EXACT
      and the parse refusals.
+  7  stage 0's problem files S1-S3 (WHAT.md "Start here"), read by the
+     untrusted kernel/loader.py and driven through install() and step(),
+     against kernel/problems/stage0/expected.py, written by hand before
+     they ran: the file against its data, the echo, each step's goal and
+     obligation list (prop, dom, sources, status, tag, new), deriv's trace,
+     the final tracker, N, the verdict, the theorem and answer, the entries
+     used, the loader against a direct drive, a math-module check, and each
+     of its WRONG_ANSWERS refused with its code and residual. Also the four
+     stage-0 entries pinned in entries.py, and the tagger's sign facts
+     against ENTRIES.
 
 It also runs the unit tests (test_field.py, test_grammar.py) in a child
 process, as one check of its own beside items 1-6: field's planted bugs
@@ -90,6 +101,29 @@ except Exception as e:  # noqa: BLE001 -- reported, never swallowed
     DV = EN = FD = K = TG = None
     KERNEL_ERROR = "".join(traceback.format_exception_only(type(e), e)).strip()
 
+
+def _import_stage0():
+    """Item 7's two imports, apart from the kernel's so that items 1-6 run
+    whatever they do: the untrusted loader, and the problem files' expected
+    data, which is loaded by path because kernel/problems is not a package.
+    Only this script imports the data; no kernel file does."""
+    import importlib.util
+    import loader
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(here, "problems", "stage0", "expected.py")
+    spec = importlib.util.spec_from_file_location("stage0_expected", path)
+    data = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(data)
+    return loader, data, os.path.dirname(path)
+
+
+try:
+    LD, S0, STAGE0_DIR = _import_stage0()
+    STAGE0_ERROR = None
+except Exception as e:  # noqa: BLE001 -- reported by every item-7 check
+    LD = S0 = STAGE0_DIR = None
+    STAGE0_ERROR = "".join(traceback.format_exception_only(type(e), e)).strip()
+
 SIG = X.SIG
 ITEMS = {
     1: "proves P1.1 == 2 and P1.2 in both forms",
@@ -98,6 +132,7 @@ ITEMS = {
     4: "rejects wrong answers, asserting the residual",
     5: "refuses bad moves and forgeries",
     6: "round-trips the parser, echoes each goal",
+    7: "problem files S1-S3 as stage0/expected.py states them",
 }
 UNIT, UNIT_TEXT = "unit", "unit tests: test_field.py, test_grammar.py"  # beside 1-6
 MAX_SHOWN = 12  # detail lines printed under one failed check
@@ -220,12 +255,14 @@ def keys_of(state):
 
 # ---------------------------------------------------------------- comparisons
 
-def compare_emitted(miss, proof, sid, expected, emitted, prev_keys):
+def compare_emitted(miss, proof, sid, expected, emitted, prev_keys, keyf=None):
     """One step's `last.emitted` against its expected list, as a set of keys
     (KEYING). `new` is computed here from the previous state's tracker, never
     taken from the kernel. The locations are PLANTED_BUGS' caught_by shapes:
     (proof, step, prop, dom) for an absent key, (proof, step, prop, what)
-    for a key present with a wrong field."""
+    for a key present with a wrong field. `keyf` parses an expected (prop,
+    dom); it is `key` unless another data file supplies its own."""
+    keyf = keyf or key
     got = {}
     for ob in emitted:
         if ob.key in got:
@@ -234,7 +271,7 @@ def compare_emitted(miss, proof, sid, expected, emitted, prev_keys):
         got[ob.key] = ob
     want = set()
     for prop, dom, sources, status, tag, new in expected:
-        k = key(prop, dom)
+        k = keyf(prop, dom)
         want.add(k)
         ob = got.get(k)
         if ob is None:
@@ -261,19 +298,20 @@ def compare_emitted(miss, proof, sid, expected, emitted, prev_keys):
                  f"{ob.status} {tag_of(ob)} from {sorted(ob.sources)}")
 
 
-def tracker_problems(obs, expected, sources=None):
+def tracker_problems(obs, expected, sources=None, keyf=None):
     """obligations() against a FINAL_TRACKER-shaped list of (prop, dom,
     status, tag). Returns (location suffix, detail) pairs. An absent key's
     suffix is ((prop, dom),), which is caught_by's FINAL_TRACKER shape.
     `sources`, when given, maps each key to the union of its expected
     sources over the steps (E8: add merges sources)."""
+    keyf = keyf or key
     out, got, want = [], {}, set()
     for ob in obs:
         if ob.key in got:
             out.append((("duplicate", T.show(ob.key)), "listed twice"))
         got[ob.key] = ob
     for prop, dom, status, tag in expected:
-        k = key(prop, dom)
+        k = keyf(prop, dom)
         want.add(k)
         ob = got.get(k)
         if ob is None:
@@ -286,9 +324,12 @@ def tracker_problems(obs, expected, sources=None):
         reason = X.ADMISSION_REASON if status == X.ADMITTED else None
         if ob.reason != reason:
             out.append((((prop, dom), "reason"), f"{ob.reason!r}"))
-        if sources is not None and frozenset(ob.sources) != frozenset(sources[k]):
+        # A key no step's list names has no expected sources: reported, not
+        # raised, so the rest of the comparison still prints.
+        want_src = frozenset(sources.get(k, ())) if sources is not None else None
+        if sources is not None and frozenset(ob.sources) != want_src:
             out.append((((prop, dom), "sources"),
-                        f"{sorted(ob.sources)}, expected {sorted(sources[k])}"))
+                        f"{sorted(ob.sources)}, expected {sorted(want_src)}"))
     for k, ob in got.items():
         if k not in want:
             out.append((("extra", T.show(k)), f"{ob.status} {tag_of(ob)}"))
@@ -308,10 +349,11 @@ def multiset_text(c, show_one):
                      for x, n in c.items())
 
 
-def deriv_problems(F, trace, output):
+def deriv_problems(F, trace, output, d=None):
     """deriv's trace (a multiset of (rule, subterm), and what each firing
-    emitted), its output as a tree, and its emissions, against DERIV."""
-    d = DERIV_BY_F[F]
+    emitted), its output as a tree, and its emissions, against DERIV, or
+    against the DERIV-shaped row `d` another data file gives."""
+    d = d or DERIV_BY_F[F]
     out = []
 
     def pair(x):
@@ -513,9 +555,11 @@ def fact_pairs(state, handles, names):
 def entries_problems():
     """§6.8's pinned statements, entries.py against NAMED_ENTRIES."""
     out = []
+    # P1's entries must be there. Stage 0's four are pinned by item 7, so a
+    # broken stage-0 import cannot fail this item.
     want = set(X.NAMED_ENTRIES) | set(X.ADDED_ENTRIES)
-    if set(EN.ENTRIES) != want:
-        out.append(f"entries are {sorted(EN.ENTRIES)}, expected {sorted(want)}")
+    if not want <= set(EN.ENTRIES):
+        out.append(f"entries lack {sorted(want - set(EN.ENTRIES))}")
     for name, e in X.NAMED_ENTRIES.items():
         got = EN.ENTRIES.get(name)
         if got is None:
@@ -2640,6 +2684,460 @@ def echo_noncanonical_problems():
     return out
 
 
+# ---------------------------------------------------------------- item 7: problem files
+#
+# Stage 0's S1-S3 (WHAT.md "Start here") as problem files: read by the
+# untrusted loader, driven through install() and step(), and asserted
+# against kernel/problems/stage0/expected.py (S0 here), which was written
+# by hand before they ran. S0's strings are parsed and compared as trees,
+# as p1_expected's are. Every state a check reads is one the loader got back
+# from the kernel; the loader builds none.
+
+def s0_base(proof):
+    """S0 keys GOALS, ECHO, THEOREMS and NUMERIC by problem: S3-ring is S3."""
+    return proof.split("-")[0]
+
+
+def s0_key(prop, dom):
+    return T.parse_judgement(S0.judgement_string(prop, dom), S0.SIG)
+
+
+def s0_file(proof):
+    """(Problem, the loader's name for the proof) for an S0.PROOF_FILES row."""
+    where = S0.PROOF_FILES[proof]
+    problem = LD.load(os.path.join(STAGE0_DIR, where[0]))
+    return problem, (LD.REFERENCE if where[1] == "reference_proof" else where[2])
+
+
+def s0_sources(proof):
+    out = {}
+    for obs in S0.EXPECTED_OBLIGATIONS[proof].values():
+        for prop, dom, sources, *_ in obs:
+            out.setdefault(s0_key(prop, dom), set()).update(sources)
+    return out
+
+
+def s0_entries_problems():
+    """NEW_ENTRIES' pinned statements against entries.py, and every entry a
+    proof uses is in ENTRIES."""
+    out = []
+    for name, e in S0.NEW_ENTRIES.items():
+        got = EN.ENTRIES.get(name)
+        if got is None:
+            out.append(f"{name} is not in ENTRIES")
+            continue
+        if got.statement != T.parse_judgement(e["statement"], S0.SIG):
+            out.append(f"{name}: statement {show(got.statement)}")
+        if tuple(got.schema) != tuple(e["schema"]):
+            out.append(f"{name}: schema {got.schema}")
+        for side in ("lhs", "rhs"):
+            if side in e and getattr(got.statement, side) != T.parse_term(e[side], S0.SIG):
+                out.append(f"{name}: {side} {show(getattr(got.statement, side))}")
+        if tuple(got.hyps) != tuple(T.parse_judgement(h, S0.SIG) for h in e["hyps"]):
+            out.append(f"{name}: hyps {[show(h) for h in got.hyps]}")
+    for proof, names in S0.USED_ENTRIES.items():
+        out += [f"{proof} uses {n}, which is not in ENTRIES"
+                for n in names if n not in EN.ENTRIES]
+    return out
+
+
+def s0_sign_fact_problems():
+    """The tagger's sign facts are ENTRIES' statements, e_gt_one's for
+    e_const as pi_pos's for pi, so the tags that cite them come out by rule
+    (FINDINGS: 'e_gt_one in the tagger's sign-fact table')."""
+    out = []
+    if TG.SIGN_FACTS.get("e_const", (None,))[0] != "e_gt_one":
+        out.append(f"SIGN_FACTS['e_const'] is {TG.SIGN_FACTS.get('e_const')!r}")
+    for const, (name, fact) in TG.SIGN_FACTS.items():
+        e = EN.ENTRIES.get(name)
+        if e is None or e.statement != fact:
+            out.append(f"SIGN_FACTS[{const!r}] = {name}: {show(fact)}, but ENTRIES "
+                       f"has {show(e.statement) if e else 'no such entry'}")
+    return out
+
+
+def s0_file_problems(proof):
+    """The file itself: its goal and declarations are S0's, its steps' ids
+    and moves are S0.STEPS', ftc's F is S0.DERIV's, and the entries its
+    steps name plus the cites in its run's tags are S0.USED_ENTRIES'."""
+    problem, name = s0_file(proof)
+    out = []
+    if problem.sig != S0.SIG:
+        out.append(f"declarations.functions is {problem.sig}, expected {S0.SIG}")
+    if problem.goal() != T.parse_goal(S0.GOALS[proof], S0.SIG):
+        out.append(f"goal {problem.goal_text!r}, expected {S0.GOALS[proof]!r}")
+    steps = problem.proofs[name]
+    got = [(s["id"], s["move"]) for s in steps]
+    want = [(s["id"], s["move"]) for s in S0.STEPS[proof]]
+    if got != want:
+        out.append(f"steps {got}, expected {want}")
+    for s in steps:
+        if s["move"] == "ftc" and T.parse_term(s["args"]["F"], S0.SIG) != \
+                T.parse_term(S0.DERIV[proof]["F"], S0.SIG):
+            out.append(f"{s['id']}: F is {s['args']['F']!r}, DERIV has "
+                       f"{S0.DERIV[proof]['F']!r}")
+    results, _ = LD.replay(problem, name)
+    used = {s["args"]["entry"] for s in steps if "entry" in s["args"]}
+    for _, r in results:
+        if isinstance(r, K.ProofState):
+            used |= {c for ob in r.last.emitted for c in ob.tag[1]
+                     if c in EN.ENTRIES}
+    if used != set(S0.USED_ENTRIES[proof]):
+        out.append(f"entries used {sorted(used)}, expected "
+                   f"{sorted(S0.USED_ENTRIES[proof])}")
+    return out
+
+
+def s0_run(proof):
+    """Replay one S0 proof through the loader and compare everything. Items
+    in run.found: 6 the echo, 1 the outcome, 2 the obligations, as in P1's
+    rows; all are recorded under item 7."""
+    run = Run(proof)
+    try:
+        _s0_run(run)
+    except Mismatch as m:
+        run.miss(m.item, m.where, m.detail)
+    return run
+
+
+def _s0_run(run):
+    proof, base = run.name, s0_base(run.name)
+    exp, steps = S0.EXPECTED_OBLIGATIONS[proof], S0.STEPS[proof]
+    if S0.EXPECTED_REFUSALS:
+        raise Mismatch(1, (proof, "EXPECTED_REFUSALS"),
+                       "names refusals, which this check does not replay")
+    problem, name = s0_file(proof)
+    results, _ = LD.replay(problem, name)
+    for sid, r in results:
+        if not isinstance(r, K.ProofState):
+            raise Mismatch(1, (proof, sid, "refused"), describe(r))
+    if len(results) != len(steps) + 1:
+        raise Mismatch(1, (proof, "steps"), f"{len(results) - 1} steps fed, "
+                       f"expected {len(steps)}")
+    installed = T.parse_goal(S0.GOALS[proof], S0.SIG)
+    st = results[0][1]
+    run.state = st
+    echo = T.show_goal(st.goal)
+    if echo != S0.ECHO[base]:
+        run.miss(6, (proof, "echo"), f"{echo!r}, expected {S0.ECHO[base]!r}")
+    if T.parse_goal(echo, S0.SIG) != st.goal:
+        run.miss(6, (proof, "echo", "reparse"), "does not parse back to the tree")
+    if st.goal != installed or st.last.move != "install":
+        run.miss(1, (proof, "goal", "installed"), f"got {show(st.goal)}, "
+                 f"last.move {st.last.move!r}")
+    compare_emitted(run.miss, proof, "goal", exp["goal"], st.last.emitted,
+                    frozenset(), keyf=s0_key)
+    seen = list(st.last.emitted)
+    for s, (sid, st) in zip(steps, results[1:]):
+        prev, where, last = run.state, (proof, sid), st.last
+        run.state = st
+        if sid != s["id"]:
+            raise Mismatch(1, where + ("id",), f"expected step {s['id']}")
+        if last.move != s["move"]:
+            run.miss(1, where + ("move",), f"last.move is {last.move!r}")
+        want = None if s["goal_after"] is None else T.parse_goal(s["goal_after"], S0.SIG)
+        if st.goal != want:
+            run.miss(1, where + ("goal_after",), f"got {show(st.goal)}")
+        if "occurrences" in s and last.occurrences != s["occurrences"]:
+            run.miss(1, where + ("occurrences",),
+                     f"{last.occurrences}, expected {s['occurrences']}")
+        if s["move"] == "ftc":
+            d = S0.DERIV[proof]
+            for what, detail in deriv_problems(d["F"], last.trace, last.output, d):
+                run.miss(2, where + (what,), detail)
+        compare_emitted(run.miss, proof, sid, exp[sid], last.emitted,
+                        keys_of(prev), keyf=s0_key)
+        seen += last.emitted
+    obs = st.obligations()
+    for suffix, detail in tracker_problems(obs, S0.FINAL_TRACKER[proof],
+                                           s0_sources(proof), keyf=s0_key):
+        run.miss(2, ("FINAL_TRACKER", proof) + suffix, detail)
+    nones = {T.show(o.key) for o in seen + list(obs)
+             if o.status == K.ADMITTED and o.tag[0] == "none"}
+    for k in sorted(nones):
+        run.miss(2, ("NONE_TAG", proof, k), "admitted and tagged none")
+    if st.goal is not None:
+        raise Mismatch(1, (proof, "closed"), f"goal still open: {show(st.goal)}")
+    run.n = sum(o.status == K.ADMITTED for o in obs)
+    if run.n != S0.ADMISSIONS[proof]:
+        run.miss(1, ("N", proof), f"{run.n} admissions, expected {S0.ADMISSIONS[proof]}")
+    if K.report(st) != S0.VERDICTS[proof]:
+        run.miss(1, ("VERDICT", proof), f"{K.report(st)!r}, expected {S0.VERDICTS[proof]!r}")
+    theorem = T.parse_goal(S0.THEOREMS[proof], S0.SIG)
+    if st.theorem != theorem:
+        run.miss(1, ("THEOREM", proof), f"got {show(st.theorem)}")
+    if T.instantiate(installed, T.parse_term(S0.ANSWERS[proof], S0.SIG)) != theorem:
+        run.miss(1, ("ANSWER", proof), "ANSWERS disagrees with THEOREMS")
+
+
+def s0_direct_problems(proof):
+    """The loader against a drive that does not use it: the same file's
+    steps fed by this script's own build_args, with fresh handles. Each
+    step's goal and emissions, and the final tracker, must be the same."""
+    problem, name = s0_file(proof)
+    results, _ = LD.replay(problem, name)
+    st, handles, out = install(S0.GOALS[proof], (proof, "goal")), {}, []
+    pairs = [("goal", st)]
+    for s in problem.proofs[name]:
+        st = take(st, s["move"], s["args"], handles, (proof, s["id"]))
+        pairs.append((s["id"], st))
+    if [sid for sid, _ in results] != [sid for sid, _ in pairs]:
+        return [f"the loader fed {[sid for sid, _ in results]}"]
+    for (sid, a), (_, b) in zip(results, pairs):
+        if a.goal != b.goal or a.last.emitted != b.last.emitted:
+            out.append(f"{sid}: the loader's state differs from the direct drive's")
+    if results[-1][1].obligations() != pairs[-1][1].obligations():
+        out.append("the final trackers differ")
+    return out
+
+
+def s0_numeric_problems(proof):
+    """A math-module check that the answer is the integral, sharing no code
+    with the kernel: NUMERIC against the theorem's right side, and against
+    Simpson's rule on the goal's integral."""
+    want, out = S0.NUMERIC[s0_base(proof)], []
+    answer = value(T.parse_goal(S0.THEOREMS[proof], S0.SIG)[0].rhs)
+    if abs(answer - want) > 1e-12 * max(1.0, abs(want)):
+        out.append(f"the answer is {answer!r}, NUMERIC says {want!r}")
+    integral = value(T.parse_goal(S0.GOALS[proof], S0.SIG)[0].lhs)
+    if abs(integral - want) > 1e-4:
+        out.append(f"Simpson gives {integral!r}, NUMERIC says {want!r}")
+    return out
+
+
+def s0_wrong_answer_problems(w):
+    """One S0.WRONG_ANSWERS case: refused with its code, the state unchanged
+    (E13), and the residual equal to the expected one under `compare` and
+    not zero (E14). The move goes through the loader, as a file's would."""
+    if "state" in w:
+        problem, name = s0_file(w["state"][0])
+        results, handles = LD.replay(problem, name, through=w["state"][1])
+        st, sig = results[-1][1], problem.sig
+        if not isinstance(st, K.ProofState) or results[-1][0] != w["state"][1]:
+            return [f"the replay to {w['state']} stopped: {describe(st)}"]
+    else:
+        st, handles, sig = install(w["goal"], (w["id"], "goal")), {}, S0.SIG
+    before, before_goal = st.obligations(), st.goal
+    move, args = w["move"]
+    r = LD.feed(st, {"move": move, "args": args}, handles, sig)
+    if isinstance(r, K.ProofState):
+        return ["accepted: the wrong answer went through"]
+    out = []
+    if r.code != w["refusal"]:
+        out.append(f"refused {r.code}: {r.message}")
+    if st.obligations() != before or st.goal != before_goal:
+        out.append("the refused step changed the state (E13)")
+    if r.residual is None:
+        return out + ["the refusal carries no residual"]
+    method, names = w["compare"]
+    facts = fact_pairs(st, handles, names)
+    ok, note = equal_by(method, r.residual, T.parse_term(w["residual"], S0.SIG), facts)
+    if not ok:
+        out.append(f"residual {show(r.residual)} is not {w['residual']} under "
+                   f"{method}{note}")
+    zero, note = equal_by(method, r.residual, T.Num(0), facts)
+    if zero or note:
+        out.append(f"residual {show(r.residual)} is zero under {method}{note}")
+    return out
+
+
+def s0_loader_problems():
+    """The loader resolves ["handle", name] to the handle the kernel minted
+    for that bind, which no S1-S3 step needs: (sqrt 3)^2 == ?A by fact
+    sqrt_sq_val then close by field with it, whose one obligation 3 >= 0 is
+    discharged, so the report is 'Proved.'. It refuses what is not a
+    calc-problem/0 file (PF2's closed key set) and a fact no earlier step
+    bound, rather than guess."""
+    import tempfile
+    with open(os.path.join(STAGE0_DIR, "S1.json"), encoding="utf-8") as f:
+        good = json.load(f)
+    with_fact = {**good, "goal": "(sqrt 3)^2 == ?A", "reference_proof": [
+        {"id": "s1", "move": "fact",
+         "args": {"entry": "sqrt_sq_val", "inst": {"a": "3"}, "bind": "h"}},
+        {"id": "s2", "move": "close",
+         "args": {"value": "3", "check": "field", "facts": [["handle", "h"]]}}]}
+    step = good["reference_proof"][0]
+    bad = {"unknown key": {**good, "hint": "u = x^2"},
+           "missing key": {k: v for k, v in good.items() if k != "goal"},
+           "wrong format": {**good, "format": "calc-problem/1"},
+           "other schema": {**good, "answer_schema": "closed + erf"},
+           "top-level list": [good],
+           "reference_proof as a string": {**good, "reference_proof": "ftc; close"},
+           "step without id": {**good, "reference_proof": [
+               {k: v for k, v in step.items() if k != "id"}]},
+           "duplicate goal key": '{"goal": "x == ?A", ' + json.dumps(good)[1:],
+           "extra step key": {**good, "reference_proof": [{**step, "by": "ring"}]},
+           "extra declarations key": {**good, "declarations": {"functions": {},
+                                                               "variables": {}}},
+           "functions as a list": {**good, "declarations": {"functions": ["f"]}},
+           "alternative named reference": {**good, "alternative_proofs": {
+               "reference": {"why": "", "steps": good["reference_proof"]}}}}
+    out = []
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "p.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(with_fact, f)
+        results, handles = LD.replay(LD.load(path))
+        st = results[-1][1]
+        if not isinstance(st, K.ProofState) or st.goal is not None:
+            out.append(f"the fact proof did not close: {describe(st)}")
+        elif (K.report(st) != "Proved." or handles.get("h") is not results[1][1].last.handle
+              or st.theorem != T.parse_goal("(sqrt 3)^2 == 3", S0.SIG)):
+            out.append(f"the fact proof reports {K.report(st)!r}, theorem "
+                       f"{show(st.theorem)}")
+        for label, data in bad.items():
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(data if isinstance(data, str) else json.dumps(data))
+            try:
+                LD.load(path)
+                out.append(f"{label}: loaded")
+            except ValueError:
+                pass
+            except Exception as e:  # noqa: BLE001 -- the docstring says ValueError
+                out.append(f"{label}: raised {type(e).__name__}, not ValueError")
+    st = install(S0.GOALS["S1"], ("loader", "goal"))
+    try:
+        LD.feed(st, {"move": "close", "args": {"value": "2", "check": "field",
+                                               "facts": [["handle", "h"]]}}, {}, {})
+        out.append("an unbound ['handle', 'h'] was fed")
+    except ValueError:
+        pass
+    return out
+
+
+def s0_floor_problems():
+    """Item 7 covers exactly S1, S2, S3 and S3-ring, every table is keyed
+    by those four, and every problem file in stage0/ is one PROOF_FILES
+    names, so a new file or a dropped row cannot pass unchecked."""
+    want, out = {"S1", "S2", "S3", "S3-ring"}, []
+    if set(S0.PROOF_FILES) != want:
+        out.append(f"PROOF_FILES covers {sorted(S0.PROOF_FILES)}, expected {sorted(want)}")
+    for table in ("STEPS", "EXPECTED_OBLIGATIONS", "FINAL_TRACKER", "ADMISSIONS",
+                  "VERDICTS", "ANSWERS", "DERIV", "GOALS", "THEOREMS", "USED_ENTRIES"):
+        if set(getattr(S0, table)) != want:
+            out.append(f"{table} is keyed {sorted(getattr(S0, table))}")
+    files = {f for f in os.listdir(STAGE0_DIR) if f.endswith(".json")}
+    named = {row[0] for row in S0.PROOF_FILES.values()}
+    if files != named:
+        out.append(f"stage0/ holds {sorted(files)}, PROOF_FILES names {sorted(named)}")
+    return out
+
+
+# Two of the P1 seams run against the problem files, each in a child process
+# through the same patches (ARCHITECTURE.md §7). The expected locations are
+# derived from stage0/expected.py's rows by the rule each seam breaks: with
+# ln's former gone, every `u > 0` that ln owes as a former disappears (the
+# integrand's and F's x > 0 on [1, e_const], and the new goal's e_const > 0
+# and 1 > 0); with d_ln emitting nothing, d_ln's x > 0 on (1, e_const) does.
+# S1 and S2 hold no ln and must be unaffected.
+S0_SEAMS = {
+    "no_ln_former": {
+        "kind": "mutate",
+        "caught_by": [(p, sid, prop, dom) for p in ("S3", "S3-ring")
+                      for sid, prop, dom in (("goal", "x > 0", "[1, e_const]"),
+                                             ("s1", "x > 0", "[1, e_const]"),
+                                             ("s1", "e_const > 0", "true"),
+                                             ("s1", "1 > 0", "true"))]
+                     + [("N", "S3"), ("N", "S3-ring")],
+        "admissions": {"S1": 3, "S2": 3, "S3": 7, "S3-ring": 6}},
+    "d_ln_emits_nothing": {
+        "kind": "plant",
+        "caught_by": [(p, "s1", what) for p in ("S3", "S3-ring")
+                      for what in ("trace_emits", "deriv_emits")]
+                     + [(p, "s1", "x > 0", "(1, e_const)") for p in ("S3", "S3-ring")]
+                     + [("N", "S3"), ("N", "S3-ring")],
+        "admissions": {"S1": 3, "S2": 3, "S3": 8, "S3-ring": 7}},
+}
+
+
+def s0_seam_child(name):
+    """`--s0-seam NAME`: every S0 proof under one S0_SEAMS patch. Prints
+    {"mismatches": [...], "admissions": {proof: N}} and exits 0, or 2 on a
+    crash, as child() does."""
+    if K is None or S0 is None:
+        print(KERNEL_ERROR or STAGE0_ERROR, file=sys.stderr)
+        return 2
+    try:
+        from unittest import mock
+        kind = S0_SEAMS[name]["kind"]
+        found, admissions = [], {}
+        with (seam_patch if kind == "plant" else mutation_patch)(name, mock):
+            for proof in S0.PROOF_FILES:
+                run = s0_run(proof)
+                found += [where for _, where, _ in run.found]
+                admissions[proof] = run.n
+    except Exception:  # noqa: BLE001 -- a crash, not a catch
+        traceback.print_exc()
+        return 2
+    print(json.dumps({"mismatches": found, "admissions": admissions}))
+    return 0
+
+
+def s0_seam_problems(name, case):
+    data, out = spawn("--s0-seam", name)
+    if data is None:
+        return out
+    for loc in case["caught_by"]:
+        if tuplify(loc) not in data["mismatches"]:
+            out.append(f"not caught at {' / '.join(loc)}")
+    if any(p in m[:2] for m in data["mismatches"] for p in ("S1", "S2")):
+        out.append("S1 or S2 changed, and neither holds ln")
+    if data["admissions"] != case["admissions"]:
+        out.append(f"admissions {data['admissions']}, expected {case['admissions']}")
+    return out
+
+
+def s0_checks(suite):
+    """Item 7's rows."""
+    def check(label, fn):
+        if S0 is None:
+            suite.record(7, label, [f"not run: stage 0's data or the loader did "
+                                    f"not import ({STAGE0_ERROR})"])
+        else:
+            suite.check(7, label, fn)
+
+    check("PROOF_FILES is exactly S1, S2, S3 and S3-ring, and covers every file "
+          "in stage0/", s0_floor_problems)
+    check("NEW_ENTRIES are pinned in entries.py as stated, and every used entry "
+          "exists", s0_entries_problems)
+    check("the tagger's sign facts are ENTRIES' statements (e_gt_one for e_const)",
+          s0_sign_fact_problems)
+    check("the loader resolves a fact's handle, and refuses malformed files "
+          "(ValueError) and an unbound handle", s0_loader_problems)
+    runs = {}
+    for proof in (S0.PROOF_FILES if S0 is not None else ()):
+        print(f"\n{proof} ({' '.join(S0.PROOF_FILES[proof][:2])})")
+        check(f"{proof}: the file's goal, declarations, steps and entries are "
+              "expected.py's", lambda p=proof: s0_file_problems(p))
+        try:
+            run = runs[proof] = s0_run(proof)
+        except Exception as e:  # noqa: BLE001 -- a kernel crash mid-proof
+            suite.record(7, f"{proof} runs", ["crash: " + crash_text(e)])
+            continue
+        suite.record(7, f"{proof}: the goal is echoed as ECHO", by_item(run, 6))
+        suite.record(7, f"{proof}: {len(S0.STEPS[proof])} steps accepted, closes with "
+                     f"?A := {S0.ANSWERS[proof]}, N = {S0.ADMISSIONS[proof]}, "
+                     f"'{S0.VERDICTS[proof]}'", by_item(run, 1))
+        suite.record(7, f"{proof}: every step's obligations (sources, status, tag, "
+                     "new), deriv's trace, the final tracker, no tag none",
+                     by_item(run, 2))
+        check(f"{proof}: the loader's states are a direct drive's",
+              lambda p=proof: s0_direct_problems(p))
+        check(f"{proof}: the answer is the integral (math module)",
+              lambda p=proof: s0_numeric_problems(p))
+    if S0 is not None:
+        print("\nStage 0 wrong answers")
+        for w in S0.WRONG_ANSWERS:
+            check(f"{w['id']}: {w['what']} -> {w['refusal']}, residual {w['residual']}",
+                  lambda w=w: s0_wrong_answer_problems(w))
+        print("\nStage 0 under two P1 seams (each in a child process)")
+        for name, case in S0_SEAMS.items():
+            check(f"{name} ({case['kind']}) on the problem files: caught at "
+                  f"{len(case['caught_by'])} location(s), S1 and S2 untouched",
+                  lambda n=name, c=case: s0_seam_problems(n, c))
+    return runs
+
+
 # ---------------------------------------------------------------- main
 
 def by_item(run, item):
@@ -2648,7 +3146,8 @@ def by_item(run, item):
 
 def main():
     suite = Suite()
-    print("proof_of_life: readiness P1 against p1_expected.py (WHAT.md Done-when 1-6)")
+    print("proof_of_life: readiness P1 against p1_expected.py (WHAT.md Done-when 1-6), "
+          "and stage 0's problem files against stage0/expected.py (item 7)")
     print("protection in force (§15.3): "
           + (K.HANDLES_IN_FORCE if K is not None
              else "unknown (the kernel did not import)"))
@@ -2809,6 +3308,9 @@ def main():
     suite.check(6, "ECHO_NONCANONICAL is echoed from the tree, not the input",
                 echo_noncanonical_problems)
 
+    print("\nProblem files: stage 0's S1-S3 through the loader (item 7)")
+    s0_runs = s0_checks(suite) if K is not None else {}
+
     print("\nPlanted bugs (each in a child process)")
     suite.check(3, "control: the child, unpatched, finds nothing", control_problems)
     for name, bug in X.PLANTED_BUGS.items():
@@ -2835,8 +3337,8 @@ def main():
     print(f"\n{'PASS' if not failed else 'FAIL'}: {len(suite.rows) - len(failed)} of "
           f"{len(suite.rows)} checks passed")
     print("\nVerdicts")
-    for name in X.PROOFS:
-        run = runs.get(name)
+    for name in [*X.PROOFS, *(S0.PROOF_FILES if S0 is not None else ())]:
+        run = runs.get(name) or s0_runs.get(name)
         if run is None or run.n is None:
             why = "the kernel did not import" if K is None else "did not close"
             print(f"  {name:<14} ({why})")
@@ -2856,4 +3358,6 @@ if __name__ == "__main__":
         sys.exit(backstop_child(sys.argv[2]))
     if sys.argv[1:2] == ["--isolate"] and len(sys.argv) == 3:
         sys.exit(isolated_child(sys.argv[2]))
+    if sys.argv[1:2] == ["--s0-seam"] and len(sys.argv) == 3:
+        sys.exit(s0_seam_child(sys.argv[2]))
     sys.exit(main())

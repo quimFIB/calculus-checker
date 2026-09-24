@@ -1,0 +1,27 @@
+{
+  "format": "calc-problem/0",
+  "id": "stage0.S2",
+  "title": "nominally a substitution",
+  "source": "STAGE0.md first pass, S2 (gap 5); WHAT.md, Start here",
+  "statement": "Evaluate the definite integral of x·exp(x²) from 0 to 1.",
+  "goal": "Int[x = 0 .. 1] x*exp(x^2) == ?A",
+  "answer_schema": "closed",
+  "declarations": {
+    "functions": {}
+  },
+  "reference_proof": [
+    {"id": "s1", "move": "ftc",
+     "args": {"F": "exp(x^2)/2", "check": "ring", "facts": []}},
+    {"id": "s2", "move": "rewrite",
+     "args": {"entry": "exp_one", "inst": {}, "at": "exp(1^2)"}},
+    {"id": "s3", "move": "rewrite",
+     "args": {"entry": "exp_zero", "inst": {}, "at": "exp(0^2)"}},
+    {"id": "s4", "move": "close",
+     "args": {"value": "(e_const - 1)/2", "check": "ring", "facts": []}}
+  ],
+  "notes": [
+    "A learner would substitute u = x^2. The reference proof does not: ftc with F := exp(x^2)/2 closes it directly (STAGE0.md gap 5), so this file does not exercise int_subst.",
+    "exp is total and the range is literal, so installation owes nothing. The only divisor is the literal 2.",
+    "The answer is stated with e_const, as STAGE0.md's (e - 1)/2, so the close needs exp_one and exp_zero. Neither is in WHAT.md's list of entries to add."
+  ]
+}

@@ -8,8 +8,13 @@ statement's domain items. The statements are the kernel's own, parsed from
 the strings below at import. p1_expected.py's NAMED_ENTRIES is the check on
 them, never their source.
 
-`e_gt_one` and `ln_e` join when stage 0's S3 is run (WHAT.md). P1 uses
-neither.
+The last four are stage 0's (kernel/problems/stage0/, WHAT.md "Start
+here"): S3 needs `ln_e` and the sign fact `e_gt_one`, and S2, whose answer
+is stated with e_const, needs `exp_zero` and `exp_one`. §6.8 states only
+e_gt_one. ln_e is as GRAMMAR.md §9 pins it, and exp_zero and exp_one are
+the only statements §6.8's row "exp 0, 1" can mean. P1 uses none of them.
+`e_gt_one` is not an equation, so rewrite refuses it; it is here as the
+cite that tagger.SIGN_FACTS names for e_const, as pi_pos is for pi.
 
 ENTRIES is read-only: writing to it would extend the trusted cite library
 (§15.2 item 7) for the whole process, and it is not one of
@@ -33,6 +38,10 @@ STATEMENTS = {
     "atan_odd": ("atan(-u) == -atan u", ("u",)),
     "sqrt_sq_val": ("(sqrt a)^2 == a @ a >= 0", ("a",)),
     "sqrt_pos": ("sqrt a > 0 @ a > 0", ("a",)),
+    "e_gt_one": ("e_const > 1", ()),
+    "ln_e": ("ln e_const == 1", ()),
+    "exp_zero": ("exp 0 == 1", ()),
+    "exp_one": ("exp 1 == e_const", ()),
 }
 
 

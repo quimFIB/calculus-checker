@@ -11,9 +11,10 @@ lives only once.
 ## Result
 
 **All six Done-when items pass.** `python3 kernel/proof_of_life.py` →
-`PASS: 225 of 225 checks passed`, exit 0; the unit tests
+`PASS: 225 of 225 checks passed` for items 1–6, exit 0. The unit tests
 (`python3 -m unittest discover -s kernel`) pass 69 of 69. Both were re-run
-independently after the last change, on 2026-09-24.
+independently after the last change, on 2026-09-24. Since then the suite has
+grown to 261, when the problem files below added item 7.
 
 | Proof | Verdict |
 |---|---|
@@ -132,6 +133,9 @@ The full text and reasons are in `GRAMMAR.md` §1 (D1–D18) and
 
 ## For `DESIGN.md` — what the milestone found wrong
 
+*Folded into `DESIGN.md` revision 10 (commit `5faf148`). Kept here as the
+record of what the milestone found.*
+
 **Soundness.**
 - **§6.4:** `ftc` never requires a ≤ b. With b < a both intervals are empty,
   all four premises hold vacuously, and it proves ∫₁⁻¹ 1/x² = 2. Rewriting
@@ -203,6 +207,65 @@ The full text and reasons are in `GRAMMAR.md` §1 (D1–D18) and
 **For the spike.** `spike/ring/test_field.py` writes `sqrt(3)^2`, which D6
 now refuses. The ported tests in `kernel/test_field.py` use `(sqrt 3)^2`.
 
+## Since: the first problem files, S1–S3 (2026-09-24)
+
+`WHAT.md`'s next step after the milestone. The problem files are
+`kernel/problems/stage0/S1.json`, `S2.json` and `S3.json`, in §16.4's `.json`
+format, each carrying its reference proof. The same discipline applied:
+`expected.py` was written by hand from the rules before any code ran against
+it. After that, `kernel/loader.py` (untrusted) and four new §6.8 entries
+(`ln_e`, `e_gt_one`, `exp_zero`, `exp_one`) were built, and item 7 of the
+suite checks the files.
+
+| Proof | Answer | Verdict |
+|---|---|---|
+| S1 ∫₀¹ 3x²+2x | 2 | Proved modulo 3 admissions |
+| S2 ∫₀¹ x·exp(x²) | (e − 1)/2 | Proved modulo 3 admissions |
+| S3 ∫₁^e (ln x)/x | 1/2 | Proved modulo 9 admissions (8 when the check is `ring`) |
+
+**The kernel matched the hand-written lists on every assertion, first
+time.** A clean first run can mean toothless checks, so it was tested in
+three ways:
+- The builder fed item 7 about 30 single mutations of the data, and every
+  one was caught.
+- A skeptic re-derived S3's list independently. It matched key for key.
+- The skeptic planted 18 bugs in copies of the kernel and loader, and item 7
+  caught all 18. Five of them, items 1–6 miss.
+
+The skeptic's minor findings are fixed:
+- the loader now refuses malformed files outright;
+- item 7 checks that it covers every problem file;
+- items 1–6 no longer depend on stage 0 importing.
+
+One point cannot be proved: `expected.py` was edited in place after the code
+existed. The builder says the only edit was an empty change log. The first
+run's saved output agrees, but the timestamps cannot rule out anything else.
+Next time the spec should be committed before the code.
+
+**Open, for `DESIGN.md`** (full text in `expected.py`'s `FINDINGS`):
+- **§9 and §6.8: the `closed` schema accepts an unevaluated answer.** S2
+  closes as `(exp 1 − exp 0)/2` and S3 as `(ln e_const)^2/2 − (ln 1)^2/2`,
+  with no §6.8 entry used. That is not unsound. But nothing enforces §6.8's
+  claim that every authored goal ends in its table, and whether `closed`
+  should require evaluated forms is a decision still to make.
+- **`WHAT.md`'s S3 sketch was wrong in three ways:**
+  - it missed four obligations: the integrand's `x # 0 @ [1, e]`,
+    `e_const > 0`, `1 > 0` and `2 # 0`;
+  - its "by range, e_gt_one" annotation was misattributed, since `e_gt_one`
+    closes the orientation `1 ≤ e_const`, not `d_ln`'s `x > 0`;
+  - it used two moves the kernel does not have, a multi-entry `rewrite` and a
+    `close` checked by `norm_num`.
+- **§5.3 method 2 against TAG_RULES and E4.** Method 2 says it "adds
+  nothing" when the range's order is unknown. The kernel instead always adds
+  [lo, hi] and owes the orientation separately.
+- **§6.2 against E12 on division by a literal.** `deriv` routes `u/2`
+  through `u*(1/2)`, owing `2 # 0`. P1 never tested this; S2 and S3 pin it.
+- **A `ring` check owes no divisors.** `ARCHITECTURE.md` §4 should say so.
+- **§16.4 names no field for the reference proof and gives `declarations`
+  no shape.** The files decide both, in PF1 and PF2.
+- **§6.8 names `ln_e`, `exp_zero` and `exp_one` without their statements.**
+  They are now pinned in `entries.py`.
+
 ## What is in `kernel/`
 
 | File | Role |
@@ -213,7 +276,9 @@ now refuses. The ported tests in `kernel/test_field.py` use `(sqrt 3)^2`.
 | `terms.py` | trusted: nodes, parser, printer, goal checks |
 | `entries.py`, `poly.py`, `field.py`, `deriv.py`, `kernel.py` | trusted: the §6.8 entries, `ring`/`field` (copied from the spike), §6.3, rules/tracker/handles/`step` |
 | `tagger.py`, `residual.py`, `schema.py` | untrusted: admission tags, residual rendering, the closed whitelist |
-| `proof_of_life.py` | the done script and regression suite |
+| `proof_of_life.py` | the done script and regression suite (items 1–6 for P1, item 7 for the problem files) |
+| `loader.py` | untrusted: reads a §16.4 problem file and drives its reference proof through `step()` |
+| `problems/stage0/` | S1–S3 as problem files, and `expected.py`, their hand-written expected results |
 | `test_field.py`, `test_grammar.py` | unit and property tests |
 
 `spike/` is untouched.

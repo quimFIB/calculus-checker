@@ -1,0 +1,42 @@
+{
+  "format": "calc-problem/0",
+  "id": "stage0.S3",
+  "title": "nontrivial domain obligation",
+  "source": "STAGE0.md first pass, S3; WHAT.md, Start here (the current encoding, with revision 10's additions)",
+  "statement": "Evaluate the definite integral of (ln x)/x from 1 to e.",
+  "goal": "Int[x = 1 .. e_const] (ln x)/x == ?A",
+  "answer_schema": "closed",
+  "declarations": {
+    "functions": {}
+  },
+  "reference_proof": [
+    {"id": "s1", "move": "ftc",
+     "args": {"F": "(ln x)^2 / 2", "check": "field", "facts": []}},
+    {"id": "s2", "move": "rewrite",
+     "args": {"entry": "ln_e", "inst": {}, "at": "ln e_const"}},
+    {"id": "s3", "move": "rewrite",
+     "args": {"entry": "ln_one", "inst": {}, "at": "ln 1"}},
+    {"id": "s4", "move": "close",
+     "args": {"value": "1/2", "check": "ring", "facts": []}}
+  ],
+  "alternative_proofs": {
+    "S3-ring": {
+      "why": "The same proof with ftc checked by ring. deriv's output and the integrand both ring-normalise to ln x * inv(x) (E3), so field is not needed, and ring owes no divisor (§6.2). This pins that ring's check emits nothing.",
+      "steps": [
+        {"id": "s1", "move": "ftc",
+         "args": {"F": "(ln x)^2 / 2", "check": "ring", "facts": []}},
+        {"id": "s2", "move": "rewrite",
+         "args": {"entry": "ln_e", "inst": {}, "at": "ln e_const"}},
+        {"id": "s3", "move": "rewrite",
+         "args": {"entry": "ln_one", "inst": {}, "at": "ln 1"}},
+        {"id": "s4", "move": "close",
+         "args": {"value": "1/2", "check": "ring", "facts": []}}
+      ]
+    }
+  },
+  "notes": [
+    "The range [1, e_const] cannot be ordered by norm_num, so every step that uses it owes 1 <= e_const (E4), which only e_gt_one's sign fact closes (§5.3 rev 9).",
+    "ln x owes x > 0 where it enters (E26), on [1, e_const] for the integrand and for F, and d_ln owes it again on (1, e_const).",
+    "WHAT.md's 'rewrite [ln_e, ln_one]' is two steps here, because the kernel's rewrite takes one entry. Its 'close ... by norm_num' is check ring here, because close takes ring or field and norm_num runs only on obligations (E7)."
+  ]
+}

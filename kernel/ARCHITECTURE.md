@@ -14,7 +14,8 @@ installed, one command:
 
 It is the done script: WHAT.md's Done-when items 1–6 against
 p1_expected.py, plus the suite's own cases for what P1's data cannot see
-(§8), exit 1 on any failure; its last line, `PASS: n of n checks passed`,
+(§8), plus item 7, stage 0's problem files against their own hand-written
+data (§9), exit 1 on any failure; its last line, `PASS: n of n checks passed`,
 gives the current count. Its header prints the protection in force,
 `handles for facts, sentinel for proof states`, with the reason the
 sentinel is enough for states (§2). It also runs the unit tests in a
@@ -32,7 +33,7 @@ tests alone: `python3 -m unittest discover -s kernel`.
 | File | Tier | §15.2 item | Imports |
 |---|---|---|---|
 | `terms.py` | trusted | 1, 8: nodes, fv/bv, substitution, goal checks, parser, printer | stdlib |
-| `entries.py` | trusted | 7: the ten §6.8 entries, pinned | terms |
+| `entries.py` | trusted | 7: the fourteen §6.8 entries, pinned (P1's ten and stage 0's four) | terms |
 | `poly.py` | trusted | 4: copied from `spike/ring/poly.py` | stdlib |
 | `field.py` | trusted | 4: `ring`, `field`, `norm_num` | poly, terms |
 | `deriv.py` | trusted | 2: §6.3's entries, applied | terms |
@@ -40,7 +41,8 @@ tests alone: `python3 -m unittest discover -s kernel`.
 | `tagger.py` | untrusted | none (§7, E24): computes admission tags | terms, poly, field, residual, entries |
 | `residual.py` | untrusted | none (§8.7): residual normal form to a term | poly, terms |
 | `schema.py` | untrusted | none (§9): the `closed` whitelist | terms |
-| `proof_of_life.py` | script | none | everything, p1_expected |
+| `loader.py` | untrusted | none (§16.4): reads a problem file, feeds its proof to `install` and `step` | kernel, terms |
+| `proof_of_life.py` | script | none | everything, p1_expected, problems/stage0/expected.py |
 
 **Keeping the trusted base auditable.** The trusted files are the ones
 whose mistakes are false theorems: they build terms and goals, decide
@@ -609,3 +611,46 @@ tests fail if either procedure decides a random pair holding a Deriv.
 
 It does not stop at the first failure. It exits non-zero if any case
 failed, and prints the verdict of each proof last.
+
+## 9. Problem files (item 7)
+
+`kernel/problems/stage0/` holds stage 0's S1–S3 as §16.4 problem files
+(`S1.json`, `S2.json`, `S3.json`, the shape its `expected.py` fixes in PF1
+and PF2), and `expected.py`, their behaviour written by hand before they
+ran, in p1_expected's shapes. No kernel file imports it; the suite loads it
+by path, since `kernel/problems` is not a package.
+
+`loader.py` is untrusted, like the tagger, for the same reason: it only
+proposes. `load(path)` shape-checks a file (closed key sets at every level, a
+repeated key refused, every field type-checked, no alternative named
+`reference`, format `calc-problem/0`, answer schema `closed`), and raises
+ValueError for every malformed file; its goal is parsed by
+`terms.parse_goal` with `declarations.functions` as the sig. `replay`
+installs the goal and feeds each step to `kernel.step`, with every term
+parsed and each `["handle", name]` replaced by the handle the kernel minted
+for the earlier fact step with that `bind`. It never builds a state, an
+obligation or a verdict, so a loader bug is a different problem checked in
+full, never a theorem. It is named `loader.py` so as not to collide with
+the `problems/` directory.
+
+Item 7 asserts, per proof (S1, S2, S3 and S3-ring, the S3 file's
+alternative): the file against its data (goal, declarations, step ids and
+moves, ftc's F, the entries used, cites included); the echo; each step's
+goal, occurrences and obligation list with sources, status, tag and new;
+deriv's trace, output and emissions; the final tracker; N, the verdict,
+the theorem and answer; that no admission is tagged none; that the
+loader's states equal those of a drive that does not use it; and a
+`math`-module check of the answer. Each of its six WRONG_ANSWERS is
+refused with its code, its residual equal under `compare` and not zero,
+and the state unchanged. Three more checks pin the four stage-0 entries as
+NEW_ENTRIES states them, the tagger's SIGN_FACTS against ENTRIES (so
+`e_gt_one`, which the tagger cites for `e_const`, is a real entry), and the
+loader's handle resolution and refusals, and a floor: PROOF_FILES is
+exactly S1, S2, S3 and S3-ring, every table is keyed by them, and every
+`*.json` in `stage0/` is one it names. Two P1 seams also run against the
+problem files in a child process (`--s0-seam NAME`, the same patches):
+`no_ln_former` and `d_ln_emits_nothing`, each caught at the locations the
+suite's `S0_SEAMS` derives from the data, with S1 and S2 untouched. The
+P1 planted-bug and mutation children still run P1's proofs only. Item 1's
+entries check asks only that P1's entries are present, and item 7 pins
+stage 0's, so a broken stage-0 import fails item 7 alone.

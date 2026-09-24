@@ -5,8 +5,9 @@ one way, course to tool (§18 Q6, settled revision 6). The course problems are a
 separable package `./calc` loads, not part of the tool, which is §1's
 replaceability test made operational.
 
-A design, two spikes, and **a headless kernel that proves readiness P1**
-(`kernel/`, the proof-of-life, 2026-09-24). The tool a learner would use is not
+A design, two spikes, and **a headless kernel that proves readiness P1 and
+stage 0's S1–S3** (`kernel/`, the proof-of-life and the first problem files,
+2026-09-24). The tool a learner would use is not
 built yet: there is no API, UI or assistance tier, and discharge is stubbed.
 Design 2026-09-20, stage 0b first pass 2026-09-21, decoupling pass and stage 0
 first pass 2026-09-22, the stage 0c `ring`/`field` spike (`spike/ring/`) and a
@@ -74,71 +75,40 @@ kill it. Nothing else is required reading before stage 1; Waterproof's course
 evaluations are optional, since adoption evidence for the class is not this
 tool's falsifier.
 
-## Start here: the first problem files (S1–S3)
+## Start here: the rest of stage 1, discharge first
 
-The proof-of-life is done: `python3 kernel/proof_of_life.py` proves both parts
-of readiness P1 and passes 225 checks (`PROOF_OF_LIFE.md`). The next step is
-the one it was built to unlock. **Run the first course goals through the
-kernel as its first problem files** (§16.4), and fix each encoding until the
-kernel accepts it with a correct obligation list. §17 says the kernel, not a
-reader, is the right reviewer of an encoding.
+The kernel proves readiness P1 and stage 0's S1–S3. `python3 kernel/proof_of_life.py`
+runs both and passes 261 checks (`PROOF_OF_LIFE.md`). Every verdict still
+reads *Proved modulo N admissions*, because nothing closes an obligation yet.
+Each one is admitted, tagged with the §5.3 method expected to close it. Stage 1
+has three pieces left:
 
-**Read for this step**, beyond §1, §8.5 and §17:
-- `PROOF_OF_LIFE.md`, for what the kernel does now and its caveats;
-- `kernel/ARCHITECTURE.md`, for the `step()` contract and the tracker;
-- §16.4, for the problem files;
-- §6.8, for the named entries S3 needs.
+1. **Real discharge (§5.3), recommended first.** This is what turns the
+   verdicts into `Proved`. The untrusted tagger already runs each method's
+   cheap feasibility check. Discharge has to do the same work as trusted
+   code that produces a certificate. The methods are:
+   - by hypothesis and by range;
+   - linear, by Fourier–Motzkin;
+   - the sign certificates;
+   - sign product;
+   - citing a §6.8 entry.
 
-**What it involves:**
-1. **A problem-file format and loader**, the `problem … proof … qed` shape
-   below, driving `step()`. The loader is untrusted: it only feeds moves to
-   the kernel. The goal still parses through `terms.parse_goal`.
-2. **The goals as files, seeded with `STAGE0.md`'s S1–S3:**
-   - S1 is ∫₀¹ 3x²+2x;
-   - S2 is ∫₀¹ x·exp(x²), which `ftc` closes with F := exp(x²)/2 and no
-     substitution;
-   - S3's current encoding is below.
-3. **For each goal, write the expected obligation list by hand before
-   running it**, as the proof-of-life did. The mismatches are the output:
-   either the encoding or the kernel is wrong, and each one is a finding.
-4. **Add the §6.8 entries they need** (`ln_e`, `e_gt_one`) to
-   `kernel/entries.py`, pinned by their exact statements.
+   The target is clear: every P1 and stage-0 admission tagged with a §5.3
+   method becomes discharged. What remains is the regularity premises, which
+   wait for item 3, and anything tagged `none`, which stays admitted. §18 Q22
+   asks what should happen to a `none`-tagged obligation that is false.
+2. **`int_subst` (§6.4).** P1.1 then starts from the sheet's own goal,
+   ∫₀^{π²/4} sin √x, rather than from the goal after the substitution.
+3. **The C⁰/C¹ subset of regularity (§6.9)** that `ftc` needs. This closes
+   the `reg` admissions, and is where `Int` and `D` get their definedness
+   (§18 Q23).
 
-**Done when** each of S1–S3 is accepted with its hand-written obligation list,
-that list is asserted by the regression suite, and every mismatch found along
-the way is either fixed or listed for `DESIGN.md`.
+Each piece works as the proof-of-life did. Write the expected results by hand
+before the code (for discharge, each obligation's new status and certificate),
+then build against them. The regression suite must stay green throughout.
 
-`STAGE0.md` is a frozen record, and its S3 is the revision-5 version.
-
-```
-problem stage0.S3                         -- nontrivial domain obligation
-  answer schema  closed
-  goal  Int[x = 1 .. e_const] (ln x)/x  ≐  ?A
-proof
-  step ftc  F := (ln x)^2 / 2
-       obl  F ∈ C⁰([1,e_const]) ∧ F ∈ C¹((1,e_const))   by reg
-            ⤷ obl  x > 0      @ [1,e_const]  by range, e_gt_one; linear
-       obl  D[x] F ≐ (ln x)/x    @ (1,e_const)  by deriv; field
-            ⤷ obl  x > 0      @ (1,e_const)  (d_ln)    by range, e_gt_one; linear
-            ⤷ obl  x # 0      @ (1,e_const)  (field)   by range, e_gt_one; linear
-       obl  (ln x)/x ∈ C⁰([1,e_const])                  by reg
-            ⤷ obl  x > 0      @ [1,e_const]  by range, e_gt_one; linear
-  step rewrite [ln_e, ln_one]
-  step close  ?A := 1/2                     by norm_num
-qed
-```
-
-Restated for revision 9, and checked against `spike/ring/`: `field` closes
-the derivative owing `x # 0`, and the close needs `ln_e` and `ln_one`. It
-needs `e_gt_one` (§6.8), so add that to the §6.8 entries when S3 is used.
-Revision 10 adds more: `ln x` now owes `x > 0` where it enters (E26), so the
-goal owes it on [1, e_const] at installation. The range also owes its
-orientation `1 ≤ e_const` (E4). Neither is in the block above, which is why
-step 3 writes the list by hand before running it.
-
-**After it:** the rest of stage 1 (real discharge, `int_subst`, regularity),
-then the in-process `step` becomes §16.3's API, then the recognizer table
-scored on a held-out set (revision 8), then the UI.
+**After stage 1:** the in-process `step` becomes §16.3's API, then the
+recognizer table scored on a held-out set (revision 8), then the UI.
 
 ## What has been done, in order
 
@@ -188,6 +158,20 @@ scored on a held-out set (revision 8), then the UI.
    - `ftc` did not require a ≤ b, so it proved the divergent ∫₁⁻¹ 1/x² = 2;
    - partial functions owed nothing, so `0*ln(-1)` proved. They now owe
      their natural domain (E26).
+5. **The first problem files, S1–S3 — done 2026-09-24.** They are §16.4's
+   `.json` problem files in `kernel/problems/stage0/`, each carrying its
+   reference proof. An untrusted `kernel/loader.py` drives them through
+   `step()`, and item 7 of the regression suite checks them against
+   `expected.py`, which was written by hand before any code ran. The kernel
+   matched it on every assertion first time, and a skeptic's 18 planted bugs
+   were all caught. S1 and S2 are proved modulo 3 admissions each, and S3
+   modulo 9. The step added four §6.8 entries: `ln_e`, `e_gt_one`,
+   `exp_zero` and `exp_one`. Its findings are in `expected.py`'s
+   `FINDINGS`:
+   - `WHAT.md`'s S3 sketch missed four obligations and misattributed
+     `e_gt_one`;
+   - §9's `closed` schema accepts an unevaluated F(b) − F(a), so the §6.8
+     entries are never actually required.
 
 **Stage 0b is closed** (2026-09-21 and 2026-09-22; setup and notes in
 `_scratch/holpy-trial/` — outside this tool, and a dangling pointer if it is ever published; findings in §4.2). Its verdict: reimplement the core

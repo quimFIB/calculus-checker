@@ -1,0 +1,22 @@
+{
+  "format": "calc-problem/0",
+  "id": "stage0.S1",
+  "title": "bare definite integral",
+  "source": "STAGE0.md first pass, S1; WHAT.md, Start here",
+  "statement": "Evaluate the definite integral of 3x² + 2x from 0 to 1.",
+  "goal": "Int[x = 0 .. 1] 3*x^2 + 2*x == ?A",
+  "answer_schema": "closed",
+  "declarations": {
+    "functions": {}
+  },
+  "reference_proof": [
+    {"id": "s1", "move": "ftc",
+     "args": {"F": "x^3 + x^2", "check": "ring", "facts": []}},
+    {"id": "s2", "move": "close",
+     "args": {"value": "2", "check": "ring", "facts": []}}
+  ],
+  "notes": [
+    "The control case: no divisor, no partial builtin and a literal range, so installation owes nothing and ftc owes only its three regularity premises.",
+    "F(1) - F(0) is 1^3 + 1^2 - (0^3 + 0^2), which ring evaluates, so no named entry is used."
+  ]
+}
