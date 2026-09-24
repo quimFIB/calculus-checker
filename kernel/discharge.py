@@ -37,7 +37,8 @@ divisor) is a rejection (E30).
 
 **Seams** (kernel/ARCHITECTURE.md §7). Each rule a planted bug removes is
 its own small function, looked up by name at call time: `_ends`,
-`_is_fact`, `_multiplier_ok`, `_goal_used`, `_contradicts`, `_square_ok`,
+`_is_fact`, `_sqrt_fact`, `_multiplier_ok`, `_goal_used`, `_contradicts`,
+`_square_ok`,
 `_constant_ok`, `_sign_identity`, `_parity_ok`, `_factors_hold`,
 `_hyps_hold`. Keep their names and signatures, and call them only as
 written here.
@@ -57,6 +58,7 @@ from terms import _fields as _node_fields
 GOAL = ("goal",)
 ZERO = Num(0)
 ORDERINGS = ("<", "<=", ">", ">=")
+SQRT_FACT = "sqrt_nonneg"  # E49: the sign fact read for each sqrt atom
 
 # The reasons a certificate is rejected, in the order DISCHARGE_RULE states
 # the rules. A rejected child is "child-rejected/" + its own reason.
@@ -223,7 +225,50 @@ def _constraint_set(key, sense):
         if _is_fact(entry, consts):
             (x, y), s = _reading(entry.statement)
             cs[("fact", name)] = (x, y, s)
+    for w in _sqrt_arguments(key):
+        label = ("fact", SQRT_FACT, w)
+        c = _sqrt_fact(key, label)
+        if c is not None:
+            cs[label] = c
     return cs
+
+
+def _sqrt_arguments(x):
+    """The argument w of every sqrt atom in a term, judgement, interval or
+    tuple."""
+    out = [x.arg] if type(x) is App and x.fn == "sqrt" else []
+    for k in _kids(x):
+        out += _sqrt_arguments(k)
+    return out
+
+
+def _sqrt_fact(key, label):
+    """E49's label ('fact', 'sqrt_nonneg', u): the constraint sqrt u >= 0,
+    non-strict, when sqrt_nonneg is in ENTRIES and an atom sqrt w with
+    ring_nf(w) = ring_nf(u) occurs in the key, else None. Its hypothesis
+    u >= 0 needs no child: the certificate claims the key only where its
+    terms are defined, and there that atom is defined, so its argument is
+    >= 0 (the former E26 charged where the sqrt entered). A seam
+    (ARCHITECTURE.md §7)."""
+    if not (len(label) == 3 and label[1] == SQRT_FACT and SQRT_FACT in ENTRIES
+            and _plain(label[2])):
+        return None
+    u = label[2]
+    for w in _sqrt_arguments(key):
+        p, q = _polys(u, w)
+        if p == q:
+            return (App("sqrt", u), ZERO, False)
+    return None
+
+
+def _constraint(cs, key, label):
+    """A label's constraint: from the set, or a sqrt label matched by the
+    ring normal form of its argument (SQRT_FACT_RULE)."""
+    if label in cs:
+        return cs[label]
+    if type(label) is tuple and label[:2] == ("fact", SQRT_FACT):
+        return _sqrt_fact(key, label)
+    return None
 
 
 # ---------------------------------------------------------------- Farkas (methods 2, 3)
@@ -258,12 +303,14 @@ def _farkas(key, cert):
     cs = _constraint_set(key, cert["sense"])
     mults = cert["multipliers"]
     _need(type(mults) is dict, "malformed")
+    used = {}
     for label, m in mults.items():
-        _need(label in cs, "unknown-label")
+        used[label] = _constraint(cs, key, label)
+        _need(used[label] is not None, "unknown-label")
         _need(_multiplier_ok(m), "multiplier-not-positive")
     _need(_goal_used(mults), "goal-unused")
     labels = list(mults)
-    terms = [t for label in labels for t in cs[label][:2]]
+    terms = [t for label in labels for t in used[label][:2]]
     polys = _polys(*terms) if terms else []
     total = {}
     for j, label in enumerate(labels):
@@ -271,11 +318,12 @@ def _farkas(key, cert):
         total = P.add(total, P.scale(h, Fraction(mults[label])))
     _need(P.is_const(total), "not-constant")
     k = P.const_value(total)
-    if not _contradicts(k, any(cs[label][2] for label in labels)):
+    if not _contradicts(k, any(used[label][2] for label in labels)):
         raise _Reject("positive-constant" if k > 0 else "zero-without-strict")
-    used = any(label[0] == "dom" for label in labels)
-    cites = tuple(n for n in ENTRIES if ("fact", n) in mults)
-    return ("range" if used else "linear"), cites
+    ranged = any(label[0] == "dom" for label in labels)
+    facts = {label[1] for label in labels if label[0] == "fact"}
+    cites = tuple(n for n in ENTRIES if n in facts)
+    return ("range" if ranged else "linear"), cites
 
 
 # ---------------------------------------------------------------- hyp (method 1)

@@ -26,6 +26,9 @@ What is checked:
   DECIDED_FALSE_MESSAGES, and every DISCHARGE_UNDECIDED key's admission;
 - the pinned entries (DISCHARGE_NEW_ENTRIES at their positions, and
   EXACT_VALUE_ENTRIES as ENTRIES' exact values);
+- SQRT_FACT_MUST_REJECT and SQRT_FACT_CHECKER_ACCEPTS, E49's sqrt_nonneg
+  label, whose Farkas family in the property test holds sqrt of a linear
+  polynomial, sampled where it is a rational square;
 - DISCHARGE_PROPERTY_TEST: every accept of every checker holds at sampled
   rational points of its domain by this file's own exact evaluation, and
   every refutation is false where it says, by an independent reading.
@@ -88,9 +91,10 @@ def cert_of(c):
     """A spec certificate (rationals and terms as strings) in the checker's
     form (Fractions and Terms), recursively."""
     m = c["method"]
-    if m == "farkas":
-        return {**c, "multipliers": {lab: Fraction(q)
-                                     for lab, q in c["multipliers"].items()}}
+    if m == "farkas":  # E49's sqrt label carries its argument as a string
+        return {**c, "multipliers": {
+            (lab[:2] + (term(lab[2]),) if _sqrt_label(lab) else lab): Fraction(q)
+            for lab, q in c["multipliers"].items()}}
     if m == "sign":
         return {**c, "const": Fraction(c["const"]),
                 "squares": tuple((Fraction(a), term(s), k)
@@ -117,6 +121,30 @@ def _same_nf(a, b, up_to_sign=False):
     return p == q or (up_to_sign and p == P.neg(q))
 
 
+def _sqrt_label(lab):
+    """E49's ('fact', 'sqrt_nonneg', u), as against ('dom', i, 'lo') and the
+    two-part fact labels."""
+    return len(lab) == 3 and lab[0] == "fact"
+
+
+def _same_multipliers(got, want):
+    """Farkas multipliers equal, E49's sqrt labels compared by the ring
+    normal form of their argument (SQRT_FACT_RULE), every other label
+    exactly."""
+    plain = [{lab: q for lab, q in ms.items() if not _sqrt_label(lab)}
+             for ms in (got, want)]
+    if plain[0] != plain[1]:
+        return False
+    left = [(lab, q) for lab, q in got.items() if _sqrt_label(lab)]
+    for lab, q in ((lab, q) for lab, q in want.items() if _sqrt_label(lab)):
+        hit = next((g for g in left if g[0][:2] == lab[:2] and g[1] == q
+                    and _same_nf(g[0][2], lab[2])), None)
+        if hit is None:
+            return False
+        left.remove(hit)
+    return not left
+
+
 def cert_differences(got, want, where="certificate"):
     """[] when `got` is `want` as DISCHARGE_RULE compares them: Farkas
     multipliers exactly, scaled so that ('goal',) has 1; a sign
@@ -137,7 +165,8 @@ def cert_differences(got, want, where="certificate"):
         def scaled(ms):
             g = ms.get(GOAL)
             return {lab: q / g for lab, q in ms.items()} if g else ms
-        if scaled(got["multipliers"]) != scaled(want["multipliers"]):
+        if not _same_multipliers(scaled(got["multipliers"]),
+                                 scaled(want["multipliers"])):
             out.append(f"{where}: multipliers {got['multipliers']}, expected "
                        f"{want['multipliers']}")
     elif m == "sign":
@@ -268,7 +297,26 @@ REJECT_REASONS = {
     "hyp_chain_broken": "chain-broken",
     "hyp_interval_item": "not-hypothesis-item",
     "norm_num_leaf_not_literal": "not-literal-true",
+    # SQRT_FACT_MUST_REJECT (E49)
+    "sqrt_fact_nonstrict_pair": "zero-without-strict",
+    "sqrt_fact_absent_atom": "unknown-label",
 }
+
+
+def _sqrt_case(c):
+    """A SQRT_FACT_* case in DISCHARGE_MUST_REJECT's shape ('cert')."""
+    return {**c, "cert": c["certificate"]}
+
+
+SQRT_FACT_MUST_REJECT = [_sqrt_case(c) for c in X.SQRT_FACT_MUST_REJECT]
+SQRT_FACT_CHECKER_ACCEPTS = [_sqrt_case(c) for c in X.SQRT_FACT_CHECKER_ACCEPTS]
+
+
+def sqrt_fact_accepted():
+    """The SQRT_FACT_MUST_REJECT ids whose certificate the checker accepts
+    (none, unless a seam is patched)."""
+    return [c["id"] for c in SQRT_FACT_MUST_REJECT
+            if DC.check(key(*c["key"]), cert_of(c["cert"])) is not None]
 
 
 def outcome(k):
@@ -445,8 +493,9 @@ def tan_zero_problems():
 
 def entries_problems():
     """DISCHARGE_NEW_ENTRIES pinned at their positions (sqrt_zero
-    immediately before sqrt_sq, cos_zero last), and EXACT_VALUE_ENTRIES as
-    ENTRIES' equations with no schema variable and no hypothesis."""
+    immediately before sqrt_sq, cos_zero after exp_one), SQRT_NONNEG_ENTRY
+    after cos_zero, and EXACT_VALUE_ENTRIES as ENTRIES' equations with no
+    schema variable and no hypothesis."""
     out, names = [], list(ENTRIES)
     for name, e in X.DISCHARGE_NEW_ENTRIES.items():
         got = ENTRIES.get(name)
@@ -461,10 +510,18 @@ def entries_problems():
             out.append(f"{name}: hyps")
     if "sqrt_zero" in names and names.index("sqrt_zero") + 1 != names.index("sqrt_sq"):
         out.append(f"sqrt_zero is not immediately before sqrt_sq: {names}")
-    if names[-1:] != ["cos_zero"]:
-        out.append(f"cos_zero is not last: {names}")
-    if len(names) != 16:
-        out.append(f"ENTRIES has {len(names)} entries, expected 16")
+    # cos_zero was appended last (DISCHARGE_NEW_ENTRIES), and sqrt_nonneg
+    # after it (SQRT_NONNEG_ENTRY, E49): ENTRIES goes from 16 to 17
+    if names[-2:] != ["cos_zero", "sqrt_nonneg"]:
+        out.append(f"cos_zero then sqrt_nonneg are not last: {names}")
+    if len(names) != 17:
+        out.append(f"ENTRIES has {len(names)} entries, expected 17")
+    for name, e in X.SQRT_NONNEG_ENTRY.items():
+        got = ENTRIES.get(name)
+        if got is None or got.statement != judgement(e["statement"]) \
+                or tuple(got.schema) != e["schema"] \
+                or tuple(got.hyps) != tuple(judgement(h) for h in e["hyps"]):
+            out.append(f"{name}: {got and T.show(got.statement)}")
     exact = {n for n, _ in DC._exact_entries()}
     if exact != set(X.EXACT_VALUE_ENTRIES):
         out.append(f"exact values {sorted(exact)}, expected "
@@ -943,6 +1000,22 @@ def _farkas_key(rng):
     return _key(prop, dom), ()
 
 
+def _sqrt_key(rng):
+    """E49's family: c0 + c1*sqrt(p) REL 0 for a linear p over an Interval,
+    with the points where p is a rational square as targets, so that sqrt p
+    is evaluated exactly (others are skipped and counted)."""
+    iv, (lo, hi) = _interval(rng)
+    a, b, p = _linear(rng, lo, hi, root_at_end=rng.random() < 0.5)
+    g = _lit_sum([(Fraction(rng.randint(-2, 3), rng.randint(1, 2)), None),
+                  (Fraction(rng.choice((1, 2, -1)), rng.randint(1, 2)),
+                   T.App("sqrt", p))])
+    strict = rng.random() < 0.5
+    prop = T.NonZero(g) if rng.random() < 0.25 else _rel(rng, g, strict)
+    targets = [{"x": (Fraction(n, d) ** 2 - b) / a}
+               for n, d in ((rng.randint(0, 12), rng.randint(1, 6)) for _ in range(8))]
+    return _key(prop, (iv,)), targets
+
+
 def _hyp_key(rng):
     """Γ relations sharing constants, so that chains exist, and a
     proposition that is an item, a # 0 of one, a chain's ends, or a random
@@ -1152,6 +1225,10 @@ def property_results(seed=SEED, families=None):
         for _ in range(200):
             k, _ = _farkas_key(rng)
             trial(rng, "farkas", k, random_certs=farkas_candidates(k)[:10])
+        for _ in range(80):  # E49's sqrt label (SQRT_FACT_RULE)
+            k, targets = _sqrt_key(rng)
+            trial(rng, "farkas", k, targets=targets,
+                  random_certs=farkas_candidates(k)[:10])
 
     def hyp(rng):
         for _ in range(250):
@@ -1271,13 +1348,22 @@ class Expected(unittest.TestCase):
 
 class MustReject(unittest.TestCase):
     def test_reasons_cover_the_cases(self):
-        self.assertEqual(set(REJECT_REASONS), {c["id"] for c in X.DISCHARGE_MUST_REJECT})
+        self.assertEqual(set(REJECT_REASONS), {c["id"] for c in X.DISCHARGE_MUST_REJECT
+                                               + SQRT_FACT_MUST_REJECT})
         self.assertEqual(len(X.DISCHARGE_MUST_REJECT), 32)
 
     def test_each_is_rejected_for_its_reason(self):
         for c in X.DISCHARGE_MUST_REJECT:
             with self.subTest(case=c["id"]):
                 self.assertEqual(must_reject_problems(c), [])
+
+    def test_sqrt_fact_cases(self):
+        for c in SQRT_FACT_MUST_REJECT:
+            with self.subTest(case=c["id"]):
+                self.assertEqual(must_reject_problems(c), [])
+        for c in SQRT_FACT_CHECKER_ACCEPTS:
+            with self.subTest(case=c["id"]):
+                self.assertEqual(checker_accept_problems(c), [])
 
     def test_each_neighbour_is_accepted(self):
         self.assertEqual(len(X.DISCHARGE_CHECKER_ACCEPTS), 9)

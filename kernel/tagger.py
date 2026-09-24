@@ -63,8 +63,8 @@ import field as FD
 import poly as P
 import residual
 from entries import ENTRIES
-from terms import (Add, Const, Div, Mul, Neg, NonZero, Num, Pow, Refused, Reg,
-                   Rel, Term, Var, subst, with_domain)
+from terms import (Add, App, Const, Div, Mul, Neg, NonZero, Num, Pow, Refused,
+                   Reg, Rel, Term, Var, subst, with_domain)
 
 # Constant name -> (entry name, sign fact). Read at call time. It is a seam:
 # the planted bug pi_pos_not_in_constraint_set clears it
@@ -75,6 +75,7 @@ SIGN_FACTS = {
 }
 
 NONE = ("none", ())
+SQRT_FACT = "sqrt_nonneg"  # E49's sign fact, one per sqrt atom
 ROOT_TEST_BOUND = 10 ** 6  # keeps the rational root test cheap (TAG_RULES)
 # How deep sign product's factorisations nest, a factor's own obligation
 # factorised again: past it, (ii) is not tried. §5.3's strictly lower degree
@@ -221,6 +222,8 @@ def _linear(prop, dom):
     names = {n.name for n in _nodes((prop, dom)) if isinstance(n, Const)}
     facts = [(entry, s) for name, (entry, fact) in SIGN_FACTS.items()
              if name in names for s in _rel_senses(fact)]
+    facts += [(SQRT_FACT, (App("sqrt", w), ZERO, False))
+              for w in sqrt_atoms((prop, dom))]
     items = [s for item in dom for s in _rel_senses(item)]
     for a, b, strict in _senses(prop):
         # The negation of a - b > 0 is b - a >= 0, and of >= it is >.
@@ -241,6 +244,23 @@ def _linear(prop, dom):
         cites = _dedup(facts[j - 1][0] for j in keep if 1 <= j <= nf)
         return ("range" if any(j > nf for j in keep) else "linear", cites)
     return None
+
+
+def sqrt_atoms(x):
+    """E49: the argument w of each distinct sqrt atom of x (distinct by
+    the ring normal form of w, §6.2's atom identity), when sqrt_nonneg is
+    in ENTRIES; each brings the sign fact sqrt w >= 0 to the linear method,
+    as pi brings pi_pos. Raises Refused like ring."""
+    if SQRT_FACT not in ENTRIES:
+        return []
+    args = [n.arg for n in _nodes(x) if isinstance(n, App) and n.fn == "sqrt"]
+    polys = FD.ring_polys(args)[0] if args else []
+    seen, out = set(), []
+    for w, p in zip(args, polys):
+        if P.frozen(p) not in seen:
+            seen.add(P.frozen(p))
+            out.append(w)
+    return out
 
 
 def _feasible(cons):

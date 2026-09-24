@@ -23,6 +23,11 @@ move at sqrt 0, and `cos_zero : cos 0 == 1`, appended last. Neither has a
 schema variable or a hypothesis, so each is an exact value (E31) that
 discharge.exact_values applies, and a rewrite by either owes nothing.
 
+`sqrt_nonneg : sqrt a >= 0 @ a >= 0` is the owner's sign fact for sqrt atoms
+(p1_expected E49, SQRT_NONNEG_ENTRY), appended last. The linear method reads
+it for each sqrt atom of a key, as it reads pi_pos for pi (discharge.py's
+('fact', 'sqrt_nonneg', u) label); it is also an ordinary cite entry.
+
 ENTRIES is read-only: writing to it would extend the trusted cite library
 (§15.2 item 7) for the whole process, and it is not one of
 kernel/ARCHITECTURE.md §7's seams, so nothing needs it mutable.
@@ -51,6 +56,7 @@ STATEMENTS = {
     "exp_zero": ("exp 0 == 1", ()),
     "exp_one": ("exp 1 == e_const", ()),
     "cos_zero": ("cos 0 == 1", ()),
+    "sqrt_nonneg": ("sqrt a >= 0 @ a >= 0", ("a",)),
 }
 
 

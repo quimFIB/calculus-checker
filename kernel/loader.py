@@ -21,7 +21,8 @@ Every object's key set is closed, at every level (a step is exactly {id,
 move, args}, declarations exactly {functions}, an alternative exactly {why,
 steps}), a repeated key is refused, and no alternative is named
 "reference". A step is {"id", "move", "args"}. args is kernel/ARCHITECTURE.md §4's, with
-every term as a GRAMMAR.md string and a fact as ["handle", name]: the handle
+every term as a GRAMMAR.md string (int_subst's sub, lo, hi and f among them,
+its var, new_var and mode names as strings) and a fact as ["handle", name]: the handle
 the earlier fact step with that `bind` minted. The client must never show
 reference_proof to a learner (PF1); nothing here reads it except to replay.
 """
@@ -44,7 +45,12 @@ REFERENCE = "reference"  # the name `proofs` gives reference_proof
 # The type of each args value step_args reads (ARCHITECTURE.md §4). Any
 # other key passes through, for the kernel to refuse 'bad-args'.
 ARG_TYPES = {"at": str, "F": str, "value": str, "inst": dict, "facts": list,
-             "entry": str, "bind": str, "check": str, "occurrence": int}
+             "entry": str, "bind": str, "check": str, "occurrence": int,
+             # int_subst's (p1_expected INT_SUBST_ARGS, _REVERSE, _OPTIONAL)
+             "var": str, "new_var": str, "sub": str, "lo": str, "hi": str,
+             "f": str, "mode": str}
+# The args that are GRAMMAR.md strings for terms, parsed with the file's sig.
+TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f")
 
 
 @dataclass(frozen=True)
@@ -161,14 +167,14 @@ def step_args(args, handles, sig):
     passes through unchanged, for the kernel to check."""
     out = {}
     for k, v in args.items():
-        if k in ("at", "F", "value"):
+        if k in TERM_ARGS:
             out[k] = parse_term(v, sig)
         elif k == "inst":
             out[k] = {var: parse_term(s, sig) for var, s in v.items()}
         elif k == "facts":
             out[k] = [_fact_ref(f, handles) for f in v]
-        else:  # entry, bind, check, occurrence
-            out[k] = v
+        else:  # entry, bind, check, occurrence, and int_subst's var,
+            out[k] = v  # new_var and mode, which the kernel reads as names
     return out
 
 

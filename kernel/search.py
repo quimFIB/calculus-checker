@@ -52,7 +52,7 @@ import field as FD
 import poly as P
 import tagger as TG
 from entries import ENTRIES
-from terms import (Add, Const, Div, Interval, Mul, Neg, NonZero, Num, Pow,
+from terms import (Add, App, Const, Div, Interval, Mul, Neg, NonZero, Num, Pow,
                    Refused, Rel, Term, Var, lit, subst, with_domain)
 
 NORM_NUM = {"method": "norm_num"}
@@ -161,6 +161,8 @@ def _labelled(key):
     out = [(("fact", entry), x, y, s)
            for const, (entry, fact) in TG.SIGN_FACTS.items() if const in names
            for x, y, s in TG._senses(fact)]
+    out += [(("fact", TG.SQRT_FACT, w), App("sqrt", w), ZERO, False)
+            for w in TG.sqrt_atoms((key, key.dom))]  # E49
     for i, item in enumerate(key.dom):
         if type(item) is Interval:
             v = Var(item.var)

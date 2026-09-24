@@ -1,8 +1,9 @@
 """The kernel: proof states, the rules P1 needs, and `step`.
 
 Trusted (DESIGN.md §15.2 items 2, 3 and 5). This file holds the rules
-(`rewrite`, `fact`, `ftc`, `close`, and §6.1's refl/trans/cong inside them,
-p1_expected E16), the matcher and instantiator (REWRITE_RULE), the
+(`rewrite`, `fact`, `ftc`, `close`, `int_subst`, and §6.1's refl/trans/cong
+inside them, p1_expected E16; int_subst is §6.4's substitution, forward and
+reverse, with E46's flip, as INT_SUBST_RULE states it), the matcher and instantiator (REWRITE_RULE), the
 obligation tracker, and §15.3's handles. kernel/ARCHITECTURE.md §4 is the
 contract for `step`. p1_expected.py is the specification, and it is never
 imported here. Nothing in this file names a P1 term: every obligation, tag
@@ -71,8 +72,11 @@ as 'Proved.'). Integral and Deriv nodes have no condition the kernel can
 state, and field.py refuses to normalise them instead (E26 (b)).
 
 **Seams** (ARCHITECTURE.md §7). `derivative_domain`, `_Tracker.add`,
-`NATURAL_DOMAINS`, `_encloses` and `_charge_formers` are ordinary code that
-the planted-bug and definedness-mutation runs replace in a child process.
+`NATURAL_DOMAINS`, `_encloses` and `_charge_formers`, and int_subst's rule
+functions (`_select`, `_fresh`, `_subst_under_D`, `_new_orientation`,
+`_subst_deriv`, `_reverse_check`, `_endpoint`, `_forward_premises`,
+`_reverse_premises`, `_new_integrand`, `_new_integral`), are ordinary code
+that the planted-bug and definedness-mutation runs replace in a child process.
 Keep their names and signatures. Call them only as written below, and never
 bind them anywhere else.
 """
@@ -91,11 +95,11 @@ import schema
 import search
 import tagger
 from entries import ENTRIES
-from terms import (NEG_INF, POS_INF, Add, App, Deriv, Div, Integral,
+from terms import (NEG_INF, POS_INF, Add, App, Deriv, Div, Integral, Mul,
                    Interval, MVar, Neg, NegInf, NonZero, Num, PosInf, Pow,
-                   Refused, Reg, Rel, RPow, Term, _shown, bv, check_goal,
-                   check_names, children, fv, instantiate, lit, show,
-                   show_goal, subst, trees, with_domain)
+                   Refused, Reg, Rel, RPow, Term, Var, _shown, bv, check_goal,
+                   check_names, children, fv, instantiate, lit, parse_term,
+                   show, show_goal, subst, trees, with_domain)
 
 # §15.3: "say which is in force". Both are, one per kind of object. Fact
 # slots take handles, accepted only by identity with the kernel's record
@@ -116,7 +120,7 @@ REASON_EMPTY = "domain inconsistent"  # §5.3's pre-check found the domain
 # infeasible and nothing else closed the key: vacuously true, admitted
 DECIDED_FALSE = "obligation-decided-false"  # E33
 VERDICT = "Proved modulo {n} admissions"
-MOVES = ("rewrite", "fact", "ftc", "close")
+MOVES = ("rewrite", "fact", "ftc", "close", "int_subst")
 
 # The documented public API. No name here returns a ProofState from a str,
 # bytes or dict (FORGERIES json_roundtrip_state, no_loader).
@@ -440,32 +444,52 @@ def derivative_domain(closed):
 # ---------------------------------------------------------------- arguments
 
 _ARGS = {"rewrite": ("entry", "inst", "at"), "fact": ("entry", "inst", "bind"),
-         "ftc": ("F", "check", "facts"), "close": ("value", "check", "facts")}
+         "ftc": ("F", "check", "facts"), "close": ("value", "check", "facts"),
+         "int_subst": ("var", "sub", "new_var", "lo", "hi", "check", "facts")}
+_TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f")
+
+
+def _names_variable(v):
+    """v is a str the parser reads as that variable (not pi, sin or e)."""
+    try:
+        return type(v) is str and parse_term(v) == Var(v)
+    except Refused:
+        return False
 
 
 def _check_args(move, args, goal):
     """'bad-args' unless args has exactly the move's keys (rewrite may add
-    `occurrence`), each of the right type. A term argument must be a Term
+    `occurrence`; int_subst `mode` and `occurrence`, and in reverse mode
+    needs `f`), each of the right type. A term argument must be a Term
     with no ?A, and check_goal must accept it as a side (its GRAMMAR code
-    otherwise), so every term that can enter the goal is well formed. With
-    the goal, the terms must pass check_names as one statement."""
+    otherwise), so every term that can enter the goal is well formed; an
+    int_subst term holds no oo either (close's rule). With the goal, the
+    terms must pass check_names as one statement."""
     need = set(_ARGS[move])
-    ok = type(args) is dict and need <= set(args) <= need | (
-        {"occurrence"} if move == "rewrite" else set())
+    optional = {"occurrence"} if move == "rewrite" else set()
+    if move == "int_subst":  # INT_SUBST_RULE step 1 (E36, E45, E48)
+        optional = {"mode", "occurrence"}
+        if type(args) is dict and args.get("mode") == "reverse":
+            need |= {"mode", "f"}
+    ok = type(args) is dict and need <= set(args) <= need | optional
     inst = args.get("inst", {}) if ok else None
     ok = ok and type(inst) is dict and all(type(k) is str for k in inst)
     ok = ok and all(type(args[k]) is str
                     for k in ("entry", "bind") if k in args)
     ok = ok and type(args.get("occurrence", 0)) is int
-    if ok and move in ("ftc", "close"):
+    if ok and move in ("ftc", "close", "int_subst"):
         facts = args["facts"]
         ok = (type(args["check"]) is str and args["check"] in ("ring", "field")
               and type(facts) in (list, tuple)
               and not (args["check"] == "ring" and facts))
+    if ok and move == "int_subst":
+        ok = (type(args.get("mode", "forward")) is str
+              and args.get("mode", "forward") in ("forward", "reverse")
+              and args.get("occurrence", 0) >= 0
+              and _names_variable(args["var"]) and _names_variable(args["new_var"]))
     if not ok:
         raise Refused("bad-args", f"{move} takes {', '.join(sorted(need))}")
-    given = [args[k] for k in ("at", "F", "value") if k in args] + list(
-        inst.values())
+    given = [args[k] for k in _TERM_ARGS if k in args] + list(inst.values())
     for t in given:  # check_goal first: it refuses a malformed node unread
         if not isinstance(t, Term):
             raise Refused("bad-args", f"not a term without ?A: {_shown(t)}")
@@ -476,6 +500,8 @@ def _check_args(move, args, goal):
                 raise
             raise Refused("bad-args", f"not a term without ?A: "
                           f"{_shown(t)}") from None
+        if move == "int_subst" and _holds_infinity(t):
+            raise Refused("bad-args", f"{show(t)} mentions oo")
     check_names(goal, *given)  # no x(y) into a goal whose x is a variable
 
 
@@ -758,9 +784,11 @@ def _charge_formers(buf, term, dom, goal_dom, anc=()):
     its orientation, when a key uses that range). Each divisor goes through
     E25 in _emit, and each key through E7.
 
-    A seam (ARCHITECTURE.md §7): rewrite is its only caller that passes
-    `anc`, by keyword, and the mutations rewrite_R_former_at_goal_domain and
-    rewrite_R_former_on_ranges_only replace it in a child process."""
+    A seam (ARCHITECTURE.md §7): rewrite and int_subst are its only callers
+    that pass `anc`, by keyword, and the mutations
+    rewrite_R_former_at_goal_domain and rewrite_R_former_on_ranges_only
+    replace it in a child process that runs PROOFS and the case tables, none
+    of which reaches int_subst."""
     for _, s, d, a in _positions(term, dom, anc):
         for prop, divisor in _owed(s):
             _emit_at(buf, prop, d, a, "former", goal_dom, divisor)
@@ -959,6 +987,12 @@ def _ftc(state, args, minted, buf):
     return goal, None, {"trace": d.trace, "output": d.output}
 
 
+def _holds_infinity(t):
+    """An Int limit below t is oo or -oo (close's rule for its value)."""
+    return any(isinstance(k, (PosInf, NegInf)) for s in _subterms(t)
+               for _, k in children(s))
+
+
 def _close(state, args, minted, buf):
     """§9, E19, E23: refl behind the scope check and the whitelist, then
     check_goal on the theorem (D5-uncalled when the value names a symbol
@@ -969,8 +1003,7 @@ def _close(state, args, minted, buf):
         raise Refused("close-no-mvar", "close needs ?A as the goal's rhs")
     # Trusted, not left to schema.py: no obligation charges an improper
     # integral's convergence, so a lax whitelist must not admit one.
-    if any(isinstance(k, (PosInf, NegInf)) for s in _subterms(v)
-           for _, k in children(s)):
+    if _holds_infinity(v):
         raise Refused("bad-args", "an answer cannot mention oo")
     clash = fv(v) & bv(state.original)
     if clash:
@@ -991,4 +1024,241 @@ def _close(state, args, minted, buf):
     return None, theorem, {}
 
 
-_MOVE = {"rewrite": _rewrite, "fact": _fact, "ftc": _ftc, "close": _close}
+# ---------------------------------------------------------------- int_subst
+#
+# p1_expected's INT_SUBST_RULE (DESIGN.md §6.4, E36-E49), step by step. Each
+# rule a planted bug removes is its own function, looked up by its global
+# name at call time (ARCHITECTURE.md §7): _select, _fresh, _subst_under_D,
+# _new_orientation, _subst_deriv, _reverse_check, _endpoint,
+# _forward_premises, _reverse_premises, _new_integrand and _new_integral.
+
+S_SUBST_LO, S_SUBST_HI = "int_subst_lo", "int_subst_hi"
+S_SUBST_C1, S_SUBST_C0 = "int_subst_phi_C1", "int_subst_f_C0"
+S_SUBST_INT = "int_subst_integrand"
+
+
+def _settles(key):
+    """DISCHARGE_RULE's steps (3)-(5) alone, as E46 asks of an orientation
+    candidate: norm_num, the exact values then norm_num, or a certificate
+    the trusted checker accepts. It never refutes and never emits."""
+    try:
+        said = FD.norm_num(key)
+        if said is None:
+            new, _ = discharge.exact_values(key)
+            said = FD.norm_num(new)
+        if said is not None:
+            return said
+        cert = search.propose(key)
+        return cert is not None and discharge.check(key, cert) is not None
+    except (Refused, RecursionError):
+        return False
+
+
+def _select(g, var, k):
+    """Step 2 (E48): the Integral nodes of the non-?A side(s), in
+    REWRITE_RULE's pre-order; the k-th, or with no k the one binding var.
+    Returns (side index, path, the Int, its position domain P, anc)."""
+    ints = [(i, p, s, d, a) for i, side in enumerate(_sides(g))
+            for p, s, d, a in _positions(side, g.dom) if isinstance(s, Integral)]
+    if k is not None:
+        if k >= len(ints):
+            raise Refused("int-subst-no-integral",
+                          f"the goal holds no integral at occurrence {k}")
+        if ints[k][2].var != var:
+            raise Refused("int-subst-wrong-variable", f"the integral is over "
+                          f"{ints[k][2].var}, not {var}")
+        return ints[k]
+    over = [x for x in ints if x[2].var == var]
+    if not over:
+        if ints:
+            raise Refused("int-subst-wrong-variable",
+                          f"no integral in the goal is over {var}")
+        raise Refused("int-subst-no-integral", "the goal holds no integral")
+    if len(over) > 1:
+        raise Refused("int-subst-ambiguous", f"{len(over)} integrals are over "
+                      f"{var}; give an occurrence")
+    return over[0]
+
+
+def _fresh(goal, v):
+    """Step 4 (E42): new_var occurs nowhere in the goal, free or bound."""
+    if v in fv(goal) | bv(goal):
+        raise Refused("int-subst-not-fresh", f"{v} already occurs in the goal; "
+                      "choose a fresh variable")
+
+
+def _subst_scope(g, anc, parts):
+    """Step 5 (E42, E48): each (part, term, extra names) has its free
+    variables in scope at the position (the goal's free names and the
+    enclosing Ints' binders) plus the extra ones."""
+    scope = fv(g) | {a.integral.var for a in anc if isinstance(a, _IntScope)}
+    for part, t, extra in parts:
+        out = sorted(fv(t) - scope - extra)
+        if out:
+            raise Refused("int-subst-scope", f"{part} {show(t)} mentions "
+                          f"{out[0]}, which is not in scope")
+
+
+def _subst_under_D(anc, it, terms):
+    """Step 6 (E48), REWRITE_RULE step 9 at the position: below a D[y], y
+    may occur neither in the selected Int (limits, body), nor in the args'
+    terms, nor in a limit of an Int between the D[y] and the position."""
+    for i, dx in enumerate(anc):
+        if isinstance(dx, _IntScope):
+            continue
+        y = dx.var
+        through = [a.integral for a in anc[i + 1:] if isinstance(a, _IntScope)]
+        if (any(y in fv(t) for t in (it, *terms))
+                or any(y in fv(j.lo) | fv(j.hi) for j in through)):
+            raise Refused("rewrite-under-D-needs-open-domain",
+                          f"under D[{y}] the equation's domain in {y} must be "
+                          "open (§6.1 rev 9)")
+
+
+def _new_orientation(buf, v, lo, hi, P, G):
+    """Step 8, E46: (flip, I'). Two rational literals are ordered, owing
+    nothing, and kept. Otherwise lo <= hi at P, if steps (3)-(5) discharge
+    it, is emitted and the limits kept; else hi <= lo likewise, and the new
+    integral is flipped; else the step is refused. A candidate that is not
+    discharged is never emitted."""
+    ql, qh = FD.rational_value(lo), FD.rational_value(hi)
+    if ql is not None and qh is not None:
+        a, b = (lo, hi) if ql <= qh else (hi, lo)
+        return False, Interval(v, a, True, b, True)
+    for flip, (a, b) in ((False, (lo, hi)), (True, (hi, lo))):
+        key = with_domain(Rel("<=", a, b), P)
+        if _settles(key):
+            _emit(buf, key, "orient", G)
+            return flip, Interval(v, a, True, b, True)
+    raise Refused("int-subst-orientation-undecided", f"the order of {show(lo)} "
+                  f"and {show(hi)} is not decided; state it in the goal's domain")
+
+
+def _subst_deriv(sub, x, D):
+    """Step 10 (E38): deriv on the closed range, whose side conditions are
+    therefore owed at its ends."""
+    return DV.deriv(sub, x, D)
+
+
+def _reverse_check(check, body, Fg, dg, f, minted, D, G, buf):
+    """Step 11 (E45): body == Fg * g' at D by `check`, recorded discharged
+    ('deriv+' + check, the facts' entries), certificate None."""
+    rhs = Mul(Fg, dg)
+    try:
+        _check(check, body, rhs, minted, D, G, buf, "int-subst-check-failed")
+    except Refused as r:
+        if r.code != "int-subst-check-failed":
+            raise
+        raise Refused(r.code, "the integrand is not f(g(x))*g'(x) for f := "
+                      f"{show(f)}", r.residual) from None
+    cites = tuple(dict.fromkeys(rec.entry for rec in minted))
+    _emit(buf, with_domain(Rel("==", body, rhs), D), S_SUBST_INT, G,
+          ("deriv+" + check, cites))
+
+
+def _endpoint(check, image, limit, end, source, minted, P, G, buf):
+    """Step 12 (E39): image == limit at P, after the exact values (E31), by
+    `check`; recorded as written, discharged (check, the exact values'
+    entries then the facts'), never admitted and never refuted."""
+    eq = with_domain(Rel("==", image, limit), P)
+    rewritten, used = discharge.exact_values(eq)
+    try:
+        _check(check, rewritten.lhs, rewritten.rhs, minted, P, G, buf,
+               "int-subst-endpoint-mismatch")
+    except Refused as r:
+        if r.code != "int-subst-endpoint-mismatch":
+            raise
+        raise Refused(r.code, f"{show(image)} == {show(limit)} fails at the "
+                      f"{end} limit", r.residual) from None
+    cites = tuple(dict.fromkeys(used + tuple(rec.entry for rec in minted)))
+    _emit(buf, eq, source, G, (check, cites))
+
+
+def _forward_premises(sub, F, D, it, P):
+    """Step 13 (E38): phi in C^1 and the composed f(phi(t)) in C^0, both on
+    the new closed range (§6.4, §11.1's correction)."""
+    return [(with_domain(Reg(sub, 1), D), S_SUBST_C1),
+            (with_domain(Reg(F, 0), D), S_SUBST_C0)]
+
+
+def _reverse_premises(sub, Fg, D, f, v, lo, hi, P):
+    """Step 13 (E45): g in C^1 and f(g(x)) in C^0, both on the old closed
+    range, so no image of g is stated and g may be non-monotone."""
+    return [(with_domain(Reg(sub, 1), D), S_SUBST_C1),
+            (with_domain(Reg(Fg, 0), D), S_SUBST_C0)]
+
+
+def _new_integrand(F, dphi):
+    """Step 14, forward: f(phi(t)) * phi'(t), phi' as deriv gave it (E41)."""
+    return Mul(F, dphi)
+
+
+def _new_integral(v, lo, hi, body, flip):
+    """Step 14: Int[v = lo .. hi] body, limits as given (E40), or flipped,
+    Int[v = hi .. lo] -body, on a discharged hi <= lo (E46, §5.1)."""
+    return Integral(v, hi, lo, Neg(body)) if flip else Integral(v, lo, hi, body)
+
+
+def _int_subst(state, args, minted, buf):
+    """INT_SUBST_RULE steps 2-15, forward (x := sub over new_var) or
+    reverse (new_var := sub, the learner's f). Returns (new goal, None,
+    deriv's trace and output). Everything that can refuse runs in the
+    rule's order, and every emission goes through _emit."""
+    g = state.goal[0]
+    G, reverse = g.dom, args.get("mode") == "reverse"
+    var, sub, v, lo, hi = (args[k] for k in ("var", "sub", "new_var", "lo", "hi"))
+    check, f = args["check"], args.get("f")
+    side, path, it, P, anc = _select(g, var, args.get("occurrence"))  # step 2
+    a, b, body = it.lo, it.hi, it.body
+    for end in (a, b):  # step 3
+        if isinstance(end, (PosInf, NegInf)):
+            raise Refused("int-subst-infinite-endpoint", "int_subst needs finite "
+                          f"limits, and {'oo' if isinstance(end, PosInf) else '-oo'}"
+                          " is not (int_improper is the route)")
+    _fresh(state.goal, v)  # step 4
+    parts = ([("the substitution", sub, {var}), ("the new integrand", f, {v})]
+             if reverse else [("the substitution", sub, {v})])
+    _subst_scope(g, anc, parts + [("the lower limit", lo, set()),
+                                  ("the upper limit", hi, set())])  # step 5
+    _subst_under_D(anc, it, (sub, lo, hi) + ((f,) if reverse else ()))  # step 6
+    if reverse:  # step 7: the images and the composition, by terms.subst
+        Fg = subst(f, {v: sub})
+        eqs = ((subst(sub, {var: a}), lo), (subst(sub, {var: b}), hi))
+    else:
+        F = subst(body, {var: sub})
+        eqs = ((subst(sub, {v: lo}), a), (subst(sub, {v: hi}), b))
+    if reverse:  # step 8: the old range, owing its orientation
+        old, orient = _range(it, P)
+        if orient is not None:
+            _emit(buf, orient, "orient", G)
+    for t in (lo, hi):
+        _charge_formers(buf, t, P, G, anc=anc)
+    flip, new_range = _new_orientation(buf, v, lo, hi, P, G)
+    D = P + ((old,) if reverse else (new_range,))
+    _charge_formers(buf, sub, D, G, anc=anc)  # step 9
+    if reverse:
+        _charge_formers(buf, Fg, D, G, anc=anc)
+    d = _subst_deriv(sub, var if reverse else v, D)  # step 10
+    for key, source in d.emissions:
+        _emit(buf, key, source, G)
+    if reverse:  # step 11
+        _reverse_check(check, body, Fg, d.output, f, minted, D, G, buf)
+    for (image, limit), end, source in zip(eqs, ("lower", "upper"),
+                                           (S_SUBST_LO, S_SUBST_HI)):
+        _endpoint(check, image, limit, end, source, minted, P, G, buf)  # step 12
+    premises = (_reverse_premises(sub, Fg, D, f, v, lo, hi, P) if reverse
+                else _forward_premises(sub, F, D, it, P))
+    for key, source in premises:  # step 13
+        _emit(buf, key, source, G)
+    new_body = f if reverse else _new_integrand(F, d.output)  # step 14
+    new = _new_integral(v, lo, hi, new_body, flip)
+    sides = list(_sides(g))
+    sides[side] = _put(sides[side], path, new)
+    _charge_formers(buf, new, P, G, anc=anc)
+    goal = (replace(g, lhs=sides[0], rhs=sides[1] if len(sides) > 1 else g.rhs),)
+    check_goal(goal)
+    return goal, None, {"trace": d.trace, "output": d.output}
+
+
+_MOVE = {"rewrite": _rewrite, "fact": _fact, "ftc": _ftc, "close": _close,
+         "int_subst": _int_subst}

@@ -36,11 +36,11 @@ tests alone: `python3 -m unittest discover -s kernel`.
 | File | Tier | §15.2 item | Imports |
 |---|---|---|---|
 | `terms.py` | trusted | 1, 8: nodes, fv/bv, substitution, goal checks, parser, printer | stdlib |
-| `entries.py` | trusted | 7: the sixteen §6.8 entries, pinned (P1's ten, stage 0's four, and the owner's `sqrt_zero` and `cos_zero`, E35) | terms |
+| `entries.py` | trusted | 7: the seventeen §6.8 entries, pinned (P1's ten, stage 0's four, the owner's `sqrt_zero` and `cos_zero`, E35, and `sqrt_nonneg`, E49) | terms |
 | `poly.py` | trusted | 4: copied from `spike/ring/poly.py` | stdlib |
 | `field.py` | trusted | 4: `ring`, `field`, `norm_num` | poly, terms |
 | `deriv.py` | trusted | 2: §6.3's entries, applied | terms |
-| `kernel.py` | trusted | 2, 3, 5: rules, E6 and E26's formers, matcher, tracker, handles, `step`, discharge at emission (§5) | terms, entries, field, deriv, discharge, tagger, search, refute, residual, schema (poly only through field) |
+| `kernel.py` | trusted | 2, 3, 5: rules (`int_subst` among them, §11), E6 and E26's formers, matcher, tracker, handles, `step`, discharge at emission (§5) | terms, entries, field, deriv, discharge, tagger, search, refute, residual, schema (poly only through field) |
 | `discharge.py` | trusted | 5: the certificate checkers (hyp, Farkas, sign, sign product, cite, the norm_num leaf) and the exact-value rewrite (E28–E31) | terms, entries, field, poly |
 | `tagger.py` | untrusted | none (§7, E24): computes admission tags; its Fourier–Motzkin keeps its Farkas witness (`refutation`) | terms, poly, field, residual, entries |
 | `search.py` | untrusted | none (E28): proposes one certificate per obligation | terms, poly, field, entries, tagger, discharge |
@@ -392,6 +392,23 @@ proceeds as follows, with refusals given in the order they are tested:
   integral's convergence, so a lax untrusted whitelist must not be the only
   guard.
 
+- **`int_subst`** is §6.4's substitution, specified in full by
+  p1_expected's INT_SUBST_RULE (E36–E49), and described in §11 here. Its
+  args are `{var, sub, new_var, lo, hi, check, facts}`, with optional `mode`
+  (`"forward"`, the default, or `"reverse"`, which needs `f`) and
+  `occurrence`. The refusals, in order: bad-args (step 1, with `var` and
+  `new_var` read as variable names and no oo in a term);
+  `int-subst-no-integral`, `int-subst-wrong-variable` and
+  `int-subst-ambiguous` (the selection); `int-subst-infinite-endpoint`;
+  `int-subst-not-fresh`; `int-subst-scope`; rewrite's
+  `rewrite-under-D-needs-open-domain`; `subst-under-D` and
+  `rpow-literal-exponent` from `terms.subst`; the orientation's
+  `int-subst-orientation-undecided`; decided-false formers (E33);
+  deriv's refusals; reverse mode's `int-subst-check-failed` (residual body −
+  f(g(x))·g′); `int-subst-endpoint-mismatch` (residual image − limit after
+  the exact values); and `check_goal` on the new goal. `last.trace` and
+  `last.output` are deriv's, as for ftc.
+
 A check that fails raises `field.NotEqual(residual)`. The kernel turns it
 into a Refusal carrying `residual.residual_term(r)`, which is lhs − rhs
 (E14). The kernel runs no norm_num, refl, trans or cong move: norm_num runs
@@ -553,7 +570,7 @@ Each patch is the mutation's own text, written in `proof_of_life.py`:
 | `ring_reads_Int_as_atom`, `ring_reads_D_as_atom`, `field_reads_Int_as_atom`, `field_reads_D_as_atom` | `field._Normaliser.tree`, which `norm` calls for each Integral or Deriv node | a method that returns the spike's tree atom for that node kind in ring's (or field's) normaliser, and calls the original otherwise |
 | `norm_num_admits_Int`, `norm_num_admits_D`, `norm_num_ignores_domain` | `field.norm_num_tree(node, in_domain)`, which only norm_num calls, and `field.hypothesis_tree(node)`, install's gate on the goal's hypotheses | a wrapper on each that returns instead of raising for that node kind, or for any node in the domain (a hypothesis counts as one); both, because the data's caught_by names install cases the gate refuses first |
 | `deriv_d_const_on_Int_or_D` | `deriv.const_guard` | `lambda t: None` |
-| `rewrite_R_former_at_goal_domain`, `rewrite_R_former_on_ranges_only` | `kernel._charge_formers`, which only rewrite calls with `anc=` | a wrapper that charges R at the goal's domain, or at the position domain less the goal's items |
+| `rewrite_R_former_at_goal_domain`, `rewrite_R_former_on_ranges_only` | `kernel._charge_formers`, which only rewrite and int_subst call with `anc=` (these children run no int_subst) | a wrapper that charges R at the goal's domain, or at the position domain less the goal's items |
 | `limit_former_on_own_range` | `kernel._encloses(slot)`, which `_positions` asks whether an Int's child is in its scope | `lambda slot: True` |
 
 Thirteen more serve p1_expected's DISCHARGE_NEW_PLANTED_BUGS, one per
@@ -774,6 +791,21 @@ P1 planted-bug and mutation children still run P1's proofs only. Item 1's
 entries check asks only that P1's entries are present, and item 7 pins
 stage 0's, so a broken stage-0 import fails item 7 alone.
 
+**Stage 1** (`kernel/problems/stage1/`: SUB1, S2R and SUB2, the int_subst
+problem files, expected.py's section 12). Item 7 runs the same checks on
+them through a `Book`, the table bundle its functions read: stage 0's
+reads sections 1–11, stage 1's the `INT_SUBST_*` tables. Per proof: the file
+against its data (each int_subst's `sub` against its DERIV row), the echo,
+each step's goal, obligations (with reasons and certificates) and deriv's
+trace, the final tracker, N, the verdict, the theorem, the loader against a
+direct drive and a math-module check; each of INT_SUBST_WRONG_ANSWERS and
+INT_SUBST_S0_REFUSALS by code, message and residual (S2-SUB-W1's deriv
+trace read from deriv on its closed range); and stage 1's own floor:
+`stage1/` holds exactly the files INT_SUBST_PROOF_FILES names, and every
+section-12 table is keyed by the same proofs. A refused step is recorded
+where it happens, after the steps before it are compared, as a PROOFS run
+records it.
+
 ## 10. Discharge: the checkers, the search and refutation
 
 p1_expected's section 11 (E28–E35, DISCHARGE_RULE) specifies discharge. It
@@ -840,3 +872,81 @@ message stated for a key; every undecided key's admission and reason; and
 DISCHARGE_PROPERTY_TEST, whose families of keys (one per checker, each on
 its own seeded stream), evaluator (Fractions, shares no code with the
 kernel) and counts are in `test_discharge.py`'s property section.
+
+## 11. int_subst (p1_expected section 12)
+
+§6.4's substitution, as INT_SUBST_RULE states it, is a fifth `step()` move
+in `kernel.py`, written step by step in `_int_subst` with each rule a planted
+bug removes as its own function (the seams below):
+
+- **Selection** (`_select`, E48): the Integral nodes of the goal's non-?A
+  side in REWRITE_RULE's pre-order, the `occurrence`-th or, with none, the
+  one binding `var`. Its position domain P (the goal's domain and the
+  ranges of the Ints enclosing it) replaces the goal's domain throughout.
+- **Names** (`_fresh`, `_subst_scope`, E42): `new_var` occurs nowhere in the
+  goal; `sub`, `f`, `lo` and `hi` mention only names in scope at the
+  position, plus `new_var` (forward `sub`, reverse `f`) or `var` (reverse
+  `sub`). Below a D[y], `_subst_under_D` is rewrite's step 9.
+- **Syntax** by `terms.subst`, capture-avoiding and trusted: forward
+  F := body[var := sub] and the images sub[new_var := lo], sub[new_var :=
+  hi]; reverse f(g(x)) := f[new_var := sub] and sub[var := a], sub[var :=
+  b].
+- **Orientation** (`_new_orientation`, E46): two rational literal limits
+  are ordered for the range and kept as given; otherwise `lo <= hi` at P,
+  then `hi <= lo`, is put to discharge's steps 3–5 alone (`_settles`, which
+  never refutes), the discharged one is emitted, and the second flips the
+  new integral, Int[new_var = hi .. lo] −body′; neither refuses
+  `int-subst-orientation-undecided`.
+- **Emissions**, in INT_SUBST_RULE's order: the reverse mode's old-range
+  orientation; lo's and hi's formers at P; sub's (and reverse f(g(x))'s)
+  formers on the closed range D; deriv's side conditions on D
+  (`_subst_deriv`, E38); reverse mode's `body == f(g(x))*g'(x)` by `check`
+  (`_reverse_check`), recorded discharged `('deriv+' + check, facts)`; the
+  two endpoint equations (`_endpoint`, E39), rewritten by the exact values
+  (`discharge.exact_values`) and decided by `check`, recorded discharged
+  `(check, entries used + facts)` with sources `int_subst_lo` and
+  `int_subst_hi`; the two Reg premises (`_forward_premises`,
+  `_reverse_premises`), admitted `regularity not built`; and the new
+  integral's formers at P with its own range. Everything goes through
+  `_emit`.
+- **The new goal**: `_new_integral(new_var, lo, hi, body′, flip)` with
+  body′ = F·phi′ (`_new_integrand`) or f, put at the selected position, then
+  `check_goal`.
+
+**sqrt_nonneg** (E49): `entries.py` gains `sqrt a >= 0 @ a >= 0`. The
+Farkas checker reads a label `('fact', 'sqrt_nonneg', u)` as `sqrt u >= 0`
+when a sqrt atom with u's ring normal form occurs in the key
+(`discharge._sqrt_fact`, a seam), with no child for its hypothesis (the
+atom is defined wherever the key's terms are). The search and the tagger
+add one such constraint per distinct sqrt atom (`tagger.sqrt_atoms`).
+
+**Item S** (`proof_of_life.py`): P1.1-sheet, staged outside PROOFS (E47),
+through the PROOFS runner with a `Tables` bundle for the INT_SUBST_* tables
+(its echo is the fallback's, whose goal it is); every INT_SUBST_ACCEPTS case
+with its continuation, certificates and reasons (the int_subst step's
+fields located as (INT_SUBST_ACCEPTS, id, prop, dom, what)); every
+INT_SUBST_BAD_MOVES case by code, message filled from INT_SUBST_MESSAGES or
+DECIDED_FALSE_MESSAGES, and residual under `compare`. REFUSAL_CODES_INT_SUBST
+joins the refusal-code coverage. Item 3 runs INT_SUBST_PLANTED_BUGS and
+INT_SUBST_SEAMS as `--int-subst NAME` children (the control as
+`--int-subst-control`): P1.1-sheet, both case tables, stage 1's files and
+wrong answers (locations prefixed `S0`), SQRT_FACT_MUST_REJECT and the
+property test's named families. Item D asserts SQRT_FACT_MUST_REJECT and
+SQRT_FACT_CHECKER_ACCEPTS, and the property test's Farkas family holds sqrt
+atoms.
+
+| INT_SUBST_PLANTED_BUGS key | Seam | The child's patch |
+|---|---|---|
+| `int_subst_skips_endpoint_check` | `kernel._endpoint` | records the equation discharged, unchecked |
+| `int_subst_drops_phi_prime` | `kernel._new_integrand` | F alone |
+| `int_subst_deriv_on_open` | `kernel._subst_deriv` | deriv on the open interval |
+| `int_subst_C0_on_original_integrand` | `kernel._forward_premises` | Reg(body, 0) on the old range |
+| `int_subst_no_orientation` | `kernel._new_orientation` | nothing decided or emitted, limits kept |
+| `int_subst_flips_without_decision` | `kernel._new_orientation` | flips when lo <= hi is not discharged |
+| `int_subst_skips_freshness` | `kernel._fresh` | a no-op |
+| `int_subst_sorts_new_limits` | `kernel._new_integral` | literal limits ordered |
+| `int_subst_occurrence_ignored` | `kernel._select` | the first Int binding var |
+| `int_subst_under_D_unchecked` | `kernel._subst_under_D` | a no-op |
+| `int_subst_reverse_skips_check` | `kernel._reverse_check` | records the identity, unchecked |
+| `int_subst_reverse_premise_on_new_range` | `kernel._reverse_premises` | f in C^0 between the new limits |
+| `sqrt_fact_strict` | `discharge._sqrt_fact` | the constraint strict |
