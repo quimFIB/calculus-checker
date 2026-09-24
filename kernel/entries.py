@@ -16,6 +16,13 @@ the only statements §6.8's row "exp 0, 1" can mean. P1 uses none of them.
 `e_gt_one` is not an equation, so rewrite refuses it; it is here as the
 cite that tagger.SIGN_FACTS names for e_const, as pi_pos is for pi.
 
+Two more are the owner's (p1_expected E35 (3), DISCHARGE_NEW_ENTRIES):
+`sqrt_zero : sqrt 0 == 0`, placed immediately before sqrt_sq so that E27
+(a), which names the first entry that counts at a subterm, names the direct
+move at sqrt 0, and `cos_zero : cos 0 == 1`, appended last. Neither has a
+schema variable or a hypothesis, so each is an exact value (E31) that
+discharge.exact_values applies, and a rewrite by either owes nothing.
+
 ENTRIES is read-only: writing to it would extend the trusted cite library
 (§15.2 item 7) for the whole process, and it is not one of
 kernel/ARCHITECTURE.md §7's seams, so nothing needs it mutable.
@@ -28,6 +35,7 @@ from terms import NonZero, Rel, fv, parse_judgement
 
 STATEMENTS = {
     # name: (statement, schema)
+    "sqrt_zero": ("sqrt 0 == 0", ()),
     "sqrt_sq": ("sqrt(u^2) == u @ u >= 0", ("u",)),
     "pi_pos": ("pi > 0", ()),
     "sin_pi_half": ("sin(pi/2) == 1", ()),
@@ -42,6 +50,7 @@ STATEMENTS = {
     "ln_e": ("ln e_const == 1", ()),
     "exp_zero": ("exp 0 == 1", ()),
     "exp_one": ("exp 1 == e_const", ()),
+    "cos_zero": ("cos 0 == 1", ()),
 }
 
 

@@ -7,6 +7,8 @@
     python3 kernel/proof_of_life.py --backstop NAME one closing check_goal, reached through a seam (a child)
     python3 kernel/proof_of_life.py --isolate NAME  one E26 (b) seam weakened alone (a child)
     python3 kernel/proof_of_life.py --s0-seam NAME  the problem files under one P1 seam (a child)
+    python3 kernel/proof_of_life.py --discharge-plant NAME  one discharge planted bug (a child)
+    python3 kernel/proof_of_life.py --discharge-control     the same child, unpatched
 
 It asserts every item of WHAT.md's "Done when" against p1_expected.py, which
 was written before the kernel and is never changed to fit it. The header
@@ -29,6 +31,8 @@ mirroring the implementation.
   3  each PLANTED_BUGS mutation, and each DEFINEDNESS_MUTATIONS one,
      patched into a child process through the seams of ARCHITECTURE.md §7,
      is caught at every `caught_by` location, with N as the data gives it;
+     and each DISCHARGE_NEW_PLANTED_BUGS one at the locations commit (1)
+     of DISCHARGE_SWITCH can observe (DISCHARGE_MUST_REJECT, PROPERTY);
   4  each WRONG_ANSWERS move is refused, its residual equal to the expected
      one under `compare` and not zero; deriv's trace on W1, and on the
      divisor-owing rules P1 never reaches;
@@ -61,9 +65,17 @@ mirroring the implementation.
      S3-W3's E27 residual compared as a tree, with its message). Also the four
      stage-0 entries pinned in entries.py, and the tagger's sign facts
      against ENTRIES.
+  D  discharge (p1_expected section 11, DISCHARGE_SWITCH (1)), called
+     directly, with nothing wired into kernel._emit: the pinned sqrt_zero
+     and cos_zero, every certificate the data gives accepted with its tag
+     and proposed by the search, every must-reject certificate rejected for
+     its reason, every must-accept neighbour, every decided-false message,
+     every undecided admission, and DISCHARGE_PROPERTY_TEST, all from
+     test_discharge.py. The E27 cases are asserted as DISCHARGE_E27_CHANGES
+     switches them, since entries.py now holds cos_zero and sqrt_zero.
 
-It also runs the unit tests (test_field.py, test_grammar.py) in a child
-process, as one check of its own beside items 1-6: field's planted bugs
+It also runs the unit tests (test_field.py, test_grammar.py,
+test_discharge.py) in a child process, as one check of its own beside items 1-6: field's planted bugs
 neg_power_wrong_divisor and reduce_drops_q pass items 1-6 and are caught
 there only, so this one command is the whole regression suite.
 
@@ -130,6 +142,17 @@ except Exception as e:  # noqa: BLE001 -- reported by every item-7 check
     LD = S0 = STAGE0_DIR = None
     STAGE0_ERROR = "".join(traceback.format_exception_only(type(e), e)).strip()
 
+# The discharge checks of DISCHARGE_SWITCH's commit (1): test_discharge.py
+# holds them, and this script runs them one case at a time (item D) and
+# plants the discharge bugs through its seams (item 3). Imported apart, so
+# that items 1-7 run whatever it does.
+try:
+    import test_discharge as TD
+    DISCHARGE_ERROR = None
+except Exception as e:  # noqa: BLE001 -- reported by every item-D check
+    TD = None
+    DISCHARGE_ERROR = "".join(traceback.format_exception_only(type(e), e)).strip()
+
 SIG = X.SIG
 ITEMS = {
     1: "proves P1.1 == 2 and P1.2 in both forms",
@@ -139,9 +162,31 @@ ITEMS = {
     5: "refuses bad moves and forgeries",
     6: "round-trips the parser, echoes each goal",
     7: "problem files S1-S3 as stage0/expected.py states them",
+    "D": "discharge's checkers, search and refutation, called directly "
+         "(DISCHARGE_SWITCH (1))",
 }
-UNIT, UNIT_TEXT = "unit", "unit tests: test_field.py, test_grammar.py"  # beside 1-6
+UNIT, UNIT_TEXT = "unit", ("unit tests: test_field.py, test_grammar.py, "
+                           "test_discharge.py")  # beside 1-6
 MAX_SHOWN = 12  # detail lines printed under one failed check
+
+
+def _e27_switched():
+    """BAD_MOVES and EVALUATED_ACCEPTS as DISCHARGE_E27_CHANGES gives them.
+    DISCHARGE_SWITCH (1) pins cos_zero and sqrt_zero in entries.py, and E27
+    reads entries.ENTRIES, so the E27 cases switch in the same commit:
+    e27_no_entry_in_force (cos 0 accepted) leaves EVALUATED_ACCEPTS,
+    e27_goal_lhs_before_close is refused at cos 0 naming cos_zero, and
+    e27_cos_zero and e27_sqrt_zero join BAD_MOVES. Every other case is
+    p1_expected's as it stands."""
+    ch = X.DISCHARGE_E27_CHANGES
+    moves = [dict(b, e27=ch["BAD_MOVES_replace"][b["id"]]["e27"])
+             if b["id"] in ch["BAD_MOVES_replace"] else b for b in X.BAD_MOVES]
+    accepts = [c for c in X.EVALUATED_ACCEPTS
+               if c["id"] not in ch["EVALUATED_ACCEPTS_remove"]]
+    return moves + list(ch["BAD_MOVES_add"]), accepts
+
+
+BAD_MOVES, EVALUATED_ACCEPTS = _e27_switched()
 
 
 # ---------------------------------------------------------------- data to calls
@@ -945,7 +990,7 @@ def refusal_coverage_problems():
     refusal path nothing exercises. p1_expected's "unreachable in P1" notes
     are true of P1's proofs, not of the kernel: every REFUSAL_CODES code
     needs a case too, from DIRECT_REFUSALS when no move reaches it."""
-    named = {c["refusal"] for c in X.BAD_MOVES + X.WRONG_ANSWERS + SUITE_BAD_MOVES}
+    named = {c["refusal"] for c in BAD_MOVES + X.WRONG_ANSWERS + SUITE_BAD_MOVES}
     named |= {a.split(":", 1)[1] for f in X.FORGERIES for a in f["accept"]
               if a.startswith("refusal:")}
     named |= set(DIRECT_CODES) | {"syntax"}  # HOSTILE_TREES
@@ -1025,7 +1070,7 @@ def e27_refusal_problems(r, e27, parse):
 
 
 def e27_cases():
-    return [b for b in X.BAD_MOVES if "e27" in b]
+    return [b for b in BAD_MOVES if "e27" in b]
 
 
 def e27_clause_problems():
@@ -1467,7 +1512,7 @@ def case_failures():
     crash and propagates."""
     out = []
     for table, fn in CASE_TABLES:
-        for c in getattr(X, table):
+        for c in (BAD_MOVES if table == "BAD_MOVES" else getattr(X, table)):
             try:
                 problems = globals()[fn](c)
             except Mismatch as m:
@@ -1714,7 +1759,7 @@ def isolated_child(name):
         return 2
     try:
         from unittest import mock
-        cases = {c["id"]: c for c in [*SUITE_BAD_MOVES, *X.BAD_MOVES]}
+        cases = {c["id"]: c for c in [*SUITE_BAD_MOVES, *BAD_MOVES]}
         with isolated_patch(name, mock):
             results = {i: move_result(cases[i]) for i in ISOLATED_SEAMS[name]["results"]}
     except Exception:  # noqa: BLE001 -- a crash, not a catch
@@ -3274,6 +3319,179 @@ def s0_checks(suite):
     return runs
 
 
+# ---------------------------------------------------------------- discharge (item D)
+#
+# DISCHARGE_SWITCH (1): discharge.py's trusted checkers, search.py's
+# untrusted search and refute.py's untrusted decided-false check, called
+# directly through test_discharge.py, one case per check. Nothing is wired
+# into kernel._emit yet, so items 1-7 still assert the pre-discharge tables;
+# commit (2) switches them.
+
+def discharge_checks(suite):
+    """Item D's rows."""
+    if TD is None:
+        suite.record("D", "discharge's checks", [
+            f"not run: test_discharge.py did not import ({DISCHARGE_ERROR})"])
+        return
+    suite.check("D", "DISCHARGE_NEW_ENTRIES pinned (sqrt_zero immediately before "
+                "sqrt_sq, cos_zero last), and EXACT_VALUE_ENTRIES is ENTRIES' exact "
+                "values", TD.entries_problems)
+    for row in TD.expected_certificates():
+        where, _, tag, spec = row
+        suite.check("D", f"{' / '.join(where)}: the {spec['method']} certificate is "
+                    f"accepted as {tag}, and the search proposes it",
+                    lambda row=row: TD.expected_problems(row))
+    for c in X.DISCHARGE_MUST_REJECT:
+        why = TD.REJECT_REASONS.get(c["id"])
+        suite.check("D", f"DISCHARGE_MUST_REJECT {c['id']}: rejected {why}; its truth, "
+                    f"and {c['if_emitted'][0]} if emitted",
+                    lambda c=c: TD.must_reject_problems(c))
+    for c in X.DISCHARGE_CHECKER_ACCEPTS:
+        suite.check("D", f"DISCHARGE_CHECKER_ACCEPTS {c['id']}: accepted as {c['tag']}",
+                    lambda c=c: TD.checker_accept_problems(c))
+    for where, spec in TD.decided_false_cases():
+        suite.check("D", f"{where}: obligation-decided-false, '{spec[0]}' message",
+                    lambda spec=spec: TD.decided_false_problems(spec))
+    for row in TD.undecided_cases():
+        suite.check("D", f"{row[0]}: {row[1][0]} @ {row[1][1]} admitted {row[1][4]}, "
+                    f"{row[2]!r}", lambda row=row: TD.undecided_problems(row))
+    suite.check("D", "DISCHARGE_DEFINEDNESS_CASES tan_zero_true: cos 0 # 0 reads 1 # 0 "
+                "with cos_zero, discharged by norm_num", TD.tan_zero_problems)
+    suite.check("D", f"DISCHARGE_PROPERTY_TEST (seed {TD.SEED}): every accept of the "
+                f"{len(TD.CHECKERS)} checkers holds at sampled points, every "
+                "refutation is false", discharge_property_problems)
+
+
+def discharge_property_problems():
+    results = TD.property_results()
+    print(f"          counts (accepted/evaluated/skipped): "
+          f"{TD.property_summary(results)}")
+    return TD.property_problems(results)
+
+
+# DISCHARGE_NEW_PLANTED_BUGS, each patched into a child process through a
+# seam of discharge.py or search.py (ARCHITECTURE.md §7), as PLANTED_BUGS
+# are. Commit (1) can observe the DISCHARGE_MUST_REJECT and PROPERTY
+# locations; the N and status locations need discharge wired into
+# kernel._emit, and are commit (2)'s. search_scales_wrongly's data
+# locations are all commit (2)'s, so it gets locations of the suite's own:
+# the search's certificate for a DISCHARGE_EXPECTED key is refused.
+DISCHARGE_OBSERVABLE = ("DISCHARGE_MUST_REJECT", "PROPERTY")
+DISCHARGE_PLANT_EXTRA = {
+    "search_scales_wrongly": [
+        ("DISCHARGE_EXPECTED", "P1.1", "0 <= pi/2", "true"),
+        ("DISCHARGE_EXPECTED", "P1.1-fallback", "pi/2 >= 0", "true"),
+        ("stage0 DISCHARGE_EXPECTED", "S3", "1 <= e_const", "true"),
+        ("stage0 DISCHARGE_EXPECTED", "S3", "e_const > 0", "true")],
+}
+
+
+def discharge_seam_patch(name, mock):
+    """The child's patch for one DISCHARGE_NEW_PLANTED_BUGS key: the
+    mutation's own text, through the seam that holds that rule."""
+    import discharge as DC
+    import search as SR
+
+    def seam(module, attr, new):
+        assert callable(getattr(module, attr, None)), \
+            f"seam {module.__name__}.{attr} is missing"
+        return mock.patch.object(module, attr, new)
+
+    ends, witness = DC._ends, SR._witness
+
+    def swapped(i, iv):  # ('dom', i, 'lo') from the hi end, and back
+        v, out = T.Var(iv.var), {}
+        if isinstance(iv.hi, T.Term):
+            out[("dom", i, "lo")] = (v, iv.hi, not iv.hi_closed)
+        if isinstance(iv.lo, T.Term):
+            out[("dom", i, "hi")] = (iv.lo, v, not iv.lo_closed)
+        return out
+
+    patches = {
+        "farkas_ignores_strictness": (DC, "_contradicts", lambda k, strict: k <= 0),
+        "farkas_allows_negative_multiplier": (DC, "_multiplier_ok",
+                                              lambda m: DC._rational(m)),
+        "farkas_swaps_interval_ends": (DC, "_ends", swapped),
+        "farkas_closed_as_open": (DC, "_ends", lambda i, iv: {
+            lab: (x, y, True) for lab, (x, y, _) in ends(i, iv).items()}),
+        "farkas_any_fact": (DC, "_is_fact", lambda entry, consts: (
+            type(entry.statement) is T.Rel and entry.statement.op in DC.ORDERINGS)),
+        "farkas_no_goal_needed": (DC, "_goal_used", lambda mults: True),
+        "sign_skips_ring": (DC, "_sign_identity", lambda g, total: True),
+        "sign_zero_constant_strict": (DC, "_constant_ok", lambda c0, strict: c0 >= 0),
+        "sign_any_exponent": (DC, "_square_ok", lambda c, s, k: (
+            DC._rational(c) and type(k) is int and k >= 1 and DC._plain(s))),
+        "product_skips_parity": (DC, "_parity_ok", lambda c, rels: True),
+        "product_skips_children": (DC, "_factors_hold", lambda dom, factors: ()),
+        "cite_skips_hypotheses": (DC, "_hyps_hold", lambda dom, hyps, children: ()),
+        "search_scales_wrongly": (SR, "_witness", lambda ms: witness(
+            {lab: q / 2 if lab[0] == "fact" else q for lab, q in ms.items()})),
+    }
+    if name not in patches:
+        raise KeyError(f"no seam for discharge planted bug {name!r}")
+    return seam(*patches[name])
+
+
+def discharge_child(name):
+    """Under one DISCHARGE_NEW_PLANTED_BUGS patch (name None: the control),
+    print {"mismatches": [...]}: each must-reject case accepted, each
+    DISCHARGE_EXPECTED key whose search certificate is refused, and, for a
+    bug whose caught_by names PROPERTY, each of those checkers the property
+    test finds unsound, running those families only. The property test's
+    own control is item D's unpatched run of every family. A crash exits
+    2."""
+    if TD is None:
+        print(DISCHARGE_ERROR, file=sys.stderr)
+        return 2
+    try:
+        if name is None:
+            ctx, families = contextlib.nullcontext(), ()
+        else:
+            from unittest import mock
+            ctx = discharge_seam_patch(name, mock)
+            families = [c[1] for c in X.DISCHARGE_NEW_PLANTED_BUGS[name]["caught_by"]
+                        if c[0] == "PROPERTY"]
+        with ctx:
+            found = TD.must_reject_accepted() + TD.search_rejected()
+            if families:
+                results = TD.property_results(families=families)
+                found += [["PROPERTY", n] for n, st in results.items() if st.violations]
+    except Exception:  # noqa: BLE001 -- a crash, not a catch
+        traceback.print_exc()
+        return 2
+    print(json.dumps({"mismatches": found}))
+    return 0
+
+
+def discharge_plant_results():
+    """Every DISCHARGE_NEW_PLANTED_BUGS child and the control, a few at a
+    time: name -> spawn's (data, problems)."""
+    from concurrent.futures import ThreadPoolExecutor
+    names = [None, *X.DISCHARGE_NEW_PLANTED_BUGS]
+    with ThreadPoolExecutor(max_workers=max(2, min(8, os.cpu_count() or 2))) as ex:
+        futures = {n: ex.submit(spawn, *(("--discharge-control",) if n is None else
+                                         ("--discharge-plant", n))) for n in names}
+    return {n: f.result() for n, f in futures.items()}
+
+
+def discharge_observable(bug):
+    caught = [tuplify(c) for c in bug["caught_by"]]
+    return ([c for c in caught if c[0] in DISCHARGE_OBSERVABLE],
+            [c for c in caught if c[0] not in DISCHARGE_OBSERVABLE])
+
+
+def discharge_planted_problems(name, result):
+    data, out = result
+    if data is None:
+        return out
+    found = data["mismatches"]
+    if name is None:
+        return out + [f"unpatched child found {m}" for m in sorted(found, key=str)]
+    now, _ = discharge_observable(X.DISCHARGE_NEW_PLANTED_BUGS[name])
+    return out + [f"not caught at {c}" for c in now + DISCHARGE_PLANT_EXTRA.get(name, [])
+                  if c not in found]
+
+
 # ---------------------------------------------------------------- main
 
 def by_item(run, item):
@@ -3357,7 +3575,7 @@ def main():
     suite.check(4, "W1: deriv's trace and output on sin t - t*cos t", w1_deriv_problems)
 
     print("\nBad moves")
-    for b in X.BAD_MOVES:
+    for b in BAD_MOVES:
         suite.check(5, f"{b['id']}{' (added)' if b.get('added') else ''} -> {b['refusal']}",
                     lambda b=b: bad_move_problems(b))
     for b in SUITE_BAD_MOVES:
@@ -3368,13 +3586,13 @@ def main():
     suite.check(5, f"E27's clause, subterm and entry for its {len(e27_cases())} "
                 "refusals, by schema.evaluated_offence on the value",
                 e27_clause_problems)
-    order = [b for b in X.BAD_MOVES if b["id"].startswith("e27_") and "e27" not in b]
+    order = [b for b in BAD_MOVES if b["id"].startswith("e27_") and "e27" not in b]
     if not order:
         suite.record(5, "E27's order in close", ["no ordering case in BAD_MOVES"])
     for b in order:
         suite.check(5, f"{b['id']} (added): wrong and unevaluated -> {b['refusal']} "
                     "with residual lhs - value, before E27", lambda b=b: e27_order_problems(b))
-    for c in X.EVALUATED_ACCEPTS:
+    for c in EVALUATED_ACCEPTS:
         suite.check(5, f"EVALUATED_ACCEPTS {c['id']} ({c['kind']}): {c['value']} "
                     "closes by refl", lambda c=c: evaluated_accept_problems(c))
     for name, c in BACKSTOPS.items():
@@ -3464,6 +3682,10 @@ def main():
     print("\nProblem files: stage 0's S1-S3 through the loader (item 7)")
     s0_runs = s0_checks(suite) if K is not None else {}
 
+    print("\nDischarge, called directly (item D; DISCHARGE_SWITCH (1), nothing wired "
+          "into kernel._emit)")
+    discharge_checks(suite)
+
     print("\nPlanted bugs (each in a child process)")
     suite.check(3, "control: the child, unpatched, finds nothing", control_problems)
     for name, bug in X.PLANTED_BUGS.items():
@@ -3474,6 +3696,18 @@ def main():
     for name, m in X.DEFINEDNESS_MUTATIONS.items():
         suite.check(3, f"{name}: {m['mutation']}; caught at {len(m['caught_by'])} "
                     "location(s)", lambda n=name, m=m: mutation_problems(m, results[n]))
+    print("\nDischarge planted bugs (each in a child process; the N and status "
+          "locations are commit (2)'s)")
+    dresults = discharge_plant_results() if TD is not None else {}
+    suite.check(3, "discharge control: the child, unpatched, finds nothing",
+                lambda: discharge_planted_problems(None, dresults[None]))
+    for name, bug in X.DISCHARGE_NEW_PLANTED_BUGS.items():
+        now, later = discharge_observable(bug)
+        extra = len(DISCHARGE_PLANT_EXTRA.get(name, ()))
+        suite.check(3, f"{name}: {bug['mutation']}; caught at {len(now)} location(s)"
+                    + (f" and {extra} of the suite's" if extra else "")
+                    + (f", {len(later)} deferred to commit (2)" if later else ""),
+                    lambda n=name: discharge_planted_problems(n, dresults[n]))
     suite.check(3, "the unmutated run is clean afterwards", clean_after_problems)
 
     print("\nUnit tests (a child process)")
@@ -3513,4 +3747,8 @@ if __name__ == "__main__":
         sys.exit(isolated_child(sys.argv[2]))
     if sys.argv[1:2] == ["--s0-seam"] and len(sys.argv) == 3:
         sys.exit(s0_seam_child(sys.argv[2]))
+    if sys.argv[1:2] == ["--discharge-plant"] and len(sys.argv) == 3:
+        sys.exit(discharge_child(sys.argv[2]))
+    if sys.argv[1:] == ["--discharge-control"]:
+        sys.exit(discharge_child(None))
     sys.exit(main())

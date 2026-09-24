@@ -8,8 +8,11 @@ kernel records the tag and relies on it for nothing. A tag of
 (WHAT.md), and that is how the π gap of revision 9 would have shown up.
 
 `tag` implements p1_expected's TAG_RULES as stated. Each method is a cheap
-feasibility check. None of them emits a certificate, since discharge is not
-built. The methods are tried in §5.3's order, and the first to pass wins:
+feasibility check, and none emits a certificate here: the discharge search
+(search.py, untrusted as this is) builds the certificates from the same
+checks, `refutation` below among them, for the trusted checker
+(discharge.py) to re-check. The methods are tried in §5.3's order, and the
+first to pass wins:
 
   reg           a Reg judgement, by shape alone. Nothing else is Reg.
   hyp           prop is in gamma, or follows from gamma's ordering items by
@@ -237,22 +240,39 @@ def _feasible(cons):
     """Fourier–Motzkin over ℚ. Each constraint is (p, strict), meaning
     p > 0 or p >= 0 for a polynomial p read linearly: each non-constant
     monomial is one variable. True when some rational point satisfies all
-    of them. Exact with strict constraints: a combination is strict when
-    either parent is."""
-    cons = [(dict(p), s) for p, s in cons]
+    of them."""
+    return refutation(cons) is None
+
+
+def refutation(cons):
+    """Fourier–Motzkin over ℚ on `cons` as _feasible reads them, keeping
+    for each derived constraint the multipliers of the originals it came
+    from. None when the set is feasible; otherwise the Farkas witness of
+    the first violated constraint: {index: Fraction > 0}, whose combination
+    of the originals is a constant k with k < 0, or k = 0 and some used
+    constraint strict. Exact with strict constraints: a combination is
+    strict when either parent is. The discharge search (search.py) hands
+    this witness to the trusted checker, which re-checks it (E29)."""
+    rows = [(dict(p), s, {j: Fraction(1)}) for j, (p, s) in enumerate(cons)]
     while True:
-        var = next((m for p, _ in cons for m in p if m != P.ONE_MONO), None)
+        var = next((m for p, _, _ in rows for m in p if m != P.ONE_MONO), None)
         if var is None:
-            return all(c > 0 if s else c >= 0
-                       for c, s in ((P.const_value(p), s) for p, s in cons))
-        pos = [(p, s) for p, s in cons if p.get(var, 0) > 0]
-        neg = [(p, s) for p, s in cons if p.get(var, 0) < 0]
-        rest = [(p, s) for p, s in cons if var not in p]
-        for (p, sp), (q, sq) in itertools.product(pos, neg):
+            for p, s, mult in rows:
+                c = P.const_value(p)
+                if not (c > 0 if s else c >= 0):
+                    return mult
+            return None
+        pos = [r for r in rows if r[0].get(var, 0) > 0]
+        neg = [r for r in rows if r[0].get(var, 0) < 0]
+        rest = [r for r in rows if var not in r[0]]
+        for (p, sp, mp), (q, sq, mq) in itertools.product(pos, neg):
             # -q[var] * p + p[var] * q has no `var`: both multipliers > 0.
-            r = P.add(P.scale(p, -q[var]), P.scale(q, p[var]))
-            rest.append((r, sp or sq))
-        cons = rest
+            a, b = -q[var], p[var]
+            r = P.add(P.scale(p, a), P.scale(q, b))
+            mult = {j: a * mp.get(j, 0) + b * mq.get(j, 0)
+                    for j in mp.keys() | mq.keys()}
+            rest.append((r, sp or sq, mult))
+        rows = rest
 
 
 # ---------------------------------------------------------------- sign

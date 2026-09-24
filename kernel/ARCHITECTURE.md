@@ -2,7 +2,8 @@
 
 How `kernel/` is cut into modules for `WHAT.md`'s proof-of-life, and the
 contracts between them. The specification is `GRAMMAR.md` (syntax, D1–D18)
-and `p1_expected.py` (behaviour, E1–E27). Both are frozen: the code is tested
+and `p1_expected.py` (behaviour, E1–E35; its section 11 specifies
+discharge, §10 here). Both are frozen: the code is tested
 against them. Each skeleton file's docstrings carry the per-function detail;
 this file carries what crosses module lines. `§n` is `DESIGN.md` unless it
 says otherwise.
@@ -15,14 +16,16 @@ installed, one command:
 It is the done script: WHAT.md's Done-when items 1–6 against
 p1_expected.py, plus the suite's own cases for what P1's data cannot see
 (§8), plus item 7, stage 0's problem files against their own hand-written
-data (§9), exit 1 on any failure; its last line, `PASS: n of n checks passed`,
+data (§9), plus item D, discharge's checkers, search and refutation called
+directly (§10), exit 1 on any failure; its last line, `PASS: n of n checks passed`,
 gives the current count. Its header prints the protection in force,
 `handles for facts, sentinel for proof states`, with the reason the
 sentinel is enough for states (§2). It also runs the unit tests in a
 child process, as one check shown beside items 1–6: `test_field.py`'s ring,
 field and norm_num worked cases, property tests against exact rational
 evaluation and five planted bugs, and `test_grammar.py`'s D13, R4 and `# 0`
-cases, and subst's refusal under D and capture-avoiding Int rename.
+cases, and subst's refusal under D and capture-avoiding Int rename, and
+`test_discharge.py`'s spec tables and DISCHARGE_PROPERTY_TEST (§10).
 That matters because they are what covers `field`, whose bug would
 be a false `Proved`: field's planted bugs `neg_power_wrong_divisor` and
 `reduce_drops_q` pass items 1–6 and are caught only there. To run the unit
@@ -33,16 +36,20 @@ tests alone: `python3 -m unittest discover -s kernel`.
 | File | Tier | §15.2 item | Imports |
 |---|---|---|---|
 | `terms.py` | trusted | 1, 8: nodes, fv/bv, substitution, goal checks, parser, printer | stdlib |
-| `entries.py` | trusted | 7: the fourteen §6.8 entries, pinned (P1's ten and stage 0's four) | terms |
+| `entries.py` | trusted | 7: the sixteen §6.8 entries, pinned (P1's ten, stage 0's four, and the owner's `sqrt_zero` and `cos_zero`, E35) | terms |
 | `poly.py` | trusted | 4: copied from `spike/ring/poly.py` | stdlib |
 | `field.py` | trusted | 4: `ring`, `field`, `norm_num` | poly, terms |
 | `deriv.py` | trusted | 2: §6.3's entries, applied | terms |
 | `kernel.py` | trusted | 2, 3, 5: rules, E6 and E26's formers, matcher, tracker, handles, `step` | terms, entries, field, deriv, tagger, residual, schema (poly only through field) |
-| `tagger.py` | untrusted | none (§7, E24): computes admission tags | terms, poly, field, residual, entries |
+| `discharge.py` | trusted | 5: the certificate checkers (hyp, Farkas, sign, sign product, cite, the norm_num leaf) and the exact-value rewrite (E28–E31) | terms, entries, field, poly |
+| `tagger.py` | untrusted | none (§7, E24): computes admission tags; its Fourier–Motzkin keeps its Farkas witness (`refutation`) | terms, poly, field, residual, entries |
+| `search.py` | untrusted | none (E28): proposes one certificate per obligation | terms, poly, field, entries, tagger, discharge |
+| `refute.py` | untrusted | none (E33): decided false, F1–F3, which can only refuse | terms, field, discharge, search |
 | `residual.py` | untrusted | none (§8.7): residual normal form to a term | poly, terms |
 | `schema.py` | untrusted | none (§9): the `closed` whitelist (E23) and the evaluated-form check (E27) | terms, poly, field, entries |
 | `loader.py` | untrusted | none (§16.4): reads a problem file, feeds its proof to `install` and `step` | kernel, terms |
-| `proof_of_life.py` | script | none | everything, p1_expected, problems/stage0/expected.py |
+| `proof_of_life.py` | script | none | everything, p1_expected, problems/stage0/expected.py, test_discharge |
+| `test_discharge.py` | test | none | discharge, search, refute, kernel, tagger, p1_expected, problems/stage0/expected.py |
 
 **Keeping the trusted base auditable.** The trusted files are the ones
 whose mistakes are false theorems: they build terms and goals, decide
@@ -86,7 +93,9 @@ the residual on a refusal, and a refused step changes nothing (E13).
 `schema.check_evaluated` (E27) can only refuse a close whose value the
 trusted check has already proved: it reads ring normal forms
 (`field.ring_polys`) and `entries.ENTRIES`, as the tagger does, and never
-builds a term for the goal, a theorem or a state. Neither `field.py`
+builds a term for the goal, a theorem or a state. `discharge.py` imports
+nothing untrusted: it checks what it is handed and never asks the search,
+the tagger or the refuter anything. Neither `field.py`
 nor `poly.py` formats anything: the spike's `to_str`, `divide_exact` and
 `_Normaliser.residual` now live in `residual.py`.
 
@@ -218,6 +227,16 @@ residual_term(r: Residual) -> Term;  poly_term(p, atoms) -> Term
 closed_ok(value) -> bool
 check_evaluated(value) -> None             # E27; Refused 'close-not-evaluated', residual = the offending subterm
 evaluated_offence(value) -> (clause, Term, entry | None) | None   # clause 'a' or 'b1'..'b4'
+# discharge.py (trusted, §10)
+verdict(key, cert) -> (tag, None) | (None, reason)   # reason one of REASONS, a child's as "child-rejected/<reason>"
+check(key, cert) -> tag | None
+exact_values(key) -> (key', entries used)   # E31, then E5; Refused like ring
+# search.py / refute.py (untrusted, §10)
+propose(key) -> cert | None;  domain_empty(key) -> bool
+exact_false(key) -> Refutation | None       # F1
+refute(key, owed) -> Refutation | None      # F2, F3; owed is kernel._owed
+Refutation(how, message, point)             # how a DECIDED_FALSE_MESSAGES key; point {var: Fraction} for F3
+settled(key) -> tag | None                  # DISCHARGE_RULE's steps (3)-(5)
 # kernel.py
 NATURAL_DOMAINS: Mapping[str, u -> props]  # read-only; E26 (a)'s table; a seam (§7)
 install(goal) -> ProofState | Refusal
@@ -503,6 +522,40 @@ Each patch is the mutation's own text, written in `proof_of_life.py`:
 | `rewrite_R_former_at_goal_domain`, `rewrite_R_former_on_ranges_only` | `kernel._charge_formers`, which only rewrite calls with `anc=` | a wrapper that charges R at the goal's domain, or at the position domain less the goal's items |
 | `limit_former_on_own_range` | `kernel._encloses(slot)`, which `_positions` asks whether an Int's child is in its scope | `lambda slot: True` |
 
+Thirteen more serve p1_expected's DISCHARGE_NEW_PLANTED_BUGS, one per
+rule of the trusted checker whose loss could give a false 'Proved', and one
+in the search. Each rule is its own small function in `discharge.py` (or
+`search.py`), looked up by its global name at call time, and the child
+patches that one function with `patch.object`:
+
+| DISCHARGE_NEW_PLANTED_BUGS key | Seam | The child's patch |
+|---|---|---|
+| `farkas_ignores_strictness` | `discharge._contradicts(k, strict)` | `k <= 0` |
+| `farkas_allows_negative_multiplier` | `discharge._multiplier_ok(m)` | a rational, any sign |
+| `farkas_swaps_interval_ends` | `discharge._ends(i, iv)` | `('dom', i, 'lo')` from the hi end, `'hi'` from the lo end |
+| `farkas_closed_as_open` | `discharge._ends(i, iv)` | every end strict |
+| `farkas_any_fact` | `discharge._is_fact(entry, consts)` | any ENTRIES ordering |
+| `farkas_no_goal_needed` | `discharge._goal_used(mults)` | always true |
+| `sign_skips_ring` | `discharge._sign_identity(g, total)` | always true |
+| `sign_zero_constant_strict` | `discharge._constant_ok(c0, strict)` | `c0 >= 0` |
+| `sign_any_exponent` | `discharge._square_ok(c, s, k)` | any rational c, any int k >= 1 |
+| `product_skips_parity` | `discharge._parity_ok(c, rels)` | always true |
+| `product_skips_children` | `discharge._factors_hold(dom, factors)` | `()` |
+| `cite_skips_hypotheses` | `discharge._hyps_hold(dom, hyps, children)` | `()` |
+| `search_scales_wrongly` | `search._witness(multipliers)` | halves each fact label's multiplier first |
+
+Each runs as `--discharge-plant NAME` (the control as
+`--discharge-control`). The child reports every DISCHARGE_MUST_REJECT
+certificate the patched checker accepts, every
+DISCHARGE_EXPECTED key whose search certificate it refuses, and, for a bug
+whose caught_by names PROPERTY, each named checker the property test then
+finds unsound, running those key families only (item D's unpatched run of
+every family is the property test's own control). The parent requires the
+caught_by locations commit (1) can observe (DISCHARGE_MUST_REJECT and
+PROPERTY) and, for search_scales_wrongly, the suite's own DISCHARGE_EXPECTED
+locations; the N and status locations
+need discharge in `kernel._emit` and are commit (2)'s.
+
 `proof_of_life.py` runs each bug as `[sys.executable, __file__, "--plant",
 name]`, and each mutation with `--mutate` in place of `--plant`. The
 child first asserts that its seam exists: `patch.dict` would add a
@@ -578,8 +631,11 @@ purpose), OCCURRENCE_CASE, FORGERIES (per
 E21's accept and post rules, at FORGERY_STATE), the parser round trip over
 ROUND_TRIP with ROUND_TRIP_SIGS (trees checked by a script-side S-expression
 printer in GRAMMAR.md §9's notation), PRINT_EXACT, the planted bugs and the
-30 definedness mutations as in §7 (under item 3), and a `math`-module check
-of NUMERIC. For E27 it asserts each e27 BAD_MOVES case's residual as a
+30 definedness mutations and the thirteen discharge planted bugs as in §7
+(under item 3), and a `math`-module check
+of NUMERIC. For E27 it asserts, over BAD_MOVES and EVALUATED_ACCEPTS as
+DISCHARGE_E27_CHANGES switches them once cos_zero and sqrt_zero are
+pinned (`_e27_switched`), each e27 BAD_MOVES case's residual as a
 tree and its message through E27_MESSAGES, each case's clause through
 `schema.evaluated_offence`, the ordering case (`e27_check_failed_wins`,
 refused by the check with residual lhs − value), and every
@@ -684,3 +740,61 @@ suite's `S0_SEAMS` derives from the data, with S1 and S2 untouched. The
 P1 planted-bug and mutation children still run P1's proofs only. Item 1's
 entries check asks only that P1's entries are present, and item 7 pins
 stage 0's, so a broken stage-0 import fails item 7 alone.
+
+## 10. Discharge: the checkers, the search and refutation (DISCHARGE_SWITCH (1))
+
+p1_expected's section 11 (E28–E35, DISCHARGE_RULE) specifies discharge,
+and this commit builds it in three modules, tested directly with nothing
+wired into `kernel._emit`: items 1–7 still assert the pre-discharge tables,
+and commit (2) wires discharge in and switches them.
+
+**The trust split (E28).** `search.propose(key)` is untrusted and proposes
+one certificate, trying §5.3's methods in TAG_RULES' order and reusing the
+tagger's feasibility checks: `tagger.refutation` is the tagger's own
+Fourier–Motzkin with each derived row's multipliers kept, and `_feasible`
+is now `refutation(...) is None`. The search runs §5.3's satisfiability
+pre-check first and attempts no Farkas certificate on an infeasible domain
+(`domain_empty` is what commit (2) reads for REASON_EMPTY). It builds its
+labelled constraint set itself, from `tagger.SIGN_FACTS`, apart from the
+checker's, so that neither hides the other's mistake.
+`discharge.verdict(key, cert)` is trusted and small. It applies the exact
+values first (E31), rebuilds the target, the constraint set and every
+sub-obligation's key from the key alone, and checks the certificate rule by
+rule, each rule one `_need(...)` line or one seam function. Its reasons
+(`REASONS`) name the first rule a certificate breaks; the suite asserts them
+for every DISCHARGE_MUST_REJECT case. A `terms.Refused` inside a check is a
+rejection, so E7 stays the only place `Int-or-D-not-normalisable` is raised
+(E30). The exact-value rewrite matches as REWRITE_RULE steps 3–4 do, through
+one `field.ring_polys` call rather than `field.ring_equal`, so the BACKSTOPS
+seam on `ring_equal` does not reach it.
+
+**Decided false (E33).** `refute.py` is untrusted and can only refuse: F1
+(`exact_false`, the exact values made the key literal and false), F2 (a
+closed ordering whose negation `settled` discharges) and F3 (the first
+COUNTERPOINT_CANDIDATES point where every domain item and every former
+owed is settled and the proposition is false by F1 or F2). Its messages are
+DECIDED_FALSE_MESSAGES'. `owed` is passed in (`kernel._owed`) so that it
+does not import the kernel, which will import it.
+
+**What commit (2) wires.** `kernel._emit` gains DISCHARGE_RULE's steps
+(4)–(7) after E7: `discharge.exact_values` and norm_num (step 4, F1 by
+`refute.exact_false`), `search.propose` then `discharge.check` (step 5),
+`refute.refute(key, _owed)` (step 6), and the admission with its reason
+(step 7). `test_discharge.outcome` is that order as the tests read it.
+Obligation gains `certificate`; `reason` becomes REASON_REG, REASON_NONE,
+REASON_EMPTY or REASON_REJECTED. Every call must treat `terms.Refused` from
+`exact_values` (an RPow whose exponent the rewrite makes literal) as no
+change of status, as `verdict` and `settled` do.
+
+**Item D** (`proof_of_life.py`, one check per case, from
+`test_discharge.py`): the pinned entries; every certificate in
+DISCHARGE_EXPECTED (P1 and stage 0), DISCHARGE_MATCH_ACCEPTS,
+DISCHARGE_OCCURRENCE_CASE and the certificates of
+DISCHARGE_DEFINEDNESS_CASES and DISCHARGE_BAD_MOVES_ADDED, accepted with its
+tag, and the search's own certificate for that key compared as DISCHARGE_RULE
+says; every must-reject case rejected for its reason, its truth, and its
+outcome if emitted; every must-accept neighbour; every decided-false
+message stated for a key; every undecided key's admission and reason; and
+DISCHARGE_PROPERTY_TEST, whose families of keys (one per checker, each on
+its own seeded stream), evaluator (Fractions, shares no code with the
+kernel) and counts are in `test_discharge.py`'s property section.
