@@ -1285,3 +1285,18 @@ them.
 | `ftc_no_F_formers` | `kernel._ftc_F_formers` | a no-op |
 | `e57_refuses_nothing`, `e57_refuses_statable` | `kernel._no_trees_erased` | no-op; any tree |
 | `improper_Int_as_atom` | `field._Normaliser.tree` | every tree an atom |
+| `reg_side_assumes_itself` (REG_REVIEW_PLANTED_BUGS) | `discharge._reg_side_holds` | each side decided on D + (prop,) |
+
+**The regularity review** (section 18, REG_REVIEW_SWITCH). A side is
+decided on exactly `with_domain(prop, key.dom)` (REG_SIDE_KEY_RULE): item D
+watches the checker deciding every side of every certificate REG_EXPECTED
+(both files), REG_CASE_CERTS and REG_CHECKER_ACCEPTS carry (a spy on
+`discharge.verdict`, restored afterwards) and compares the key as a tree;
+REG_REVIEW_MUST_REJECT names the item one past the Reg's domain, which only
+the skeptic's M3 accepts. `kernel._frozen` is iterative, and a
+RecursionError in a Reg's search, check, freezing or tagging is read as no
+certificate (§5's rule for a key deeper than the stack), so the
+REG_REVIEW_DEEP_CASES goals (a 400-term sum, 350 and 300 nested sin) install
+owing one former; on this machine all three are discharged ('reg', ()).
+The parser converts a RecursionError into ParseError 'nesting-too-deep'
+(GRAMMAR.md §1), so a 200-deep parenthesised sin is refused, not a crash.

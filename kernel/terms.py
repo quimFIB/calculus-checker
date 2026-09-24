@@ -1049,7 +1049,11 @@ def _parse(s, sig, goal, rule):
     if type(s) is not str:
         raise TypeError(f"parse takes a str, not {type(s).__name__}")
     p = _Parser(s, _check_sig(sig), goal)
-    x = rule(p)
+    try:
+        x = rule(p)
+    except RecursionError:  # E21: an input too deep for the stack is a refusal
+        raise ParseError("nesting-too-deep", "the input is nested too deeply to "
+                         "parse", 0) from None
     if p.peek()[0] != "end":
         p.syntax("end of input")
     return x

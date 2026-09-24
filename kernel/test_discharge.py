@@ -564,6 +564,9 @@ def _reg_case(c):
 
 
 REG_MUST_REJECT = [_reg_case(c) for c in X.REG_MUST_REJECT]
+# the regularity review's (section 18): side certificates naming the item one
+# past the Reg's domain, which only a checker that appends the side accepts
+REG_REVIEW_MUST_REJECT = [_reg_case(c) for c in X.REG_REVIEW_MUST_REJECT]
 REG_CHECKER_ACCEPTS = [_reg_case(c) for c in X.REG_CHECKER_ACCEPTS]
 
 
@@ -610,15 +613,70 @@ def reg_decided_false_problems(case):
 
 
 def reg_must_reject_verdicts():
-    """[table, id] for each REG_MUST_REJECT case the checker accepts, or
-    rejects for another reason (the planted-bug children's view)."""
+    """[table, id] for each REG_MUST_REJECT and REG_REVIEW_MUST_REJECT case
+    the checker accepts, or rejects for another reason (the planted-bug
+    children's view)."""
     out = []
-    for c in REG_MUST_REJECT:
-        got, why = DC.verdict(key(*c["key"]), cert_of(c["cert"]))
-        reason = c["rejects_because"]
-        if got is not None or not (why == reason or reason == "child-rejected"
-                                   and why.startswith(reason + "/")):
-            out.append(["REG_MUST_REJECT", c["id"]])
+    for table, cases in (("REG_MUST_REJECT", REG_MUST_REJECT),
+                         ("REG_REVIEW_MUST_REJECT", REG_REVIEW_MUST_REJECT)):
+        for c in cases:
+            got, why = DC.verdict(key(*c["key"]), cert_of(c["cert"]))
+            reason = c["rejects_because"]
+            if got is not None or not (why == reason or reason == "child-rejected"
+                                       and why.startswith(reason + "/")):
+                out.append([table, c["id"]])
+    return out
+
+
+def reg_side_key_rows():
+    """(where, key, spec certificate) for every certificate REG_SIDE_KEY_RULE
+    names: REG_EXPECTED (both files), REG_CASE_CERTS and REG_CHECKER_ACCEPTS."""
+    rows = []
+    for name, data in (("REG_EXPECTED", X), ("stage0 REG_EXPECTED", S0)):
+        for proof, table in data.REG_EXPECTED.items():
+            rows += [((name, proof, p, d), key(p, d), c) for (p, d), (_, c) in table.items()]
+    rows += [(("REG_CASE_CERTS", p, d), key(p, d), c)
+             for (p, d), (_, c) in X.REG_CASE_CERTS.items()]
+    rows += [(("REG_CHECKER_ACCEPTS", c["id"]), key(*c["key"]), c["cert"])
+             for c in X.REG_CHECKER_ACCEPTS]
+    return rows
+
+
+def reg_side_key_problems(row):
+    """REG_SIDE_KEY_RULE: every side the certificate carries is decided on
+    exactly with_domain(prop, key.dom). The checker is watched deciding it:
+    each call of discharge.verdict made with one of the tree's side
+    certificates records the key it was made on. The module attribute is
+    restored whatever happens."""
+    _, k, spec = row
+    cert = cert_of(spec)
+    sides, todo = [], [cert["tree"]]
+    while todo:
+        n = todo.pop()
+        sides += list(n["side"])
+        todo.extend(n["args"])
+    seen, orig = [], DC.verdict
+
+    def spy(k2, c):
+        if any(c is sc for _, sc in sides):
+            seen.append((c, k2))
+        return orig(k2, c)
+    DC.verdict = spy
+    try:
+        tag, why = orig(k, cert)
+    finally:
+        DC.verdict = orig
+    if tag is None:
+        return [f"not accepted: {why}"]
+    out = []
+    for prop, sc in sides:
+        want = T.with_domain(prop, k.dom)
+        got = [k2 for c, k2 in seen if c is sc]
+        if not got:
+            out.append(f"side {T.show(prop)} was never decided")
+        elif any(g != want for g in got):
+            out.append(f"side {T.show(prop)} decided on {[T.show(g) for g in got]}, "
+                       f"expected {T.show(want)}")
     return out
 
 
@@ -1858,6 +1916,21 @@ class Regularity(unittest.TestCase):
 
     def test_sides_listed(self):
         self.assertEqual(reg_sides_listed_problems(), [])
+
+    def test_review_must_reject(self):
+        for c in REG_REVIEW_MUST_REJECT:
+            with self.subTest(case=c["id"]):
+                self.assertEqual(reg_must_reject_problems(c), [])
+
+    def test_review_decided_false(self):
+        for c in X.REG_REVIEW_DECIDED_FALSE:
+            with self.subTest(case=c["id"]):
+                self.assertEqual(reg_decided_false_problems(c), [])
+
+    def test_side_key_rule(self):
+        for row in reg_side_key_rows():
+            with self.subTest(where=row[0]):
+                self.assertEqual(reg_side_key_problems(row), [])
 
     def test_reasons_are_the_checkers(self):
         for reason in X.REG_REASONS:

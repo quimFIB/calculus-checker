@@ -1648,7 +1648,8 @@ GRAMMAR_CODES = (
     "D6-ambiguous-app-power", "D6-neg-operand", "D6-app-as-base",
     "D7-int-in-arith", "D8-pow-chain", "D8-neg-exponent", "bound-in-endpoint",
     "shadowing", "D11-bound-and-free", "D13-unnamed-interval", "oo-misplaced",
-    "chained-cmp", "hash-nonzero", "mvar-misplaced", "syntax")
+    "chained-cmp", "hash-nonzero", "mvar-misplaced", "syntax",
+    "nesting-too-deep")
 
 
 def refusal_coverage_problems():
@@ -4610,6 +4611,21 @@ def discharge_checks(suite):
         for c in X.REG_DECIDED_FALSE:
             suite.check("D", f"REG_DECIDED_FALSE {c['id']}: refused by E63's "
                         "'reg_undefined'", lambda c=c: TD.reg_decided_false_problems(c))
+        # the regularity review (section 18)
+        rows = TD.reg_side_key_rows()
+        suite.check("D", f"REG_SIDE_KEY_RULE: every side of the {len(rows)} certificates "
+                    "of REG_EXPECTED (both files), REG_CASE_CERTS and REG_CHECKER_ACCEPTS "
+                    "is decided on exactly with_domain(prop, key.dom)",
+                    lambda: [f"{' / '.join(r[0])}: {p}" for r in rows
+                             for p in TD.reg_side_key_problems(r)])
+        for c in TD.REG_REVIEW_MUST_REJECT:
+            suite.check("D", f"REG_REVIEW_MUST_REJECT {c['id']}: rejected "
+                        f"{c['rejects_because']}; {c['if_emitted'][0]} if emitted",
+                        lambda c=c: TD.reg_must_reject_problems(c))
+        for c in X.REG_REVIEW_DECIDED_FALSE:
+            suite.check("D", f"REG_REVIEW_DECIDED_FALSE {c['id']}: refused by E63 through "
+                        "its closed side, exact message",
+                        lambda c=c: TD.reg_decided_false_problems(c))
     for table in ("SIGN_PRODUCT", "CONSOLIDATION"):  # E53, E54
         for c in getattr(TD, table + "_MUST_REJECT"):
             suite.check("D", f"{table}_MUST_REJECT {c['id']}: rejected "
@@ -5301,6 +5317,38 @@ def reg_gap_problems():
             f"REG_CASE_ADMITTED row" for p, d in dict.fromkeys(REG_GAPS)]
 
 
+def deep_case_problems(c):
+    """A REG_REVIEW_DEEP_CASES goal installs with no exception and no
+    refusal, owing exactly its Int's former, discharged ('reg', ()), or,
+    where the case allows it, admitted with a reason in
+    REG_DEEP_ADMIT_REASONS (a derivation deeper than the stack). The status
+    this machine gives is printed."""
+    try:
+        g = goal(c["goal"])
+        r = K.install(g)
+    except Exception as e:  # noqa: BLE001 -- E21: the crash being guarded against
+        return ["crash: " + crash_text(e)]
+    if not isinstance(r, K.ProofState):
+        return [f"not installed: {describe(r)}"]
+    out = []
+    prop, dom, sources = c["emits_one"]
+    obs = r.last.emitted
+    print(f"          {c['id']}: " + "; ".join(f"{o.status} {o.tag} {o.reason}" for o in obs))
+    if [o.key for o in obs] != [key(prop, dom)]:
+        return [f"emitted {len(obs)} keys, expected exactly the Int's former"]
+    ob = obs[0]
+    if frozenset(ob.sources) != frozenset(sources):
+        out.append(f"sources {sorted(ob.sources)}")
+    ok = (ob.status == X.DISCHARGED and ob.tag == X.T_REG_OK) or (
+        len(c["status"]) > 2 and ob.status == X.ADMITTED
+        and ob.reason in X.REG_DEEP_ADMIT_REASONS)
+    if not ok:
+        out.append(f"status {ob.status} {ob.tag} {ob.reason}")
+    if K.report(r) != "Open: " + T.show_goal(g):
+        out.append(f"report {K.report(r)[:60]!r}")
+    return out
+
+
 def regularity_checks(suite):
     """Item R's rows (section 17's own cases)."""
     suite.check("R", "every Reg row the switched cases list has its new status in "
@@ -5320,6 +5368,9 @@ def regularity_checks(suite):
     for b in REG_BAD_MOVES:
         suite.check("R", f"REG_BAD_MOVES {b['id']} -> {b['refusal']}",
                     lambda b=b: bad_move_problems(b))
+    for c in X.REG_REVIEW_DEEP_CASES:  # the regularity review's crash, fixed
+        suite.check("R", f"REG_REVIEW_DEEP_CASES {c['id']}: installs, owing only its "
+                    "Int's former, with no exception", lambda c=c: deep_case_problems(c))
     for c in REG_ACCEPTED_MOVES:
         suite.check("R", f"REG_BAD_MOVES_CHANGED {c['id']}: accepted"
                     + (f" -> {c['report']!r}" if "report" in c else ""),
@@ -5596,7 +5647,7 @@ def consolidation_planted_problems(name, result):
 # for a bug whose data 'expect's it, whether REG_BAD_MOVES' cases are still
 # refused with their 'as_well' messages.
 
-REG_BUGS = dict(X.REG_PLANTED_BUGS) if REGULARITY else {}
+REG_BUGS = {**X.REG_PLANTED_BUGS, **X.REG_REVIEW_PLANTED_BUGS} if REGULARITY else {}
 # the REG_BAD_MOVES cases each 'expect' says are refused as_well
 REG_AS_WELL = {"former_div_dropped": ("ftc_across_pole", "ftc_f_not_C0_at_an_end"),
                "ftc_no_F_formers": ("ftc_F_across_pole",)}
@@ -5609,7 +5660,7 @@ def reg_seam_patch(name, mock):
     import domains as DM
     import refute as RF
     import search as SR
-    rule, sides = DC._reg_rule, DC._reg_sides
+    rule, sides, holds_side = DC._reg_rule, DC._reg_sides, DC._reg_side_holds
 
     def charged_first(buf, term_, dom, goal_dom, anc=()):
         walk = list(K._positions(term_, dom, anc))
@@ -5634,6 +5685,9 @@ def reg_seam_patch(name, mock):
     c1 = mock.patch.object(DM, "C1_EXTRA", types.MappingProxyType({}))
     patches = {
         "reg_side_not_decided": [(DC, "_reg_side_holds", lambda prop, cert, dom: ())],
+        # the skeptic's M3: each side decided on D + (prop,), assuming itself
+        "reg_side_assumes_itself": [(DC, "_reg_side_holds", lambda prop, cert, dom:
+                                     holds_side(prop, cert, tuple(dom) + (prop,)))],
         "reg_side_count_unchecked": [(DC, "_reg_side_count_ok", lambda g, r: True)],
         "reg_side_from_certificate": [(DC, "_reg_side_prop", lambda rebuilt, given: given)],
         "reg_rule_from_certificate": [(DC, "_reg_rule", lambda t, node: node["rule"])],

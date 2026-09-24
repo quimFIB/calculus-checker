@@ -876,18 +876,21 @@ def _discharge_reg(key, sources, gamma):
     else REASON_REJECTED. A RecursionError withholds, as in _discharge."""
     try:
         cert = search.propose(key)
-    except RecursionError:
-        cert = None
-    tag = None if cert is None else discharge.check(key, cert)
-    if tag is not None:
-        return Obligation(key, sources, DISCHARGED, tag, None, _frozen(cert))
+        tag = None if cert is None else discharge.check(key, cert)
+        if tag is not None:
+            return Obligation(key, sources, DISCHARGED, tag, None, _frozen(cert))
+    except RecursionError:  # deeper than the stack: no certificate (§5)
+        pass
     try:
         found = refute.refute_reg(key, _owed)
     except RecursionError:
         found = None
     if found is not None:
         raise Refused(DECIDED_FALSE, found.message)
-    tag = tagger.tag(key, gamma)
+    try:
+        tag = tagger.tag(key, gamma)
+    except RecursionError:
+        tag = ("none", ())
     return Obligation(key, sources, ADMITTED, tag,
                       REASON_NONE if tag == ("none", ()) else REASON_REJECTED)
 
@@ -895,12 +898,32 @@ def _discharge_reg(key, sources, gamma):
 def _frozen(x):
     """A certificate as the tracker keeps it: every dict a read-only
     mapping and every list a tuple, all the way down, so no caller can
-    change the certificate an obligation records."""
-    if isinstance(x, dict):
-        return MappingProxyType({k: _frozen(v) for k, v in x.items()})
-    if isinstance(x, (list, tuple)):
-        return tuple(_frozen(v) for v in x)
-    return x
+    change the certificate an obligation records. Iterative, so a
+    certificate of any depth (a regularity derivation follows its term)
+    freezes without exhausting the stack."""
+    done, todo = [], [(x, False)]
+    while todo:
+        node, ready = todo.pop()
+        if isinstance(node, dict):
+            items = list(node.items())
+            if not ready:
+                todo.append((node, True))
+                todo.extend((v, False) for _, v in reversed(items))
+                continue
+            vals = done[len(done) - len(items):] if items else []
+            del done[len(done) - len(items):]
+            done.append(MappingProxyType({k: v for (k, _), v in zip(items, vals)}))
+        elif isinstance(node, (list, tuple)):
+            if not ready:
+                todo.append((node, True))
+                todo.extend((v, False) for v in reversed(node))
+                continue
+            vals = done[len(done) - len(node):] if node else []
+            del done[len(done) - len(node):]
+            done.append(tuple(vals))
+        else:
+            done.append(node)
+    return done[0]
 
 
 def _emit_at(buf, prop, dom, anc, source, goal_dom, divisor=True):
