@@ -134,7 +134,7 @@ The full text and reasons are in `GRAMMAR.md` §1 (D1–D18) and
 
 ## For `DESIGN.md` — what the milestone found wrong
 
-*Folded into `DESIGN.md` revision 10 (commit `5faf148`). Kept here as the
+*Folded into `DESIGN.md` revision 10 (commit `516d6c7`). Kept here as the
 record of what the milestone found.*
 
 **Soundness.**
@@ -277,8 +277,8 @@ The check is untrusted, in `schema.py`, and runs last in `close`. It can only
 refuse, with `close-not-evaluated`, and it names the move still available.
 The kernel never simplifies anything itself.
 
-**Process.** The spec was committed before any code (`1c26495`). A skeptic's
-amendments were committed the same way (`2e717e5`). The code matched the spec
+**Process.** The spec was committed before any code (`224b891`). A skeptic's
+amendments were committed the same way (`303036e`). The code matched the spec
 on the first run both times. The suite checks 38 refusals, 29 accepted values
 and an ordering case, and stands at 334 of 334. A skeptic found:
 - no way for the check to change a trusted verdict;
@@ -336,14 +336,14 @@ The three left are always `ftc`'s regularity premises.
 - `ln x * 0` with no stated domain;
 - a `sqrt_sq` rewrite over [−1, 0].
 
-**Process.** The spec went in first (`3086bec`). The build came in two
+**Process.** The spec went in first (`a36c466`). The build came in two
 commits: first the checkers alone, then the wiring. Twice the builder showed
 a planted-bug expectation in the spec was wrong, and I checked each claim
 before the spec was changed and logged.
 
 The skeptic found **no false discharge**: about 2,700 fuzzed obligations
 were checked against an independent evaluator, and about 12,000 random
-kernel runs. Its findings are fixed, in `eed87d8`:
+kernel runs. Its findings are fixed, in `ec3f693`:
 - deep terms crashed `install` and `step`, a regression;
 - a wrong refusal at a point where a hypothesis was undefined;
 - mutable stored certificates;
