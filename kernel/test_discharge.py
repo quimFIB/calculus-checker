@@ -352,6 +352,22 @@ def must_reject_problems(case):
     return out
 
 
+def hyp_signed_member_problems():
+    """hyp's member for e # 0 needs a strict item (e > 0, e < 0, 0 < e,
+    0 > e): x >= 0 and 0 <= x do not give x # 0, which is false at x = 0.
+    The strict items do."""
+    out = []
+    for dom, accepted in (("x >= 0", False), ("0 <= x", False), ("x <= 0", False),
+                          ("x > 0", True), ("0 > x", True)):
+        got, why = DC.verdict(key("x # 0", dom), {"method": "hyp", "member": 0})
+        if (got is not None) != accepted:
+            out.append(f"x # 0 @ {dom}: {got or why}, expected "
+                       f"{'accepted' if accepted else 'rejected'}")
+        elif not accepted and why != "not-member":
+            out.append(f"x # 0 @ {dom}: rejected {why!r}, expected 'not-member'")
+    return out
+
+
 def checker_accept_problems(case):
     got, why = DC.verdict(key(*case["key"]), cert_of(case["cert"]))
     return [] if show_tag(got) == case["tag"] else [f"{show_tag(got) or why}, "
@@ -1268,6 +1284,9 @@ class MustReject(unittest.TestCase):
         for c in X.DISCHARGE_CHECKER_ACCEPTS:
             with self.subTest(case=c["id"]):
                 self.assertEqual(checker_accept_problems(c), [])
+
+    def test_signed_member_needs_a_strict_item(self):
+        self.assertEqual(hyp_signed_member_problems(), [])
 
     def test_reasons_are_the_checkers(self):
         for reason in REJECT_REASONS.values():

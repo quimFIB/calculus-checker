@@ -50,8 +50,9 @@ import field as FD
 import poly as P
 from entries import ENTRIES
 from terms import (Add, App, Const, Interval, Mul, Neg, NonZero, Num, Pow,
-                   Refused, Rel, Term, Var, _kids, _map, check_goal, fv, lit,
+                   Refused, Rel, Term, Var, _kids, check_goal, fv, lit,
                    subst, trees, with_domain)
+from terms import _fields as _node_fields
 
 GOAL = ("goal",)
 ZERO = Num(0)
@@ -69,7 +70,7 @@ REASONS = (
     "zero-content", "bad-relation", "parity", "unknown-entry",
     "entry-not-ordering", "bad-instance", "schema-not-in-conclusion",
     "conclusion-does-not-imply", "hypothesis-count", "hypothesis-mismatch",
-    "not-literal-true", "child-rejected", "refused")
+    "not-literal-true", "child-rejected", "refused", "too-deep")
 
 
 class _Reject(Exception):
@@ -100,6 +101,8 @@ def verdict(key, cert):
         return None, r.reason
     except Refused as r:
         return None, "refused " + r.code
+    except RecursionError:  # a key or certificate deeper than the stack
+        return None, "too-deep"
 
 
 def _decide(key, cert):
@@ -515,6 +518,32 @@ def _matches(lhs, s):
     return s == lhs
 
 
+def _rebuild(x, fn):
+    """x rebuilt children first, as terms._map rebuilds it, with fn applied
+    to every node after its children (a tuple field's items one by one, the
+    tuple itself never). Iterative, so a key of any depth is walked without
+    exhausting the stack."""
+    todo, done = [(x, False)], []
+    while todo:
+        node, ready = todo.pop()
+        fields = _node_fields(node)
+        if not ready:
+            todo.append((node, True))
+            kids = [k for _, v in fields for k in (v if isinstance(v, tuple) else (v,))]
+            todo.extend((k, False) for k in reversed(kids))
+            continue
+        count = sum(len(v) if isinstance(v, tuple) else 1 for _, v in fields)
+        rebuilt = done[len(done) - count:] if count else []
+        del done[len(done) - count:]
+        new, i = {}, 0
+        for n, v in fields:  # the children, in the order they were pushed
+            width = len(v) if isinstance(v, tuple) else 1
+            new[n] = tuple(rebuilt[i:i + width]) if isinstance(v, tuple) else rebuilt[i]
+            i += width
+        done.append(fn(replace(node, **new) if new else node))
+    return done[0]
+
+
 def exact_values(key):
     """E31: (key', entries used) where key' is `key` (proposition and
     domain) with every exact value rewritten, children before parents, to a
@@ -529,7 +558,6 @@ def exact_values(key):
     values, used = _exact_entries(), []
 
     def rewrite(x):
-        x = _map(rewrite, x)
         for name, st in values:
             if _matches(st.lhs, x):
                 used.append(name)
@@ -537,7 +565,7 @@ def exact_values(key):
         return x
 
     while True:
-        new = rewrite(key)
+        new = _rebuild(key, rewrite)
         if new == key:
             break
         key = new

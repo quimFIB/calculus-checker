@@ -141,7 +141,9 @@ nor `poly.py` formats anything: the spike's `to_str`, `divide_exact` and
   `reason` (for an admission `REASON_REG`, `REASON_NONE`, `REASON_EMPTY` or
   `REASON_REJECTED`, otherwise None; 'discharge not built' is retired, E32)
   and `certificate` (the certificate `discharge.check` accepted for methods
-  1–6, otherwise None: norm_num, ftc's premise and every admission). The
+  1–6, deep-frozen by `kernel._frozen`, every dict a read-only mapping and
+  every list a tuple, so no write through `obligations()` reaches it;
+  otherwise None: norm_num, ftc's premise and every admission). The
   tracker's entries and each step's emission list use this one class. In a
   step's list, `sources` holds only that step's sources.
 - **`StepRecord`** (frozen and slotted) is what produced a state. It holds `move`
@@ -448,6 +450,13 @@ succeeded. Status is decided in this order:
    `REASON_EMPTY` when `search.domain_empty(key)` (§5.3's pre-check),
    else `REASON_NONE` when the tag is `('none', ())`, else
    `REASON_REJECTED`, which no unmutated run produces.
+
+A RecursionError inside steps 4–6 (a key deeper than the stack) is no
+rewrite, no certificate and no refutation, so such a key is admitted; the
+checker itself maps one to the rejection `too-deep`, and the exact-value
+rewrite walks keys iteratively (`discharge._rebuild`). The search's and the
+tagger's factorisations nest at most `tagger.FACTOR_DEPTH` (8) deep, so no
+certificate is arbitrarily deep.
 
 A status is decided once, at emission, and never changes: discharge reads
 only the key and ENTRIES, so a re-emitted key would get the same status
@@ -796,8 +805,9 @@ seam on `ring_equal` does not reach it.
 **Decided false (E33).** `refute.py` is untrusted and can only refuse: F1
 (`exact_false`, the exact values made the key literal and false), F2 (a
 closed ordering whose negation `settled` discharges) and F3 (the first
-COUNTERPOINT_CANDIDATES point where every domain item and every former
-owed is settled and the proposition is false by F1 or F2). Its messages are
+COUNTERPOINT_CANDIDATES point, among the first `POINT_BOUND` (256), where
+every former the proposition and the domain items owe is settled, every
+domain item is settled, and the proposition is false by F1 or F2). Its messages are
 DECIDED_FALSE_MESSAGES'. `owed` is passed in (`kernel._owed`) so that it
 does not import the kernel, which imports it.
 

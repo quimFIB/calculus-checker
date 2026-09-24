@@ -150,7 +150,8 @@ class Obligation:
     reason   REASON_REG, REASON_NONE, REASON_EMPTY or REASON_REJECTED for
              an admission, else None
     certificate  the certificate discharge.check accepted (methods 1-6),
-             else None (norm_num, ftc's premise, every admission)
+             deep-frozen (dicts read-only, lists tuples), else None
+             (norm_num, ftc's premise, every admission)
     """
     key: object
     sources: frozenset
@@ -648,9 +649,12 @@ def _discharge(key, sources, gamma):
     applied inside, so its tag already cites them. (6) The untrusted
     refuter: F2 or F3 refuses 'obligation-decided-false'. (7) ADMITTED with
     the tagger's tag (E24) and a reason."""
+    # A key deeper than the stack (RecursionError) gets no rewrite, no
+    # certificate and no refutation, so it is admitted: steps (4)-(6) only
+    # ever withhold what they cannot decide.
     try:
         new, used = discharge.exact_values(key)
-    except Refused:
+    except (Refused, RecursionError):
         new, used = key, ()
     said = FD.norm_num(new) if new != key else None
     if said:
@@ -659,17 +663,38 @@ def _discharge(key, sources, gamma):
         found = refute.exact_false(key)  # F1's message; the verdict is norm_num's
         raise Refused(DECIDED_FALSE, found.message if found else
                       f"{show(key)} is false: it reads {show(new)}")
-    cert = search.propose(key)
+    try:
+        cert = search.propose(key)
+    except RecursionError:
+        cert = None
     tag = None if cert is None else discharge.check(key, cert)
     if tag is not None:
-        return Obligation(key, sources, DISCHARGED, tag, None, cert)
-    found = refute.refute(key, _owed)
+        return Obligation(key, sources, DISCHARGED, tag, None, _frozen(cert))
+    try:
+        found = refute.refute(key, _owed)
+    except RecursionError:
+        found = None
     if found is not None:
         raise Refused(DECIDED_FALSE, found.message)
     tag = tagger.tag(key, gamma)
-    reason = (REASON_EMPTY if search.domain_empty(key) else
+    try:
+        empty = search.domain_empty(key)
+    except RecursionError:
+        empty = False
+    reason = (REASON_EMPTY if empty else
               REASON_NONE if tag == ("none", ()) else REASON_REJECTED)
     return Obligation(key, sources, ADMITTED, tag, reason)
+
+
+def _frozen(x):
+    """A certificate as the tracker keeps it: every dict a read-only
+    mapping and every list a tuple, all the way down, so no caller can
+    change the certificate an obligation records."""
+    if isinstance(x, dict):
+        return MappingProxyType({k: _frozen(v) for k, v in x.items()})
+    if isinstance(x, (list, tuple)):
+        return tuple(_frozen(v) for v in x)
+    return x
 
 
 def _emit_at(buf, prop, dom, anc, source, goal_dom, divisor=True):

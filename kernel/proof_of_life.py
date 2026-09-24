@@ -2337,6 +2337,9 @@ EMISSION_PLACEMENT = [
     ("a fact's inst tan u owes cos u # 0 when the fact is used (E10, E26)",
      placement_fact_inst("atan(-3) == ?A", "atan_odd", {"u": "3 + 0*tan 1"},
                          "-atan(3)", {"cos 1 # 0": ["former"]})),
+    ("a fact's inst pi/2 owes its divisor as a former, and field owes it too (E10, §6.2)",
+     placement_fact_inst("atan(-3) == ?A", "atan_odd", {"u": "3 + 0*sin(pi/2)"},
+                         "-atan(3)", {"2 # 0": ["former", "field_div"]})),
     ("ftc charges a fact's inst former on the check's domain, not the goal's (E10, E26)",
      placement_fact_inst_ftc),
     ("close charges the value's formers at the goal's domain (E6, E26, §9)",
@@ -2963,6 +2966,18 @@ def occurrence_k_problems():
             "message": X._point("t >= 0 @ [-1, 0]", "-1 >= 0", t="-1")})
         if st.obligations() != before:
             out.append("the refused step changed the state (E13)")
+        # The same move where the second range makes t >= 0 true, so that
+        # the accepted step's occurrence count and goal are asserted too.
+        st = install("(Int[t = 0 .. 1] sqrt(t^2)) + (Int[t = 1 .. 2] sqrt(t^2)) == ?A",
+                     ("occurrence 1", "goal"))
+        st2 = take(st, move, dict(args, occurrence=1), {}, ("occurrence 1", move))
+        if st2.last.occurrences != 1:
+            out.append(f"occurrences {st2.last.occurrences}, expected 1")
+        if st2.goal != goal("(Int[t = 0 .. 1] sqrt(t^2)) + (Int[t = 1 .. 2] t) == ?A"):
+            out.append(f"goal_after: got {show(st2.goal)}")
+        compare_emitted(miss, "occurrence 1", move,
+                        [("t >= 0", "[1, 2]", (X.S_SQRT_SQ,), X.DISCHARGED, X.T_RANGE,
+                          True)], st2.last.emitted, keys_of(st))
         return out
     st2 = take(st, move, dict(args, occurrence=1), {}, ("occurrence 1", move))
     if st2.last.occurrences != 1:
@@ -3665,6 +3680,8 @@ def discharge_checks(suite):
     for c in X.DISCHARGE_CHECKER_ACCEPTS:
         suite.check("D", f"DISCHARGE_CHECKER_ACCEPTS {c['id']}: accepted as {c['tag']}",
                     lambda c=c: TD.checker_accept_problems(c))
+    suite.check("D", "hyp's member for e # 0 needs a strict item: x >= 0, 0 <= x and "
+                "x <= 0 give no x # 0", TD.hyp_signed_member_problems)
     for where, spec in TD.decided_false_cases():
         suite.check("D", f"{where}: obligation-decided-false, '{spec[0]}' message",
                     lambda spec=spec: TD.decided_false_problems(spec))
@@ -3806,6 +3823,129 @@ def discharge_planted_problems(name, result):
 
 # ---------------------------------------------------------------- main
 
+# The review of the wired discharge (b99972e): inputs deeper than the stack,
+# F3's definedness of the domain items, its point bound, and certificates
+# the tracker keeps. Each must return a state or a clean Refusal, never an
+# exception.
+DEEP_SUM = "1/(" + " + ".join(["x"] * 500) + ") == ?A @ x in (2, 3)"
+DEEP_CLOSE = ("y - y == ?A @ y > 0", "0*(1/(" + " + ".join(["y"] * 600) + "))")
+NINE_VARIABLES = "ln(" + " + ".join(f"exp x{i}" for i in range(1, 10)) + ") == ?A"
+
+
+def _timed(thunk):
+    import time
+    t = time.perf_counter()
+    try:
+        r = thunk()
+    except Exception as e:  # noqa: BLE001 -- the failure being guarded against
+        r = e
+    return r, time.perf_counter() - t
+
+
+def deep_input_problems():
+    """A sum of 500 x's in a divisor installs, a close whose value holds a
+    600-term divisor is refused close-not-evaluated, and 1/(x - 1)^300
+    installs: discharge's rewrite is iterative, the checker maps a
+    RecursionError to a rejection, _emit's steps (4)-(6) treat one as no
+    rewrite, certificate or refutation, and the search's factorisations
+    nest at most tagger.FACTOR_DEPTH deep. 1/(x - 1)^150 installs within 3 s
+    (it took 4.5 s before the bound)."""
+    out = []
+    r, _ = _timed(lambda: K.install(goal(DEEP_SUM)))
+    if not isinstance(r, K.ProofState):
+        out.append(f"500-term divisor: {describe(r)}")
+    g, v = DEEP_CLOSE
+    st = K.install(goal(g))
+    r, _ = _timed(lambda: K.step(st, "close", {"value": term(v), "check": "ring",
+                                               "facts": []}))
+    if not (isinstance(r, K.Refusal) and r.code == "close-not-evaluated"):
+        out.append(f"600-term close value: {describe(r)}")
+    for n, limit in ((300, None), (150, 3.0)):
+        r, secs = _timed(lambda n=n: K.install(goal(f"1/(x - 1)^{n} == ?A @ x in (2, 3)")))
+        if not isinstance(r, (K.ProofState, K.Refusal)):
+            out.append(f"1/(x - 1)^{n}: {describe(r)}")
+        if limit is not None and secs > limit:
+            out.append(f"1/(x - 1)^{n} took {secs:.1f} s, more than {limit} s")
+    return out
+
+
+def point_bound_problems():
+    """COUNTERPOINT_CANDIDATES' 256-point bound: nine variables give 3^9
+    candidate points, and the walk stops at 256, so installation completes
+    quickly with ln's argument admitted, tagged none."""
+    r, secs = _timed(lambda: K.install(goal(NINE_VARIABLES)))
+    if not isinstance(r, K.ProofState):
+        return [f"refused or raised: {describe(r)}"]
+    out = [] if secs <= 5.0 else [f"took {secs:.1f} s, more than 5 s"]
+    admitted = [o for o in r.last.emitted if o.status == K.ADMITTED]
+    if [(T.show(o.key), tag_of(o), o.reason) for o in admitted] != [
+            (T.show(key(NINE_VARIABLES.split(" == ")[0][3:-1] + " > 0", "true")),
+             X.T_NONE, X.REASON_NONE)]:
+        out.append(f"admitted {[(T.show(o.key), o.tag, o.reason) for o in admitted]}")
+    return out
+
+
+def f3_definedness_problems():
+    """COUNTERPOINT_CANDIDATES as amended: a point counts only where the
+    domain items' formers are settled too. x > 0 on [0, 1] with a
+    hypothesis whose real power owes x^2 > 0 is not refuted at x = 0, where
+    that hypothesis is undefined; and ln(x - 5) under such a hypothesis on
+    [5, 6] installs, its x - 5 > 0 admitted, tagged none."""
+    import refute as RF
+    out = []
+    k = T.parse_judgement("x > 0 @ x in [0, 1], ((x^2)^(1/2))^2 + 1 > 0", SIG)
+    r = RF.refute(k, K._owed)
+    if r is not None:
+        out.append(f"refuted: {r.message}")
+    st = K.install(goal("ln(x - 5) == ?A @ (((x-5)^2)^(1/2))^2 + 1 > 0, x in [5, 6]"))
+    if not isinstance(st, K.ProofState):
+        return out + [f"install: {describe(st)}"]
+
+    def miss(item, where, detail):
+        out.append(fmt(where, detail))
+
+    compare_emitted(miss, "ln(x - 5)", "goal", [
+        ("(x - 5)^2 > 0", "true", (X.S_FORMER,), X.ADMITTED, X.T_NONE, True),
+        ("2 # 0", "true", (X.S_FORMER,), X.DISCHARGED, X.T_NORM_NUM, True),
+        ("x - 5 > 0", "(((x - 5)^2)^(1/2))^2 + 1 > 0, x in [5, 6]", (X.S_FORMER,),
+         X.ADMITTED, X.T_NONE, True)], st.last.emitted, frozenset(), certs={})
+    return out
+
+
+def frozen_certificate_problems():
+    """An obligation's certificate is deep-frozen: no write through what
+    obligations() returns reaches the one the tracker keeps."""
+    run = run_proof("P1.2", strict=False, out=lambda line: None)
+    obs = [o for o in run.state.obligations() if o.certificate is not None]
+    if not obs:
+        return ["no obligation carries a certificate"]
+    def snapshot(x):  # a plain copy, nested mappings and tuples included
+        if isinstance(x, (dict, types.MappingProxyType)):
+            return {k: snapshot(v) for k, v in x.items()}
+        return tuple(map(snapshot, x)) if isinstance(x, tuple) else x
+
+    out = []
+    for o in obs:
+        before = snapshot(o.certificate)
+        attempts = [lambda c: c.__setitem__("method", "hyp"),
+                    lambda c: c.__setitem__("extra", 1)]
+        for field in ("multipliers", "inst"):
+            if field in o.certificate:
+                attempts.append(lambda c, f=field: c[f].__setitem__("x", 1))
+        for field in ("squares", "factors", "hyps"):
+            if field in o.certificate:
+                attempts.append(lambda c, f=field: c[f].append(None))
+        for attempt in attempts:
+            try:
+                attempt(o.certificate)
+                out.append(f"{T.show(o.key)}: a write to its certificate succeeded")
+            except (TypeError, AttributeError):
+                pass
+        if snapshot(o.certificate) != before:
+            out.append(f"{T.show(o.key)}: its certificate changed")
+    return out
+
+
 def kernel_constant_problems():
     pairs = [("HANDLES_IN_FORCE", "HANDLES_IN_FORCE"), ("VERDICT", "VERDICT"),
              ("REASON_REG", "REASON_REG"), ("REASON_NONE", "REASON_NONE"),
@@ -3881,6 +4021,8 @@ def main():
                     lambda c=c: undecided_problems(c))
     suite.check(2, "OCCURRENCE_CASE one with occurrence 1 rewrites the second Int",
                 occurrence_k_problems)
+    suite.check(2, "F3 counts a point only where the domain items are defined "
+                "(COUNTERPOINT_CANDIDATES, amended)", f3_definedness_problems)
 
     print("\nBeyond P1's data: rules P1 masks")
     suite.check(2, "field owes divisors inside atom arguments: sin(x/y)",
@@ -3977,6 +4119,13 @@ def main():
                 deep_neg_close_problems)
     suite.check(5, f"REWRITE_RULE 9(a)'s subterm clause, directly: {len(OPEN_IN_CASES)} "
                 "hypotheses", open_in_problems)
+    suite.check(5, "inputs deeper than the stack (a 500-term divisor, a 600-term close "
+                "value, 1/(x - 1)^300) give a state or a Refusal, never an exception; "
+                "1/(x - 1)^150 installs within 3 s", deep_input_problems)
+    suite.check(5, "F3 walks at most 256 points: nine variables install within 5 s, "
+                "ln's argument admitted", point_bound_problems)
+    suite.check(5, "a certificate the tracker keeps cannot be written through "
+                "obligations()", frozen_certificate_problems)
 
     print("\nParser")
     rt = X.ROUND_TRIP

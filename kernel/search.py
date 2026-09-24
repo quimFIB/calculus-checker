@@ -34,7 +34,9 @@ the checker has seen it (E28). For each:
 
 Sub-obligations are searched after the exact values, as the checker decides
 them, and a literal one gets the norm_num leaf. Termination is TAG_RULES':
-strictly lower degree for a factorisation, and no second content split.
+strictly lower degree for a factorisation, and no second content split; and
+factorisations nest at most tagger.FACTOR_DEPTH deep, as the tagger's do, so
+no certificate is arbitrarily deep.
 
 **Seam** (kernel/ARCHITECTURE.md §7): `_witness`, which scales the Farkas
 multipliers, is replaced by the planted bug search_scales_wrongly.
@@ -76,7 +78,7 @@ def domain_empty(key):
         return False
 
 
-def _search(key, split):
+def _search(key, split, depth=0):
     try:
         key, _ = DC.exact_values(key)
         said = FD.norm_num(key)
@@ -88,8 +90,8 @@ def _search(key, split):
         return None
     prop, dom = replace(key, dom=()), key.dom
     methods = (lambda: _hyp(prop, dom), lambda: _farkas(key),
-               lambda: _sign(prop), lambda: _product(key, split),
-               lambda: _cite(prop, dom))
+               lambda: _sign(prop), lambda: _product(key, split, depth),
+               lambda: _cite(prop, dom, depth))
     for method in methods:
         try:
             cert = method()
@@ -328,7 +330,7 @@ def _square(m, c, atoms):
 _REL = {0: "# 0", 1: ">", -1: "<"}
 
 
-def _product(key, split):
+def _product(key, split, depth=0):
     """TAG_RULES sign product on e = a - b, as tagger._product finds it.
     The checker reads a < b as g = b - a = -e, so for a '<' key the
     content's sign is flipped, which keeps the parity +1."""
@@ -347,16 +349,18 @@ def _product(key, split):
     if split and c != 1:
         s = want * (1 if c > 0 else -1)
         t = TG._as_term(p, atoms)
-        cert = _search(TG._sign_goal(t, s, dom), split=False)
+        cert = _search(TG._sign_goal(t, s, dom), split=False, depth=depth)
         if cert is not None:
             return {"method": "sign product", "sense": sense,
                     "content": flip * c, "factors": ((t, _REL[s], cert),)}
-    factors = TG.factor_rational_roots(e, atoms)
+    # tagger.FACTOR_DEPTH bounds the nesting, so no certificate is deeper
+    factors = (TG.factor_rational_roots(e, atoms) if depth < TG.FACTOR_DEPTH
+               else None)
     if not factors:
         return None
     options = []
     for f in factors:
-        found = [(s, _search(TG._sign_goal(f, s, dom), split=True))
+        found = [(s, _search(TG._sign_goal(f, s, dom), split=True, depth=depth + 1))
                  for s in ((0,) if want == 0 else (1, -1))]
         options.append([(s, cert) for s, cert in found if cert is not None])
     for choice in itertools.product(*options):
@@ -370,7 +374,7 @@ def _product(key, split):
 
 # ---------------------------------------------------------------- cite
 
-def _cite(prop, dom):
+def _cite(prop, dom, depth=0):
     for name, entry in ENTRIES.items():
         st = entry.statement
         if not (type(st) is NonZero or (type(st) is Rel and st.op in ORDERINGS)):
@@ -380,7 +384,7 @@ def _cite(prop, dom):
             continue
         children = []
         for h in subst(st, inst).dom:
-            cert = _search(with_domain(h, dom), split=True)
+            cert = _search(with_domain(h, dom), split=True, depth=depth)
             if cert is None:
                 break
             children.append((h, cert))

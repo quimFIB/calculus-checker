@@ -15,9 +15,10 @@ three ways, each giving 'obligation-decided-false' with a message saying how
   F2  `refute`, a closed ordering whose negation (a > b to a <= b, a >= b to
       a < b, and back) is discharged by DISCHARGE_RULE's steps (3)-(5).
   F3  `refute`, a key with a free variable, at the first point of
-      COUNTERPOINT_CANDIDATES where every domain item and every former the
-      proposition owes is discharged by steps (3)-(5), and the proposition
-      is false by F1 (literal after the exact values, norm_num False) or F2.
+      COUNTERPOINT_CANDIDATES, among the first POINT_BOUND, where every
+      former the proposition and the domain items owe is settled, every
+      domain item is settled, and the proposition is false by F1 (literal
+      after the exact values, norm_num False) or F2.
 
 `settled(key)` is steps (3)-(5): E7's norm_num, the exact values then
 norm_num, or the search's certificate accepted by the trusted checker. A
@@ -47,6 +48,10 @@ MESSAGES = {
                       "{negation} holds ({tag})",
 }
 NEGATION = {">": "<=", ">=": "<", "<": ">=", "<=": ">"}
+# COUNTERPOINT_CANDIDATES' bound: the walk visits at most this many points
+# (the Cartesian product is exponential in the number of variables), and a
+# key with no refuting point among them is admitted, tagged none (E35 (5)).
+POINT_BOUND = 256
 
 
 @dataclass(frozen=True)
@@ -195,10 +200,19 @@ def _subterms(t):
             yield from _subterms(k)
 
 
+def _defined(prop, owed):
+    """Every former the closed proposition's terms owe (kernel._owed over
+    its subterms) is settled: its terms are defined there."""
+    sides = (prop.lhs, prop.rhs) if type(prop) is Rel else (prop.e,)
+    return all(settled(with_domain(p, ())) is not None
+               for side in sides for s in _subterms(side) for p, _ in owed(s))
+
+
 def _counterpoint(key, owed):
     values = candidates(key)
     names = list(values)
-    for qs in itertools.product(*(values[v] for v in names)):
+    points = itertools.product(*(values[v] for v in names))
+    for qs in itertools.islice(points, POINT_BOUND):
         try:
             found = _false_at(key, dict(zip(names, qs)), owed)
         except Refused:
@@ -211,16 +225,14 @@ def _counterpoint(key, owed):
 def _false_at(key, env, owed):
     """The Refutation of `key` at the point `env`, or None."""
     sub = {v: lit(q) for v, q in env.items()}
-    for item in key.dom:
+    for item in key.dom:  # each item defined at the point, and holding there
         for p in _item_props(item):
-            if settled(with_domain(subst(p, sub), ())) is None:
+            p = subst(p, sub)
+            if not _defined(p, owed) or settled(with_domain(p, ())) is None:
                 return None
     at = subst(replace(key, dom=()), sub)
-    sides = (at.lhs, at.rhs) if type(at) is Rel else (at.e,)
-    for s in (s for side in sides for s in _subterms(side)):
-        for p, _ in owed(s):
-            if settled(with_domain(p, ())) is None:
-                return None
+    if not _defined(at, owed):
+        return None
     parts = {"key": show(key),
              "point": ", ".join(f"{v} = {show(lit(q))}"
                                 for v, q in sorted(env.items()))}

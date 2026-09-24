@@ -76,6 +76,12 @@ SIGN_FACTS = {
 
 NONE = ("none", ())
 ROOT_TEST_BOUND = 10 ** 6  # keeps the rational root test cheap (TAG_RULES)
+# How deep sign product's factorisations nest, a factor's own obligation
+# factorised again: past it, (ii) is not tried. §5.3's strictly lower degree
+# terminates the recursion, but a degree-300 power would take 300 levels,
+# each normalising a degree-300 polynomial. search.py uses the same bound,
+# so that the method it certifies is the one this names (E28).
+FACTOR_DEPTH = 8
 ZERO = Num(0)
 
 
@@ -87,17 +93,18 @@ def tag(key, gamma=()):
     return _tag(key, tuple(gamma), split=True)
 
 
-def _tag(key, gamma, split):
+def _tag(key, gamma, split, depth=0):
     """The method list, in §5.3's order. `split` is False only for the p of
-    a content split, which is monic and is not split again (E18)."""
+    a content split, which is monic and is not split again (E18). `depth`
+    counts the factorisations enclosing this obligation (FACTOR_DEPTH)."""
     if isinstance(key, Reg):
         return ("reg", ())
     prop, dom = replace(key, dom=()), key.dom
     methods = (lambda: _hyp(prop, gamma),
                lambda: _linear(prop, dom),
                lambda: _sign(prop),
-               lambda: _product(prop, dom, gamma, split),
-               lambda: _cite(prop, dom, gamma))
+               lambda: _product(prop, dom, gamma, split, depth),
+               lambda: _cite(prop, dom, gamma, depth))
     for method in methods:
         try:
             found = method()
@@ -364,7 +371,7 @@ def _as_term(p, atoms):
     return residual.poly_term(p, atoms)
 
 
-def _product(prop, dom, gamma, split):
+def _product(prop, dom, gamma, split, depth=0):
     """§5.3 method 5, for >, < and # 0 only: (i) E18's content split, then
     (ii) a factorisation into factors of strictly lower degree."""
     if isinstance(prop, NonZero):
@@ -380,10 +387,10 @@ def _product(prop, dom, gamma, split):
     if split and c != 1:
         # e = c*p: p # 0, or p's sign times c's sign is the goal's.
         t = _tag(_sign_goal(_as_term(p, atoms), want * (1 if c > 0 else -1),
-                            dom), gamma, split=False)
+                            dom), gamma, split=False, depth=depth)
         if t != NONE:
             return ("sign product", t[1])
-    factors = factor_rational_roots(e, atoms)
+    factors = factor_rational_roots(e, atoms) if depth < FACTOR_DEPTH else None
     if not factors:
         return None
     # Each factor's sign, or just # 0, and a choice whose product has the
@@ -391,7 +398,8 @@ def _product(prop, dom, gamma, split):
     options = []
     for f in factors:
         signs = (0,) if want == 0 else (1, -1)
-        tagged = [(s, _tag(_sign_goal(f, s, dom), gamma, split=True))
+        tagged = [(s, _tag(_sign_goal(f, s, dom), gamma, split=True,
+                           depth=depth + 1))
                   for s in signs]
         options.append([(s, t) for s, t in tagged if t != NONE])
     for choice in itertools.product(*options):
@@ -463,7 +471,7 @@ def _candidates(a0, an):
 
 # ---------------------------------------------------------------- cite
 
-def _cite(prop, dom, gamma):
+def _cite(prop, dom, gamma, depth=0):
     """§5.3 method 6: an ENTRIES statement whose instantiated conclusion is
     prop, or is `a > 0` / `0 < a` for prop `a # 0`, `a >= 0` or `0 <= a`,
     and whose instantiated hypotheses at dom are none of them tagged
@@ -475,7 +483,8 @@ def _cite(prop, dom, gamma):
             continue
         cites = [name]
         for h in entry.hyps:
-            t = _tag(with_domain(subst(h, inst), dom), gamma, split=True)
+            t = _tag(with_domain(subst(h, inst), dom), gamma, split=True,
+                     depth=depth)
             if t == NONE:
                 break
             cites += t[1]
