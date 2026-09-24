@@ -6108,6 +6108,10 @@ DATA_CHANGES = (
      "('N', 'P1.2') removed; the bug stays caught at farkas_constant_not_contradiction, N for P1.1 and P1.1-fallback, and the farkas property test",
      "the wiring build (commit 2) showed P1.2's count does not move: on [0, 1] the swapped lower-end label gives x - 1 >= 0, a stronger constraint, and -(1 + x) + (x - 1) = -2 still refutes each range key's negated goal, so the certificates stay accepted. The spec's reasoning holds only where the upper end is not a rational constant. Checked by the main session",
      'adjudicated during implementation'),
+    ("COUNTERPOINT_CANDIDATES: a 256-point bound, and definedness of the domain items at the point",
+     "F3 walks at most the first 256 points in candidate order, and a miss is admitted, tagged none; a point counts only where the formers of the proposition and of every domain item are settled true",
+     "skeptic review of the wired discharge (b99972e). The Cartesian product was exponential in the variable count (9 variables took 30 s inside install); E35 (5) already accepts misses. Separately, F3 named a counter-point where a domain item was itself undefined, refusing a key that is true where it is defined; 'keeps every term defined' is now stated to cover the domain items. No expected outcome in the spec changes: every refusal's point is within the first 256, and none relies on an undefined domain item",
+     'discharge review fix 2026-09-24'),
 )
 
 
@@ -6441,6 +6445,16 @@ COUNTERPOINT_CANDIDATES = (
     "slowest. Irrational or symbolic ends (pi/2, e_const) contribute no "
     "value; the point must still satisfy them, which steps (3)-(5) decide "
     "(0 <= pi^2/4 by sign).",
+    # skeptic review of b99972e: the product is exponential in the number of
+    # variables (9 variables: 30 s inside install)
+    "Bound: the walk visits at most the first 256 points of that order. "
+    "A key with no refuting point among them is not decided false, and "
+    "is admitted tagged none, as any other miss is (E35 (5)).",
+    # skeptic review of b99972e: a counter-point where a domain item is
+    # itself undefined refuted a key that is true where it is defined
+    "A point counts only where every term is defined: the formers owed by "
+    "the proposition AND by every domain item must be settled true at the "
+    "point, and a domain item holds there only if it is defined there.",
 )
 
 # Certificate helpers. Labels as DISCHARGE_RULE names them; rationals as
