@@ -841,6 +841,19 @@ DECISIONS = {
             "(0, 2); the answer is stated with ln 3, which ln(1 + 2) is as "
             "an atom. SUB2-W1 keeps the old upper limit, the classic "
             "unchanged-limits error, refused at 4^2 == 4",
+    # consolidation spec 2026-09-24
+    "PF23": "QC1 is Int_0^1 sqrt(1 - x^2) = pi/4 by x := cos theta over "
+            "theta from pi/2 to 0 (p1_expected E55), §5.1's canonical "
+            "reversed case, finished. It lives in kernel/problems/"
+            "consolidation/, because stage1/'s floor names its files "
+            "exactly. Its route: int_subst (flipped, E46), pyth_cos at "
+            "(cos theta)^2, sqrt_sq with u := sin theta (owing sin theta >= "
+            "0, cite sin_nonneg_on), fact pyth_cos, ftc with F := (theta - "
+            "sin theta * cos theta)/2 checked by field with that fact, three "
+            "exact-value rewrites, and close pi/4. Its sign products are "
+            "1 - x^2 >= 0 at installation and 1 - (cos theta)^2 >= 0 after "
+            "the substitution (E53). QC1-W1 drops the fact; QC1-W2 applies "
+            "sqrt_sq before pyth_cos",
 }
 
 # ---------------------------------------------------------------------------
@@ -1013,6 +1026,12 @@ VERIFIED = (
     "round-trips; each echo is the printer's; each int_subst and ftc "
     "goal_after equals its rebuilt tree, and S2R's identity key "
     "body == f[u := x^2]*g'",
+    # consolidation spec 2026-09-24
+    "consolidation spec 2026-09-24, SymPy 1.14 in scratch: QC1's value, ends, flipped integral, "
+    "factorisations, sqrt(sin^2) = sin on [0, pi/2], F' = sin^2 with "
+    "pyth_cos and not without it (QC1-W1's residual), F(pi/2) - F(0) = "
+    "pi/4. QC1.json loads and matches CONSOLIDATION_STEPS; every string "
+    "parses and round-trips; every goal_after equals its rebuilt tree",
 )
 
 # ---------------------------------------------------------------------------
@@ -1173,6 +1192,32 @@ CHANGES = (
      "candidate",
      "int_subst review 2026-09-24: p1_expected E50 and F3_ROOTS_CHANGES",
      "hand re-trace of every key in section 12 and sections 4-11"),
+    # consolidation spec 2026-09-24: additions only
+    ("section 13 (new): the CONSOLIDATION_* tables for QC1; "
+     "kernel/problems/consolidation/QC1.json (new); DECISIONS PF23 (new); "
+     "VERIFIED (one appended)",
+     "none",
+     "QC1: 14 keys, 5 admitted (regularity), 'Proved modulo 5 admissions'; "
+     "two wrong answers",
+     "consolidation spec 2026-09-24: p1_expected E53-E55",
+     "hand derivation; import-time cross-check; scratch SymPy and parser "
+     "checks; QC1's s1 on today's kernel"),
+    ("sections 4-12 (no change)",
+     "none",
+     "none: no stage-0 or stage-1 key is non-strict and first closed by the "
+     "new sign product, and none holds a cos or sin atom outside a Reg "
+     "judgement",
+     "consolidation spec 2026-09-24: p1_expected E53 and E54, CONSOLIDATION_CHANGES",
+     "hand re-trace of every key"),
+    # consolidation spec 2026-09-24, owner answers: re-traced, nothing changed
+    ("every table (no change)",
+     "none",
+     "none: no stage-0, stage-1 or consolidation file has a symbolic "
+     "reversed range; S3's 1 <= e_const is the same key under E56, "
+     "discharged the same way; SUB1's and S2R's literal ranges are ordered "
+     "by norm_num as before; QC1's int_subst keeps E46's flip",
+     "consolidation spec 2026-09-24, owner answers: p1_expected E56",
+     "hand re-trace of every range in sections 4-13"),
 )
 
 # ---------------------------------------------------------------------------
@@ -1891,3 +1936,263 @@ for _p, _rows in INT_SUBST_FINAL_TRACKER.items():
             (DISCHARGED, _tag), (_p, _k)
 assert set(INT_SUBST_PROOF_FILES) == set(INT_SUBST_FINAL_TRACKER)
 del _p, _rows, _keys, _seen, _sid, _obs, _ob, _fin, _k, _tag, _c
+
+
+# ---------------------------------------------------------------------------
+# 13. The quarter circle, QC1 (consolidation spec 2026-09-24)
+#
+# p1_expected's section 13 states the rules (E51-E55); this is
+# Int_0^1 sqrt(1 - x^2) = pi/4 by x := cos theta under them, derived by hand
+# step by step, without reading kernel.py, discharge.py or search.py. The
+# file is kernel/problems/consolidation/QC1.json: stage1/'s floor names its
+# files exactly, so a new file there would turn the committed suite red.
+# Staged until the build (p1_expected CONSOLIDATION_SWITCH). PF23.
+T_PRODUCT = ("sign product", ())
+T_PRODUCT_COS = ("sign product", ("cos_le_one", "cos_ge_neg_one"))
+T_LINEAR_PI = ("linear", ("pi_pos",))
+T_RING_COS_PI_HALF = ("ring", ("cos_pi_half",))
+T_RING_COS_ZERO = ("ring", ("cos_zero",))
+T_CITE_SIN = ("cite", ("sin_nonneg_on", "pi_pos"))
+T_DERIV_FIELD_PYTH = ("deriv+field", ("pyth_cos",))
+
+
+def ATOM(name, u):
+    return ("fact", name, u)
+
+
+def _product(content, factors, sense=None):
+    return {"method": "sign product", "sense": sense, "content": content,
+            "factors": tuple(factors)}
+
+
+def _cite(entry, inst, hyps):
+    return {"method": "cite", "entry": entry, "inst": dict(inst),
+            "hyps": tuple(hyps)}
+
+
+CONSOLIDATION_PROOF_FILES = {"QC1": ("consolidation/QC1.json",
+                                     "reference_proof")}
+CONSOLIDATION_GOALS = {"QC1": "Int[x = 0 .. 1] sqrt(1 - x^2) == ?A"}
+CONSOLIDATION_ECHO = {"QC1": "Int[x = 0 .. 1] sqrt(1 - x^2) == ?A"}
+
+QC1_S1 = ("Int[theta = 0 .. pi/2] -(sqrt(1 - (cos theta)^2)"
+          "*(-sin theta * 1)) == ?A")
+QC1_S2 = ("Int[theta = 0 .. pi/2] -(sqrt(1 - (1 - (sin theta)^2))"
+          "*(-sin theta * 1)) == ?A")
+QC1_S3 = "Int[theta = 0 .. pi/2] -(sin theta * (-sin theta * 1)) == ?A"
+QC1_F = "(theta - sin theta * cos theta)/2"
+QC1_INTEGRAND = "-(sin theta * (-sin theta * 1))"
+QC1_AFTER_FTC = ("(pi/2 - sin(pi/2)*cos(pi/2))/2 - (0 - sin 0 * cos 0)/2"
+                 " == ?A")
+CONSOLIDATION_STEPS = {
+    "QC1": [
+        # int_subst, flipped (E46): pi/2 <= 0 is not discharged, 0 <= pi/2
+        # is, so the new integral is Int[theta = 0 .. pi/2] -(F*phi')
+        {"id": "s1", "move": "int_subst", "goal_after": QC1_S1},
+        # pyth_cos at (cos theta)^2, a tree match (REWRITE_RULE step 3)
+        {"id": "s2", "move": "rewrite", "occurrences": 1,
+         "goal_after": QC1_S2},
+        # sqrt_sq with u := sin theta: ring_nf(1 - (1 - (sin theta)^2)) is
+        # (sin theta)^2
+        {"id": "s3", "move": "rewrite", "occurrences": 1,
+         "goal_after": QC1_S3},
+        {"id": "s4", "move": "fact", "goal_after": QC1_S3,
+         "conclusion": "(cos theta)^2 == 1 - (sin theta)^2"},
+        {"id": "s5", "move": "ftc", "goal_after": QC1_AFTER_FTC},
+        {"id": "s6", "move": "rewrite", "occurrences": 1,
+         "goal_after": "(pi/2 - 1*cos(pi/2))/2 - (0 - sin 0 * cos 0)/2 == ?A"},
+        {"id": "s7", "move": "rewrite", "occurrences": 1,
+         "goal_after": "(pi/2 - 1*0)/2 - (0 - sin 0 * cos 0)/2 == ?A"},
+        {"id": "s8", "move": "rewrite", "occurrences": 1,
+         "goal_after": "(pi/2 - 1*0)/2 - (0 - 0*cos 0)/2 == ?A"},
+        # ring: pi/4 - 0 (cos 0 is multiplied by 0)
+        {"id": "s9", "move": "close", "goal_after": None},
+    ],
+}
+CONSOLIDATION_THEOREMS = {"QC1": "Int[x = 0 .. 1] sqrt(1 - x^2) == pi/4"}
+
+CONSOLIDATION_DERIV = {
+    ("QC1", "s1"): {"var": "theta", "F": "cos theta",
+                    "trace": [("d_cos", "cos theta", ()),
+                              ("d_var", "theta", ())],
+                    "output": "-sin theta * 1", "emits": ()},
+    ("QC1", "s5"): {
+        "var": "theta", "F": QC1_F,
+        "trace": [("route_div", QC1_F, ("2 # 0",)),
+                  ("d_mul", "(theta - sin theta * cos theta)*(1/2)", ()),
+                  ("d_add", "theta - sin theta * cos theta", ()),
+                  ("d_var", "theta", ()),
+                  ("route_neg", "-(sin theta * cos theta)", ()),
+                  ("d_mul", "-1*(sin theta * cos theta)", ()),
+                  ("d_const", "-1", ()),
+                  ("d_mul", "sin theta * cos theta", ()),
+                  ("d_sin", "sin theta", ()), ("d_var", "theta", ()),
+                  ("d_cos", "cos theta", ()), ("d_var", "theta", ()),
+                  ("d_const", "1/2", ())],
+        "output": ("(1 + (0*(sin theta * cos theta) + (-1)*(cos theta * 1"
+                   " * cos theta + sin theta * (-sin theta * 1))))*(1/2)"
+                   " + (theta - sin theta * cos theta)*0"),
+        "emits": ("2 # 0",)},
+}
+
+# Per step, after discharge. Hand-derived:
+#   goal: sqrt's 1 - x^2 >= 0 on [0, 1]: FM sees x^2 as opaque, sign finds
+#     no form, and the non-strict sign product (E53) factors it as
+#     -(x - 1)(x + 1): x - 1 <= 0 by the upper end, x + 1 > 0 by the lower.
+#   s1 (INT_SUBST_RULE): step 8, lo's pi/2 owes 2 # 0, and the order
+#     0 <= pi/2 is the one discharged (flip); step 10, deriv emits nothing;
+#     step 12, cos(pi/2) == 0 and cos 0 == 1 after the exact values; step
+#     13, the two Reg on [0, pi/2]; step 14, the new integrand's sqrt owes
+#     1 - (cos theta)^2 >= 0 on [0, pi/2], -(cos theta - 1)(cos theta + 1),
+#     cos theta - 1 <= 0 by cos_le_one and cos theta + 1 >= 0 (not > 0:
+#     cos theta >= -1 gives no strict bound) by cos_ge_neg_one.
+#   s2: pyth_cos has no hypothesis, and its R = 1 - (sin theta)^2 no
+#     former: nothing; no key uses the range, so no orientation.
+#   s3: sqrt_sq's sin theta >= 0 on [0, pi/2], by cite sin_nonneg_on
+#     (theta >= 0 by the lower end; theta <= pi by the upper end and
+#     pi_pos); R = sin theta owes nothing; the orientation again.
+#   s4: fact emits nothing.
+#   s5 (ftc, check field, fact h_pyth): F's /2; the premises; deriv's
+#     route_div 2 # 0; field's divisor 2 (in 1/2); the fact owes nothing.
+#     The check: F' = (1 - cos^2 + sin^2)/2 and the integrand is sin^2,
+#     equal once cos^2 is replaced by 1 - sin^2.
+#   s6-s8: exact-value rewrites, owing nothing.
+#   s9: the value pi/4 owes 4 # 0.
+CONSOLIDATION_OBLIGATIONS = {
+    "QC1": {
+        "goal": [
+            ("1 - x^2 >= 0", "[0, 1]", (S_FORMER,), DISCHARGED, T_PRODUCT,
+             True),
+        ],
+        "s1": [
+            ("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+            ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI, True),
+            ("cos(pi/2) == 0", "true", (S_SUBST_LO,), DISCHARGED,
+             T_RING_COS_PI_HALF, True),
+            ("cos 0 == 1", "true", (S_SUBST_HI,), DISCHARGED, T_RING_COS_ZERO,
+             True),
+            ("cos theta in C^1([0, pi/2])", "[0, pi/2]", (S_SUBST_C1,),
+             ADMITTED, T_REG, True),
+            ("sqrt(1 - (cos theta)^2) in C^0([0, pi/2])", "[0, pi/2]",
+             (S_SUBST_C0,), ADMITTED, T_REG, True),
+            ("1 - (cos theta)^2 >= 0", "[0, pi/2]", (S_FORMER,), DISCHARGED,
+             T_PRODUCT_COS, True),
+        ],
+        "s2": [],
+        "s3": [
+            ("sin theta >= 0", "[0, pi/2]", (S_SQRT_SQ,), DISCHARGED,
+             T_CITE_SIN, True),
+            ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI,
+             False),
+        ],
+        "s4": [],
+        "s5": [
+            ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI,
+             False),
+            ("2 # 0", "true", (S_FORMER, S_ROUTE_DIV, S_FIELD), DISCHARGED,
+             T_NORM_NUM, False),
+            (QC1_F + " in C^0([0, pi/2])", "[0, pi/2]", (S_FTC_C0F,),
+             ADMITTED, T_REG, True),
+            (QC1_F + " in C^1((0, pi/2))", "(0, pi/2)", (S_FTC_C1F,),
+             ADMITTED, T_REG, True),
+            ("D[theta](" + QC1_F + ") == " + QC1_INTEGRAND, "(0, pi/2)",
+             (S_FTC_D,), DISCHARGED, T_DERIV_FIELD_PYTH, True),
+            (QC1_INTEGRAND + " in C^0([0, pi/2])", "[0, pi/2]", (S_FTC_C0f,),
+             ADMITTED, T_REG, True),
+        ],
+        "s6": [],
+        "s7": [],
+        "s8": [],
+        "s9": [
+            ("4 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+        ],
+    },
+}
+
+CONSOLIDATION_EXPECTED = {
+    "QC1": {
+        ("1 - x^2 >= 0", "[0, 1]"): (T_PRODUCT, _product(
+            "-1", [("x - 1", "<=", _farkas({GOAL: "1", HI(0): "1"})),
+                   ("x + 1", ">", _RANGE_LO)])),
+        ("0 <= pi/2", "true"): (T_LINEAR_PI, _farkas({GOAL: "1",
+                                                      FACT("pi_pos"): "1/2"})),
+        ("1 - (cos theta)^2 >= 0", "[0, pi/2]"): (T_PRODUCT_COS, _product(
+            "-1", [("cos theta - 1", "<=",
+                    _farkas({GOAL: "1", ATOM("cos_le_one", "theta"): "1"})),
+                   ("cos theta + 1", ">=",
+                    _farkas({GOAL: "1",
+                             ATOM("cos_ge_neg_one", "theta"): "1"}))])),
+        ("sin theta >= 0", "[0, pi/2]"): (T_CITE_SIN, _cite(
+            "sin_nonneg_on", {"u": "theta"},
+            [("theta >= 0", _RANGE_LO),
+             ("theta <= pi", _farkas({GOAL: "1", HI(0): "1",
+                                      FACT("pi_pos"): "1/2"}))])),
+    },
+}
+
+CONSOLIDATION_FINAL_TRACKER = {
+    "QC1": [
+        ("1 - x^2 >= 0", "[0, 1]", DISCHARGED, T_PRODUCT),
+        ("2 # 0", "true", DISCHARGED, T_NORM_NUM),
+        ("0 <= pi/2", "true", DISCHARGED, T_LINEAR_PI),
+        ("cos(pi/2) == 0", "true", DISCHARGED, T_RING_COS_PI_HALF),
+        ("cos 0 == 1", "true", DISCHARGED, T_RING_COS_ZERO),
+        ("cos theta in C^1([0, pi/2])", "[0, pi/2]", ADMITTED, T_REG),
+        ("sqrt(1 - (cos theta)^2) in C^0([0, pi/2])", "[0, pi/2]", ADMITTED,
+         T_REG),
+        ("1 - (cos theta)^2 >= 0", "[0, pi/2]", DISCHARGED, T_PRODUCT_COS),
+        ("sin theta >= 0", "[0, pi/2]", DISCHARGED, T_CITE_SIN),
+        (QC1_F + " in C^0([0, pi/2])", "[0, pi/2]", ADMITTED, T_REG),
+        (QC1_F + " in C^1((0, pi/2))", "(0, pi/2)", ADMITTED, T_REG),
+        ("D[theta](" + QC1_F + ") == " + QC1_INTEGRAND, "(0, pi/2)",
+         DISCHARGED, T_DERIV_FIELD_PYTH),
+        (QC1_INTEGRAND + " in C^0([0, pi/2])", "[0, pi/2]", ADMITTED, T_REG),
+        ("4 # 0", "true", DISCHARGED, T_NORM_NUM),
+    ],
+}
+# int_subst's two Reg and ftc's three; none tagged none
+CONSOLIDATION_ADMISSIONS = {"QC1": 5}
+CONSOLIDATION_VERDICTS = {n: VERDICT.format(n=k)
+                          for n, k in CONSOLIDATION_ADMISSIONS.items()}
+CONSOLIDATION_ANSWERS = {"QC1": "pi/4"}
+CONSOLIDATION_NUMERIC = {"QC1": 0.7853981633974483}  # pi/4
+
+CONSOLIDATION_WRONG_ANSWERS = [
+    # the check without the fact: cos theta^2 and sin theta^2 are unrelated
+    # atoms to field, so F' - f = (1 - cos^2 - sin^2)/2 is left over
+    {"id": "QC1-W1",
+     "what": "QC1's ftc without pyth_cos",
+     "state": ("QC1", "s4"),
+     "move": ("ftc", {"F": QC1_F, "check": "field", "facts": []}),
+     "refusal": "ftc-check-failed",
+     "residual": ("(1 + (0*(sin theta * cos theta) + (-1)*(cos theta * 1"
+                  " * cos theta + sin theta * (-sin theta * 1))))*(1/2)"
+                  " + (theta - sin theta * cos theta)*0 - " + QC1_INTEGRAND),
+     "compare": ("field", ())},
+    # sqrt_sq before pyth_cos: ring_nf(1 - (cos theta)^2) is not
+    # (sin theta)^2
+    {"id": "QC1-W2",
+     "what": "sqrt_sq at sqrt(1 - (cos theta)^2) straight after s1",
+     "state": ("QC1", "s1"),
+     "move": ("rewrite", {"entry": "sqrt_sq", "inst": {"u": "sin theta"},
+                          "at": "sqrt(1 - (cos theta)^2)"}),
+     "refusal": "rewrite-lhs-mismatch"},
+]
+
+# Cross-check.
+for _p, _rows in CONSOLIDATION_FINAL_TRACKER.items():
+    _seen = set()
+    for _sid, _obs in CONSOLIDATION_OBLIGATIONS[_p].items():
+        for _ob in _obs:
+            _fin = [r for r in _rows if (r[0], r[1]) == (_ob[0], _ob[1])]
+            assert _fin and _fin[0][2:] == (_ob[3], _ob[4]), (_p, _sid, _ob)
+            assert _ob[5] == ((_ob[0], _ob[1]) not in _seen), (_p, _sid, _ob)
+        _seen |= {(o[0], o[1]) for o in _obs}
+    assert _seen == {(r[0], r[1]) for r in _rows}, _p
+    assert [s["id"] for s in CONSOLIDATION_STEPS[_p]] == \
+        [k for k in CONSOLIDATION_OBLIGATIONS[_p] if k != "goal"], _p
+    assert sum(r[2] == ADMITTED for r in _rows) == CONSOLIDATION_ADMISSIONS[_p]
+    for _k, (_tag, _c) in CONSOLIDATION_EXPECTED[_p].items():
+        assert [r for r in _rows if (r[0], r[1]) == _k][0][2:] == \
+            (DISCHARGED, _tag), (_p, _k)
+del _p, _rows, _seen, _sid, _obs, _ob, _fin, _k, _tag, _c

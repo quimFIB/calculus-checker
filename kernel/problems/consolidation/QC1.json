@@ -1,0 +1,40 @@
+{
+  "format": "calc-problem/0",
+  "id": "consolidation.QC1",
+  "title": "a quarter circle by x = cos theta",
+  "source": "WHAT.md, Start here item 1 (consolidation); STAGE0.md S8; DESIGN.md §5.1's canonical reversed case",
+  "statement": "Evaluate the definite integral of √(1 − x²) from 0 to 1.",
+  "goal": "Int[x = 0 .. 1] sqrt(1 - x^2) == ?A",
+  "answer_schema": "closed",
+  "declarations": {
+    "functions": {}
+  },
+  "reference_proof": [
+    {"id": "s1", "move": "int_subst",
+     "args": {"var": "x", "sub": "cos theta", "new_var": "theta", "lo": "pi/2", "hi": "0",
+              "check": "ring", "facts": []}},
+    {"id": "s2", "move": "rewrite",
+     "args": {"entry": "pyth_cos", "inst": {"u": "theta"}, "at": "(cos theta)^2"}},
+    {"id": "s3", "move": "rewrite",
+     "args": {"entry": "sqrt_sq", "inst": {"u": "sin theta"}, "at": "sqrt(1 - (1 - (sin theta)^2))"}},
+    {"id": "s4", "move": "fact",
+     "args": {"entry": "pyth_cos", "inst": {"u": "theta"}, "bind": "h_pyth"}},
+    {"id": "s5", "move": "ftc",
+     "args": {"F": "(theta - sin theta * cos theta)/2", "check": "field",
+              "facts": [["handle", "h_pyth"]]}},
+    {"id": "s6", "move": "rewrite",
+     "args": {"entry": "sin_pi_half", "inst": {}, "at": "sin(pi/2)"}},
+    {"id": "s7", "move": "rewrite",
+     "args": {"entry": "cos_pi_half", "inst": {}, "at": "cos(pi/2)"}},
+    {"id": "s8", "move": "rewrite",
+     "args": {"entry": "sin_zero", "inst": {}, "at": "sin 0"}},
+    {"id": "s9", "move": "close",
+     "args": {"value": "pi/4", "check": "ring", "facts": []}}
+  ],
+  "notes": [
+    "x = cos theta is decreasing: the ends are theta = pi/2 (cos(pi/2) = 0) and theta = 0 (cos 0 = 1), checked with the exact values cos_pi_half and cos_zero. The order 0 <= pi/2 is discharged, so int_subst builds the flipped, oriented integral over [0, pi/2] (p1_expected E46).",
+    "Installation owes 1 - x^2 >= 0 on [0, 1], closed by the sign product -(x - 1)(x + 1) (E53); the new integrand owes 1 - (cos theta)^2 >= 0, closed as -(cos theta - 1)(cos theta + 1) with cos_le_one and cos_ge_neg_one.",
+    "pyth_cos rewrites (cos theta)^2 so that sqrt_sq matches through ring_nf; sqrt_sq then owes sin theta >= 0 on [0, pi/2], closed by cite sin_nonneg_on.",
+    "ftc's check is field with pyth_cos as a fact: F' = (1 - cos^2 + sin^2)/2, which is sin^2 once cos^2 is reduced (§6.2's a^k == r)."
+  ]
+}

@@ -4707,7 +4707,9 @@ DECISIONS = {
     "E4": "range orientation: literal endpoints are ordered by norm_num; "
           "an infinite end fixes the orientation, is always open, and emits "
           "nothing, and two equal infinities are refused; otherwise the step "
-          "emits lo <= hi (§5.1, §5.3 method 2, §6.1, §6.4)",
+          "emits lo <= hi (§5.1, §5.3 method 2, §6.1, §6.4)"
+          ". Superseded for non-literal ends by E56 (owner's answers, "
+          "consolidation spec 2026-09-24)",
     "E5": "a closed obligation is keyed with domain true (§5.3)",
     "E6": "'/', negative-power and RPow formers are charged when a term "
           "enters the proof (§5.1, §11.2); E26 adds the partial builtins, "
@@ -5092,7 +5094,8 @@ DECISIONS = {
            "Int[t = hi .. lo] -(...) when hi <= lo is, and refuses "
            "'int-subst-orientation-undecided' when neither is. "
            "Literal ends are unchanged. decreasing_symbolic_ends is "
-           "now accepted, flipped",
+           "now accepted, flipped"
+           ". And E56 generalises the rule to every step",
     "E41": "phi' is deriv's output, verbatim (E12's literal forms, so t^2 "
            "gives 2*t^1*1), and never an argument. A learner cannot supply "
            "a wrong phi': an extra key is 'bad-args' (E36's exact key "
@@ -5220,7 +5223,10 @@ DECISIONS = {
            "admitted under E4; it is now refused, because the kernel must "
            "know which form to build. x = cos(theta) over [pi/2, 0], "
            "§5.1's canonical case, is accepted (INT_SUBST_ACCEPTS "
-           "cos_theta_canonical and cos_theta_full)",
+           "cos_theta_canonical and cos_theta_full)"
+           ". Its decision rule is now E56's, shared by every step "
+           "that builds a range, and its refusal code is E56's "
+           "'orientation-undecided'; int_subst keeps its flipped form",
     "E47": "P1.1-sheet stays in INT_SUBST_PROOFS (owner's answer 3). "
            "Moving it into PROOFS and ROUTE['P1.1'], with the re-trace of "
            "the existing seams against it, is a follow-up after the build",
@@ -5316,6 +5322,118 @@ DECISIONS = {
            "only refuse (E33): a wrong root costs a wrong refusal, which "
            "the refutation's re-check at its point and the property test "
            "catch",
+    # E51-E55: consolidation spec 2026-09-24, written before any code
+    # (section 13 states each in full).
+    "E51": "int_flip (the owner's decision, 2026-09-24): an explicit "
+           "trusted move for §5.1's reversed integral, args {} or "
+           "{'occurrence': k}, int_subst's selector without a variable (the "
+           "one Int, or the k-th; 'int-flip-no-integral', "
+           "'int-flip-ambiguous'), its position domain, and its D[y] test "
+           "('rewrite-under-D-needs-open-domain'). DECIDED ON THE OWNER'S "
+           "BEHALF, and a deviation from the task's wording: the result is "
+           "Int[x = b .. a] -(f), not -(Int[x = b .. a] f). Reason: ftc acts "
+           "on a top-level Int, and on -(Int ...) it would refuse "
+           "'ftc-no-integral', so the owner's aim, ftc running after the "
+           "flip, needs either this form or a position argument for ftc; "
+           "this form is E46's identity (§5.1 composed with pointwise "
+           "linearity), already in the rule table, so it adds a move and no "
+           "theorem. The move owes no orientation of its own: the identity "
+           "holds whatever the order of a and b. The new integral's formers "
+           "are charged as a new term's, with E4's orientation when a key "
+           "uses its range; for the intended use, a reversed symbolic range, "
+           "that orientation is the true one. Limitation, stated: a goal "
+           "whose reversed symbolic integral owes a former cannot be "
+           "installed (E4 owes lo <= hi at installation, which F2 refuses), "
+           "so int_flip reaches only reversed integrals whose bodies owe "
+           "nothing (owner question)"
+           ". Owner's answers, 2026-09-24: the form Int[x = b .. a] "
+           "-(f) is ACCEPTED, being the same identity as -(Int[x = b .. "
+           "a] f) and keeping ftc applicable; and the limitation is "
+           "removed by E56, which builds every range from the order "
+           "discharge proves, so a reversed symbolic integral whose body "
+           "owes a former now installs, and flipping an oriented one is "
+           "no longer refused",
+    "E52": "P1.1-sheet joins PROOFS and becomes ROUTE['P1.1'] (the owner's "
+           "E47, carried out): its tables merge into PROOFS and the "
+           "DISCHARGE_* tables, it leaves INT_SUBST_PROOFS, and every child "
+           "that runs PROOFS runs it (P1_1_SHEET_JOIN). Re-traced by hand "
+           "against all 5 PLANTED_BUGS, 13 DISCHARGE_NEW_PLANTED_BUGS and 30 "
+           "DEFINEDNESS_MUTATIONS (P1_1_SHEET_TRACES): N stays 5 except "
+           "farkas_swaps_interval_ends (7), and pi_pos_not_in_constraint_set, "
+           "search_scales_wrongly and sqrt_open_at_0 refuse it (at s1, s1 "
+           "and installation); four more bugs gain a catch in it. P1.1, the "
+           "t-form, stays in PROOFS as the proof of its own goal",
+    "E53": "the sign product closes non-strict goals (§5.3 method 5, "
+           "WHAT.md's consolidation item): factors may be '>=' or '<=' under "
+           "a non-strict target, never under a strict one, with the same "
+           "identity, parity and children checks (SIGN_PRODUCT_"
+           "NONSTRICT_RULE). Soundness: each factor holds its certified sign "
+           "where the terms are defined, so the product's sign follows from "
+           "the parity, zero included. 1 - x^2 >= 0 @ [0, 1] is "
+           "-(x - 1)(x + 1). Changes: DISCHARGE_MUST_REJECT "
+           "product_nonstrict_target's reason, and cos_theta_canonical's "
+           "two none admissions become discharged (CONSOLIDATION_CHANGES)",
+    "E54": "six entries (CONSOLIDATION_ENTRIES): pyth as the owner states "
+           "it, (sin u)^2 + (cos u)^2 == 1, and pyth_cos, (cos u)^2 == 1 - "
+           "(sin u)^2, its solved form, which a rewrite (tree match at "
+           "(cos b)^2) and field (§6.2's a^k == r) can use and which differs "
+           "from pyth by a ring identity; the owner's cos sign fact, "
+           "cos_nonneg_on : cos u >= 0 @ u >= 0, u <= pi/2, and "
+           "sin_nonneg_on : sin u >= 0 @ u >= 0, u <= pi, both read by cite "
+           "only, since their hypotheses are real conditions and a Farkas "
+           "label has no children; and cos_le_one, cos_ge_neg_one, total "
+           "bounds read by the linear method per cos atom, as sqrt_nonneg "
+           "is (ATOM_FACT_RULE). E27 (a) counts pyth, not pyth_cos; none is "
+           "an exact value. No existing expectation changes by them except "
+           "through E53's cos_theta_canonical key",
+    "E55": "Int_0^1 sqrt(1 - x^2) = pi/4 by x := cos theta (problems/stage0 "
+           "QC1) needs exactly E53 (installation's 1 - x^2 >= 0, and after "
+           "the flip 1 - (cos theta)^2 >= 0 as -(cos theta - 1)(cos theta + "
+           "1) with cos_le_one and cos_ge_neg_one), pyth_cos twice (a "
+           "rewrite turning sqrt(1 - (cos theta)^2) into sqrt(1 - (1 - "
+           "(sin theta)^2)), which sqrt_sq then matches by ring_nf, and a "
+           "field fact for ftc's check, whose F' holds cos theta^2), and "
+           "sin_nonneg_on for sqrt_sq's sin theta >= 0 on [0, pi/2]. NO "
+           "extension of field is needed: §6.2 already takes facts a^k == "
+           "P/Q with the right side free of fact atoms, and pyth_cos is "
+           "one. Nothing large (no trig_norm) is needed. The owner's cos "
+           "sign fact is not used by this route (x := sin theta would use "
+           "it), and is pinned as asked",
+    # consolidation spec 2026-09-24, owner answers
+    "E56": "reversed ranges everywhere (owner's answer 2, 2026-09-24, the "
+           "main session's recommendation): wherever the kernel builds an "
+           "interval from an Int's limits a (lo) and b (hi) - installation's "
+           "and every new goal's formers, rewrite's position domain, ftc's "
+           "premises and its (a, b), int_subst's old and new ranges, "
+           "int_flip's new range, and so every key discharge reads a range "
+           "constraint from - two rational literals are ordered by "
+           "norm_num as today, an infinite end as today, and otherwise the "
+           "kernel puts lo <= hi, then hi <= lo, to DISCHARGE_RULE steps "
+           "(3)-(5) at the Int's position domain, with no refutation: the "
+           "first discharged is emitted (source orient, as the E4 key was) "
+           "and the interval is [lo, hi] or [hi, lo] accordingly, with "
+           "nothing further owed about order; if neither is discharged the "
+           "step is refused 'orientation-undecided', one code for every "
+           "step, replacing int_subst's 'int-subst-orientation-undecided' "
+           "(same template, {lo} and {hi}). Supersedes E4's 'otherwise the "
+           "step emits lo <= hi' (a false one was refused by F2, an "
+           "undecided one admitted) and E46's decision rule; int_subst "
+           "keeps its flipped form, now a choice rather than a necessity. "
+           "Soundness: §5.1's exploit was a constraint set that assumed "
+           "a <= b when b < a, so the range was empty and every obligation "
+           "on it vacuous. A proved order cannot be wrong (its certificate "
+           "is checked), so the interval built is exactly the set of points "
+           "between the limits and is never empty. An Int's value (§5.1: "
+           "Int_a^b = -Int_b^a) and its definedness depend only on the "
+           "integrand on that set, so every former, hypothesis and premise "
+           "stated on it is the right one for either order; ftc's "
+           "F(b) - F(a) holds for either order (for b < a, Int_a^b f = "
+           "-(F(a) - F(b))), with its premises on [min, max] and (min, "
+           "max); rewriting under an Int needs only the range set (§6.1); "
+           "int_subst's premises are on the closed interval between its "
+           "limits. Equal limits make either order provable and the same "
+           "point. The order key is still emitted, discharged, so what a "
+           "proof relied on stays in its tracker. Changes: E56_CHANGES",
 }
 
 DESIGN_DEFECTS = [
@@ -5545,7 +5663,10 @@ DESIGN_DEFECTS = [
     "installs owing 1 - x^2 >= 0 @ [0, 1] tagged none (sign product never "
     "closes a non-strict goal, STAGE0.md S8), and the new integrand owes "
     "1 - (cos theta)^2 >= 0, also none, and needs pyth and a sign fact for "
-    "cos on [0, pi/2] to finish. Neither gap is the substitution's.",
+    "cos on [0, pi/2] to finish. Neither gap is the substitution's. "
+    "(Consolidation spec 2026-09-24: both closed, by E53's non-strict sign "
+    "product with cos_le_one and cos_ge_neg_one; the goal finishes as "
+    "problems/stage0 QC1, E55.)",
     "§11.1 writes the endpoint obligation as one line, '0^2 = 0 ∧ (pi/2)^2 "
     "= pi^2/4 by ring'. §5.2's goals are lists and D12 has no "
     "conjunctions, so they are two keys, decided in-step (E39), and they "
@@ -5581,6 +5702,45 @@ DESIGN_DEFECTS = [
     "[0, oo) (E33, the §5.4 entry above, DISCHARGE_UNDECIDED), is refuted "
     "at x = 5 once E50 lands; the example becomes t^2 - 2 # 0 on [0, 2] "
     "(F3_ROOTS_CHANGES).",
+    # consolidation spec 2026-09-24
+    "§5.3 method 5 closes only strict and # 0 goals, so 1 - x^2 >= 0 on "
+    "[0, 1], every sqrt(a^2 - x^2) substitution's own domain, had no "
+    "method. E53 extends it to non-strict goals with non-strict factors; "
+    "§5.3 should state the four relations, the parity, and that a "
+    "non-strict factor never serves a strict target.",
+    "§6.2 names pyth as (sin x)^2 + (cos x)^2 == 1, which neither rewrite "
+    "nor field can use as stated (a sum on the left). §6.8 should pin the "
+    "solved form pyth_cos : (cos u)^2 == 1 - (sin u)^2 beside it (E54), "
+    "and name the sign facts a trigonometric substitution needs: sin on "
+    "[0, pi], cos on [0, pi/2], and the total bounds of cos, which the "
+    "linear method reads per atom (ATOM_FACT_RULE).",
+    "§5.1 and E4: a goal whose integral has symbolic reversed limits and "
+    "whose body owes a former cannot be installed, since installation owes "
+    "the range's lo <= hi and F2 refuses it; int_flip (E51) reaches only "
+    "reversed integrals whose bodies owe nothing, and a flip that makes a "
+    "reversed symbolic range whose body owes a former is refused. E46's "
+    "rule (build the interval from the order discharge proves) applied in "
+    "E4 itself would remove both limits. (Owner's answers 2026-09-24: done, "
+    "E56.)",
+    # consolidation spec 2026-09-24, owner answers
+    "§5.1, §5.3 method 2 and §6.4 (E4): every step that builds a range "
+    "now builds it from the order discharge proves, [lo, hi] or [hi, lo], "
+    "and refuses 'orientation-undecided' when neither is proved (E56). "
+    "§5.1's reversed limits are then ordinary input for every move, not "
+    "only int_subst's output; §6.4's ftc should say its premises are on the "
+    "interval between a and b, whichever is smaller, and §5.3 that a range "
+    "item is never empty.",
+    "The consolidation spec (E53) missed one consequence, found while "
+    "re-tracing E56: with sign products on non-strict goals, pi/2's sign "
+    "closes as (1/2)*pi with pi > 0 by cite pi_pos, so a search that has "
+    "lost the linear method's sign facts still proves 0 <= pi/2. Two "
+    "discharge routes for one fact are fine for soundness, but the "
+    "pi_pos_not_in_constraint_set seam now shows only as a tag "
+    "(E56_CHANGES).",
+    "§6.4 and E51: the owner's int_flip was stated as Int[x = a .. b] f "
+    "== -(Int[x = b .. a] f); the kernel's form is Int[x = b .. a] -(f), "
+    "so that ftc, which acts on a top-level integral, can run after it. "
+    "§6.4 should state the move in that form, or give ftc a position.",
 ]
 
 # What was checked at build time, in scratch, with SymPy 1.14 and mpmath.
@@ -5838,6 +5998,35 @@ VERIFIED = (
     "'unknown-label' match it exactly; the F3 cases show today's false "
     "admissions tagged none (their 'was'); the irrational pole is admitted "
     "'no method decides it'. The suite still passes, both files importing",
+    # consolidation spec 2026-09-24
+    "consolidation spec 2026-09-24, SymPy 1.14 in scratch, 36 checks: the flip identity and the "
+    "flipped proof's value -pi^2/4, its F' and deriv output; 1 - x^2 as "
+    "-(x - 1)(x + 1) and as (1 - x)(1 + x), nonnegative on [0, 1], and the "
+    "rejected cases false where named; pyth, pyth_cos and their difference "
+    "a ring identity; sin >= 0 on [0, pi], cos >= 0 on [0, pi/2], -1 <= "
+    "cos <= 1; QC1's value pi/4, its ends, its flipped integral (numeric), "
+    "1 - cos^2 as -(cos - 1)(cos + 1), sqrt(sin^2) = sin on [0, pi/2], F' = "
+    "sin^2 with pyth, its deriv output, field's numerator zero only after "
+    "cos^2 -> 1 - sin^2, and F(pi/2) - F(0) = pi/4. terms.py: every new "
+    "string parses and round-trips, and every goal_after of int_flip and "
+    "QC1 equals the tree rebuilt from its parts. Then, after the hand "
+    "derivation, each of the 48 seams was run on P1.1-sheet through the "
+    "suite's own patch functions: every N and every catch in "
+    "P1_1_SHEET_TRACES matches; and QC1's s1 on today's kernel emits the "
+    "listed keys, the two E53 keys still admitted none, and QC1-W2 is "
+    "refused rewrite-lhs-mismatch. Both files import; the suite passes",
+    # consolidation spec 2026-09-24, owner answers
+    "consolidation spec 2026-09-24, owner answers, SymPy 1.14 in scratch: Int_{pi/2}^0 sqrt(t^2) = -pi^2/8 and "
+    "Int_{pi/2}^0 2x = -pi^2/4, each by F(b) - F(a) with b = 0; "
+    "Int_{pi/2}^0 2x = Int_0^{pi^2/4} -1 (the reverse case, flipped); the "
+    "flip of Int_0^{pi/2} sqrt x equal to it; the ftc identity for b < a; "
+    "-(pi/2) >= 0 false and -(pi/2) < 0 true; pi/2 = (1/2)*pi; 0 <= y "
+    "neither true nor false for all y. terms.py: every new string parses "
+    "and round-trips, and every new goal_after equals its rebuilt tree. "
+    "The committed kernel (f22e1dd) still gives every case's 'old' value "
+    "(decided_false_reversed_range and reverse_symbolic_old_range_reversed "
+    "refused by F2 on pi/2 <= 0, rewrite_under_D_through_Int by F3 on "
+    "0 <= x); both files import and the suite passes",
 )
 
 # Changes to this file made after it was frozen. The first was adjudicated
@@ -6776,6 +6965,98 @@ DATA_CHANGES = (
      "moving to t^2 - 2 # 0 on [0, 2]; the record of the checks",
      "the places this file records what DESIGN.md must change",
      "int_subst review 2026-09-24"),
+    # consolidation spec 2026-09-24: written before any code; every change to an asserted table is
+    # staged (P1_1_SHEET_JOIN, CONSOLIDATION_CHANGES) and applied by the
+    # suite at the build, so the committed suite stays green.
+    ("DECISIONS E51-E55 (new)",
+     "int_flip, in the form Int[x = b .. a] -(f) (decided on the owner's "
+     "behalf, with reasons); P1.1-sheet joining PROOFS and ROUTE; the sign "
+     "product on non-strict goals; six entries; the route that finishes "
+     "Int_0^1 sqrt(1 - x^2) with no extension of field",
+     "WHAT.md 'Start here' item 1 and the owner's decisions of 2026-09-24",
+     "consolidation spec 2026-09-24"),
+    ("section 13a (new): INT_FLIP_MOVE, INT_FLIP_ARGS, INT_FLIP_OPTIONAL, "
+     "REFUSAL_CODES_INT_FLIP, INT_FLIP_MESSAGES, INT_FLIP_RULE, "
+     "INT_FLIP_ACCEPTS, INT_FLIP_BAD_MOVES",
+     "the move stated; a reversed symbolic goal flipped and closed to "
+     "-pi^2/4 (modulo 3), a sum's second integral flipped; six refusals "
+     "(no integral, ambiguous, occurrence out of range, under D, an extra "
+     "argument, a flip creating an unusable reversed range)",
+     "the task's item 1",
+     "consolidation spec 2026-09-24"),
+    ("section 13b (new): P1_1_SHEET_TRACES, P1_1_SHEET_JOIN",
+     "P1.1-sheet's merge into PROOFS, ROUTE, ECHO, ANSWERS, NUMERIC, DERIV "
+     "and the DISCHARGE_* tables, and its re-trace under all 48 children: "
+     "N 5 except farkas_swaps_interval_ends (7); refused by "
+     "pi_pos_not_in_constraint_set and search_scales_wrongly (s1) and "
+     "sqrt_open_at_0 (installation); new catches for "
+     "ftc_derivative_premise_on_closed, tracker_drops_one, "
+     "farkas_swaps_interval_ends and no_sqrt_former",
+     "the task's item 2 (E47's follow-up); every value derived by hand, "
+     "then confirmed by running each seam against the staged proof",
+     "consolidation spec 2026-09-24"),
+    ("section 13c (new): T_PRODUCT_COS, SIGN_PRODUCT_NONSTRICT_RULE, "
+     "SIGN_PRODUCT_CHECKER_ACCEPTS, SIGN_PRODUCT_MUST_REJECT",
+     "the non-strict sign product, its search rule, two accepted forms of "
+     "1 - x^2 >= 0 @ [0, 1], and three rejections (a factor that changes "
+     "sign, the parity, a non-strict factor under a strict target)",
+     "the task's item 3",
+     "consolidation spec 2026-09-24"),
+    ("section 13d (new): CONSOLIDATION_ENTRIES, ATOM_FACT_RULE, ATOM_FACTS, "
+     "ATOM, T_CITE_SIN, CONSOLIDATION_CHECKER_ACCEPTS, "
+     "CONSOLIDATION_MUST_REJECT, CONSOLIDATION_PLANTED_BUGS, "
+     "CONSOLIDATION_CHANGES, CONSOLIDATION_SWITCH",
+     "pyth, pyth_cos, sin_nonneg_on, cos_nonneg_on, cos_le_one and "
+     "cos_ge_neg_one pinned; how cite and the linear method read them; "
+     "their checker cases and planted bugs; the existing expectations the "
+     "section changes (product_nonstrict_target's reason, "
+     "cos_theta_canonical's two keys now discharged); the switch",
+     "the task's items 3-5",
+     "consolidation spec 2026-09-24"),
+    ("DESIGN_DEFECTS: one entry's closing note; four appended. VERIFIED: one "
+     "appended",
+     "§5.3 method 5, §6.2/§6.8's pyth and sign facts, E4's reversed "
+     "installation, int_flip's form; the record of the checks",
+     "the places this file records what DESIGN.md must change",
+     "consolidation spec 2026-09-24"),
+    # consolidation spec 2026-09-24, owner answers: the owner accepted both of the consolidation spec's
+    # recommendations on 2026-09-24. Written before any code; changes to
+    # asserted tables are staged in E56_CHANGES.
+    ("DECISIONS E51 (closing sentence), E4, E40 and E46 (a superseding "
+     "note each), E56 (new)",
+     "E51's form Int[x = b .. a] -(f) accepted by the owner (the same "
+     "identity, ftc applicable) and its limitation removed; E56: one "
+     "orientation rule for every step, the proved order building the "
+     "interval, 'orientation-undecided' when neither order is proved, one "
+     "code replacing int-subst-orientation-undecided",
+     "the owner's answers 1 and 2",
+     "owner's answers of 2026-09-24"),
+    ("section 13 (staged, amended in place): INT_FLIP_RULE step 4; "
+     "INT_FLIP_ACCEPTS flip_reversed_symbolic_to_value's why; "
+     "flip_oriented_symbolic_with_former moved from INT_FLIP_BAD_MOVES to "
+     "INT_FLIP_ACCEPTS; P1_1_SHEET_TRACES pi_pos_not_in_constraint_set "
+     "(refused -> N 5, tag catches) and search_scales_wrongly (its code); "
+     "CONSOLIDATION_CHANGES (one entry added); CONSOLIDATION_SWITCH (a "
+     "sentence)",
+     "E56 makes the flip of an oriented symbolic integral usable; E53, "
+     "which the consolidation spec had not traced under the pi_pos seam, "
+     "discharges 0 <= pi/2 there by a content split with cite pi_pos",
+     "E56; a correction found while re-tracing",
+     "consolidation spec 2026-09-24, owner answers"),
+    ("section 14 (new): REFUSAL_CODES_E56, E56_MESSAGES, E56_ACCEPTS, "
+     "E56_BAD_MOVES, E56_PLANTED_BUGS, E56_CHANGES",
+     "two reversed symbolic goals proved by ftc without int_flip (to "
+     "-pi^2/8 and -pi^2/4, each modulo 3); a goal whose order is undecided "
+     "(refused at installation) and a replacement F2 case; two planted "
+     "bugs; every changed expectation with its old and new values",
+     "the owner's answer 2 and the task's cases",
+     "consolidation spec 2026-09-24, owner answers"),
+    ("DESIGN_DEFECTS: one entry's closing note, two appended; VERIFIED: "
+     "one appended",
+     "E56 for §5.1/§5.3/§6.4, and the E53 consequence the consolidation "
+     "spec missed; the record of the checks",
+     "the places this file records what DESIGN.md must change",
+     "consolidation spec 2026-09-24, owner answers"),
 )
 
 
@@ -10113,3 +10394,925 @@ REVIEW_SWITCH = (
     "three REVIEW_PLANTED_BUGS as child-process mutations. They may land "
     "in the same commit or before it.",
 )
+
+
+# ---------------------------------------------------------------------------
+# 13. Consolidation, specified before any code (consolidation spec
+#     2026-09-24)
+#
+# WHAT.md "Start here" item 1: int_flip (the owner's decision), P1.1-sheet
+# joining PROOFS (E47's follow-up), the sign product on non-strict goals,
+# and the entries that let Int_0^1 sqrt(1 - x^2) finish by x := cos theta
+# (problems/stage0 section 13, QC1). DECISIONS E51-E55 give the design in
+# brief; the rule texts below state it in full. Written from DESIGN.md
+# revision 10, ARCHITECTURE.md and the data files, without reading
+# kernel.py, discharge.py or search.py to shape any list. Everything is
+# STAGED: nothing here is asserted until the build (CONSOLIDATION_SWITCH),
+# and the changes to asserted tables are listed, with their new values, in
+# P1_1_SHEET_JOIN and CONSOLIDATION_CHANGES.
+
+# --- 13a. int_flip (E51) ----------------------------------------------------
+
+INT_FLIP_MOVE = "int_flip"
+INT_FLIP_ARGS = ()                  # no required key
+INT_FLIP_OPTIONAL = ("occurrence",)
+
+REFUSAL_CODES_INT_FLIP = {
+    "int-flip-no-integral": "E51: the goal holds no Int, or none at the "
+                            "given occurrence",
+    "int-flip-ambiguous": "E51: no occurrence is given and the goal holds "
+                          "two or more Ints",
+}
+INT_FLIP_MESSAGES = {
+    "int-flip-no-integral": "the goal holds no integral",
+    "int-flip-no-integral/occurrence": "the goal holds no integral at "
+                                       "occurrence {occurrence}",
+    "int-flip-ambiguous": "{n} integrals in the goal; give an occurrence",
+}
+
+INT_FLIP_RULE = (
+    "The rule (§5.1, the definition of a reversed integral, with "
+    "pointwise linearity): Int[x = a .. b] f == Int[x = b .. a] -(f), for "
+    "every a and b. It is the identity E46 already composes into "
+    "int_subst's flipped form, so the rule table gains a move and no new "
+    "theorem. It holds whatever the order of a and b, so the step owes no "
+    "orientation of its own and has no premise (E51).",
+
+    "1. The common step() checks; args has no key but an optional "
+    "'occurrence' (an int >= 0, not a bool), else 'bad-args'.",
+
+    "2. Selection, as int_subst's (E48) without a variable: with "
+    "occurrence k, the k-th Integral node of the goal's non-?A side (both "
+    "sides, lhs first, when there is no ?A) in REWRITE_RULE's pre-order, "
+    "else 'int-flip-no-integral' ('/occurrence'); with none, the side "
+    "must hold exactly one Integral node, else 'int-flip-no-integral' "
+    "(none) or 'int-flip-ambiguous' (two or more). P is the position "
+    "domain (REWRITE_RULE step 7).",
+
+    "3. Under D[y]: if the selected Int lies below a D[y] and y occurs free "
+    "in its limits or body, or in a limit of an Int between the D[y] and "
+    "the position, the step is refused "
+    "'rewrite-under-D-needs-open-domain' (E48's test, for the keys step 4 "
+    "may charge on the new closed range).",
+
+    "4. The new Int, Integral(x, b, a, Neg(f)), replaces the selected one "
+    "at its position. Its formers are charged as a new term's are: its "
+    "limits at P, its body at P plus its own E4 range, with that range's "
+    "orientation b <= a when a key uses it and the ends are not two "
+    "literals, decided by E56 (owner's answers): the order discharge "
+    "proves builds the range, so flipping an oriented symbolic integral "
+    "whose body owes a former is accepted (INT_FLIP_ACCEPTS "
+    "flip_oriented_symbolic_with_former). Then "
+    "check_goal. Nothing else is emitted; a refused step changes nothing "
+    "(E13).",
+)
+
+# The full proof the owner asked for: a goal with reversed symbolic limits,
+# flipped so ftc runs. Installation: pi/2 owes 2 # 0; 2*x owes nothing, so
+# no key uses the reversed range and nothing false is owed (E4).
+INT_FLIP_ACCEPTS = [
+    {"id": "flip_reversed_symbolic_to_value",
+     "goal": "Int[x = pi/2 .. 0] 2*x == ?A",
+     "goal_emits": [("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM,
+                     True)],
+     "move": ("int_flip", {}),
+     "goal_after": "Int[x = 0 .. pi/2] -(2*x) == ?A",
+     # the new limits' pi/2 again; -(2*x) owes nothing, so no key uses
+     # [0, pi/2] and no orientation is owed here
+     "emits": [("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, False)],
+     "then": [
+         {"move": ("ftc", {"F": "-x^2", "check": "ring", "facts": []}),
+          "goal_after": "-(pi/2)^2 - (-0^2) == ?A",
+          "deriv": {"var": "x", "F": "-x^2",
+                    "trace": [("route_neg", "-x^2", ()),
+                              ("d_mul", "-1*x^2", ()), ("d_const", "-1", ()),
+                              ("d_pow_int", "x^2", ()), ("d_var", "x", ())],
+                    "output": "0*x^2 + (-1)*(2*x^1*1)", "emits": ()},
+          "emits": [
+              ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI,
+               True),
+              ("-x^2 in C^0([0, pi/2])", "[0, pi/2]", (S_FTC_C0F,), ADMITTED,
+               T_REG, True),
+              ("-x^2 in C^1((0, pi/2))", "(0, pi/2)", (S_FTC_C1F,), ADMITTED,
+               T_REG, True),
+              ("D[x](-x^2) == -(2*x)", "(0, pi/2)", (S_FTC_D,), DISCHARGED,
+               T_DERIV_RING, True),
+              ("-(2*x) in C^0([0, pi/2])", "[0, pi/2]", (S_FTC_C0f,),
+               ADMITTED, T_REG, True),
+              ("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, False)],
+          "certificates": {("0 <= pi/2", "true"): _PI_HALF}},
+         {"move": ("close", {"value": "-pi^2/4", "check": "ring",
+                             "facts": []}),
+          "goal_after": None,
+          "emits": [("4 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM,
+                     True)]},
+     ],
+     "report": VERDICT.format(n=3),
+     "theorem": "Int[x = pi/2 .. 0] 2*x == -pi^2/4",
+     "why": "after the flip ftc's range is [0, pi/2]. Int_{pi/2}^0 2x = "
+            "-pi^2/4 (SymPy); -(pi/2)^2 - (-0^2) is -pi^2/4 by ring. (Owner's "
+            "answers, E56: ftc now reaches the same value without the flip, "
+            "E56_ACCEPTS reversed_symbolic_by_ftc_linear; the flip stays a "
+            "move of its own)"},
+    {"id": "flip_sum_second_occurrence",
+     "goal": "(Int[x = 0 .. 1] 2*x) + (Int[x = pi/2 .. 0] 2*x) == ?A",
+     "goal_emits": [("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM,
+                     True)],
+     "move": ("int_flip", {"occurrence": 1}),
+     "goal_after": "(Int[x = 0 .. 1] 2*x) + (Int[x = 0 .. pi/2] -(2*x))"
+                   " == ?A",
+     "emits": [("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, False)],
+     "why": "E51's selector: the second Int in pre-order; the first is "
+            "untouched"},
+    # owner's answers (E56): was INT_FLIP_BAD_MOVES, refused by F2 on
+    # pi/2 <= 0. The new range pi/2 .. 0 is built from the proved order
+    # 0 <= pi/2, [0, pi/2], so sqrt x's former is installation's key again
+    {"id": "flip_oriented_symbolic_with_former",
+     "goal": "Int[x = 0 .. pi/2] sqrt x == ?A",
+     "goal_emits": [
+         ("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+         ("x >= 0", "[0, pi/2]", (S_FORMER,), DISCHARGED, T_RANGE, True),
+         ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI, True)],
+     "move": ("int_flip", {}),
+     "goal_after": "Int[x = pi/2 .. 0] -(sqrt x) == ?A",
+     "emits": [
+         ("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, False),
+         ("x >= 0", "[0, pi/2]", (S_FORMER,), DISCHARGED, T_RANGE, False),
+         ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI, False)],
+     "certificates": {("x >= 0", "[0, pi/2]"): _RANGE_LO,
+                      ("0 <= pi/2", "true"): _PI_HALF},
+     "why": "E56: the reversed symbolic range is usable, since its order "
+            "0 <= pi/2 is proved; nothing new is owed"},
+]
+INT_FLIP_BAD_MOVES = [
+    {"id": "flip_no_integral",
+     "goal": "sin 1 + 1 == ?A", "setup": [], "move": ("int_flip", {}),
+     "refusal": "int-flip-no-integral",
+     "message": ("int-flip-no-integral", {})},
+    {"id": "flip_ambiguous",
+     "goal": "(Int[x = 0 .. 1] 2*x) + (Int[x = pi/2 .. 0] 2*x) == ?A",
+     "setup": [], "move": ("int_flip", {}),
+     "refusal": "int-flip-ambiguous",
+     "message": ("int-flip-ambiguous", {"n": "2"})},
+    {"id": "flip_occurrence_out_of_range",
+     "goal": "(Int[x = 0 .. 1] 2*x) + (Int[x = pi/2 .. 0] 2*x) == ?A",
+     "setup": [], "move": ("int_flip", {"occurrence": 2}),
+     "refusal": "int-flip-no-integral",
+     "message": ("int-flip-no-integral/occurrence", {"occurrence": "2"})},
+    {"id": "flip_under_D",
+     "goal": "D[y](Int[x = 0 .. y] x) == ?A @ 0 <= y", "setup": [],
+     "move": ("int_flip", {}),
+     "refusal": "rewrite-under-D-needs-open-domain",
+     "why": "y is a limit of the Int below D[y]: the new range [y, 0] is "
+            "closed in y (§6.1 rev 9, E11, E48)"},
+    {"id": "flip_extra_arg",
+     "goal": "Int[x = pi/2 .. 0] 2*x == ?A", "setup": [],
+     "move": ("int_flip", {"var": "x"}),
+     "refusal": "bad-args"},
+]
+
+# --- 13b. P1.1-sheet joins PROOFS (E52) -------------------------------------
+#
+# The re-trace of every child that runs PROOFS against P1.1-sheet, by hand.
+# 'N' is its admission count under the mutation (None: the proof is
+# refused, and left out of admissions, as the data writes a refused proof);
+# 'add' are the caught_by locations it adds (none needed where N and the
+# lists are unchanged). P1.1-sheet runs after P1.1 in PROOFS' order.
+_SHEET = "P1.1-sheet"
+P1_1_SHEET_TRACES = {
+    # PLANTED_BUGS, as DISCHARGE_PLANTED_BUGS re-traces them
+    "d_ln_emits_nothing": {"N": 5, "add": []},       # no ln
+    "ftc_derivative_premise_on_closed": {
+        "N": 5,
+        # ftc's premise moves to [0, pi/2]; F's deriv emits nothing and
+        # ring's check nothing, and int_subst does not call the seam
+        "add": [(_SHEET, "s3", "D[t](2*sin t - 2*t*cos t) == "
+                 "sin t * (2*t^1*1)", "(0, pi/2)")]},
+    "tracker_drops_one": {
+        "N": 5,  # the dropped t >= 0 @ [0, pi/2] (s2) is discharged
+        "add": [("FINAL_TRACKER", _SHEET, ("t >= 0", "[0, pi/2]"))]},
+    # the single drop of 0 <= pi/2 is spent in P1.1's installation, which
+    # runs first in the same child
+    "tracker_drops_reemitted": {"N": 5, "add": []},
+    # owner's answers, correcting this spec: with E53 built, 0 <= pi/2
+    # (pi/2 = (1/2)*pi) is discharged by the sign product's content split,
+    # its factor pi > 0 by cite pi_pos (ENTRIES, which the seam leaves), so
+    # s1 decides its order and nothing is admitted; the key is retagged
+    "pi_pos_not_in_constraint_set": {
+        "N": 5,
+        "add": [(_SHEET, "s1", "0 <= pi/2", "tag"),
+                (_SHEET, "s2", "0 <= pi/2", "tag"),
+                (_SHEET, "s3", "0 <= pi/2", "tag")],
+        "retagged": [("0 <= pi/2", "true", DISCHARGED,
+                      ("sign product", ("pi_pos",)))]},
+    # DISCHARGE_NEW_PLANTED_BUGS
+    "farkas_ignores_strictness": {"N": 5, "add": []},
+    "farkas_allows_negative_multiplier": {"N": 5, "add": []},
+    # x >= 0 @ [0, pi^2/4] and t >= 0 @ [0, pi/2] lose their lower-end
+    # certificates (the swapped label gives v - hi, not a constant with
+    # pi): admitted REASON_REJECTED, tag range; F3 finds no point (0 holds,
+    # 1 is not shown inside, -1 is outside)
+    "farkas_swaps_interval_ends": {
+        "N": 7,
+        "add": [("N", _SHEET), (_SHEET, "goal", "x >= 0", "status"),
+                (_SHEET, "s2", "t >= 0", "status")]},
+    "farkas_closed_as_open": {"N": 5, "add": []},
+    "farkas_any_fact": {"N": 5, "add": []},
+    "farkas_no_goal_needed": {"N": 5, "add": []},
+    "sign_skips_ring": {"N": 5, "add": []},
+    "sign_zero_constant_strict": {"N": 5, "add": []},
+    "sign_any_exponent": {"N": 5, "add": []},
+    "product_skips_parity": {"N": 5, "add": []},   # no product in the sheet
+    "product_skips_children": {"N": 5, "add": []},
+    "cite_skips_hypotheses": {"N": 5, "add": []},  # no cite in the sheet
+    # 0 <= pi/2's certificate is halved and rejected, so s1 decides no order
+    "search_scales_wrongly": {
+        "N": None, "add": [(_SHEET, "s1", "refused")],
+        # E56's one code (owner's answers)
+        "refused": ("s1", ("orientation-undecided",
+                           {"lo": "0", "hi": "pi/2"}))},
+    # DEFINEDNESS_MUTATIONS: every one not named is N 5, no change (the
+    # sheet holds no ln, tan, asin, acos, acosh or atanh; no ring, field or
+    # norm_num input holds an Int or D node; rewrite's R = t has no former;
+    # its limit formers 4 # 0 and 2 # 0 are closed, so their domain is true
+    # whatever _encloses says)
+    "no_sqrt_former": {
+        "N": 5,
+        "add": [(_SHEET, "goal", "x >= 0", "[0, pi^2/4]"),
+                (_SHEET, "goal", "0 <= pi^2/4", "true"),
+                (_SHEET, "s1", "t^2 >= 0", "[0, pi/2]")]},
+    # sqrt x owes x > 0 on [0, pi^2/4], false at x = 0
+    "sqrt_open_at_0": {"N": None, "add": [(_SHEET, "goal", "refused")]},
+}
+P1_1_SHEET_JOIN = {
+    "PROOFS": INT_SUBST_PROOFS["P1.1-sheet"],
+    "ROUTE": {"P1.1": "P1.1-sheet"},       # E47: the sheet's goal is the route
+    "ECHO": ECHO["P1.1-fallback"],          # the same goal
+    "ANSWERS": "2",
+    "NUMERIC": 2.0,
+    "DERIV": DERIV["P1.1"],                 # ftc's F (s3); s1's is INT_SUBST_DERIV's
+    "DISCHARGE_OBLIGATIONS": INT_SUBST_OBLIGATIONS["P1.1-sheet"],
+    "DISCHARGE_FINAL_TRACKER": INT_SUBST_FINAL_TRACKER["P1.1-sheet"],
+    "DISCHARGE_EXPECTED": INT_SUBST_EXPECTED["P1.1-sheet"],
+    "DISCHARGE_ADMISSIONS": 5,
+    # the default N of every planted bug and mutation whose admissions the
+    # data does not give (the suite's _D3) gains the sheet at 5
+    "default_N": 5,
+    "INT_SUBST_PROOFS": "loses 'P1.1-sheet'; the int_subst children run it "
+                        "from PROOFS",
+    "traces": P1_1_SHEET_TRACES,
+}
+
+# --- 13c. The sign product on non-strict goals (E53) -----------------------
+
+T_PRODUCT_COS = ("sign product", ("cos_le_one", "cos_ge_neg_one"))
+SIGN_PRODUCT_NONSTRICT_RULE = (
+    "Amends DISCHARGE_RULE's 'Sign product certificate' paragraph and "
+    "TAG_RULES' 'sign product' paragraph at the build. A non-strict key "
+    "(target g >= 0, DISCHARGE_RULE's Targets) is now accepted: a "
+    "certificate {'method': 'sign product', 'sense': None, 'content': c, "
+    "'factors': ((f1, r1, cert1), ...)} with rj one of '>', '<', '>=', "
+    "'<='. The checker checks, beside the existing ring_equal(g, c * f1 * "
+    "... * fn) and c != 0: (a) for a strict target every rj is strict "
+    "(unchanged); for a non-strict one any of the four; (b) parity: "
+    "sign(c) times (-1) to the number of '<' and '<=' factors is +1; (c) "
+    "each fj's sub-obligation, fj rj 0 at the key's domain, holds by its "
+    "own certificate. A # 0 key is unchanged (every rj '# 0').",
+
+    "Soundness. At a point of the domain where the terms are defined, "
+    "each factor has its certified sign, so the product c*f1*...*fn has "
+    "sign(c) times the factors' signs: non-negative when (b) holds and at "
+    "least one factor may be 0, positive when every factor is strict. "
+    "A strict factor is allowed under a non-strict target (it only "
+    "strengthens), and a non-strict one is not allowed under a strict "
+    "target (a factor that is 0 makes the product 0).",
+
+    "The search. For a non-strict target it tries sign product after "
+    "range/linear and sign, as TAG_RULES orders the methods, with the "
+    "same untrusted rational root factoriser, each factor normalised to a "
+    "positive leading coefficient and the content taking the sign; each "
+    "factor's relation is tried strict first ('>' then '<'), then "
+    "non-strict ('>=' then '<='), and the first that its own search "
+    "certifies is used. 1 - x^2 on [0, 1] factors as -(x - 1)(x + 1): "
+    "x - 1 <= 0 (not < 0: it is 0 at 1) by the upper end, x + 1 > 0 by the "
+    "lower end, parity (-1)(-1) = +1.",
+)
+_ONE_MINUS_X2 = _product("-1", [("x - 1", "<=", _farkas({GOAL: "1",
+                                                         HI(0): "1"})),
+                                ("x + 1", ">", _RANGE_LO)])
+SIGN_PRODUCT_CHECKER_ACCEPTS = [
+    {"id": "product_nonstrict_search_form",
+     "key": ("1 - x^2 >= 0", "[0, 1]"), "certificate": _ONE_MINUS_X2,
+     "tag": T_PRODUCT,
+     "why": "the search's own: -(x - 1)(x + 1), parity +1"},
+    {"id": "product_nonstrict_owner_form",
+     "key": ("1 - x^2 >= 0", "[0, 1]"),
+     "certificate": _product("1", [("1 - x", ">=", _farkas({GOAL: "1",
+                                                           HI(0): "1"})),
+                                   ("1 + x", ">", _RANGE_LO)]),
+     "tag": T_PRODUCT,
+     "why": "(1 - x)(1 + x), each factor >= 0, as WHAT.md writes it"},
+]
+SIGN_PRODUCT_MUST_REJECT = [
+    {"id": "product_nonstrict_factor_changes_sign",
+     "key": ("1 - x^2 >= 0", "[0, 2]"),
+     "certificate": _product("-1", [("x - 1", "<=", _farkas({GOAL: "1",
+                                                            HI(0): "1"})),
+                                    ("x + 1", ">", _RANGE_LO)]),
+     "expected": "rejected",
+     "rejects_because": "x - 1 <= 0 is false on [0, 2]: its certificate "
+                        "sums to (x - 1) + (2 - x) = 1 (child-rejected/"
+                        "positive-constant)",
+     "truth": ("false", {"x": "2"}),
+     "if_emitted": ("refused", _point("1 - x^2 >= 0 @ [0, 2]",
+                                      "1 - 2^2 >= 0", x="2"))},
+    {"id": "product_nonstrict_parity",
+     "key": ("x^2 - 1 >= 0", "[0, 1]"),
+     "certificate": _product("1", [("x - 1", "<=", _farkas({GOAL: "1",
+                                                           HI(0): "1"})),
+                                   ("x + 1", ">", _RANGE_LO)]),
+     "expected": "rejected",
+     "rejects_because": "the identity holds and both children do, but one "
+                        "'<=' factor under content 1 gives parity -1 "
+                        "('parity')",
+     "truth": ("false", {"x": "0"}),
+     "if_emitted": ("refused", _point("x^2 - 1 >= 0 @ [0, 1]",
+                                      "0^2 - 1 >= 0", x="0"))},
+    {"id": "product_nonstrict_factor_under_strict_target",
+     "key": ("1 - x^2 > 0", "[0, 1]"), "certificate": _ONE_MINUS_X2,
+     "expected": "rejected",
+     "rejects_because": "a '<=' factor under a strict target: x - 1 is 0 "
+                        "at 1, and so is the product ('bad-relation')",
+     "truth": ("false", {"x": "1"}),
+     "if_emitted": ("refused", _point("1 - x^2 > 0 @ [0, 1]",
+                                      "1 - 1^2 > 0", x="1"))},
+]
+
+# --- 13d. The entries (E54) ------------------------------------------------
+
+# Pinned for entries.py in NAMED_ENTRIES' shape, appended after sqrt_nonneg
+# in this order (ENTRIES: 17 -> 23).
+CONSOLIDATION_ENTRIES = {
+    "pyth": {
+        "statement": "(sin u)^2 + (cos u)^2 == 1",
+        "schema": ("u",), "hyps": (),
+        "use": "the identity as the owner states it; the parent of "
+               "pyth_cos. Its left side is a sum, so neither rewrite (it "
+               "matches a non-App left side as a tree) nor field (a fact "
+               "must be a^k == r) can use it as stated",
+        "cite": "§6.2 ('sin²x + cos²x ≐ 1 ... needs the named identity "
+                "pyth'), §6.8; Rocq's sin2_cos2",
+        "used_in": ("the record; pyth_cos",)},
+    "pyth_cos": {
+        "statement": "(cos u)^2 == 1 - (sin u)^2",
+        "schema": ("u",), "hyps": (),
+        "use": "pyth solved for (cos u)^2: a rewrite at (cos b)^2 (a tree "
+               "match, REWRITE_RULE step 3) and a field fact in §6.2's "
+               "a^k == r shape, r free of the fact's atom. Its statement "
+               "minus pyth's is a ring identity ((c^2 - (1 - s^2)) - ((s^2 "
+               "+ c^2) - 1) = 0), so it adds no trust beyond pyth",
+        "cite": "pyth, by ring",
+        "used_in": ("problems/stage0 QC1 s2 (rewrite), s4-s5 (fact)",)},
+    "sin_nonneg_on": {
+        "statement": "sin u >= 0 @ u >= 0, u <= pi",
+        "schema": ("u",), "hyps": ("u >= 0", "u <= pi"),
+        "use": "cite (§5.3 method 6): closes sin b >= 0 (or 0 <= sin b) at a "
+               "domain where b >= 0 and b <= pi are certified",
+        "cite": "§6.8's sign facts; Rocq's sin_ge_0",
+        "used_in": ("problems/stage0 QC1 s3 (sqrt_sq's sin theta >= 0)",)},
+    "cos_nonneg_on": {
+        "statement": "cos u >= 0 @ u >= 0, u <= pi/2",
+        "schema": ("u",), "hyps": ("u >= 0", "u <= pi/2"),
+        "use": "cite, as sin_nonneg_on: the owner's cos sign fact, which "
+               "x := sin theta's sqrt_sq needs (QC1 by x := cos theta needs "
+               "sin_nonneg_on instead)",
+        "cite": "§6.8's sign facts; Rocq's cos_ge_0",
+        "used_in": ("CONSOLIDATION_CHECKER_ACCEPTS cite_cos_nonneg",)},
+    "cos_le_one": {
+        "statement": "cos u <= 1",
+        "schema": ("u",), "hyps": (),
+        "use": "an atom sign fact read by the linear method for each cos "
+               "atom (ATOM_FACT_RULE), and a cite entry",
+        "cite": "Rocq's COS_bound",
+        "used_in": ("QC1 s1: cos theta - 1 <= 0",)},
+    "cos_ge_neg_one": {
+        "statement": "cos u >= -1",
+        "schema": ("u",), "hyps": (),
+        "use": "likewise",
+        "cite": "Rocq's COS_bound",
+        "used_in": ("QC1 s1: cos theta + 1 >= 0",)},
+}
+
+ATOM_FACT_RULE = (
+    "Generalises SQRT_FACT_RULE (E49) at the build: a Farkas label "
+    "('fact', name, u) is in a key's constraint set exactly when name is "
+    "one of ATOM_FACTS and an atom h(w) of that fact's head h occurs in "
+    "the key's proposition or domain with ring_nf(w) = ring_nf(u); its "
+    "constraint is the fact's statement at u, read as a target is "
+    "(non-strict). No child certificate: sqrt_nonneg's hypothesis is its "
+    "atom's definedness (E49), and cos_le_one and cos_ge_neg_one have "
+    "none, cos being total. The search adds one constraint per fact per "
+    "distinct atom; cites are ordered pi_pos, e_gt_one, sqrt_nonneg, "
+    "cos_le_one, cos_ge_neg_one.",
+
+    "Facts whose hypotheses are not their atom's definedness "
+    "(sin_nonneg_on, cos_nonneg_on) are NOT labels: a Farkas certificate "
+    "has no children, and the hypotheses u >= 0, u <= pi are real "
+    "conditions on the argument. They reach the kernel through cite, whose "
+    "children certify each instantiated hypothesis at the key's domain "
+    "(DISCHARGE_RULE, Cite certificate), unchanged.",
+
+    "E27 (a) and E31. pyth counts at a subterm tree-equal to (sin b)^2 + "
+    "(cos b)^2 (a value holding it is unevaluated: it is 1). pyth_cos is "
+    "not an evaluation, and E27 (a) does not count it, as it does not "
+    "count a rewrite that trades one atom for another; no value in the "
+    "data holds (cos b)^2. The ordering entries are not equations. None of "
+    "the six is an exact value (each has a schema variable).",
+)
+ATOM_FACTS = {
+    "sqrt_nonneg": ("sqrt", "sqrt u >= 0"),
+    "cos_le_one": ("cos", "1 - cos u >= 0"),
+    "cos_ge_neg_one": ("cos", "cos u + 1 >= 0"),
+}
+
+
+def ATOM(name, u):
+    """ATOM_FACT_RULE's label; SQRT(u) is ATOM('sqrt_nonneg', u)."""
+    return ("fact", name, u)
+
+
+T_CITE_SIN = ("cite", ("sin_nonneg_on", "pi_pos"))
+CONSOLIDATION_CHECKER_ACCEPTS = [
+    {"id": "linear_cos_le_one",
+     "key": ("cos theta - 1 <= 0", "[0, pi/2]"),
+     "certificate": _farkas({GOAL: "1", ATOM("cos_le_one", "theta"): "1"}),
+     "tag": ("linear", ("cos_le_one",)),
+     "why": "(cos theta - 1, strict) + (1 - cos theta) = 0 with a strict "
+            "constraint"},
+    {"id": "linear_cos_ge_neg_one",
+     "key": ("cos theta + 1 >= 0", "[0, pi/2]"),
+     "certificate": _farkas({GOAL: "1",
+                             ATOM("cos_ge_neg_one", "theta"): "1"}),
+     "tag": ("linear", ("cos_ge_neg_one",)),
+     "why": "(-(cos theta + 1), strict) + (cos theta + 1) = 0, strict"},
+    {"id": "cite_sin_nonneg",
+     "key": ("sin theta >= 0", "[0, pi/2]"),
+     "certificate": _cite("sin_nonneg_on", {"u": "theta"},
+                          [("theta >= 0", _RANGE_LO),
+                           ("theta <= pi", _farkas({GOAL: "1", HI(0): "1",
+                                                    FACT("pi_pos"): "1/2"}))]),
+     "tag": T_CITE_SIN,
+     "why": "theta <= pi: (theta - pi, strict) + (pi/2 - theta) + "
+            "(1/2)(pi, strict) = 0"},
+    {"id": "cite_cos_nonneg",
+     "key": ("cos theta >= 0", "[0, pi/2]"),
+     "certificate": _cite("cos_nonneg_on", {"u": "theta"},
+                          [("theta >= 0", _RANGE_LO),
+                           ("theta <= pi/2", _farkas({GOAL: "1",
+                                                      HI(0): "1"}))]),
+     "tag": ("cite", ("cos_nonneg_on",)),
+     "why": "theta <= pi/2 is the upper end: (theta - pi/2, strict) + "
+            "(pi/2 - theta) = 0"},
+]
+CONSOLIDATION_MUST_REJECT = [
+    {"id": "cos_fact_nonstrict_pair",
+     "key": ("cos theta - 1 < 0", "[0, pi/2]"),
+     "certificate": _farkas({GOAL: "1", ATOM("cos_le_one", "theta"): "1"}),
+     "expected": "rejected",
+     "rejects_because": "(-(cos theta - 1)) + (1 - cos theta) = 0 with "
+                        "both non-strict ('zero-without-strict')",
+     "truth": ("false", {"theta": "0"}),
+     "if_emitted": ("refused", _point("cos theta - 1 < 0 @ [0, pi/2]",
+                                      "1 - 1 < 0", entries=("cos_zero",),
+                                      theta="0"))},
+    {"id": "sin_fact_not_a_label",
+     "key": ("sin theta >= 0", "[0, pi/2]"),
+     "certificate": _farkas({GOAL: "1",
+                             ATOM("sin_nonneg_on", "theta"): "1"}),
+     "expected": "rejected",
+     "rejects_because": "sin_nonneg_on has hypotheses that are not its "
+                        "atom's definedness, so it is no label "
+                        "('unknown-label'); cite is its route",
+     "truth": ("true",),
+     "if_emitted": ("discharged", T_CITE_SIN)},
+]
+
+# Planted bugs for the build (INT_SUBST_PLANTED_BUGS' shape).
+CONSOLIDATION_PLANTED_BUGS = {
+    "int_flip_drops_negation": {
+        "mutation": "int_flip builds Integral(x, b, a, f), without Neg",
+        "caught_by": [("INT_FLIP_ACCEPTS", "flip_reversed_symbolic_to_value")]},
+    "int_flip_under_D_unchecked": {
+        "mutation": "int_flip's step 3 is skipped",
+        "caught_by": [("INT_FLIP_BAD_MOVES", "flip_under_D")]},
+    "product_nonstrict_factor_on_strict": {
+        "mutation": "a non-strict factor is accepted under a strict target",
+        "caught_by": [("SIGN_PRODUCT_MUST_REJECT",
+                       "product_nonstrict_factor_under_strict_target"),
+                      ("PROPERTY", "sign product")]},
+    "cos_fact_strict": {
+        "mutation": "an ATOM_FACTS label is read as strict",
+        "caught_by": [("CONSOLIDATION_MUST_REJECT", "cos_fact_nonstrict_pair"),
+                      ("PROPERTY", "farkas")]},
+    "atom_fact_any_entry": {
+        "mutation": "any ENTRIES ordering is accepted as an atom label",
+        "caught_by": [("CONSOLIDATION_MUST_REJECT", "sin_fact_not_a_label")]},
+}
+
+# Every existing expectation items 3 and 4 change, with its new value.
+# Everything else was re-traced unchanged: every non-strict key in either
+# file is closed by hyp, range, linear or sign before sign product is tried,
+# or has no factorisation (x <= 5 @ [0, oo), degree 1, whose content split
+# leaves x - 5 <= 0, false at 6: still admitted none); the only keys holding
+# a cos atom outside Reg judgements are cos(pi/2) # 0 (refused by F1 before
+# any search), cos 0 # 0 (norm_num after cos_zero) and cos 1 # 0 (still
+# undecided: 1 - c >= 0 and c + 1 >= 0 do not give c # 0); no key holds a
+# sin atom outside Reg judgements; no value in the E27 cases holds (cos b)^2
+# or (sin b)^2 + (cos b)^2.
+CONSOLIDATION_CHANGES = {
+    "DISCHARGE_MUST_REJECT product_nonstrict_target": {
+        "rejects_because": "was 'non-strict-target'; now the target is "
+                           "allowed and the child x > 0 @ [-1, 1] fails: "
+                           "(-x) + (x + 1) = 1 (child-rejected/"
+                           "positive-constant)",
+        "if_emitted": "unchanged: ('discharged', T_SIGN), sign coming first"},
+    "INT_SUBST_ACCEPTS cos_theta_canonical": {
+        "goal_emits": [("1 - x^2 >= 0", "[0, 1]", (S_FORMER,), DISCHARGED,
+                        T_PRODUCT, True)],
+        "emits_change": ("1 - (cos theta)^2 >= 0", "[0, pi/2]", (S_FORMER,),
+                         DISCHARGED, T_PRODUCT_COS, True),
+        "certificates_add": {
+            ("1 - x^2 >= 0", "[0, 1]"): _ONE_MINUS_X2,
+            ("1 - (cos theta)^2 >= 0", "[0, pi/2]"): _product(
+                "-1", [("cos theta - 1", "<=",
+                        _farkas({GOAL: "1",
+                                 ATOM("cos_le_one", "theta"): "1"})),
+                       ("cos theta + 1", ">=",
+                        _farkas({GOAL: "1",
+                                 ATOM("cos_ge_neg_one", "theta"): "1"}))])},
+        "goal_reasons": "removed", "reasons": "removed (no admission is "
+                                              "tagged none any more)"},
+    "INT_SUBST_BAD_MOVES and F3_ROOTS_CHANGES prose": (
+        "cos_theta_canonical's two keys, listed as admitted none, are now "
+        "discharged"),
+    "TAG_RULES 'sign product'": (
+        "'It closes >, < and # 0 goals only, never >= or <=' is superseded "
+        "by SIGN_PRODUCT_NONSTRICT_RULE"),
+    "entries.py ENTRIES count": "17 -> 23",
+    # owner's answers: a change E53 makes that this spec first missed (found
+    # while re-tracing E56). Under pi_pos_not_in_constraint_set the search
+    # has no sign fact, but E53's content split closes pi/2's order and
+    # sqrt_sq's pi/2 >= 0 as (1/2)*pi with pi > 0 by cite pi_pos, which the
+    # trusted ENTRIES still hold. See E56_CHANGES for the combined values.
+    "E53 under pi_pos_not_in_constraint_set": (
+        "0 <= pi/2 (P1.1, P1.1-sheet) and pi/2 >= 0 (the fallback) are "
+        "DISCHARGED ('sign product', ('pi_pos',)) with _product('1/2', "
+        "[('pi', '>', _cite('pi_pos', {}, []))]), not admitted none; N "
+        "stays 3 for P1.1 and the fallback and 5 for P1.1-sheet; the "
+        "catches are the tags"),
+}
+
+CONSOLIDATION_SWITCH = (
+    "One commit, the suite green before and after. Kernel: int_flip as "
+    "INT_FLIP_RULE states it (move list six long); discharge.py's sign "
+    "product checker and search.py/tagger.py as SIGN_PRODUCT_NONSTRICT_RULE; "
+    "the atom labels as ATOM_FACT_RULE; entries.py gains "
+    "CONSOLIDATION_ENTRIES after sqrt_nonneg; schema.py's E27 (a) reads "
+    "pyth and skips pyth_cos (ATOM_FACT_RULE). With it, E56 (owner's "
+    "answers, section 14): one orientation rule for every step that builds "
+    "a range, the code 'orientation-undecided', E56_CHANGES applied to the "
+    "tables it names, E56_ACCEPTS, E56_BAD_MOVES and E56_PLANTED_BUGS "
+    "asserted like section 13's.",
+    "Data merged by the suite at the switch, not by editing the tables "
+    "above: P1_1_SHEET_JOIN into PROOFS and the DISCHARGE_* tables (the "
+    "sheet leaving INT_SUBST_PROOFS), every planted bug's and mutation's "
+    "admissions and caught_by as P1_1_SHEET_TRACES gives them for the "
+    "sheet, CONSOLIDATION_CHANGES applied to the tables it names, "
+    "REFUSAL_CODES_INT_FLIP into the coverage check.",
+    "Suite: INT_FLIP_ACCEPTS with their continuations and INT_FLIP_BAD_MOVES "
+    "as the int_subst cases are asserted; SIGN_PRODUCT_* and "
+    "CONSOLIDATION_CHECKER_ACCEPTS / _MUST_REJECT through test_discharge.py "
+    "(the reason codes named in each rejects_because); "
+    "DISCHARGE_PROPERTY_TEST's sign product family gains non-strict keys "
+    "and its Farkas family keys holding a cos atom (evaluated at 0, where "
+    "cos_zero gives it exactly, and skipped elsewhere); "
+    "CONSOLIDATION_PLANTED_BUGS in child processes; problems/stage0 "
+    "section 13 (QC1, in kernel/problems/consolidation/) under item 7's "
+    "machinery with a floor of its own.",
+)
+
+# The data cross-checks itself when imported.
+assert set(REFUSAL_CODES_INT_FLIP) <= {c["refusal"] for c in INT_FLIP_BAD_MOVES}
+for _name in list(DISCHARGE_PLANTED_BUGS) + list(DISCHARGE_NEW_PLANTED_BUGS):
+    assert _name in P1_1_SHEET_TRACES or _name in PLANTED_BUGS, _name
+for _name in (*PLANTED_BUGS, *DISCHARGE_NEW_PLANTED_BUGS):
+    assert _name in P1_1_SHEET_TRACES, _name
+del _name
+
+
+# ---------------------------------------------------------------------------
+# 14. Reversed ranges everywhere (consolidation spec 2026-09-24, owner
+#     answers; E56)
+#
+# The owner accepted both of the consolidation spec's recommendations: E51's
+# form, and one orientation rule for every step. DECISIONS E56 states the
+# rule and its soundness. Staged like section 13 (CONSOLIDATION_SWITCH also
+# carries this section): the committed suite stays green until the build.
+
+# One code for every step (E56), replacing 'int-subst-orientation-undecided'.
+REFUSAL_CODES_E56 = {
+    "orientation-undecided": "E56 (owner's answers): an Int's limits are "
+                             "not two literals and have no infinite end, "
+                             "and discharge proves neither lo <= hi nor "
+                             "hi <= lo at the Int's position domain; any "
+                             "step that builds the range (installation, a "
+                             "new goal, rewrite, ftc, int_subst, int_flip)",
+}
+E56_MESSAGES = {
+    "orientation-undecided": "the order of {lo} and {hi} is not decided; "
+                             "state it in the goal's domain",
+}
+
+E56_ACCEPTS = [
+    # A reversed symbolic goal whose body owes a former, proved end to end
+    # by ftc without int_flip. Installation: pi/2 owes 2 # 0; sqrt(t^2)
+    # owes t^2 >= 0 on the range, whose order is decided first: pi/2 <= 0
+    # is not discharged, 0 <= pi/2 is (linear, pi_pos), so the range is
+    # [0, pi/2] and 0 <= pi/2 is emitted.
+    {"id": "reversed_symbolic_with_former_by_ftc",
+     "goal": "Int[t = pi/2 .. 0] sqrt(t^2) == ?A",
+     "goal_emits": [
+         ("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, True),
+         ("t^2 >= 0", "[0, pi/2]", (S_FORMER,), DISCHARGED, T_SIGN, True),
+         ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI, True)],
+     "move": ("rewrite", {"entry": "sqrt_sq", "inst": {"u": "t"},
+                          "at": "sqrt(t^2)"}),
+     "goal_after": "Int[t = pi/2 .. 0] t == ?A",
+     # the position domain holds the proved range [0, pi/2]
+     "emits": [
+         ("t >= 0", "[0, pi/2]", (S_SQRT_SQ,), DISCHARGED, T_RANGE, True),
+         ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI, False)],
+     "then": [
+         # ftc: premises on [0, pi/2] and (0, pi/2); the new goal
+         # F(b) - F(a) with b = 0 and a = pi/2, as written
+         {"move": ("ftc", {"F": "t^2/2", "check": "ring", "facts": []}),
+          "goal_after": "0^2/2 - (pi/2)^2/2 == ?A",
+          "deriv": {"var": "t", "F": "t^2/2",
+                    "trace": [("route_div", "t^2/2", ("2 # 0",)),
+                              ("d_mul", "t^2*(1/2)", ()),
+                              ("d_pow_int", "t^2", ()), ("d_var", "t", ()),
+                              ("d_const", "1/2", ())],
+                    "output": "2*t^1*1*(1/2) + t^2*0",
+                    "emits": ("2 # 0",)},
+          "emits": [
+              ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI,
+               False),
+              ("2 # 0", "true", (S_FORMER, S_ROUTE_DIV), DISCHARGED,
+               T_NORM_NUM, False),
+              ("t^2/2 in C^0([0, pi/2])", "[0, pi/2]", (S_FTC_C0F,),
+               ADMITTED, T_REG, True),
+              ("t^2/2 in C^1((0, pi/2))", "(0, pi/2)", (S_FTC_C1F,),
+               ADMITTED, T_REG, True),
+              ("D[t](t^2/2) == t", "(0, pi/2)", (S_FTC_D,), DISCHARGED,
+               T_DERIV_RING, True),
+              ("t in C^0([0, pi/2])", "[0, pi/2]", (S_FTC_C0f,), ADMITTED,
+               T_REG, True)]},
+         {"move": ("close", {"value": "-pi^2/8", "check": "ring",
+                             "facts": []}),
+          "goal_after": None,
+          "emits": [("8 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM,
+                     True)]},
+     ],
+     "certificates": {("t^2 >= 0", "[0, pi/2]"): _sos("0", [("1", "t", 2)]),
+                      ("0 <= pi/2", "true"): _PI_HALF,
+                      ("t >= 0", "[0, pi/2]"): _RANGE_LO},
+     "report": VERDICT.format(n=3),
+     "theorem": "Int[t = pi/2 .. 0] sqrt(t^2) == -pi^2/8",
+     "why": "was DISCHARGE_BAD_MOVES_ADDED decided_false_reversed_range, "
+            "refused at installation on pi/2 <= 0 by F2. Int_{pi/2}^0 "
+            "sqrt(t^2) dt = -pi^2/8 (SymPy): on [0, pi/2] sqrt(t^2) = t, "
+            "and the reversed limits give the sign"},
+    # the owner's other example, ftc alone
+    {"id": "reversed_symbolic_by_ftc_linear",
+     "goal": "Int[x = pi/2 .. 0] 2*x == ?A",
+     "goal_emits": [("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM,
+                     True)],
+     "move": ("ftc", {"F": "x^2", "check": "ring", "facts": []}),
+     "goal_after": "0^2 - (pi/2)^2 == ?A",
+     "deriv": {"var": "x", "F": "x^2",
+               "trace": [("d_pow_int", "x^2", ()), ("d_var", "x", ())],
+               "output": "2*x^1*1", "emits": ()},
+     "emits": [
+         ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI, True),
+         ("x^2 in C^0([0, pi/2])", "[0, pi/2]", (S_FTC_C0F,), ADMITTED,
+          T_REG, True),
+         ("x^2 in C^1((0, pi/2))", "(0, pi/2)", (S_FTC_C1F,), ADMITTED,
+          T_REG, True),
+         ("D[x](x^2) == 2*x", "(0, pi/2)", (S_FTC_D,), DISCHARGED,
+          T_DERIV_RING, True),
+         ("2*x in C^0([0, pi/2])", "[0, pi/2]", (S_FTC_C0f,), ADMITTED,
+          T_REG, True),
+         ("2 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM, False)],
+     "then": [
+         {"move": ("close", {"value": "-pi^2/4", "check": "ring",
+                             "facts": []}),
+          "goal_after": None,
+          "emits": [("4 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM,
+                     True)]}],
+     "certificates": {("0 <= pi/2", "true"): _PI_HALF},
+     "report": VERDICT.format(n=3),
+     "theorem": "Int[x = pi/2 .. 0] 2*x == -pi^2/4",
+     "why": "the same value as INT_FLIP_ACCEPTS "
+            "flip_reversed_symbolic_to_value, without the flip: F(b) - F(a) "
+            "= 0^2 - (pi/2)^2 holds for either order (E56)"},
+]
+E56_BAD_MOVES = [
+    # neither order decided: y is free and the goal states nothing about it
+    {"id": "orientation_undecided_install",
+     "goal": "Int[t = 0 .. y] sqrt(t^2) == ?A", "setup": [],
+     "move": ("install", {}),
+     "refusal": "orientation-undecided",
+     "message": ("orientation-undecided", {"lo": "0", "hi": "y"}),
+     "why": "sqrt(t^2)'s former needs the range, and neither 0 <= y nor "
+            "y <= 0 is discharged. Under E4 the step emitted 0 <= y, which "
+            "F3 decided false at y = -1; E56 refutes neither candidate and "
+            "asks the learner to state the order"},
+    # F2's own case, which decided_false_reversed_range no longer is: a
+    # closed ordering whose negation is proved (sqrt_sq with the wrong sign)
+    {"id": "decided_false_closed_negation",
+     "goal": "sqrt(pi^2/4) == ?A", "setup": [],
+     "move": ("rewrite", {"entry": "sqrt_sq", "inst": {"u": "-(pi/2)"},
+                          "at": "sqrt(pi^2/4)"}),
+     "refusal": OBLIGATION_DECIDED_FALSE,
+     "message": _negation("-(pi/2) >= 0", "-(pi/2) < 0", T_LINEAR_PI),
+     "why": "ring_nf((-(pi/2))^2) = pi^2/4 matches; the hypothesis "
+            "-(pi/2) >= 0 is closed, no method proves it (E53's content "
+            "split would need pi <= 0), and its negation is linear with "
+            "pi_pos: (-(pi/2), non-strict) + (1/2)(pi, strict) = 0. "
+            "Installation owes pi^2/4 >= 0 (sign) and 4 # 0"},
+]
+
+# E56's planted bugs (INT_SUBST_PLANTED_BUGS' shape).
+E56_PLANTED_BUGS = {
+    "orientation_tries_one_order": {
+        "mutation": "only lo <= hi is tried (E4's old reading, without F2)",
+        "caught_by": [("E56_ACCEPTS", "reversed_symbolic_with_former_by_ftc"),
+                      ("E56_ACCEPTS", "reversed_symbolic_by_ftc_linear"),
+                      ("INT_FLIP_ACCEPTS", "flip_oriented_symbolic_with_former")]},
+    "orientation_order_unproved": {
+        "mutation": "[hi, lo] is used whenever lo <= hi is not discharged, "
+                    "without discharging hi <= lo",
+        "caught_by": [("E56_BAD_MOVES", "orientation_undecided_install"),
+                      ("DISCHARGE_BAD_MOVES_CHANGED",
+                       "rewrite_under_D_through_Int")]},
+}
+
+# Every existing expectation E56 changes, with the old and the new values,
+# and those E53 changes that the consolidation spec missed (found while
+# re-tracing this). Unmutated runs: no admission count moves, because every
+# orientation key any table lists was discharged (0 <= pi/2, 0 <= pi^2/4,
+# 1 <= e_const, 0 <= x @ 0 <= x) and E56 emits the same key with the same
+# certificate; only refusals that rested on a false or undecided order
+# change.
+E56_CHANGES = {
+    "DISCHARGE_BAD_MOVES_ADDED decided_false_reversed_range": {
+        "old": ("refused at installation, obligation-decided-false",
+                _negation("pi/2 <= 0", "pi/2 > 0", T_LINEAR_PI)),
+        "new": "installs; the case is replaced by E56_ACCEPTS "
+               "reversed_symbolic_with_former_by_ftc (its goal, proved to "
+               "-pi^2/8) and, as F2's example, by E56_BAD_MOVES "
+               "decided_false_closed_negation"},
+    "DISCHARGE_BAD_MOVES_CHANGED rewrite_under_D_through_Int": {
+        "old": ("refused at installation, obligation-decided-false",
+                _point("0 <= x", "0 <= -1", x="-1")),
+        "new": ("refused at installation, orientation-undecided",
+                ("orientation-undecided", {"lo": "0", "hi": "x"}))},
+    "REVIEW_BAD_MOVES reverse_symbolic_old_range_reversed": {
+        "old": ("refused, obligation-decided-false",
+                _negation("pi/2 <= 0", "pi/2 > 0", T_LINEAR_PI)),
+        # step 8 reverse: I is [0, pi/2] (0 <= pi/2 proved); hi's pi^2/4
+        # owes 4 # 0; the new limits pi^2/4 .. 0 are reversed, 0 <= pi^2/4
+        # is proved (sign), so int_subst flips (E46)
+        "new": {"goal_emits": [("2 # 0", "true", (S_FORMER,), DISCHARGED,
+                                T_NORM_NUM, True)],
+                "goal_after": "Int[u = 0 .. pi^2/4] -1 == ?A",
+                "emits": [
+                    ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED,
+                     T_LINEAR_PI, True),
+                    ("4 # 0", "true", (S_FORMER,), DISCHARGED, T_NORM_NUM,
+                     True),
+                    ("0 <= pi^2/4", "true", (S_ORIENT,), DISCHARGED, T_SIGN,
+                     True),
+                    ("2*x == 1*(2*x^1*1)", "[0, pi/2]", (S_SUBST_INT,),
+                     DISCHARGED, T_DERIV_RING, True),
+                    ("(pi/2)^2 == pi^2/4", "true", (S_SUBST_LO,), DISCHARGED,
+                     T_RING, True),
+                    ("0^2 == 0", "true", (S_SUBST_HI,), DISCHARGED, T_RING,
+                     True),
+                    ("x^2 in C^1([0, pi/2])", "[0, pi/2]", (S_SUBST_C1,),
+                     ADMITTED, T_REG, True),
+                    ("1 in C^0(x in [0, pi/2])", "x in [0, pi/2]",
+                     (S_SUBST_C0,), ADMITTED, T_REG, True)],
+                "certificates": {("0 <= pi/2", "true"): _PI_HALF,
+                                 ("0 <= pi^2/4", "true"): _PI_SQ},
+                "moves_to": "INT_SUBST_ACCEPTS"}},
+    "REVIEW_PLANTED_BUGS int_subst_reverse_no_old_orient caught_by": {
+        "old": ("INT_SUBST_BAD_MOVES", "reverse_symbolic_old_range_reversed"),
+        "new": ("INT_SUBST_ACCEPTS", "reverse_symbolic_old_range_reversed")},
+    "INT_SUBST_BAD_MOVES orientation_undecided": {
+        "old": ("int-subst-orientation-undecided",
+                ("int-subst-orientation-undecided", {"lo": "0", "hi": "1/y"})),
+        "new": ("orientation-undecided",
+                ("orientation-undecided", {"lo": "0", "hi": "1/y"}))},
+    "REFUSAL_CODES_INT_SUBST / INT_SUBST_MESSAGES": {
+        "old": "'int-subst-orientation-undecided'",
+        "new": "removed; REFUSAL_CODES_E56's 'orientation-undecided', same "
+               "template"},
+    # E53 (consolidation), under the pi_pos seam: the content split closes
+    # pi/2's sign by cite pi_pos, which the seam does not remove
+    "DISCHARGE_PLANTED_BUGS pi_pos_not_in_constraint_set": {
+        "old": {"admissions": {"P1.1": 4, "P1.1-fallback": 4, "P1.2": 3,
+                               "P1.2-alt": 3},
+                "retagged": "0 <= pi/2 (P1.1) and pi/2 >= 0 (fallback) "
+                            "ADMITTED ('none', ())",
+                "caught_by": "tags at P1.1 goal, s1, s2 and fallback s2; "
+                             "statuses at P1.1 goal and fallback s2; N for "
+                             "P1.1 and the fallback"},
+        "new": {"admissions": {"P1.1": 3, "P1.1-fallback": 3, "P1.2": 3,
+                               "P1.2-alt": 3, "P1.1-sheet": 5},
+                "retagged": {
+                    "P1.1": [("0 <= pi/2", "true", DISCHARGED,
+                              ("sign product", ("pi_pos",)))],
+                    "P1.1-fallback": [("pi/2 >= 0", "true", DISCHARGED,
+                                       ("sign product", ("pi_pos",)))]},
+                "certificate": _product("1/2", [("pi", ">",
+                                                 _cite("pi_pos", {}, []))]),
+                "caught_by": [("P1.1", "goal", "0 <= pi/2", "tag"),
+                              ("P1.1", "s1", "0 <= pi/2", "tag"),
+                              ("P1.1", "s2", "0 <= pi/2", "tag"),
+                              ("P1.1-fallback", "s2", "pi/2 >= 0", "tag")],
+                "note": "were E56 to land without E53, P1.1 would instead "
+                        "be refused at installation, orientation-undecided"}},
+    "INT_SUBST_SEAMS pi_pos_not_in_constraint_set": {
+        "old": {"caught_by": [("P1.1-sheet", "s1", "refused")]},
+        "new": {"admissions": {"P1.1-sheet": 5},
+                "caught_by": [("P1.1-sheet", "s1", "0 <= pi/2", "tag"),
+                              ("P1.1-sheet", "s2", "0 <= pi/2", "tag"),
+                              ("P1.1-sheet", "s3", "0 <= pi/2", "tag")],
+                "retagged": {"P1.1-sheet": [("0 <= pi/2", "true", DISCHARGED,
+                                             ("sign product", ("pi_pos",)))]}}},
+    # E56: search_scales_wrongly's 0 <= pi/2 certificate is rejected and no
+    # later method is tried (E28); pi/2 <= 0 has none; so P1.1 cannot
+    # decide its range's order at installation
+    "DISCHARGE_NEW_PLANTED_BUGS search_scales_wrongly": {
+        "old": {"admissions": {"P1.1": 4, "P1.1-fallback": 4, "P1.2": 3,
+                               "P1.2-alt": 3},
+                "caught_by": [("P1.1", "goal", "0 <= pi/2", "status"),
+                              ("P1.1-fallback", "s2", "pi/2 >= 0", "status"),
+                              ("N", "P1.1"), ("N", "P1.1-fallback")]},
+        "new": {"admissions": {"P1.1-fallback": 4, "P1.2": 3, "P1.2-alt": 3},
+                "refused": {"P1.1": ("goal", ("orientation-undecided",
+                                              {"lo": "0", "hi": "pi/2"})),
+                            "P1.1-sheet": ("s1", ("orientation-undecided",
+                                                  {"lo": "0", "hi": "pi/2"}))},
+                "caught_by": [("P1.1", "goal", "refused"),
+                              ("P1.1-fallback", "s2", "pi/2 >= 0", "status"),
+                              ("N", "P1.1-fallback")]}},
+    "P1_1_SHEET_TRACES": "pi_pos_not_in_constraint_set now N 5 with tag "
+                         "catches (E53); search_scales_wrongly's refusal "
+                         "code orientation-undecided (already amended in "
+                         "place)",
+    "INT_FLIP (section 13, staged)": "flip_oriented_symbolic_with_former "
+                                     "moved from INT_FLIP_BAD_MOVES to "
+                                     "INT_FLIP_ACCEPTS (amended in place)",
+    "unchanged, re-traced": (
+        "every P1, stage-0 and int_subst proof: each orientation key is "
+        "the same key, discharged the same way (0 <= pi/2 linear, "
+        "0 <= pi^2/4 sign, 1 <= e_const linear); no N moves",
+        "int_subst's flipped outputs (decreasing_symbolic_ends_flipped, "
+        "cos_theta_*, QC1): E46's flip is kept",
+        "INT_SUBST_PLANTED_BUGS int_subst_no_orientation: still caught at "
+        "its three cases (cos_theta_full's ftc now succeeds on the "
+        "unflipped goal under the bug, but its goal_after and lists "
+        "differ)",
+        "farkas_swaps_interval_ends and every other checker bug: the "
+        "search proposes no certificate for a false order, so a widened "
+        "checker never selects the wrong interval, and a narrowed one "
+        "(the swap) leaves 0 <= pi/2, a fact-only certificate, alone",
+        "tracker_drops_reemitted: its key 0 <= pi/2 is still emitted at "
+        "P1.1's installation and dropped once",
+        "F3_ROOTS_CASES, the E27 cases, the stage-0 seams: no symbolic "
+        "reversed range",
+    ),
+    "prose superseded": (
+        "DOMAIN_RULES E4 ('a non-literal reversed range ... gets the false "
+        "obligation pi/2 <= 0 ... refused once discharge exists'; 'An "
+        "orient argument is future work')",
+        "DISCHARGE_RULE's vacuity paragraph ('What keeps a vacuous "
+        "discharge from mattering is E4 ...'): E56's intervals are never "
+        "empty, which is stronger",
+        "E33's and DISCHARGE_RULE's F2 example pi/2 <= 0 (now "
+        "decided_false_closed_negation's -(pi/2) >= 0)",
+        "E51's limitation and DESIGN_DEFECTS' E4-installation entry",
+    ),
+}
