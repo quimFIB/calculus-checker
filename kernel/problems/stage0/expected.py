@@ -528,9 +528,16 @@ EXPECTED_REFUSALS = {}
 # not ask for them. They are added because two of them show the new entries
 # are needed for the answer as stated: without exp_one and exp_zero, or
 # ln_e and ln_one, the close with (e_const - 1)/2 or 1/2 does not go through
-# (S2-W2, S3-W2). An unevaluated answer needs none of them (PF7). Each is refused with the residual
-# lhs - rhs, compared by equality in `compare`, never as a string (E14),
-# and emits nothing (E13). "goal" starts from the freshly installed goal;
+# (S2-W2, S3-W2). Before the user's decision of 2026-09-24 on evaluated
+# answers, an unevaluated answer needed none of them (PF7). Since then
+# (p1_expected E27) it is refused 'close-not-evaluated' (S2-W3, S3-W3), so
+# the entries are needed to close the goal at all. Each of the first six is
+# refused with the residual lhs - rhs, compared by equality in `compare`,
+# never as a string (E14). S2-W3 and S3-W3 are right values in a refused
+# form: their residual is E27's offending subterm, compared as a tree
+# ("tree"), with 'entry' and 'message' asserted as p1_expected's E27 cases
+# are (E27_MESSAGES filled with show(residual) and the entry). Every case
+# emits nothing (E13). "goal" starts from the freshly installed goal;
 # "state" from the state after that step of that proof.
 WRONG_ANSWERS = [
     {"id": "S1-W1",
@@ -578,6 +585,39 @@ WRONG_ANSWERS = [
      "refusal": "close-check-failed",
      "residual": "(ln e_const)^2/2 - (ln 1)^2/2 - 1/2",
      "compare": ("ring", ())},
+    # Added by user decision 2026-09-24 (evaluated answers), p1_expected
+    # E27. Each value is right (SymPy, VERIFIED) and ring proves it equal to
+    # the goal after s1, which is what closed before E27. E19, E23, the
+    # value's formers (2 # 0, and S3's e_const > 0 and 1 > 0, all keys s1
+    # already minted) and check_goal pass, so E27, which runs last, is the
+    # refusal. Its first (a) offender in pre-order is the leftmost
+    # application, which (a1) matches through E1 step 3.
+    {"id": "S2-W3",
+     "added": True,
+     "what": "S2 closed with its right value unevaluated, (exp 1 - exp 0)/2, "
+             "after s1: ring proves it (exp 1 and exp(1^2) are one atom, "
+             "§6.2) but exp_one still applies (E27 (a))",
+     "state": ("S2", "s1"),
+     "move": ("close", {"value": "(exp 1 - exp 0)/2", "check": "ring",
+                        "facts": []}),
+     "refusal": "close-not-evaluated",
+     "residual": "exp 1",
+     "compare": ("tree", ()),
+     "entry": "exp_one",
+     "message": "exp 1 can still be evaluated (exp_one)"},
+    {"id": "S3-W3",
+     "added": True,
+     "what": "S3 closed with its right value unevaluated, (ln e_const)^2/2 "
+             "- (ln 1)^2/2, the goal's own left side after s1: ln_e still "
+             "applies (E27 (a))",
+     "state": ("S3", "s1"),
+     "move": ("close", {"value": "(ln e_const)^2/2 - (ln 1)^2/2",
+                        "check": "ring", "facts": []}),
+     "refusal": "close-not-evaluated",
+     "residual": "ln e_const",
+     "compare": ("tree", ()),
+     "entry": "ln_e",
+     "message": "ln e_const can still be evaluated (ln_e)"},
 ]
 
 # ---------------------------------------------------------------------------
@@ -641,15 +681,25 @@ DECISIONS = {
     "PF7": "S2's answer is (e_const - 1)/2, STAGE0.md's (e - 1)/2, reached "
            "by rewriting exp(1^2) with exp_one and exp(0^2) with exp_zero, "
            "then closing by ring. An answer written (exp 1 - 1)/2 would "
-           "close without exp_one, because exp(1^2) and exp 1 are one atom "
-           "(§6.2, atoms up to their arguments' normal forms), but not "
-           "without exp_zero, and it is not how the answer is usually "
-           "stated. So S2, with its answer as stated, needs two §6.8 "
-           "entries WHAT.md does not list. They are not needed to close S2 "
-           "at all: §9's closed whitelist accepts the unevaluated "
+           "pass ring's check without exp_one, because exp(1^2) and exp 1 "
+           "are one atom (§6.2, atoms up to their arguments' normal "
+           "forms), but not without exp_zero, and it is not how the answer "
+           "is usually stated. So S2, with its answer as stated, needs two "
+           "§6.8 entries WHAT.md does not list. Before the user's decision "
+           "of 2026-09-24 on evaluated answers they were not needed to "
+           "close S2 at all: §9's closed whitelist accepted the unevaluated "
            "(exp 1 - exp 0)/2, which ring closes after s1, modulo 3, using "
-           "no entry; likewise S3 closes with (ln e_const)^2/2 - "
-           "(ln 1)^2/2, modulo 9, without ln_e or ln_one (FINDINGS)",
+           "no entry, and likewise S3 closed with (ln e_const)^2/2 - "
+           "(ln 1)^2/2, modulo 9, without ln_e or ln_one (FINDINGS 12). "
+           "Since that decision a closed answer must be fully evaluated "
+           "(p1_expected E27), so both are refused 'close-not-evaluated', "
+           "naming exp_one and ln_e (S2-W3, S3-W3), and so is (exp 1 - 1)/2 "
+           "(exp 1 is exp_one's left side). Now the entries are needed to "
+           "close the goal, not only for the answer as stated: any value "
+           "ring proves equal to S2's post-ftc side keeps an exp atom whose "
+           "argument normalises to 1 or to 0 unless the rewrites are made, "
+           "and E27 (a) matches through that normal form (E1 step 3); "
+           "likewise S3's ln atoms",
     "PF8": "deriv routes F's u/2 through u*(1/2), owing 2 # 0 with source "
            "route_div (E12: every u/v with x free and u not the literal 1). "
            "E12 makes no exception for a literal v. If the kernel reads "
@@ -696,11 +746,17 @@ DECISIONS = {
             "have no file form yet. S5 in STAGE0.md is the first goal that "
             "will need one",
     "PF16": "No reference step is expected to refuse (EXPECTED_REFUSALS is "
-            "empty). WRONG_ANSWERS adds six refusals, one wrong F and one "
-            "wrong or premature close per problem. They were not asked for "
-            "and are labelled so. S2-W2 and S3-W2 show the new entries are "
-            "needed for the answer as stated, not needed to close the goal "
-            "(PF7)",
+            "empty). WRONG_ANSWERS adds eight refusals. Six are one wrong F "
+            "and one wrong or premature close per problem. S2-W2 and S3-W2 "
+            "show the new entries are needed for the answer as stated. The "
+            "other two, S2-W3 and S3-W3, added by the user's decision of "
+            "2026-09-24 on evaluated answers (p1_expected E27), close with "
+            "the right value unevaluated and are refused "
+            "'close-not-evaluated', which shows the entries are now needed "
+            "to close the goal at all (PF7). Their residual is E27's "
+            "offending subterm, not lhs - rhs, so it is compared as a tree "
+            "('tree'), and each names its entry and message. None of the "
+            "eight was asked for, and each is labelled",
 }
 
 # ---------------------------------------------------------------------------
@@ -764,17 +820,24 @@ FINDINGS = [
     "For step 2: the tags above need e_gt_one in the tagger's sign-fact "
     "table beside pi_pos (TAG_RULES: 'e_gt_one : e_const > 1'), not only "
     "in entries.py.",
-    "§9's closed schema does not require an evaluated form. After ftc, S3 "
-    "closes by ring with ?A := (ln e_const)^2/2 - (ln 1)^2/2 (modulo 9) "
+    "§9's closed schema did not require an evaluated form. After ftc, S3 "
+    "closed by ring with ?A := (ln e_const)^2/2 - (ln 1)^2/2 (modulo 9) "
     "and S2 with ?A := (exp 1 - exp 0)/2 (modulo 3), using none of ln_e, "
     "ln_one, exp_one or exp_zero, because the whitelist accepts an "
     "unevaluated F(b) - F(a). So §6.8's 'every authored goal terminates "
-    "in this table' is not enforced by anything the kernel checks: the "
-    "entries are needed for the answer as authored, not for the goal to "
-    "close (PF7, PF16). DESIGN.md should decide whether the closed schema "
-    "should require it (e.g. no ln, exp or trig of a literal or constant "
-    "that some §6.8 entry evaluates), or whether the authored answer "
-    "alone carries that standard.",
+    "in this table' was not enforced by anything the kernel checks. "
+    "DECIDED by the user on 2026-09-24: answers under `closed` must be "
+    "fully evaluated. p1_expected E27 states it as a checkable property, "
+    "not a canonical form: (a) no subterm matches the left side of an "
+    "equation entry in force, matched as rewrite matches (E1, "
+    "ring-normalised arguments), and (b) no unreduced literal arithmetic. "
+    "It is checked untrusted, beside the whitelist, and last in close, so "
+    "'close-not-evaluated' means right value, unevaluated form. S2-W3 and "
+    "S3-W3 pin it here, and the entries are now needed to close the goal "
+    "(PF7, PF16). Still for DESIGN.md: §9 should state the requirement and "
+    "where it runs, and §6.8 should say that its claim now holds of every "
+    "accepted close, relative to the entries in force (p1_expected "
+    "DESIGN_DEFECTS).",
 ]
 
 # ---------------------------------------------------------------------------
@@ -810,15 +873,26 @@ VERIFIED = (
     "each wrong answer's residual equals lhs - rhs and is nonzero",
     "per-step lists and FINAL_TRACKER agree, and the admission counts match",
     "every JSON file loads, and its step ids and moves match STEPS",
+    # Added by user decision 2026-09-24 (evaluated answers).
+    "S2-W3 and S3-W3 refuse right values: (exp(1) - exp(0))/2 = (e - 1)/2 "
+    "and ln(e)^2/2 - ln(1)^2/2 = 1/2, each equal to its integral, so each "
+    "refusal is about form, not truth; each residual (exp 1, ln e_const) is "
+    "the first node in pre-order that E27 (a) matches, and each message is "
+    "E27_MESSAGES' (a) template filled with it, checked with a throwaway "
+    "scratch reading of E27 over terms.py's parser and printer, not kernel "
+    "code; both strings parse and round-trip",
 )
 
 # ---------------------------------------------------------------------------
 # 10. Changes made after the kernel first ran against this file, each as
 #     (location, old, new, why, evidence). The first run (2026-09-24,
 #     kernel/proof_of_life.py item 7) matched every assertion above, so no
-#     expected value has changed. The entries below are text-only fixes
-#     from the review of that run. A change here needs a reason in the
-#     rules, never only that the kernel disagrees.
+#     expected value has changed. The first two entries below are text-only
+#     fixes from the review of that run. The rest carry out the user's
+#     decision of 2026-09-24 on evaluated answers (p1_expected E27): they
+#     add two cases and reword text, and change no existing expected value.
+#     A change here needs a reason in the rules, never only that the kernel
+#     disagrees.
 
 CHANGES = (
     ("PF7, PF16 (the WRONG_ANSWERS comment and DECISIONS)",
@@ -841,4 +915,42 @@ CHANGES = (
      "DESIGN.md §5.3 method 2: 'method 2 can write its constraint as a "
      "linear a <= t <= b only once the order of a and b follows from the "
      "constraint set. Where it does not, method 2 adds nothing'"),
+    ("WRONG_ANSWERS S2-W3 and S3-W3 (new)",
+     "no case closed S2 or S3 with the unevaluated F(b) - F(a)",
+     "S2-W3 closes S2 after s1 with (exp 1 - exp 0)/2 and S3-W3 closes S3 "
+     "after s1 with (ln e_const)^2/2 - (ln 1)^2/2, each by ring, each "
+     "expected refused 'close-not-evaluated' with residual exp 1 (entry "
+     "exp_one) or ln e_const (entry ln_e), compared as a tree, and its "
+     "message",
+     "user decision 2026-09-24 (evaluated answers): answers under `closed` "
+     "must be fully evaluated (p1_expected E27). These are FINDINGS 12's "
+     "two closes, which were accepted before",
+     "derived by hand from E27 before any code: E27 runs last in close, "
+     "after ring's check, which passes, and its (a) search meets exp 1 and "
+     "ln e_const first in pre-order; SymPy: (e - 1)/2 and 1/2, so the "
+     "values are right. The suite needs a 'tree' comparison and the "
+     "entry/message assertions, and fails on both cases until schema.py "
+     "implements E27"),
+    ("PF7, PF16, the WRONG_ANSWERS comment (PF16)",
+     "the entries needed for the answer as stated, not to close the goal; "
+     "the whitelist accepts the unevaluated forms; six wrong answers",
+     "before the decision the whitelist accepted the unevaluated forms; "
+     "since it (E27) they are refused, so the entries are needed to close "
+     "the goal at all; eight refusals, the two new ones right values in a "
+     "refused form, with a tree-compared residual",
+     "user decision 2026-09-24 (evaluated answers)",
+     "p1_expected EVALUATED_RULE (a1): a value ring proves equal to S2's or "
+     "S3's post-ftc side keeps an atom whose argument normalises to an "
+     "entry's, and (a) matches through that normal form"),
+    ("FINDINGS item 12",
+     "an open question for DESIGN.md: should the closed schema require an "
+     "evaluated form",
+     "decided (E27), with what DESIGN.md §9 and §6.8 still need to say",
+     "user decision 2026-09-24 (evaluated answers)",
+     "p1_expected DECISIONS E27, DESIGN_DEFECTS' §9/§6.8 entry"),
+    ("VERIFIED, one entry appended",
+     "none",
+     "the SymPy and scratch checks behind S2-W3 and S3-W3",
+     "user decision 2026-09-24 (evaluated answers)",
+     "scratch run 2026-09-24, SymPy 1.14"),
 )

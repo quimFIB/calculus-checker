@@ -841,6 +841,8 @@ def judgement_string(prop, dom):
 # rev 9's forbidden case, and that route would need its own must-refuse
 # (a 'cong_under_D' BAD_MOVES entry sharing the rewrite code). sym and weaken
 # are out for the same reason; weaken appears only as discharge work.
+# (User decision 2026-09-24, evaluated answers: refl-by-close is also behind
+# E27's evaluated-form check, which runs last, EVALUATED_RULE below.)
 #
 # "occurrences" records how many places a rewrite acts on (E2). A rewrite
 # with `occurrence` given has "occurrences": 1. No P1 step passes it.
@@ -882,7 +884,9 @@ def judgement_string(prop, dom):
 # §9, close. The move checks the scope of `value`, then the `closed`
 # whitelist, then proves `lhs == value` with `check`, emitting that
 # procedure's obligations and the value's formers. The theorem reported is
-# the ORIGINAL goal with ?A := value.
+# the ORIGINAL goal with ?A := value. Last of all (user decision 2026-09-24,
+# evaluated answers), E27 refuses a value that is not fully evaluated
+# (EVALUATED_RULE, after E19 below).
 # E23, interpreting §9 "The `closed` schema, as a whitelist":
 #   * The whitelist admits these node kinds: Num, Const (pi, e_const), Var,
 #     Neg, Add, Mul, Div, Pow, RPow, and App over the sixteen builtins (sin
@@ -916,7 +920,268 @@ def judgement_string(prop, dom):
 # catch a bound name (BAD_MOVES close_bound_variable_after_ftc and
 # close_bound_variable_ring_true).
 
-P1_1_GOAL = "Int[t = 0 .. pi/2] sin(sqrt(t^2))*(2*t) == ?A"
+# E27, the evaluated-form check (user decision 2026-09-24, evaluated
+# answers). Stated as REWRITE_RULE is, one paragraph per point, so that the
+# cases in BAD_MOVES (the e27_* entries) and EVALUATED_ACCEPTS are checks of
+# a stated rule and not fitted to an implementation.
+EVALUATED_RULE = (
+    "The rule. A value closing a goal under the `closed` schema (every goal "
+    "in this file and in problems/stage0, E23) must be FULLY EVALUATED: "
+    "(a) no subterm of it can still be evaluated by an equation entry in "
+    "force, and (b) it contains no unreduced literal arithmetic. Otherwise "
+    "close is refused 'close-not-evaluated', naming one offending subterm "
+    "and, for (a), the entry that still applies. 'Fully evaluated' is a "
+    "checkable PROPERTY, the absence of a redex, and not a canonical form: "
+    "equality of closed constants is undecidable in general, and a "
+    "canonical form would reject one of P1.2's two accepted answers "
+    "(ring's normal form of pi/(3*sqrt 3) is pi*inv(3*sqrt 3), of "
+    "pi*sqrt 3 / 9 it is (1/9)*pi*sqrt 3, and each is a legitimate way to "
+    "print the value). So E27 never compares the value with its own ring "
+    "normal form or with any printout, and no test below depends on the "
+    "order of summands or factors. The check only reads the value: it "
+    "never rewrites, simplifies or normalises it in the goal. The learner "
+    "makes the rewrite moves (§2), and E27 names the one still available.",
+
+    "Reasons. (i) §9: an unrestricted ?A is vacuous, and the whitelist "
+    "(E23) removed refl's Int. But after ftc the goal's own F(b) - F(a) is "
+    "itself a whitelisted value, so closing with the current left side is "
+    "refl again one step later, and the theorem says no more than ftc "
+    "did. S2 closed as (exp 1 - exp 0)/2 and S3 as (ln e_const)^2/2 - "
+    "(ln 1)^2/2 using no §6.8 entry (stage 0 FINDINGS 12); P1.1 at s2 "
+    "would close the same way with its own left side (BAD_MOVES "
+    "e27_goal_lhs_after_ftc). §9's reading of `closed`, 'this integral "
+    "has an elementary closed form, and it is this one', needs the form "
+    "evaluated. (ii) §6.8: 'no ftc step closes without evaluating F at "
+    "both endpoints, so every authored goal terminates in this table'. "
+    "Before E27 nothing enforced that; with (a) it holds of every accepted "
+    "close, relative to the entries in force. (iii) The user's decision of "
+    "2026-09-24: answers under `closed` must be fully evaluated.",
+
+    "Placement. E27 lives with the closed whitelist in schema.py and is "
+    "UNTRUSTED (§9: 'the schema checker is not in the trusted base'; "
+    "ARCHITECTURE.md §1). It can only refuse, never prove: a bug in it can "
+    "refuse a good answer or accept an unevaluated one, and neither is a "
+    "false theorem, because the value it passes was already proved equal "
+    "to the goal's left side by the trusted check. To test (a) and (b) it "
+    "needs §6.2's ring normal form (E1 step 4, E3) and the read-only "
+    "entries.ENTRIES, so schema.py imports them, as tagger.py already "
+    "does.",
+
+    "Order in close, and which refusal wins. close runs: 'bad-args' (an "
+    "MVar or oo in the value); E19's scope check, trusted "
+    "('close-scope-bound-variable'); E23's whitelist, untrusted "
+    "('close-schema-not-closed'); the value's formers, E6, E25, E26 and "
+    "E7 ('divisor-normalises-to-zero', 'obligation-refuted'); the check "
+    "('close-check-failed', 'Int-or-D-not-normalisable', the fact "
+    "refusals); check_goal on the theorem ('D5-uncalled' and the other "
+    "GRAMMAR.md §1 codes); and LAST, E27 ('close-not-evaluated'). Only a "
+    "value that passes all of them closes the goal. Any earlier refusal "
+    "wins. Reasons: (1) E27 is untrusted and can only turn an acceptance "
+    "into a refusal. Run last, it cannot change which trusted refusal any "
+    "move gets, and every existing case keeps its code: "
+    "close_bound_variable_ring_true's t - t + 2, which E27 alone would "
+    "refuse (b2), stays 'close-scope-bound-variable'; "
+    "close_value_owes_domain's 0*ln(-1) (b3) stays 'obligation-refuted'; "
+    "and the suite's close_theorem_check value f - f (b2) stays "
+    "'D5-uncalled'. (2) The code then means one thing: the value WAS "
+    "proved equal to the goal's left side, and only its form is refused. "
+    "The refusal is about form, not truth, and a wrong, unevaluated value "
+    "is reported wrong, with its residual, which is the more useful "
+    "feedback (BAD_MOVES e27_check_failed_wins). (3) E23 precedes the check "
+    "because without it refl closes anything; E27 needs no such place, "
+    "because what it refuses has already been proved, and a refused step "
+    "emits nothing (E13), so the check's emissions are discarded. E19 "
+    "running first also means E27 never sees a bound name, and E23 "
+    "running first means it never sees an Int, D, Call or MVar, so its "
+    "ring normal forms never refuse 'Int-or-D-not-normalisable'. The cost: "
+    "the check runs on a value E27 then refuses.",
+
+    "(a) Entries. The entries in force are entries.ENTRIES at the time of "
+    "the check. Those whose statement is an equation L == R take part "
+    "(today eleven: all but pi_pos, sqrt_pos and e_gt_one). Every subterm s "
+    "of the value is tested against each, in ENTRIES order, and the first "
+    "that COUNTS at s is the one named. The matching notion is rewrite's, "
+    "E1 steps 3 and 4: an application is matched through the ring normal "
+    "forms of its argument (E3's inv atoms included), never through field. "
+    "Per kind of entry:",
+
+    "(a1) No schema variable, L = h(p), an application: ln_one, ln_e, "
+    "exp_zero, exp_one, sin_zero, sin_pi_half, cos_pi_half, "
+    "atan_one_sqrt3. It counts at s exactly when E1 step 3 accepts: s is "
+    "h(b) for the same builtin h and ring_nf(b) == ring_nf(p). So "
+    "exp(0^2), exp(1 - 1), exp(x - x), exp(0*x), exp(1^2) and "
+    "ln(1/x - 1/x + 1) count, and ln(x/x) does not (MATCH_ACCEPTS "
+    "ring_cancels_inv_atom, BAD_MOVES rewrite_needs_field). Why the "
+    "normalised matching and not tree matching: close checks by ring or "
+    "field, which identify atoms up to their arguments' normal forms "
+    "(§6.2), so a tree-only (a) would be evaded by writing exp(1^2) for "
+    "exp 1, which is what S2's ftc actually produces. With (a) matching up "
+    "to the same normal form, such an entry's left side survives in every "
+    "value ring-equal to the goal's side unless it cancels out.",
+
+    "(a2) With schema variables. E1 step 3 takes inst from the learner. "
+    "The check has to find one, and for atan_odd E1 step 3 alone matches "
+    "EVERY atan b (u := -b), which would refuse atan 2 and never "
+    "terminate. So each schema entry in force has a stated reading, "
+    "chosen so that the named move is available and makes progress: "
+    "sqrt_sq (sqrt(u^2) == u @ u >= 0) counts at s = sqrt b when "
+    "ring_nf(b) is c*c for some polynomial c over Q[atoms] every atom of "
+    "which is closed (no free variable): sqrt 0, sqrt 1, sqrt 4, "
+    "sqrt(1/4), sqrt(pi^2/4) (§18 Q21's own example, which P1.1-fallback "
+    "s2 rewrites), sqrt((pi - 4)^2). The test is order-independent and "
+    "decidable (square-free factorisation of ring_nf(b), or any "
+    "polynomial square-root test). For a closed c one of c and -c is "
+    ">= 0, and E1 step 3 accepts either (ring_nf(c^2) = ring_nf((-c)^2)), "
+    "so a move whose hypothesis is true exists. Whether the tagger can "
+    "close it is not E27's concern: for sqrt((pi - 4)^2), u := 4 - pi owes "
+    "4 - pi >= 0, true but tagged none until discharge exists. When c has "
+    "a free variable neither sign need satisfy u >= 0 and no abs entry is "
+    "in force, so sqrt(y^2) does not count. "
+    "atan_odd (atan(-u) == -atan u) counts at s = atan b when ring_nf(b) "
+    "is nonzero and every one of its rational coefficients is negative: "
+    "atan(-1/sqrt 3), atan(-1), atan(1 - 2), atan(-x). The move is "
+    "u := -b, and its result -atan(-b) has every coefficient positive, so "
+    "it cannot apply again. A structural reading, atan(Neg c), would miss "
+    "atan(-1/sqrt 3), which parses as atan(Div(Neg 1, sqrt 3)) (GRAMMAR.md "
+    "D9), P1.2's own case at s7. "
+    "sqrt_sq_val ((sqrt a)^2 == a @ a >= 0) counts at s = Pow(sqrt b, n) "
+    "with n >= 2: for n = 2 this is E1 step 3's tree case (L is not an "
+    "application), and the entry is only ever used as a fact for field "
+    "(§6.8 rev 7), whose fact reduction lowers every such power. a := b, "
+    "and its hypothesis b >= 0 is the domain condition the value's own "
+    "sqrt b already owes (E26), so the move owes nothing new. "
+    "A schema entry added later with no reading here is read "
+    "structurally: L is matched against s as a tree pattern whose schema "
+    "variables match any subterm (the same one at each occurrence), and "
+    "E1 step 3 then accepts at that inst. An entry whose structural "
+    "reading misses its normalised disguises, as atan_odd's would, or "
+    "matches everything, must state its reading here when it is added.",
+
+    "(a3) What (a) guarantees. Every (a) refusal names a move the learner "
+    "can make at that subterm: a rewrite with the entry (for sqrt_sq_val, "
+    "the fact in close's or ftc's field check), with no hypothesis, a "
+    "closed true one (sqrt_sq), or one the value already owes "
+    "(sqrt_sq_val). Every entry's own right side passes E27 (1, 0, "
+    "e_const, pi/6, -atan u, u, a), so the entries do not undo each "
+    "other. Adding an entry can only tighten (a). A reference proof that "
+    "closed on a form a new entry evaluates is then refused, and item 7's "
+    "re-run of the problem files is what finds it.",
+
+    "(b) Literal arithmetic: definitions. A RATIONAL LITERAL is a tree of "
+    "one of five shapes: Num n (n >= 0); Neg(Num n) with n >= 1; and "
+    "Div(Num p, Num q), Neg(Div(Num p, Num q)) or Div(Neg(Num p), Num q), "
+    "each with p >= 1, q >= 2 and gcd(p, q) = 1. These are lit(q)'s shapes "
+    "(GRAMMAR.md §7) plus the parser's -p/q (D9 binds unary minus tighter "
+    "than /). So 0, 2, -3, 1/2, -1/2 and -(1/2) are rational literals, and "
+    "2/4, 4/2, 3/1, 0/5, -0 and -(-3) are not. A LITERAL TERM is a tree "
+    "built from Num by Neg, Add, Mul, Div and Pow alone (Pow's integer "
+    "exponent is a field of the node, not a subterm). RPow and App are "
+    "never literal terms, whatever their arguments. SUM FLATTENING: "
+    "summands(Add(a, b)) = summands(a) followed by summands(b); "
+    "summands(Neg a) = summands(a) with every sign flipped; a rational "
+    "literal, and any other node, is one summand. A sum node is an Add, "
+    "or a Neg that is not a rational literal. A maximal sum is a sum node "
+    "whose parent is not a sum node. PRODUCT FLATTENING: factors(Mul(a, "
+    "b)) = factors(a) followed by factors(b); factors(Div(a, b)) = "
+    "factors(a) followed by factors(b) with every side swapped; a rational "
+    "literal, and any other node (a Neg included), is one factor, on the "
+    "numerator or the denominator side. A product node is a Mul, or a Div "
+    "that is not a rational literal. A maximal product is a product node "
+    "whose parent is not a product node. A factor Pow(c, n) has base c "
+    "and counts on the opposite side when n < 0. Any other factor is its "
+    "own base. Neither flattening reorders anything, and every test below "
+    "is symmetric in the order of summands and of factors, so (b) never "
+    "prefers one printed order.",
+
+    "(b) Literal arithmetic: the tests. Each is arithmetic ring would do "
+    "on literals, on coefficients or on exponents, within one sum, one "
+    "product or one power. "
+    "(b1) A maximal literal term (its parent is not a literal term) that "
+    "is not a rational literal: 1 + 1, 2 - 0, 1^2, 2/4, 2*3, 0^2, "
+    "1/2 + 1/3, 2^(-1). "
+    "(b2) A maximal sum in which some summand's ring normal form is 0 "
+    "(pi + 0, 2*1 - 2*(pi/2)*0), or two summands' ring normal forms are "
+    "rational multiples of each other: two literals (pi + 1 + 1), or like "
+    "terms (pi + pi, pi/2 + pi/3, x - x, t - t + 2). "
+    "(b3) A maximal product with (i) a literal factor 0 (0*pi); (ii) a "
+    "literal factor 1 or -1, unless it is the product's only numerator "
+    "factor (1*pi, pi/1 and -1*pi are refused; 1/sqrt 3, -1/sqrt 3 and "
+    "1/(3*sqrt 3) are not); (iii) two literal factors on one side "
+    "(2*3*pi, pi/(2*3)); (iv) a denominator literal that is not Num n with "
+    "n >= 2 (pi/(1/2), pi/(-2)), or a numerator literal a beside a "
+    "denominator literal b where a is not an integer literal (Num or "
+    "Neg(Num)) or gcd(|a|, b) is not 1 (2*pi/(4*sqrt 3), (1/2)*pi/3; "
+    "2*pi/(3*sqrt 3) passes); or (v) two non-literal factors on one side "
+    "whose bases have equal ring normal forms (pi*pi, pi*pi^2, "
+    "sqrt 3*sqrt 3). Factors on opposite sides are never compared "
+    "(pi/pi, x/x): cancelling them is field's work and owes a divisor "
+    "(E3). "
+    "(b4) A Pow(c, n) with n = 0 or n = 1 (pi^0, pi^1), or whose base c "
+    "is a Pow or a Neg that is not a rational literal ((pi^2)^3, "
+    "(-pi)^2); or a Neg directly over a Neg (-(-pi); pi - (-x), which is "
+    "Add(pi, Neg(Neg x)), GRAMMAR.md D9). "
+    "(b) never looks through a sum or a product into a power, or "
+    "distributes a product over a sum, so factored forms pass: "
+    "(e_const - 1)/2, (2*pi)^2, -(pi + 1).",
+
+    "The reference answers pass. 2 and 1/2 are rational literals. "
+    "(e_const - 1)/2: one product (factors e_const - 1 over 2), one sum "
+    "(e_const and the literal -1, not multiples). (1/3)*ln 2 + "
+    "pi/(3*sqrt 3): the sum's summands normalise to (1/3)*ln 2 and "
+    "pi*inv(3*sqrt 3), not multiples; (1/3)*ln 2 has the one literal 1/3; "
+    "pi/(3*sqrt 3) has one literal, 3, below; ln 2 and sqrt 3 match no "
+    "entry (2 is not 1, 3 is not a rational square). "
+    "(1/3)*ln 2 + pi*sqrt 3 / 9: the same, with pi*sqrt 3 / 9 one product "
+    "whose only literal is the 9 below.",
+
+    "Reporting. E27 searches (a) over the whole value first, in pre-order "
+    "(GRAMMAR.md §7's field order, terms.children), trying the entries in "
+    "ENTRIES order at each node, and reports the first node where one "
+    "counts. Only if there is none does it search (b), in pre-order, "
+    "trying b1 to b4 at each node, and report the first node where one "
+    "fires: for b1 the literal term, for b2 the maximal sum, for b3 the "
+    "maximal product, for b4 the Pow or the outer Neg. (a) goes first "
+    "because it names a move, and an entry's result often creates (b)'s "
+    "literal arithmetic (2*sin(pi/2) becomes 2*1), so reporting (b) first "
+    "would be premature. The refusal is Refusal('close-not-evaluated', "
+    "message, residual), where residual is the offending subterm itself, "
+    "a subtree of the value, and message is E27_MESSAGES[clause] with "
+    "term := show(residual) and, for (a), entry := the entry's name. The "
+    "script asserts the code, that parse_term(at) == residual as trees, "
+    "and that the message equals the template so filled. It asserts the "
+    "printer's output only through that template (PRINT_EXACT's "
+    "convention); each case's 'message' is the filled string, written out "
+    "for the reader.",
+
+    "Known limitations: accepted, by design, not bugs. E27 refuses only "
+    "what (a) and (b) name, so an unevaluated value they do not name is "
+    "accepted. The ones worth knowing: ln 2 + ln 3 (ln 6 needs log_mul, "
+    "which is not in force, and ln 2 and ln 3 are distinct atoms, so the "
+    "sum is ring-irreducible); sqrt 8 (2*sqrt 2 needs a product law for "
+    "sqrt, not in force); cos 0 and any other builtin at a point with no "
+    "entry in force ('evaluated' is relative to ENTRIES, and tightens as "
+    "§6.8's enumeration lands); sqrt(y^2) with y free (see (a2)); pi/pi "
+    "and x/x (field's cancellation, (b3)); (1 + sqrt 3)^2 (4 + 2*sqrt 3 "
+    "needs expansion, then the fact); pi/(3*sqrt 3) + pi*sqrt 3 / 9 (the "
+    "two summands are alike only through sqrt_sq_val, not in ring); "
+    "atan(1 - pi) (atan_odd counts only when every coefficient is "
+    "negative; the sign of a mixed sum is not decided); -(2*pi)*3 "
+    "(product flattening stops at a Neg that is not a rational literal; "
+    "-2*pi*3, the way D9 parses the usual spelling, is refused); and "
+    "sqrt 3*sqrt 3, refused by b3 (v) with (b)'s message rather than "
+    "naming sqrt_sq_val. EVALUATED_ACCEPTS pins the first nine, and "
+    "(2*pi)^2 for (b)'s factored forms.",
+)
+
+# The two refusal messages. `term` is show(the offending subterm), `entry`
+# the entry's name. Asserted by filling the template, never as a literal
+# printout (EVALUATED_RULE, Reporting).
+E27_MESSAGES = {
+    "a": "{term} can still be evaluated ({entry})",
+    "b": "{term} is unreduced literal arithmetic",
+}
+
+P1_1_GOAL ="Int[t = 0 .. pi/2] sin(sqrt(t^2))*(2*t) == ?A"
 P1_1_F = "2*sin t - 2*t*cos t"
 P1_1_AFTER_FTC = (
     "2*sin(pi/2) - 2*(pi/2)*cos(pi/2) - (2*sin 0 - 2*0*cos 0) == ?A")
@@ -1973,6 +2238,14 @@ REFUSAL_CODES = {
                              "Num or Neg(Num) exponent, by substitution or "
                              "instantiation; unreachable in P1 (no RPow)",
     "close-check-failed": "§9 (carries a residual)",
+    # Added by user decision 2026-09-24 (evaluated answers), E27.
+    "close-not-evaluated": "§9, §6.8, E27: the value was proved equal to "
+                           "the goal's left side but is not fully "
+                           "evaluated, (a) an entry in force still applies "
+                           "to a subterm or (b) it holds unreduced literal "
+                           "arithmetic. Untrusted (schema.py), run last in "
+                           "close, so every other refusal wins. Carries the "
+                           "offending subterm as its residual",
     "obligation-refuted": "E7: norm_num decides a literal obligation false, "
                           "a partial builtin's domain on a literal included "
                           "(E26: ln(-1) owes -1 > 0). A literal zero divisor "
@@ -2656,7 +2929,473 @@ BAD_MOVES = [
                "(SymPy: the one-sided difference quotients tend to -1 and "
                "1).",
     },
+
+    # Added by user decision 2026-09-24 (evaluated answers): E27's refusals
+    # (EVALUATED_RULE). Every one is a close whose check PASSES, so the only
+    # refusal left is E27's: most are refl on a fresh goal `V == ?A` with
+    # value V, and two start from a P1.1 state with the goal's own left side.
+    # 'e27' holds what the script asserts beyond the code: the clause ('a',
+    # or 'b1' to 'b4'), `at`, the offending subterm, compared with the
+    # refusal's residual as a tree, the entry for (a), and the message,
+    # asserted as E27_MESSAGES[clause[0]] filled with show(residual) and the
+    # entry. 'evaluated' is the fully evaluated form the named moves reach;
+    # it is not run, and SymPy confirms it equals the value (VERIFIED), so
+    # each refusal is about form, not truth. The last case pins the order:
+    # a wrong AND unevaluated value is refused by the check, not by E27.
+    {
+        "id": "e27_exp_zero_pow_argument", "added": True,
+        "goal": "exp(0^2) == ?A", "setup": [],
+        "move": ("close", {"value": "exp(0^2)", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "a", "at": "exp(0^2)", "entry": "exp_zero",
+                "message": "exp(0^2) can still be evaluated (exp_zero)"},
+        "evaluated": "1",
+        "why": "(a1): ring_nf(0^2) = 0 = ring_nf(0), E1 step 3's match, as "
+               "S2's rewrite of exp(0^2) uses. (a) is searched before (b), "
+               "so the literal 0^2 inside is not the one reported.",
+    },
+    {
+        "id": "e27_exp_zero_sum_argument", "added": True,
+        "goal": "exp(1 - 1) == ?A", "setup": [],
+        "move": ("close", {"value": "exp(1 - 1)", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "a", "at": "exp(1 - 1)", "entry": "exp_zero",
+                "message": "exp(1 - 1) can still be evaluated (exp_zero)"},
+        "evaluated": "1",
+        "why": "(a1): ring_nf(1 - 1) = 0.",
+    },
+    {
+        "id": "e27_exp_zero_variable_argument", "added": True,
+        "goal": "exp(x - x) == ?A", "setup": [],
+        "move": ("close", {"value": "exp(x - x)", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "a", "at": "exp(x - x)", "entry": "exp_zero",
+                "message": "exp(x - x) can still be evaluated (exp_zero)"},
+        "evaluated": "1",
+        "why": "(a1) with a free variable: ring_nf(x - x) = 0, and E23 "
+               "admits Var, so a value in a goal's free variables is "
+               "checked the same way.",
+    },
+    {
+        "id": "e27_sqrt_sq_val", "added": True,
+        "goal": "(sqrt 3)^2 == ?A", "setup": [],
+        "move": ("close", {"value": "(sqrt 3)^2", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "a", "at": "(sqrt 3)^2", "entry": "sqrt_sq_val",
+                "message": "(sqrt 3)^2 can still be evaluated "
+                           "(sqrt_sq_val)"},
+        "evaluated": "3",
+        "why": "(a2): Pow(sqrt 3, 2), a := 3. The move is the fact in a "
+               "field check (§6.8: never a rewrite), and its 3 >= 0 is the "
+               "value's own sqrt domain (E26). ring proves the refl, since "
+               "(sqrt 3)^2 is s^2 on both sides.",
+    },
+    {
+        "id": "e27_sin_pi_half_in_answer", "added": True,
+        "goal": "2*sin(pi/2) == ?A", "setup": [],
+        "move": ("close", {"value": "2*sin(pi/2)", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "a", "at": "sin(pi/2)", "entry": "sin_pi_half",
+                "message": "sin(pi/2) can still be evaluated (sin_pi_half)"},
+        "evaluated": "2",
+        "why": "(a1) below the root: the pre-order walk reaches sin(pi/2) "
+               "inside the product, and the residual is that subterm, not "
+               "the value.",
+    },
+    {
+        "id": "e27_atan_odd", "added": True,
+        "goal": "atan(-1/sqrt 3) == ?A", "setup": [],
+        "move": ("close", {"value": "atan(-1/sqrt 3)", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "a", "at": "atan(-1/sqrt 3)", "entry": "atan_odd",
+                "message": "atan(-1/sqrt 3) can still be evaluated "
+                           "(atan_odd)"},
+        "evaluated": "-(pi/6)",
+        "why": "(a2): ring_nf(-1/sqrt 3) = -inv(sqrt 3), every coefficient "
+               "negative. atan_one_sqrt3 does not count (its argument "
+               "normalises to +inv(sqrt 3), BAD_MOVES rewrite_lhs_mismatch), "
+               "and atan_odd comes after it in ENTRIES, so the order is not "
+               "what picks atan_odd. The moves are P1.2's s7 then s8.",
+    },
+    {
+        "id": "e27_atan_one_sqrt3", "added": True,
+        "goal": "atan(1/sqrt 3) == ?A", "setup": [],
+        "move": ("close", {"value": "atan(1/sqrt 3)", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "a", "at": "atan(1/sqrt 3)",
+                "entry": "atan_one_sqrt3",
+                "message": "atan(1/sqrt 3) can still be evaluated "
+                           "(atan_one_sqrt3)"},
+        "evaluated": "pi/6",
+        "why": "(a1); atan_odd does not count, since inv(sqrt 3)'s "
+               "coefficient is positive.",
+    },
+    {
+        "id": "e27_sqrt_sq_literal", "added": True,
+        "goal": "sqrt 4 == ?A", "setup": [],
+        "move": ("close", {"value": "sqrt 4", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "a", "at": "sqrt 4", "entry": "sqrt_sq",
+                "message": "sqrt 4 can still be evaluated (sqrt_sq)"},
+        "evaluated": "2",
+        "why": "(a2): ring_nf(4) = 2*2 with 2 closed. The move is sqrt_sq "
+               "with u := 2, which E1 step 3 accepts (ring_nf(2^2) = 4) "
+               "and whose 2 >= 0 norm_num closes. A structural reading "
+               "(sqrt(Pow(c, 2)) only) would accept this.",
+    },
+    {
+        "id": "e27_sqrt_sq_normalised", "added": True,
+        "goal": "sqrt(pi^2/4) == ?A", "setup": [],
+        "move": ("close", {"value": "sqrt(pi^2/4)", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "a", "at": "sqrt(pi^2/4)", "entry": "sqrt_sq",
+                "message": "sqrt(pi^2/4) can still be evaluated (sqrt_sq)"},
+        "evaluated": "pi/2",
+        "why": "(a2): ring_nf(pi^2/4) = (pi/2)*(pi/2), §18 Q21's example, "
+               "which P1.1-fallback s2 rewrites with u := pi/2.",
+    },
+    {
+        "id": "e27_entry_before_arithmetic", "added": True,
+        "goal": "ln(1 + 0) == ?A", "setup": [],
+        "move": ("close", {"value": "ln(1 + 0)", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "a", "at": "ln(1 + 0)", "entry": "ln_one",
+                "message": "ln(1 + 0) can still be evaluated (ln_one)"},
+        "evaluated": "0",
+        "why": "both clauses apply: ln_one at ln(1 + 0) (P1.2 s4's target) "
+               "and b1 at 1 + 0. (a) is searched first over the whole "
+               "value, so ln_one is named (EVALUATED_RULE, Reporting). "
+               "The value owes 1 + 0 > 0, discharged (E26, E7).",
+    },
+    {
+        "id": "e27_goal_lhs_after_ftc", "added": True,
+        "goal": P1_1_GOAL, "state": ("P1.1", "s2"),
+        "move": ("close", {"value": "2*sin(pi/2) - 2*(pi/2)*cos(pi/2)"
+                                    " - (2*sin 0 - 2*0*cos 0)",
+                           "check": "ring", "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "a", "at": "sin(pi/2)", "entry": "sin_pi_half",
+                "message": "sin(pi/2) can still be evaluated (sin_pi_half)"},
+        "evaluated": "2",
+        "why": "§9's vacuity one step after ftc: the value is the current "
+               "goal's own left side, P1_1_AFTER_FTC's, so ring proves it "
+               "and E19 passes (no t). Before E27 this closed, and the "
+               "theorem said only what ftc had. (a)'s first node in "
+               "pre-order is s3's target; (b) would fire at the root "
+               "(2*0*cos 0 is a zero summand) but is searched second.",
+    },
+    {
+        "id": "e27_one_plus_one", "added": True,
+        "goal": "1 + 1 == ?A", "setup": [],
+        "move": ("close", {"value": "1 + 1", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b1", "at": "1 + 1", "entry": None,
+                "message": "1 + 1 is unreduced literal arithmetic"},
+        "evaluated": "2",
+        "why": "b1, a literal term that is not a rational literal (b2's "
+               "two literal summands also fire; b1 is tried first).",
+    },
+    {
+        "id": "e27_two_minus_zero", "added": True,
+        "goal": "2 - 0 == ?A", "setup": [],
+        "move": ("close", {"value": "2 - 0", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b1", "at": "2 - 0", "entry": None,
+                "message": "2 - 0 is unreduced literal arithmetic"},
+        "evaluated": "2",
+        "why": "b1: Add(2, Neg 0), and -0 is not a rational literal.",
+    },
+    {
+        "id": "e27_zero_times_pi", "added": True,
+        "goal": "0*pi == ?A", "setup": [],
+        "move": ("close", {"value": "0*pi", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b3", "at": "0*pi", "entry": None,
+                "message": "0*pi is unreduced literal arithmetic"},
+        "evaluated": "0",
+        "why": "b3 (i). Not b1: pi makes it no literal term, which is why "
+               "(b) needs more than b1.",
+    },
+    {
+        "id": "e27_one_squared", "added": True,
+        "goal": "1^2 == ?A", "setup": [],
+        "move": ("close", {"value": "1^2", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b1", "at": "1^2", "entry": None,
+                "message": "1^2 is unreduced literal arithmetic"},
+        "evaluated": "1",
+        "why": "b1: Pow(Num 1, 2) is a literal term.",
+    },
+    {
+        "id": "e27_two_fourths", "added": True,
+        "goal": "2/4 == ?A", "setup": [],
+        "move": ("close", {"value": "2/4", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b1", "at": "2/4", "entry": None,
+                "message": "2/4 is unreduced literal arithmetic"},
+        "evaluated": "1/2",
+        "why": "b1: gcd(2, 4) = 2, so Div(2, 4) is no rational literal. "
+               "The divisor 4 # 0 is discharged at installation (E6, E7).",
+    },
+    {
+        "id": "e27_like_terms", "added": True,
+        "goal": "pi + pi == ?A", "setup": [],
+        "move": ("close", {"value": "pi + pi", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b2", "at": "pi + pi", "entry": None,
+                "message": "pi + pi is unreduced literal arithmetic"},
+        "evaluated": "2*pi",
+        "why": "b2: summands with equal ring normal forms, so ring would "
+               "add their coefficients 1 + 1.",
+    },
+    {
+        "id": "e27_like_terms_coefficients", "added": True,
+        "goal": "pi/2 + pi/3 == ?A", "setup": [],
+        "move": ("close", {"value": "pi/2 + pi/3", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b2", "at": "pi/2 + pi/3", "entry": None,
+                "message": "pi/2 + pi/3 is unreduced literal arithmetic"},
+        "evaluated": "5*pi/6",
+        "why": "b2: (1/2)*pi and (1/3)*pi are rational multiples.",
+    },
+    {
+        "id": "e27_like_terms_variable", "added": True,
+        "goal": "x - x == ?A", "setup": [],
+        "move": ("close", {"value": "x - x", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b2", "at": "x - x", "entry": None,
+                "message": "x - x is unreduced literal arithmetic"},
+        "evaluated": "0",
+        "why": "b2 with a free variable (E23 admits Var); x is free in the "
+               "goal, so E19 passes.",
+    },
+    {
+        "id": "e27_two_literal_factors", "added": True,
+        "goal": "2*3*pi == ?A", "setup": [],
+        "move": ("close", {"value": "2*3*pi", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b3", "at": "2*3*pi", "entry": None,
+                "message": "2*3*pi is unreduced literal arithmetic"},
+        "evaluated": "6*pi",
+        "why": "b3 (iii) at the maximal product, which pre-order reaches "
+               "before the literal term 2*3 inside it (b1).",
+    },
+    {
+        "id": "e27_fraction_not_lowest", "added": True,
+        "goal": "2*pi/(4*sqrt 3) == ?A", "setup": [],
+        "move": ("close", {"value": "2*pi/(4*sqrt 3)", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b3", "at": "2*pi/(4*sqrt 3)", "entry": None,
+                "message": "2*pi/(4*sqrt 3) is unreduced literal "
+                           "arithmetic"},
+        "evaluated": "pi/(2*sqrt 3)",
+        "why": "b3 (iv): the literals 2 above and 4 below have gcd 2. "
+               "EVALUATED_ACCEPTS e27_split_fraction_lowest is its "
+               "contrast.",
+    },
+    {
+        "id": "e27_rational_beside_denominator", "added": True,
+        "goal": "(1/2)*pi/3 == ?A", "setup": [],
+        "move": ("close", {"value": "(1/2)*pi/3", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b3", "at": "(1/2)*pi/3", "entry": None,
+                "message": "(1/2)*pi/3 is unreduced literal arithmetic"},
+        "evaluated": "pi/6",
+        "why": "b3 (iv): the numerator literal 1/2 beside the denominator "
+               "literal 3 is not an integer literal.",
+    },
+    {
+        "id": "e27_unit_factor", "added": True,
+        "goal": "1*pi == ?A", "setup": [],
+        "move": ("close", {"value": "1*pi", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b3", "at": "1*pi", "entry": None,
+                "message": "1*pi is unreduced literal arithmetic"},
+        "evaluated": "pi",
+        "why": "b3 (ii): 1 is not the only numerator factor.",
+    },
+    {
+        "id": "e27_like_factors", "added": True,
+        "goal": "pi*pi == ?A", "setup": [],
+        "move": ("close", {"value": "pi*pi", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b3", "at": "pi*pi", "entry": None,
+                "message": "pi*pi is unreduced literal arithmetic"},
+        "evaluated": "pi^2",
+        "why": "b3 (v): two factors on one side with one base, so ring "
+               "would add their exponents 1 + 1.",
+    },
+    {
+        "id": "e27_power_one", "added": True,
+        "goal": "pi^1 == ?A", "setup": [],
+        "move": ("close", {"value": "pi^1", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b4", "at": "pi^1", "entry": None,
+                "message": "pi^1 is unreduced literal arithmetic"},
+        "evaluated": "pi",
+        "why": "b4: exponent 1.",
+    },
+    {
+        "id": "e27_power_of_power", "added": True,
+        "goal": "(pi^2)^3 == ?A", "setup": [],
+        "move": ("close", {"value": "(pi^2)^3", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b4", "at": "(pi^2)^3", "entry": None,
+                "message": "(pi^2)^3 is unreduced literal arithmetic"},
+        "evaluated": "pi^6",
+        "why": "b4: a Pow whose base is a Pow; the exponents multiply.",
+    },
+    {
+        "id": "e27_double_negation", "added": True,
+        "goal": "-(-pi) == ?A", "setup": [],
+        "move": ("close", {"value": "-(-pi)", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b4", "at": "-(-pi)", "entry": None,
+                "message": "-(-pi) is unreduced literal arithmetic"},
+        "evaluated": "pi",
+        "why": "b4: a Neg over a Neg. b2 passes first (the maximal sum "
+               "has the one summand pi).",
+    },
+    {
+        "id": "e27_goal_lhs_before_close", "added": True,
+        "goal": P1_1_GOAL, "state": ("P1.1", "s5"),
+        "move": ("close", {"value": "2*1 - 2*(pi/2)*0 - (2*0 - 2*0*cos 0)",
+                           "check": "ring", "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b2",
+                "at": "2*1 - 2*(pi/2)*0 - (2*0 - 2*0*cos 0)", "entry": None,
+                "message": "2*1 - 2*(pi/2)*0 - (2*0 - 2*0*cos 0) is "
+                           "unreduced literal arithmetic"},
+        "evaluated": "2",
+        "why": "P1.1's own route after its last rewrite: the goal's left "
+               "side as the value. No entry in force applies (cos 0 has "
+               "none since §11.1 rev 9 dropped cos_zero), so (a) finds "
+               "nothing, and b2 fires at the root, where 2*(pi/2)*0 is a "
+               "zero summand. The reference close writes 2.",
+    },
+    {
+        "id": "e27_check_failed_wins", "added": True,
+        "goal": "2 == ?A", "setup": [],
+        "move": ("close", {"value": "1 + 1 + 1", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-check-failed",
+        "why": "the order (EVALUATED_RULE, Order in close): the value is "
+               "wrong (3, not 2) and unevaluated (b1). The check runs "
+               "before E27, so the refusal is close-check-failed with the "
+               "residual 2 - (1 + 1 + 1), not close-not-evaluated. With E27 "
+               "first the learner would be told to tidy a wrong answer.",
+    },
 ]
+
+# Added by user decision 2026-09-24 (evaluated answers): closes E27 must
+# ACCEPT. Each is refl on a fresh goal `V == ?A` with value V: the check
+# passes, every earlier refusal passes, and the step is accepted with goal
+# None and theorem `V == V` (asserted as a tree). The verdict is not asserted,
+# since some values owe admissions (sqrt(y^2)'s y^2 >= 0, pi/pi's pi # 0)
+# that are no part of E27. The current reference answers are also accepted
+# in their own runs, unchanged (PROOFS, and problems/stage0's S1-S3):
+# E27 changes no expected verdict there. 'kind' is 'answer' for a current
+# reference answer, 'accept' for one E27 is meant to accept, and
+# 'limitation' for an unevaluated value E27 accepts by design
+# (EVALUATED_RULE, Known limitations), with 'evaluated' the form it does
+# not demand.
+EVALUATED_ACCEPTS = [
+    {"id": "e27_answer_P1_1", "kind": "answer", "value": "2"},
+    {"id": "e27_answer_P1_2", "kind": "answer", "value": P1_2_ANSWER},
+    {"id": "e27_answer_P1_2_alt", "kind": "answer",
+     "value": P1_2_ANSWER_ALT},
+    {"id": "e27_answer_S2", "kind": "answer", "value": "(e_const - 1)/2"},
+    {"id": "e27_answer_S3", "kind": "answer", "value": "1/2"},
+    {"id": "e27_negative_fraction", "kind": "accept", "value": "-1/2"},
+    {"id": "e27_negated_fraction", "kind": "accept", "value": "-(1/2)"},
+    {"id": "e27_power_over_literal", "kind": "accept", "value": "pi^2/4"},
+    {"id": "e27_surd", "kind": "accept", "value": "sqrt 2"},
+    {"id": "e27_variable_coefficient", "kind": "accept", "value": "2*x"},
+    {"id": "e27_S2_expanded", "kind": "accept", "value": "e_const/2 - 1/2"},
+    {"id": "e27_split_fraction_lowest", "kind": "accept",
+     "value": "2*pi/(3*sqrt 3)"},
+    {"id": "e27_reciprocal", "kind": "accept", "value": "1/sqrt 3"},
+    {"id": "e27_atan_positive", "kind": "accept", "value": "atan 2"},
+    {"id": "e27_atan_odd_result", "kind": "accept", "value": "-atan 1"},
+    {"id": "e27_negated_quotient", "kind": "accept", "value": "-(pi/6)"},
+    {"id": "e27_log_sum", "kind": "limitation", "value": "ln 2 + ln 3",
+     "evaluated": "ln 6",
+     "why": "matches no entry's left side and is ring-irreducible (ln 2 "
+            "and ln 3 are distinct atoms). ln 6 needs log_mul, not in "
+            "force. Accepted under (a) and (b): a known limitation, not a "
+            "bug."},
+    {"id": "e27_surd_not_simplified", "kind": "limitation",
+     "value": "sqrt 8", "evaluated": "2*sqrt 2",
+     "why": "8 is not a rational square, and no sqrt product law is in "
+            "force."},
+    {"id": "e27_no_entry_in_force", "kind": "limitation", "value": "cos 0",
+     "evaluated": "1",
+     "why": "no cos_zero in ENTRIES: 'evaluated' is relative to the entries "
+            "in force."},
+    {"id": "e27_open_square", "kind": "limitation", "value": "sqrt(y^2)",
+     "evaluated": "abs y",
+     "why": "(a2): y is free, so neither sign of the root need satisfy "
+            "u >= 0, and no abs entry is in force."},
+    {"id": "e27_cancel_is_field", "kind": "limitation", "value": "pi/pi",
+     "evaluated": "1",
+     "why": "b3 compares factors on one side only; cancelling across the "
+            "division is field's and owes pi # 0 (E3)."},
+    {"id": "e27_power_of_sum", "kind": "limitation",
+     "value": "(1 + sqrt 3)^2", "evaluated": "4 + 2*sqrt 3",
+     "why": "(b) never expands a power; sqrt_sq_val (a2) counts only at "
+            "Pow(sqrt b, n)."},
+    {"id": "e27_factored_power", "kind": "limitation",
+     "value": "(2*pi)^2", "evaluated": "4*pi^2",
+     "why": "factored forms pass, which is what lets (e_const - 1)/2 "
+            "pass."},
+    {"id": "e27_alike_through_fact", "kind": "limitation",
+     "value": "pi/(3*sqrt 3) + pi*sqrt 3 / 9",
+     "evaluated": "2*pi*sqrt 3 / 9",
+     "why": "the summands normalise to pi*inv(3*sqrt 3) and "
+            "(1/9)*pi*sqrt 3, not rational multiples in ring; they are "
+            "alike only through sqrt_sq_val."},
+    {"id": "e27_atan_mixed_sign", "kind": "limitation",
+     "value": "atan(1 - pi)", "evaluated": "-atan(pi - 1)",
+     "why": "(a2): atan_odd counts only when every coefficient is "
+            "negative."},
+    {"id": "e27_product_through_neg", "kind": "limitation",
+     "value": "-(2*pi)*3", "evaluated": "-6*pi",
+     "why": "product flattening stops at a Neg that is not a rational "
+            "literal, so 2 and 3 are in different products. -2*pi*3, the "
+            "way D9 parses the usual spelling, is refused by b3 (iii)."},
+]
+for _c in EVALUATED_ACCEPTS:  # the refl shape the header describes
+    _c["goal"] = _c["value"] + " == ?A"
+    _c["move"] = ("close", {"value": _c["value"], "check": "ring",
+                            "facts": []})
+    _c["theorem"] = _c["value"] + " == " + _c["value"]
+del _c
 
 # Handle forgeries (§15.3, §17's bank). The script implements each one.
 # E21: every fact-slot forgery (a case passed at FORGERY_STATE, below) must
@@ -3679,6 +4418,14 @@ def all_term_strings():
         for kind, s in m.get("facts", ()):
             if kind == "raw":
                 add("judgement", s)
+        if "e27" in b:  # user decision 2026-09-24 (evaluated answers)
+            add("term", b["e27"]["at"])
+            add("term", b["evaluated"])
+    for c in EVALUATED_ACCEPTS:
+        add("goal", c["goal"])
+        add("goal", c["theorem"])
+        add("term", c["value"])
+        add("term", c.get("evaluated"))
     for a in ANSWERS.values():
         add("term", a)
     for kind, s, _ in ROUND_TRIP_EXTRA:
@@ -3870,6 +4617,28 @@ DECISIONS = {
            "tan(pi/2) - tan(pi/2) == ?A closed as 'Proved.'; §14's "
            "agreement of the total and partial readings rests on every "
            "partial former carrying its condition (§5.1, §6.2, §6.9, §14)",
+    "E27": "evaluated answers (user decision 2026-09-24). A value closing a "
+           "`closed` goal must be fully evaluated, a property and not a "
+           "canonical form: (a) no subterm can still be evaluated by an "
+           "equation entry in force, matched as rewrite matches (E1 steps "
+           "3-4, ring-normalised arguments), with a stated reading for each "
+           "schema entry (sqrt_sq: a closed perfect square; atan_odd: every "
+           "coefficient negative; sqrt_sq_val: Pow(sqrt b, n), n >= 2); and "
+           "(b) no unreduced literal arithmetic, four order-independent "
+           "local tests over sum and product flattenings (a literal term "
+           "that is not a rational literal in lowest terms; a zero or "
+           "like summand; a zero, unit, second, unreduced or like factor; "
+           "a unit or nested power, a double negation). Otherwise "
+           "'close-not-evaluated', naming the first (a) offender in "
+           "pre-order, else the first (b) one, carried as the residual. "
+           "Untrusted, in schema.py beside E23, and run last in close, "
+           "after the check and check_goal, so every other refusal wins "
+           "and the code means 'right value, unevaluated form'. Reasons: "
+           "§9 (after ftc, F(b) - F(a) is a whitelisted value, so close "
+           "with it is refl again), §6.8 ('every authored goal terminates "
+           "in this table', enforced by nothing before), and the user's "
+           "decision. ln 2 + ln 3 is accepted: a known limitation, not a "
+           "bug (EVALUATED_RULE)",
 }
 
 DESIGN_DEFECTS = [
@@ -3976,6 +4745,22 @@ DESIGN_DEFECTS = [
     "Int and D, which have no statable condition until regularity and "
     "diverges exist. §5.1 should list each builtin's condition beside it, "
     "as it does for '/', and §6.2 should say that Int and D are not atoms.",
+    # Added by user decision 2026-09-24 (evaluated answers).
+    "§9's `closed` schema is a node whitelist only, so after ftc the goal's "
+    "own F(b) - F(a) is itself a closed value, and closing with it is refl "
+    "through ring: the vacuity §9 exists to remove returns one step later. "
+    "S2 and S3 closed that way with no §6.8 entry (problems/stage0 FINDINGS "
+    "12), and P1.1 would at s2 (BAD_MOVES e27_goal_lhs_after_ftc). §6.8's "
+    "'every authored goal terminates in this table' was enforced by "
+    "nothing. Resolved by E27: a closed value must be fully evaluated, a "
+    "property (no entry in force still applies to a subterm, matched as "
+    "rewrite matches; no unreduced literal arithmetic), checked untrusted "
+    "beside the whitelist and last in close. §9 should state the "
+    "requirement and where it runs; §6.8 should say its claim now holds of "
+    "every accepted close relative to the entries in force, and that a new "
+    "schema entry states its E27 reading; §16.3's refusal shape should say "
+    "that 'close-not-evaluated' carries the offending subterm as its "
+    "residual.",
 ]
 
 # What was checked at build time, in scratch, with SymPy 1.14 and mpmath.
@@ -4089,6 +4874,25 @@ VERIFIED = (
     "every string added in the second review round parses under "
     "kernel/terms.py, and parse(show(t)) == t for each; p1_expected "
     "imports",
+    # Added by user decision 2026-09-24 (evaluated answers), SymPy 1.14.
+    "E27's cases: every refused value equals its 'evaluated' form (so each "
+    "refusal is about form, not truth), and the S2, S3 and P1.1 ones equal "
+    "their integrals ((e - 1)/2, 1/2, 2); the ordering case's 1 + 1 + 1 is "
+    "not 2; every current reference answer equals its integral (P1.1 and "
+    "its fallback 2, both P1.2 forms, S1 2, S2 (e - 1)/2, S3 1/2), and the "
+    "two P1.2 forms are equal; each limitation equals the form E27 does "
+    "not demand (ln 6, 2*sqrt 2, 1, |y|, 4 + 2*sqrt 3, 4*pi^2, "
+    "2*pi*sqrt 3/9)",
+    "E27's outcomes were derived by hand from EVALUATED_RULE, then "
+    "cross-checked by a throwaway scratch reading of the rule (terms.py's "
+    "parser, printer and children walk; SymPy's expansion over "
+    "atoms-as-symbols standing in for ring_nf; no kernel module, and not "
+    "schema.py): it gives every case's clause, offending subterm, entry "
+    "and filled message as stated, accepts every EVALUATED_ACCEPTS value, "
+    "every entry's right side and every existing close value that "
+    "reaches E27, and fires on t - t + 2, 0*ln(-1) and the suite's f - f, "
+    "which is why E27 runs after the refusals those cases assert; every "
+    "string added parses, and parse(show(t)) == t for each",
 )
 
 # Changes to this file made after it was frozen. The first was adjudicated
@@ -4100,6 +4904,11 @@ VERIFIED = (
 # without running or reading the kernel's charging code. The entries marked
 # 'user decision 2026-09-24, review fix' are corrections found by reviewing
 # this data after E26 was written, made in carrying out the same decision.
+# The entries marked 'user decision 2026-09-24 (evaluated answers)' carry
+# out the owner's later decision that closed answers be fully evaluated
+# (E27). They were written as a spec before any code, without reading or
+# running schema.py, and they add cases and change no existing expected
+# value.
 # Entries are (location, what changed, why, how it was decided).
 DATA_CHANGES = (
     ("FORGERIES['print_proved_with_admissions'], 'accept' and its comment",
@@ -4518,4 +5327,65 @@ DATA_CHANGES = (
      "to carry the term. P1's only fact inst is 3, which has no formers, "
      "so PROOFS are unchanged",
      "user decision 2026-09-24, option (a), review fix"),
+    ("section 3: EVALUATED_RULE and E27_MESSAGES (new), the §9 close "
+     "comment, the E16 refl sentence; DECISIONS E27 (new)",
+     "E27 added: a value closing a `closed` goal must be fully evaluated, "
+     "(a) no subterm still evaluable by an equation entry in force, matched "
+     "as E1 matches, with readings for sqrt_sq, atan_odd and sqrt_sq_val, "
+     "and (b) no unreduced literal arithmetic, by tests b1-b4 that depend on "
+     "no printed order. Refused 'close-not-evaluated', naming the first (a) "
+     "offender in pre-order, else the first (b) one, as the residual, with "
+     "E27_MESSAGES' two messages. Untrusted, in schema.py beside E23, and "
+     "run last in close, after the check and check_goal",
+     "the closed whitelist accepted an unevaluated F(b) - F(a), so S2 and "
+     "S3 closed citing no §6.8 entry (problems/stage0 FINDINGS 12, "
+     "PROOF_OF_LIFE.md's first open finding) and close with the post-ftc "
+     "left side was refl again (§9). 'Fully evaluated' is stated as a "
+     "property because equality of closed constants is undecidable in "
+     "general and both P1.2 forms must stay accepted. Running last keeps "
+     "every trusted refusal code as it was and makes the new code mean "
+     "'right value, unevaluated form'",
+     "user decision 2026-09-24 (evaluated answers); the rule's precise form, "
+     "its schema readings, the order in close and the message wording are "
+     "choices made in carrying it out"),
+    ("REFUSAL_CODES['close-not-evaluated'] (new)",
+     "the code E27 refuses with, carrying the offending subterm as its "
+     "residual",
+     "every refusal needs a stable code (section 8's convention), and the "
+     "script's coverage check needs a case naming it (the e27_* BAD_MOVES)",
+     "user decision 2026-09-24 (evaluated answers)"),
+    ("BAD_MOVES e27_* (29 cases, new); EVALUATED_ACCEPTS (26 cases, new); "
+     "all_term_strings (their strings)",
+     "28 closes refused 'close-not-evaluated', each with its clause, "
+     "offending subterm, entry and message: 11 for (a), among them the "
+     "disguised exp(0^2), exp(1 - 1) and exp(x - x), (sqrt 3)^2, "
+     "sin(pi/2) inside an answer, atan_odd, sqrt 4, sqrt(pi^2/4), and "
+     "P1.1's post-ftc left side at s2; 17 for (b), among them 1 + 1, "
+     "2 - 0, 0*pi, 1^2, 2/4, like terms and factors, and P1.1's left side "
+     "at s5. One ordering case, e27_check_failed_wins, a wrong unevaluated "
+     "value refused close-check-failed. 26 refl closes accepted: the five "
+     "current reference answers, eleven evaluated values (-1/2, pi^2/4, "
+     "sqrt 2, 2*x, 2*pi/(3*sqrt 3), ...) and ten stated limitations, "
+     "ln 2 + ln 3 first",
+     "the rule's cases, written with it so the implementation is checked "
+     "against the spec and not fitted to it. No existing expected value "
+     "changes: every close value already in this file, in problems/stage0 "
+     "and in the suite either passes E27 (2, both P1.2 forms, (e_const - "
+     "1)/2, 1/2, 0, 2*x, -atan(3), -1, 3, x, pi) or is refused before E27 "
+     "runs (t - t + 2 by E19, Int by E23, 0*ln(-1) by E7, f - f by "
+     "check_goal's D5-uncalled). BAD_MOVES assert codes, so the e27 fields "
+     "and EVALUATED_ACCEPTS need new code in the script. Until schema.py "
+     "implements E27, the 28 refusals come back as accepted closes and fail",
+     "user decision 2026-09-24 (evaluated answers)"),
+    ("DESIGN_DEFECTS, one entry appended (§9, §6.8, §16.3)",
+     "§9's closed schema is a whitelist only, so refl returns after ftc, "
+     "and §6.8's 'every authored goal terminates in this table' was "
+     "enforced by nothing; resolved by E27, for folding into the design",
+     "the place this file records what DESIGN.md must change",
+     "user decision 2026-09-24 (evaluated answers)"),
+    ("VERIFIED, two entries appended",
+     "the SymPy checks behind E27's cases, and the scratch cross-check of "
+     "their outcomes",
+     "the record of the checks behind the entries above",
+     "user decision 2026-09-24 (evaluated answers)"),
 )
