@@ -1045,11 +1045,15 @@ EVALUATED_RULE = (
     "atan(-1/sqrt 3), which parses as atan(Div(Neg 1, sqrt 3)) (GRAMMAR.md "
     "D9), P1.2's own case at s7. "
     "sqrt_sq_val ((sqrt a)^2 == a @ a >= 0) counts at s = Pow(sqrt b, n) "
-    "with n >= 2: for n = 2 this is E1 step 3's tree case (L is not an "
+    "with |n| >= 2: for n = 2 this is E1 step 3's tree case (L is not an "
     "application), and the entry is only ever used as a fact for field "
-    "(§6.8 rev 7), whose fact reduction lowers every such power. a := b, "
-    "and its hypothesis b >= 0 is the domain condition the value's own "
-    "sqrt b already owes (E26), so the move owes nothing new. "
+    "(§6.8 rev 7), whose fact reduction lowers every such power, negative "
+    "ones included: (sqrt 2)^3 is 2*sqrt 2 and (sqrt 2)^(-2) is 1/2 by "
+    "field with the fact. (Review fix: the reading was n >= 2, which "
+    "accepted (sqrt 3)^(-2).) a := b, and its hypothesis b >= 0 is the "
+    "domain condition the value's own sqrt b already owes (E26), so the "
+    "move owes nothing new; a negative power also owes sqrt b # 0, which "
+    "the value owes too (E6). "
     "A schema entry added later with no reading here is read "
     "structurally: L is matched against s as a tree pattern whose schema "
     "variables match any subterm (the same one at each occurrence), and "
@@ -1087,8 +1091,11 @@ EVALUATED_RULE = (
     "literal, and any other node (a Neg included), is one factor, on the "
     "numerator or the denominator side. A product node is a Mul, or a Div "
     "that is not a rational literal. A maximal product is a product node "
-    "whose parent is not a product node. A factor Pow(c, n) has base c "
-    "and counts on the opposite side when n < 0. Any other factor is its "
+    "whose parent is not a product node. A factor Pow(c, n) that is not a "
+    "literal term has base c and, when n < 0, counts on the opposite side "
+    "in EVERY test of b3, not only in (v): so in 1*pi^(-1) the 1 is the "
+    "only numerator factor, as in 1/pi, and in pi*pi^(-1) the two pi "
+    "factors are on opposite sides, as in pi/pi. Any other factor is its "
     "own base. Neither flattening reorders anything, and every test below "
     "is symmetric in the order of summands and of factors, so (b) never "
     "prefers one printed order.",
@@ -1100,9 +1107,23 @@ EVALUATED_RULE = (
     "is not a rational literal: 1 + 1, 2 - 0, 1^2, 2/4, 2*3, 0^2, "
     "1/2 + 1/3, 2^(-1). "
     "(b2) A maximal sum in which some summand's ring normal form is 0 "
-    "(pi + 0, 2*1 - 2*(pi/2)*0), or two summands' ring normal forms are "
-    "rational multiples of each other: two literals (pi + 1 + 1), or like "
-    "terms (pi + pi, pi/2 + pi/3, x - x, t - t + 2). "
+    "(pi + 0, 2*1 - 2*(pi/2)*0), or in which the ring normal form of the "
+    "whole sum has FEWER MONOMIALS than the ring normal forms of its "
+    "summands have in total, so that ring would merge or cancel monomials "
+    "across summands. The count is a property of normal forms, so it "
+    "depends on no order. It covers two literals (pi + 1 + 1) and like "
+    "terms, summands that are rational multiples of each other (pi + pi, "
+    "pi/2 + pi/3, x - x, t - t + 2), and also summands that are sums "
+    "once normalised and share a monomial with another summand: "
+    "2*(pi + 1) - 2 (2*pi + 2 and -2: three monomials, and the sum has "
+    "one), (e_const + 1)/2 - 1/2, 2*(pi + 1) - 2*pi, (pi + 1)/2 - pi/2, "
+    "2*(e_const - 1) - 2*e_const, (pi + 1)^2 - 1. (Review fix: b2 was the "
+    "zero test and the multiples test alone, which accepted these; the "
+    "count subsumes the multiples test.) The zero test stays, because a "
+    "zero summand adds no monomial to either count. Summands whose "
+    "monomials stay distinct pass however they are factored: "
+    "x*exp(x) - exp(x) (x*exp(x) and exp(x) are different monomials), "
+    "(e_const - 1)/2 + pi. "
     "(b3) A maximal product with (i) a literal factor 0 (0*pi); (ii) a "
     "literal factor 1 or -1, unless it is the product's only numerator "
     "factor (1*pi, pi/1 and -1*pi are refused; 1/sqrt 3, -1/sqrt 3 and "
@@ -1132,7 +1153,9 @@ EVALUATED_RULE = (
     "pi/(3*sqrt 3) has one literal, 3, below; ln 2 and sqrt 3 match no "
     "entry (2 is not 1, 3 is not a rational square). "
     "(1/3)*ln 2 + pi*sqrt 3 / 9: the same, with pi*sqrt 3 / 9 one product "
-    "whose only literal is the 9 below.",
+    "whose only literal is the 9 below. b2's monomial count (review fix): "
+    "e_const - 1, 1 + 1 monomials against 2 for the sum; both P1.2 forms, "
+    "1 + 1 against 2; e_const/2 - 1/2, 1 + 1 against 2; so nothing merges.",
 
     "Reporting. E27 searches (a) over the whole value first, in pre-order "
     "(GRAMMAR.md §7's field order, terms.children), trying the entries in "
@@ -1170,7 +1193,36 @@ EVALUATED_RULE = (
     "-2*pi*3, the way D9 parses the usual spelling, is refused); and "
     "sqrt 3*sqrt 3, refused by b3 (v) with (b)'s message rather than "
     "naming sqrt_sq_val. EVALUATED_ACCEPTS pins the first nine, and "
-    "(2*pi)^2 for (b)'s factored forms.",
+    "(2*pi)^2 for (b)'s factored forms. "
+    "Added in review (each a missing §6.8 entry or a form the stated tests "
+    "do not reach, not a change to the rule): exp(ln 2), ln(exp 2) and "
+    "ln(e_const^2), since no inverse-pair or log-power entry is in force; "
+    "sin(pi), cos(pi), sin(pi/6), atan 0, atan 1, atan(sqrt 3) and cos 0, "
+    "table values §6.8 enumerates but entries.py does not yet hold "
+    "(atan 0 also shows that atan_odd needs a NONZERO argument: every "
+    "coefficient of the zero polynomial is vacuously negative); "
+    "atan(sqrt 3/3), whose argument normalises to (1/3)*sqrt 3 and not to "
+    "inv(sqrt 3), so atan_one_sqrt3 does not match it, consistently with "
+    "E1 (ring never identifies sqrt 3 * inv(sqrt 3) with 1); the RPow "
+    "forms 4^(1/2) and (pi^2)^(1/2), since an RPow is an atom and never a "
+    "literal term, and b4 reads only Pow; (1/sqrt 3)^2 and "
+    "(pi*sqrt 3)^2, since sqrt_sq_val counts only at a power whose base "
+    "IS sqrt b, and (b) never expands a power; (pi - 1)*(1 - pi), whose "
+    "bases differ by sign and so do not have equal normal forms (b3 (v)); "
+    "and pi*pi^(-1) and 1*pi^(-1), where the negative power counts on the "
+    "denominator side, so these read as pi/pi and 1/pi (b3). "
+    "EVALUATED_ACCEPTS pins atan 0 and pi*pi^(-1), the two branches no "
+    "other case reached.",
+
+    "Deliberate canonicalisation (the owner keeps it, review 2026-09-24). "
+    "Two refusals are not evaluation but a choice of normal form for sign "
+    "and division, within the decision that closed answers be in normal "
+    "form: atan(-1/2) is refused (atan_odd) and must be written "
+    "-atan(1/2), and pi*(1/sqrt 3) is refused (b3 (ii): the literal 1 is "
+    "not the only numerator factor) and must be written pi/sqrt 3. Both "
+    "values are right, and no table value is missing; E27 simply puts a "
+    "negation outside atan and a divisor below the division line. They are "
+    "deliberate, not bugs.",
 )
 
 # The two refusal messages. `term` is show(the offending subterm), `entry`
@@ -3299,6 +3351,143 @@ BAD_MOVES = [
                "nothing, and b2 fires at the root, where 2*(pi/2)*0 is a "
                "zero summand. The reference close writes 2.",
     },
+    # Review fix (user decision 2026-09-24, evaluated answers): b2's
+    # monomial count (D2), sqrt_sq_val's |n| >= 2 (D3), and two branches no
+    # case reached (sqrt_sq_val at n = 3, b4 at n = 0).
+    {
+        "id": "e27_sum_merges_after_normalising", "added": True,
+        "goal": "2*(pi + 1) - 2 == ?A", "setup": [],
+        "move": ("close", {"value": "2*(pi + 1) - 2", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b2", "at": "2*(pi + 1) - 2", "entry": None,
+                "message": "2*(pi + 1) - 2 is unreduced literal arithmetic"},
+        "evaluated": "2*pi",
+        "why": "b2's count: the summands normalise to 2*pi + 2 and -2, "
+               "three monomials, and the sum to 2*pi, one. Neither summand "
+               "is a rational multiple of the other, so the old test "
+               "accepted it.",
+    },
+    {
+        "id": "e27_sum_merges_constant_over_two", "added": True,
+        "goal": "(e_const + 1)/2 - 1/2 == ?A", "setup": [],
+        "move": ("close", {"value": "(e_const + 1)/2 - 1/2",
+                           "check": "ring", "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b2", "at": "(e_const + 1)/2 - 1/2",
+                "entry": None,
+                "message": "(e_const + 1)/2 - 1/2 is unreduced literal "
+                           "arithmetic"},
+        "evaluated": "e_const/2",
+        "why": "b2's count: 2 + 1 monomials against 1. Contrast "
+               "(e_const - 1)/2, one product, accepted.",
+    },
+    {
+        "id": "e27_sum_merges_atom_term", "added": True,
+        "goal": "2*(pi + 1) - 2*pi == ?A", "setup": [],
+        "move": ("close", {"value": "2*(pi + 1) - 2*pi", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b2", "at": "2*(pi + 1) - 2*pi", "entry": None,
+                "message": "2*(pi + 1) - 2*pi is unreduced literal "
+                           "arithmetic"},
+        "evaluated": "2",
+        "why": "b2's count: 2 + 1 monomials against 1 (the pi terms "
+               "cancel).",
+    },
+    {
+        "id": "e27_sum_merges_halves", "added": True,
+        "goal": "(pi + 1)/2 - pi/2 == ?A", "setup": [],
+        "move": ("close", {"value": "(pi + 1)/2 - pi/2", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b2", "at": "(pi + 1)/2 - pi/2", "entry": None,
+                "message": "(pi + 1)/2 - pi/2 is unreduced literal "
+                           "arithmetic"},
+        "evaluated": "1/2",
+        "why": "b2's count: 2 + 1 monomials against 1.",
+    },
+    {
+        "id": "e27_sum_merges_constant_cancels", "added": True,
+        "goal": "2*(e_const - 1) - 2*e_const == ?A", "setup": [],
+        "move": ("close", {"value": "2*(e_const - 1) - 2*e_const",
+                           "check": "ring", "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b2", "at": "2*(e_const - 1) - 2*e_const",
+                "entry": None,
+                "message": "2*(e_const - 1) - 2*e_const is unreduced "
+                           "literal arithmetic"},
+        "evaluated": "-2",
+        "why": "b2's count: 2 + 1 monomials against 1 (the e_const terms "
+               "cancel).",
+    },
+    {
+        "id": "e27_sum_merges_power", "added": True,
+        "goal": "(pi + 1)^2 - 1 == ?A", "setup": [],
+        "move": ("close", {"value": "(pi + 1)^2 - 1", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b2", "at": "(pi + 1)^2 - 1", "entry": None,
+                "message": "(pi + 1)^2 - 1 is unreduced literal arithmetic"},
+        "evaluated": "pi^2 + 2*pi",
+        "why": "b2's count through a power: (pi + 1)^2 normalises to "
+               "pi^2 + 2*pi + 1, so 3 + 1 monomials against 2. (b) still "
+               "never expands a power for its own sake: (pi + 1)^2 alone, "
+               "or (2*pi)^2, passes.",
+    },
+    {
+        "id": "e27_sqrt_sq_val_negative_power", "added": True,
+        "goal": "(sqrt 2)^(-2) == ?A", "setup": [],
+        "move": ("close", {"value": "(sqrt 2)^(-2)", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "a", "at": "(sqrt 2)^(-2)",
+                "entry": "sqrt_sq_val",
+                "message": "(sqrt 2)^(-2) can still be evaluated "
+                           "(sqrt_sq_val)"},
+        "evaluated": "1/2",
+        "why": "(a2) with |n| >= 2: field with sqrt_sq_val 2 lowers the "
+               "power to 1/2. The value owes sqrt 2 # 0 (E6) and 2 >= 0 "
+               "(E26), and ring proves the refl.",
+    },
+    {
+        "id": "e27_sqrt_sq_val_negative_power_3", "added": True,
+        "goal": "(sqrt 3)^(-2) == ?A", "setup": [],
+        "move": ("close", {"value": "(sqrt 3)^(-2)", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "a", "at": "(sqrt 3)^(-2)",
+                "entry": "sqrt_sq_val",
+                "message": "(sqrt 3)^(-2) can still be evaluated "
+                           "(sqrt_sq_val)"},
+        "evaluated": "1/3",
+        "why": "as e27_sqrt_sq_val_negative_power, with P1.2's own "
+               "fact sqrt_sq_val 3.",
+    },
+    {
+        "id": "e27_sqrt_sq_val_cube", "added": True,
+        "goal": "(sqrt 2)^3 == ?A", "setup": [],
+        "move": ("close", {"value": "(sqrt 2)^3", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "a", "at": "(sqrt 2)^3", "entry": "sqrt_sq_val",
+                "message": "(sqrt 2)^3 can still be evaluated "
+                           "(sqrt_sq_val)"},
+        "evaluated": "2*sqrt 2",
+        "why": "(a2) at n = 3, where E1 step 3's tree case (n = 2 only) "
+               "would not match; field's fact reduction does.",
+    },
+    {
+        "id": "e27_power_zero", "added": True,
+        "goal": "pi^0 == ?A", "setup": [],
+        "move": ("close", {"value": "pi^0", "check": "ring",
+                           "facts": []}),
+        "refusal": "close-not-evaluated",
+        "e27": {"clause": "b4", "at": "pi^0", "entry": None,
+                "message": "pi^0 is unreduced literal arithmetic"},
+        "evaluated": "1",
+        "why": "b4: exponent 0 (e27_power_one covers 1).",
+    },
     {
         "id": "e27_check_failed_wins", "added": True,
         "goal": "2 == ?A", "setup": [],
@@ -3344,6 +3533,10 @@ EVALUATED_ACCEPTS = [
     {"id": "e27_atan_positive", "kind": "accept", "value": "atan 2"},
     {"id": "e27_atan_odd_result", "kind": "accept", "value": "-atan 1"},
     {"id": "e27_negated_quotient", "kind": "accept", "value": "-(pi/6)"},
+    # Review fix: the contrast for b2's monomial count, whose summands
+    # share the atom exp(x) but no monomial.
+    {"id": "e27_distinct_monomials", "kind": "accept",
+     "value": "x*exp(x) - exp(x)"},
     {"id": "e27_log_sum", "kind": "limitation", "value": "ln 2 + ln 3",
      "evaluated": "ln 6",
      "why": "matches no entry's left side and is ring-irreducible (ln 2 "
@@ -3389,6 +3582,17 @@ EVALUATED_ACCEPTS = [
      "why": "product flattening stops at a Neg that is not a rational "
             "literal, so 2 and 3 are in different products. -2*pi*3, the "
             "way D9 parses the usual spelling, is refused by b3 (iii)."},
+    # Review fix: two branches no case reached.
+    {"id": "e27_atan_zero", "kind": "limitation", "value": "atan 0",
+     "evaluated": "0",
+     "why": "no atan_zero in ENTRIES, and atan_odd needs a nonzero "
+            "argument: the zero polynomial's coefficients are vacuously "
+            "all negative, so without that clause atan 0 would be refused "
+            "naming a move that changes nothing."},
+    {"id": "e27_negative_power_other_side", "kind": "limitation",
+     "value": "pi*pi^(-1)", "evaluated": "1",
+     "why": "pi^(-1) counts on the denominator side (b3), so the two pi "
+            "factors are on opposite sides and not compared, as in pi/pi."},
 ]
 for _c in EVALUATED_ACCEPTS:  # the refl shape the header describes
     _c["goal"] = _c["value"] + " == ?A"
@@ -4623,11 +4827,13 @@ DECISIONS = {
            "equation entry in force, matched as rewrite matches (E1 steps "
            "3-4, ring-normalised arguments), with a stated reading for each "
            "schema entry (sqrt_sq: a closed perfect square; atan_odd: every "
-           "coefficient negative; sqrt_sq_val: Pow(sqrt b, n), n >= 2); and "
-           "(b) no unreduced literal arithmetic, four order-independent "
+           "coefficient negative; sqrt_sq_val: Pow(sqrt b, n), |n| >= 2); "
+           "and (b) no unreduced literal arithmetic, four order-independent "
            "local tests over sum and product flattenings (a literal term "
-           "that is not a rational literal in lowest terms; a zero or "
-           "like summand; a zero, unit, second, unreduced or like factor; "
+           "that is not a rational literal in lowest terms; a zero "
+           "summand, or a sum whose normal form has fewer monomials than "
+           "its summands' normal forms together; a zero, unit, second, "
+           "unreduced or like factor; "
            "a unit or nested power, a double negation). Otherwise "
            "'close-not-evaluated', naming the first (a) offender in "
            "pre-order, else the first (b) one, carried as the residual. "
@@ -4638,7 +4844,9 @@ DECISIONS = {
            "with it is refl again), §6.8 ('every authored goal terminates "
            "in this table', enforced by nothing before), and the user's "
            "decision. ln 2 + ln 3 is accepted: a known limitation, not a "
-           "bug (EVALUATED_RULE)",
+           "bug; atan(-1/2) and pi*(1/sqrt 3) are refused as deliberate "
+           "canonicalisation of sign and division, not evaluation "
+           "(EVALUATED_RULE)",
 }
 
 DESIGN_DEFECTS = [
@@ -4893,6 +5101,25 @@ VERIFIED = (
     "reaches E27, and fires on t - t + 2, 0*ln(-1) and the suite's f - f, "
     "which is why E27 runs after the refusals those cases assert; every "
     "string added parses, and parse(show(t)) == t for each",
+    # Added with the review fix (user decision 2026-09-24, evaluated
+    # answers), SymPy 1.14.
+    "the review fix's cases: each new refused value equals its "
+    "'evaluated' form (2*(pi + 1) - 2 = 2*pi, (e + 1)/2 - 1/2 = e/2, "
+    "2*(pi + 1) - 2*pi = 2, (pi + 1)/2 - pi/2 = 1/2, 2*(e - 1) - 2*e = -2, "
+    "(pi + 1)^2 - 1 = pi^2 + 2*pi, (sqrt 2)^(-2) = 1/2, (sqrt 3)^(-2) = "
+    "1/3, (sqrt 2)^3 = 2*sqrt 2, pi^0 = 1), and each evaluated form "
+    "passes E27; each added limitation equals the value E27 does not "
+    "demand (exp(ln 2) = ln(exp 2) = ln(e^2) = 2, sin(pi) = 0, cos(pi) = "
+    "-1, sin(pi/6) = 1/2, atan 0 = 0, atan 1 = pi/4, atan(sqrt 3) = pi/3, "
+    "atan(sqrt 3/3) = pi/6, 4^(1/2) = 2, (pi^2)^(1/2) = pi, "
+    "(1/sqrt 3)^2 = 1/3, (pi*sqrt 3)^2 = 3*pi^2, (pi - 1)*(1 - pi) = "
+    "-(pi - 1)^2, pi*pi^(-1) = 1, 1*pi^(-1) = 1/pi), and "
+    "x*exp(x) - exp(x) = (x - 1)*exp(x) and the canonicalised "
+    "atan(-1/2) = -atan(1/2), pi*(1/sqrt 3) = pi/sqrt 3 are right; the "
+    "scratch reading, amended for the fix, gives every new case's clause, "
+    "subterm, entry and message as stated, accepts every "
+    "EVALUATED_ACCEPTS value and every added limitation, and gives every "
+    "earlier e27 case the outcome it already records",
 )
 
 # Changes to this file made after it was frozen. The first was adjudicated
@@ -5388,4 +5615,74 @@ DATA_CHANGES = (
      "their outcomes",
      "the record of the checks behind the entries above",
      "user decision 2026-09-24 (evaluated answers)"),
+    ("EVALUATED_RULE (b2); DECISIONS E27; BAD_MOVES "
+     "e27_sum_merges_after_normalising, e27_sum_merges_constant_over_two, "
+     "e27_sum_merges_atom_term, e27_sum_merges_halves, "
+     "e27_sum_merges_constant_cancels, e27_sum_merges_power (new); "
+     "EVALUATED_ACCEPTS e27_distinct_monomials (new)",
+     "b2 now also refuses a maximal sum whose ring normal form has fewer "
+     "monomials than its summands' normal forms have in total; the zero "
+     "test stays, and the rational-multiples test is subsumed. Six refused "
+     "cases added: 2*(pi + 1) - 2, (e_const + 1)/2 - 1/2, "
+     "2*(pi + 1) - 2*pi, (pi + 1)/2 - pi/2, 2*(e_const - 1) - 2*e_const, "
+     "(pi + 1)^2 - 1, each clause b2 at the whole value with message "
+     "'<value> is unreduced literal arithmetic'; one accepted contrast, "
+     "x*exp(x) - exp(x)",
+     "review D2: the pairwise multiples test missed merging between "
+     "summands that are sums once normalised, so these unevaluated values "
+     "were accepted. The count is order-independent, as the rule "
+     "requires, and is within the user's decision. It still accepts both "
+     "P1.2 forms, (e_const - 1)/2, e_const/2 - 1/2, x*exp(x) - exp(x) and "
+     "every EVALUATED_ACCEPTS value, and changes no earlier case's "
+     "outcome, clause or reported subterm (scratch re-run)",
+     "user decision 2026-09-24 (evaluated answers), review fix"),
+    ("EVALUATED_RULE (a2) sqrt_sq_val; DECISIONS E27; BAD_MOVES "
+     "e27_sqrt_sq_val_negative_power, e27_sqrt_sq_val_negative_power_3 "
+     "(new)",
+     "sqrt_sq_val counts at Pow(sqrt b, n) with |n| >= 2, not n >= 2. "
+     "(sqrt 2)^(-2) and (sqrt 3)^(-2) are refused, naming sqrt_sq_val",
+     "review D3: field with the fact lowers negative powers too, so the "
+     "move exists and the values, 1/2 and 1/3 in disguise, are not "
+     "evaluated",
+     "user decision 2026-09-24 (evaluated answers), review fix"),
+    ("EVALUATED_RULE (b) definitions, the negative-power sentence",
+     "stated that a non-literal factor Pow(c, n) with n < 0 counts on the "
+     "denominator side in every b3 test, not only in (v)",
+     "the sentence was ambiguous. Read for (v) only, 1*pi^(-1) would be "
+     "refused by b3 (ii); read for every test, it passes, as 1/pi does. "
+     "The review took it as accepted. No earlier case has a negative "
+     "power in a product, so no outcome changes",
+     "user decision 2026-09-24 (evaluated answers), review fix; the "
+     "reading chosen on the owner's behalf"),
+    ("EVALUATED_RULE Known limitations; EVALUATED_ACCEPTS e27_atan_zero and "
+     "e27_negative_power_other_side (new)",
+     "added as accepted by design: exp(ln 2), ln(exp 2), ln(e_const^2), "
+     "sin(pi), cos(pi), sin(pi/6), atan 0, atan 1, atan(sqrt 3), cos 0, "
+     "atan(sqrt 3/3), 4^(1/2), (pi^2)^(1/2), (1/sqrt 3)^2, "
+     "(pi*sqrt 3)^2, (pi - 1)*(1 - pi), pi*pi^(-1), 1*pi^(-1), each with "
+     "its reason; atan 0 and pi*pi^(-1) pinned",
+     "review D4: these are missing §6.8 entries or forms outside the "
+     "stated tests, not rule changes. The two rows pin atan_odd's nonzero "
+     "clause and the negative-power side, which no case reached",
+     "user decision 2026-09-24 (evaluated answers), review fix"),
+    ("EVALUATED_RULE, a 'Deliberate canonicalisation' paragraph (new); "
+     "DECISIONS E27",
+     "states that refusing atan(-1/2) (write -atan(1/2)) and "
+     "pi*(1/sqrt 3) (write pi/sqrt 3) is deliberate canonicalisation of "
+     "sign and division, within normal form, not evaluation",
+     "review D5: the owner keeps the behaviour and wants it stated, so it "
+     "is not read as a bug",
+     "user decision 2026-09-24 (evaluated answers), review fix"),
+    ("BAD_MOVES e27_sqrt_sq_val_cube and e27_power_zero (new)",
+     "(sqrt 2)^3 refused, clause a, sqrt_sq_val; pi^0 refused, clause b4",
+     "review suite gaps: sqrt_sq_val beyond E1's n = 2 tree case, and "
+     "b4's exponent 0, had no case",
+     "user decision 2026-09-24 (evaluated answers), review fix"),
+    ("VERIFIED, one entry appended",
+     "the SymPy and scratch checks behind the review fix",
+     "the record of the checks behind the entries above. New counts: "
+     "BAD_MOVES e27_* 39 (38 refused 'close-not-evaluated', 14 (a) and 24 "
+     "(b), plus the ordering case); EVALUATED_ACCEPTS 29 (5 answers, 12 "
+     "accepts, 12 limitations)",
+     "user decision 2026-09-24 (evaluated answers), review fix"),
 )
