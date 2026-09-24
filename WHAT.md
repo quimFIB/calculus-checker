@@ -6,9 +6,10 @@ separable package `./calc` loads, not part of the tool, which is §1's
 replaceability test made operational.
 
 A design, two spikes, and **a headless kernel that proves readiness P1 and
-stage 0's S1–S3** (`kernel/`, the proof-of-life and the first problem files,
-2026-09-24). The tool a learner would use is not
-built yet: there is no API, UI or assistance tier, and discharge is stubbed.
+stage 0's S1–S3, with obligations discharged by checked certificates**
+(`kernel/`, 2026-09-24). The tool a learner would use is not
+built yet: there is no API, UI or assistance tier, and regularity is still
+admitted.
 Design 2026-09-20, stage 0b first pass 2026-09-21, decoupling pass and stage 0
 first pass 2026-09-22, the stage 0c `ring`/`field` spike (`spike/ring/`) and a
 recognizer spike (`spike/recognizer/`) 2026-09-23, the proof-of-life kernel
@@ -75,45 +76,33 @@ kill it. Nothing else is required reading before stage 1; Waterproof's course
 evaluations are optional, since adoption evidence for the class is not this
 tool's falsifier.
 
-## Start here: the rest of stage 1, discharge first
+## Start here: the rest of stage 1, `int_subst` next
 
-The kernel proves readiness P1 and stage 0's S1–S3. `python3 kernel/proof_of_life.py`
-runs both and passes 334 checks (`PROOF_OF_LIFE.md`). Every verdict still
-reads *Proved modulo N admissions*, because nothing closes an obligation yet.
-Each one is admitted, tagged with the §5.3 method expected to close it. Stage 1
-has three pieces left:
+The kernel proves readiness P1 and stage 0's S1–S3, and discharge is built.
+`python3 kernel/proof_of_life.py` passes 481 checks (`PROOF_OF_LIFE.md`).
+Every proof reads *Proved modulo 3 admissions*, and the three left are
+always `ftc`'s regularity premises. Stage 1 has two pieces left:
 
-1. **Real discharge (§5.3), recommended first.** This is what turns the
-   verdicts into `Proved`. The untrusted tagger already runs each method's
-   cheap feasibility check. Discharge has to do the same work as trusted
-   code that produces a certificate. The methods are:
-   - by hypothesis and by range;
-   - linear, by Fourier–Motzkin;
-   - the sign certificates;
-   - sign product;
-   - citing a §6.8 entry.
+1. **`int_subst` (§6.4), next.** P1.1 then starts from the sheet's own goal,
+   ∫₀^{π²/4} sin √x, rather than from the goal after the substitution x = t².
+   The move owes the substitution's regularity, the endpoint map (0² = 0,
+   (π/2)² = π²/4) and the composed integrand's continuity (§11.1).
+   Discharge closes the endpoint obligations, and the regularity ones wait
+   for piece 2.
+2. **The C⁰/C¹ subset of regularity (§6.9)** that `ftc` and `int_subst`
+   need. This closes the `reg` admissions and gives the first plain
+   `Proved.`. It is also where `Int` and `D` get their definedness. §18 Q23
+   is settled (2026-09-24): they become formers, like `/` and `ln`.
+   `Int[x = a .. b] f` owes f integrable on [a, b], and `D[x] e` owes e
+   differentiable at x. After that, `ring` treats them as atoms, which is
+   what makes "solve for I" after integration by parts work. Until then,
+   E26 (b)'s refusal stays.
 
-   The target is clear: every P1 and stage-0 admission tagged with a §5.3
-   method becomes discharged. What remains is the regularity premises, which
-   wait for item 3, and anything tagged `none`. §18 Q22 is settled
-   (2026-09-24): discharge first rewrites with §6.8's exact values, and an
-   obligation it can decide false refuses the step. So
-   `tan(pi/2) − tan(pi/2)` is refused, because `cos_pi_half` makes its
-   `cos(pi/2) # 0` read `0 # 0`. Only obligations discharge can decide
-   neither way stay admitted as `none`.
-2. **`int_subst` (§6.4).** P1.1 then starts from the sheet's own goal,
-   ∫₀^{π²/4} sin √x, rather than from the goal after the substitution.
-3. **The C⁰/C¹ subset of regularity (§6.9)** that `ftc` needs. This closes
-   the `reg` admissions. It is also where `Int` and `D` get their
-   definedness. §18 Q23 is settled (2026-09-24): they become formers, like
-   `/` and `ln`. `Int[x = a .. b] f` owes f integrable on [a, b] and
-   `D[x] e` owes e differentiable at x, after which `ring` treats them as
-   atoms, which makes "solve for I" after integration by parts work. Until
-   then, E26 (b)'s refusal stays.
-
-Each piece works as the proof-of-life did. Write the expected results by hand
-before the code (for discharge, each obligation's new status and certificate),
-then build against them. The regression suite must stay green throughout.
+Each piece works as before:
+- write the expected results by hand, and commit them before the code;
+- build against them;
+- have a skeptic try to break it;
+- keep the regression suite green throughout.
 
 **After stage 1:** the in-process `step` becomes §16.3's API, then the
 recognizer table scored on a held-out set (revision 8), then the UI.
@@ -186,6 +175,16 @@ recognizer table scored on a held-out set (revision 8), then the UI.
    check is untrusted and runs last in `close`. The spec was committed before
    the code, and a skeptic's review was folded in. See `DESIGN.md` §9 and
    `PROOF_OF_LIFE.md`.
+7. **Real discharge (§5.3) — done 2026-09-24.** Obligations are now proved
+   by certificates. An untrusted search proposes one (Fourier–Motzkin for
+   linear goals, by the owner's decision to bring it into stage 1), and a
+   small trusted checker verifies it. An obligation decided false refuses
+   the step (§18 Q22, settled). Every P1 and stage-0 proof went from
+   modulo 6–14 admissions to modulo 3, leaving only regularity. The spec was
+   committed before the code. A skeptic found no false discharge across
+   about 2,700 fuzzed obligations, and its findings are fixed: a crash on
+   deep terms, one wrong refusal, mutable certificates, and slow
+   refutation.
 
 **Stage 0b is closed** (2026-09-21 and 2026-09-22; setup and notes in
 `_scratch/holpy-trial/` — outside this tool, and a dangling pointer if it is ever published; findings in §4.2). Its verdict: reimplement the core

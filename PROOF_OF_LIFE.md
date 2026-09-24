@@ -14,7 +14,8 @@ lives only once.
 `PASS: 225 of 225 checks passed` for items 1–6, exit 0. The unit tests
 (`python3 -m unittest discover -s kernel`) pass 69 of 69. Both were re-run
 independently after the last change, on 2026-09-24. Since then the suite has
-grown to 334: item 7 added the problem files, and E27 added evaluated-answer cases.
+grown to 481: item 7 added the problem files, E27 the evaluated-answer
+cases, and discharge its certificate checks.
 
 | Proof | Verdict |
 |---|---|
@@ -296,6 +297,60 @@ Its findings were folded in:
 `cos 0`, `exp(ln 2)`, `sin(pi)` and `atan 1` pass until their entries are
 built, and `ln 2 + ln 3` passes because no entry reduces it.
 
+## Since: real discharge (2026-09-24)
+
+`WHAT.md`'s next stage-1 piece. Obligations are no longer only admitted;
+they are proved by certificates. The design is in `DESIGN.md` §5.3, §5.4,
+§15.2 and §18 Q22, and the decisions are E28–E35 in `p1_expected.py`.
+- **The split of trust.** The untrusted `search.py` proposes one
+  certificate per obligation. The trusted `discharge.py` rebuilds the
+  constraints from the obligation and checks it. The methods are:
+  - hypothesis;
+  - Farkas, over the range and linear constraints;
+  - sign, a sum of squares;
+  - sign product, a factorisation;
+  - cite, an entry instance.
+
+  Exact values from §6.8 are applied first.
+- **Fourier–Motzkin is in stage 1** (owner's decision). It searches, and
+  its Farkas combination is what gets checked.
+- **Decided false refuses** (Q22, and the owner's answers). The untrusted
+  `refute.py` decides an obligation false by F1, F2 or F3; F3 uses a
+  bounded rational counter-point search. The step is then refused with
+  `obligation-decided-false`, and the message says how it was decided.
+- **What is still admitted:** regularity, which is not built yet;
+  obligations no method decides; and certificates the checker rejects.
+
+| Proof | Before discharge | After |
+|---|---|---|
+| P1.1 / fallback | modulo 6 / 9 | modulo 3 |
+| P1.2 / alt | modulo 14 / 13 | modulo 3 |
+| S1, S2 | modulo 3 | modulo 3 |
+| S3 / ring | modulo 9 / 8 | modulo 3 |
+
+The three left are always `ftc`'s regularity premises.
+
+**Now refused outright:**
+- `tan(pi/2) − tan(pi/2)`, since `cos(pi/2) # 0` reads `0 # 0`;
+- the integral of 1/x² over [−1, 1], since x² # 0 is false at 0;
+- `ln x * 0` with no stated domain;
+- a `sqrt_sq` rewrite over [−1, 0].
+
+**Process.** The spec went in first (`3086bec`). The build came in two
+commits: first the checkers alone, then the wiring. Twice the builder showed
+a planted-bug expectation in the spec was wrong, and I checked each claim
+before the spec was changed and logged.
+
+The skeptic found **no false discharge**: about 2,700 fuzzed obligations
+were checked against an independent evaluator, and about 12,000 random
+kernel runs. Its findings are fixed, in `eed87d8`:
+- deep terms crashed `install` and `step`, a regression;
+- a wrong refusal at a point where a hypothesis was undefined;
+- mutable stored certificates;
+- refutation exponential in the number of variables, now bounded.
+
+The suite is at 481 of 481.
+
 ## What is in `kernel/`
 
 | File | Role |
@@ -305,7 +360,8 @@ built, and `ln 2 + ln 3` passes because no entry reduces it.
 | `ARCHITECTURE.md` | modules, trust tiers, contracts, planted-bug mechanism |
 | `terms.py` | trusted: nodes, parser, printer, goal checks |
 | `entries.py`, `poly.py`, `field.py`, `deriv.py`, `kernel.py` | trusted: the §6.8 entries, `ring`/`field` (copied from the spike), §6.3, rules/tracker/handles/`step` |
-| `tagger.py`, `residual.py`, `schema.py` | untrusted: admission tags, residual rendering, the closed whitelist |
+| `discharge.py` | trusted: the certificate checkers and the exact-value rewrite |
+| `tagger.py`, `search.py`, `refute.py`, `residual.py`, `schema.py` | untrusted: admission tags, certificate search, decided-false, residual rendering, the closed whitelist and E27 |
 | `proof_of_life.py` | the done script and regression suite (items 1–6 for P1, item 7 for the problem files) |
 | `loader.py` | untrusted: reads a §16.4 problem file and drives its reference proof through `step()` |
 | `problems/stage0/` | S1–S3 as problem files, and `expected.py`, their hand-written expected results |
