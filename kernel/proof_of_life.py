@@ -193,6 +193,8 @@ ITEMS = {
     "S": "int_subst (p1_expected section 12): the accepted and refused moves",
     "C": "the consolidation (p1_expected sections 13-14): int_flip, E56's "
          "orientation, E54's entries",
+    "R": "regularity (p1_expected section 17): the Int and D formers, the atom "
+         "algebra, the refusals",
 }
 UNIT, UNIT_TEXT = "unit", ("unit tests: test_field.py, test_grammar.py, "
                            "test_discharge.py")  # beside 1-6
@@ -393,14 +395,195 @@ else:
     PROOFS, ANSWERS, ECHO, NUMERIC = X.PROOFS, X.ANSWERS, X.ECHO, X.NUMERIC
     EXPECTED, ROUTE, INT_SUBST_PROOFS = X.DISCHARGE_EXPECTED, X.ROUTE, X.INT_SUBST_PROOFS
     SUBST_PROOFS, MESSAGES = tuple(X.INT_SUBST_PROOFS), X.INT_SUBST_MESSAGES
+
+# REG_SWITCH (p1_expected section 17, E70): the one constant. With the
+# regularity checker, its search and E63 wired into kernel._emit, the Int
+# and D formers (E64), ring and field's tree atoms (E66 (1)) and E57's
+# relaxation built, the suite asserts REG_OBLIGATIONS, REG_FINAL_TRACKER,
+# REG_ADMISSIONS and REG_VERDICTS for PROOFS and the problem files, every
+# Reg's certificate, and every case, bad move, forgery and planted bug as
+# REG_CASE_CHANGES, REG_BAD_MOVES_CHANGED, REG_E57_CHANGES,
+# REG_SUITE_CHANGES, REG_FORGERY_CHANGES and REG_BUG_RETRACE give them. The
+# pre-regularity tables stay in the data files as the record.
+REGULARITY = True
+REG_ACCEPTED_MOVES = []  # BAD_MOVES cases the switch turns into accepts
+# Every Reg key's regularity certificate the data gives: the cases', then
+# each proof's (a case may hold a proof's key, as sum_second_occurrence).
+REG_CERTS = ({**{k: v for p in X.REG_EXPECTED.values() for k, v in p.items()},
+              **X.REG_CASE_CERTS} if REGULARITY else {})
+# Reg rows the data left without a certificate or an admission, each a gap
+# reported by the check that reads it (a data_change_request).
+REG_GAPS = []
+
+
+def _reg_row(row):
+    """One expected row under the switch: a pre-regularity Reg row (admitted
+    ('reg', ())) turned DISCHARGED with REG_CASE_CERTS' tag, or kept
+    ADMITTED with REG_CASE_ADMITTED's; any other row as it is."""
+    six = len(row) == 6
+    prop, dom = row[0], row[1]
+    status, tag = (row[3], row[4]) if six else (row[2], row[3])
+    if not REGULARITY or " in C^" not in prop or (status, tag) != (X.ADMITTED, X.T_REG):
+        return row
+    k = (prop, dom)
+    if k in X.REG_CASE_ADMITTED:
+        status, tag = X.ADMITTED, X.REG_CASE_ADMITTED[k][0]
+    elif k in REG_CERTS:
+        status, tag = X.DISCHARGED, REG_CERTS[k][0]
+    else:
+        REG_GAPS.append(k)
+        return row
+    return (prop, dom, row[2], status, tag, row[5]) if six else (prop, dom, status, tag)
+
+
+def _reg_rows(rows, not_new=(), adds=()):
+    out = []
+    for row in map(_reg_row, rows):
+        if (row[0], row[1]) in not_new:
+            row = row[:5] + (False,)
+        out.append(row)
+    return out + list(adds)
+
+
+def _reg_report(case, lists):
+    """The report after the switch by the rule 'its report loses those
+    admissions': N counts the distinct keys the case's lists leave
+    admitted."""
+    status = {}
+    for rows in lists:
+        for row in rows:
+            status[(row[0], row[1])] = row[3] if len(row) == 6 else row[2]
+    n = sum(v == X.ADMITTED for v in status.values())
+    return X.VERDICT.format(n=n) if n else X.PROVED
+
+
+def reg_case(table, c, change=None):
+    """A case under REG_SWITCH: every Reg row it lists turned as _reg_row
+    says; REG_CASE_CHANGES' goal_emits_add, emits_add and then_add rows
+    appended, its not_new keys cleared ('goal', 'emits' or a continuation
+    step's index) and its certificates added; the report its own new one
+    where given, else derived (_reg_report); every admitted Reg key's reason
+    REG_CASE_ADMITTED's."""
+    if not REGULARITY:
+        return c
+    ch = change if change is not None else X.REG_CASE_CHANGES.get(table, {}).get(c["id"], {})
+    ch = ch if isinstance(ch, dict) else {}
+    nn = ch.get("not_new", {})
+    c = dict(c)
+    lists = []
+    if "goal_emits" in c or "goal_emits_add" in ch:
+        c["goal_emits"] = _reg_rows(c.get("goal_emits", ()), set(nn.get("goal", ())),
+                                    ch.get("goal_emits_add", ()))
+        lists.append(c["goal_emits"])
+    if "emits" in c:
+        c["emits"] = _reg_rows(c["emits"], set(nn.get("emits", ())),
+                               ch.get("emits_add", ()))
+        lists.append(c["emits"])
+    if "then" in c:
+        then = []
+        for i, st in enumerate(c["then"]):
+            st = dict(st, emits=_reg_rows(st.get("emits", ()), set(nn.get(i, ())),
+                                          ch.get("then_add", {}).get(i, ())))
+            then.append(st)
+            lists.append(st["emits"])
+        c["then"] = then
+    if "final" in c:
+        c["final"] = [_reg_row(r) for r in c["final"]]
+    if "certificates" in c or "certificates" in ch:
+        c["certificates"] = {**c.get("certificates", {}), **ch.get("certificates", {})}
+    reasons = dict(c.get("reasons", {}))
+    goal_reasons = dict(c.get("goal_reasons", {}))
+    for rows, where in ((c.get("goal_emits", ()), goal_reasons),
+                        *((rows, reasons) for rows in lists[1:])):
+        for row in rows:
+            if (row[0], row[1]) in X.REG_CASE_ADMITTED and row[3] == X.ADMITTED:
+                where[(row[0], row[1])] = X.REG_CASE_ADMITTED[(row[0], row[1])][1]
+    if reasons:
+        c["reasons"] = reasons
+    if goal_reasons or "goal_reasons" in c:
+        c["goal_reasons"] = goal_reasons
+    if "report" in ch:
+        c["report"] = ch["report"]
+    elif "report" in c:
+        c["report"] = _reg_report(c, [c["final"]] if "final" in c else lists)
+    for name in ("timing_bound",):
+        if name in ch:
+            c[name] = ch[name]
+    return c
+
+
+if REGULARITY:
+    OBLIGATIONS, FINAL = X.REG_OBLIGATIONS, X.REG_FINAL_TRACKER
+    ADMISSIONS, VERDICTS = X.REG_ADMISSIONS, X.REG_VERDICTS
+    EXPECTED = {p: {**EXPECTED.get(p, {}), **X.REG_EXPECTED.get(p, {})}
+                for p in set(EXPECTED) | set(X.REG_EXPECTED)}
+    MATCH_ACCEPTS = [reg_case("MATCH_ACCEPTS", c) for c in MATCH_ACCEPTS]
+    DEFINEDNESS_CASES = [reg_case("DEFINEDNESS_CASES", c) for c in DEFINEDNESS_CASES]
+    _OC = OCCURRENCE_CASE
+    OCCURRENCE_CASE = dict(reg_case("OCCURRENCE_CASE", dict(_OC, id="OCCURRENCE_CASE"),
+                                    X.REG_CASE_CHANGES["OCCURRENCE_CASE"]),
+                           one=reg_case("OCCURRENCE_CASE", dict(_OC["one"], id="one"), {}))
+    UNDECIDED = [reg_case("F3_ROOTS_UNDECIDED", c) if c["id"] in
+                 X.REG_CASE_CHANGES["F3_ROOTS_UNDECIDED"] else reg_case("DISCHARGE_UNDECIDED", c)
+                 for c in UNDECIDED]
+    DISCHARGE_BAD_MOVES_ADDED = [reg_case("DISCHARGE_BAD_MOVES_ADDED", c)
+                                 for c in DISCHARGE_BAD_MOVES_ADDED]
+    _BMC = X.REG_BAD_MOVES_CHANGED
+    _SC = X.REG_SUITE_CHANGES
+
+    def _reg_bad_move(b):
+        """A BAD_MOVES case under REG_BAD_MOVES_CHANGED and REG_SUITE_CHANGES:
+        a new refusal (with its residual and installation list where given),
+        or None when it becomes an accepted case (REG_REG_ACCEPTED_MOVES)."""
+        b = reg_case("BAD_MOVES", b, X.REG_CASE_CHANGES["DISCHARGE_BAD_MOVES_ADDED"]
+                     .get(b["id"], {}))
+        ch = _BMC.get(b["id"])
+        if b["id"] in ("rewrite_under_D_through_Int_R_former",
+                       "rewrite_under_D_through_Int_R_former_ln"):
+            return dict(b, refusal="orientation-undecided", at="install",
+                        message=("orientation-undecided", {"lo": "1", "hi": "x"}))
+        if not isinstance(ch, dict):
+            return b
+        new = ch["new"]
+        if isinstance(new, tuple) and new[0] == "refused":
+            b = dict(b, refusal=new[1])
+            if "residual" in ch:
+                b["residual"], b["compare"] = ch["residual"][0], (ch["residual"][1], ())
+            if "goal_emits" in ch:
+                b["goal_emits"] = ch["goal_emits"]
+            return b
+        return None
+
+    for _b in BAD_MOVES:
+        _ch = _BMC.get(_b["id"])
+        if isinstance(_ch, dict) and isinstance(_ch["new"], dict):
+            REG_ACCEPTED_MOVES.append(reg_case("REG_BAD_MOVES_CHANGED", dict(
+                {k: v for k, v in _b.items() if k not in ("refusal", "message", "residual",
+                                                         "compare", "setup", "e27")},
+                **_ch["new"]), {}))
+    BAD_MOVES = [nb for nb in map(_reg_bad_move, BAD_MOVES) if nb is not None] \
+        + list(X.REG_BAD_MOVES_ADDED)
+    _REVIEW_IDS = {c["id"] for c in X.REVIEW_ACCEPTS}
+    SUBST_ACCEPTS = [reg_case("REVIEW_ACCEPTS" if c["id"] in _REVIEW_IDS
+                              else "INT_SUBST_ACCEPTS", c) for c in SUBST_ACCEPTS]
+    SUBST_BAD_MOVES = [reg_case("INT_SUBST_BAD_MOVES", b, {}) for b in SUBST_BAD_MOVES]
+    TRACKER_AT_FORGERY_STATE = [ob for ob in FINAL["P1.2"]
+                                if ob[0] not in ("3*sqrt 3 # 0", "2 > 0")]
+
 CASES = {"BAD_MOVES": BAD_MOVES, "DEFINEDNESS_CASES": DEFINEDNESS_CASES,
          "MATCH_ACCEPTS": MATCH_ACCEPTS}
 
 
 def case_certs(case, name="certificates"):
     """A case's certificates as certificate_problem reads them, or None
-    before the switch."""
-    return cert_table(case.get(name, {}).items()) if DISCHARGE_WIRED else None
+    before the switch. Under REG_SWITCH every Reg key's certificate the data
+    gives (REG_CERTS) is among them."""
+    if not DISCHARGE_WIRED:
+        return None
+    rows = list(case.get(name, {}).items())
+    if REGULARITY:
+        rows = [(k, c) for k, (_, c) in REG_CERTS.items()] + rows
+    return cert_table(rows)
 
 
 def case_reasons(case):
@@ -587,6 +770,8 @@ def expected_reason(status, tag, k, reasons=None):
         return X.ADMISSION_REASON
     if reasons and k in reasons:
         return reasons[k]
+    if REGULARITY:  # REASON_REG is retired (E60)
+        return X.REASON_NONE if tag == X.T_NONE else X.REASON_REJECTED
     return (X.REASON_REG if tag == X.T_REG else
             X.REASON_NONE if tag == X.T_NONE else X.REASON_REJECTED)
 
@@ -904,6 +1089,53 @@ def _check_step(run, s, prev, st, tb):
 
 # ---------------------------------------------------------------- the checks
 
+# REG_SWITCH locations the rules do not reach as the data writes them, each
+# left failing with its evidence until the data changes (a
+# data_change_request): a failing check whose label or detail names one of
+# these gets the note.
+REG_DATA_CHANGE_REQUESTS = {
+    "non_monotone_divergent":
+        "data_change_request (regularity): INT_SUBST_BAD_MOVES non_monotone_divergent's "
+        "message. Step 13's forward C^0 premise Reg(1/t^2, 0, [-1, 1]) is emitted "
+        "before step 14's new-integral formers (INT_SUBST_RULE's order), and a Reg "
+        "now goes through REG_DISCHARGE_ORDER, whose E63 refutes it through its "
+        "div side t^2 # 0 at t = 0; so the refusal's message is "
+        "_reg_undefined('1/t^2 in C^0([-1, 1])', 't^2 # 0 @ [-1, 1]', the old "
+        "_point message), not the bare point message REG_BAD_MOVES_CHANGED's "
+        "'unchanged, re-traced' (INT_SUBST_BAD_MOVES) assumed",
+    "flip_sum_second_occurrence":
+        "data_change_request (regularity): REG_CASE_CHANGES INT_FLIP_ACCEPTS "
+        "flip_sum_second_occurrence adds the row 0 <= pi/2 (orient, DISCHARGED, "
+        "T_LINEAR_PI) to goal_emits with no certificate, and the case has none: "
+        "its 'certificates' needs ('0 <= pi/2', 'true'): _PI_HALF, as every "
+        "other case adding that row has (the rule 'every added row ... has its "
+        "certificate in certificates')",
+    "tracker_drops_one":
+        "data_change_request (regularity): PLANTED_BUGS tracker_drops_one's "
+        "'step_lists_changed': False no longer holds. REG_BUG_RETRACE says the "
+        "wrapper drops every emission of 1/(1 + x^3) in C^0([0, 1]), now first "
+        "emitted at installation; so at P1.2's and P1.2-alt's s2 the key is not "
+        "in the tracker and its row reads new, where REG_NOT_NEW makes it not "
+        "new: the step lists change at (P1.2|P1.2-alt, s2, '1/(1 + x^3) in "
+        "C^0([0, 1])', 'new'). Those two are new catch locations",
+    "int_subst_no_orientation":
+        "data_change_request (regularity): INT_SUBST_PLANTED_BUGS "
+        "int_subst_no_orientation's catch at INT_SUBST_BAD_MOVES "
+        "orientation_undecided no longer fires. With step 8's orientation "
+        "skipped, step 14's new integral Int[t = 0 .. 1/y] still owes its "
+        "former (E64), which uses its range, so E68 decides the order there and "
+        "refuses 'orientation-undecided' naming 0 and 1/y, the case's own code "
+        "and message. The mutation stays caught at its other two locations",
+    "rewrite_tree_branch_skips_E57":
+        "data_change_request (regularity): REVIEW2_PLANTED_BUGS "
+        "rewrite_tree_branch_skips_E57's location (E57_BAD_MOVES, pyth_erases_D) "
+        "no longer exists: REG_E57_CHANGES moves pyth_erases_D to "
+        "REG_E57_ACCEPTS, where the D passes step 2a on every branch, so the "
+        "mutation changes nothing there. It stays caught at "
+        "pyth_erases_divergent_Int",
+}
+
+
 class Suite:
     def __init__(self):
         self.rows = []  # (item, label, problems)
@@ -922,6 +1154,10 @@ class Suite:
         self.record(item, label, problems)
 
     def record(self, item, label, problems):
+        if problems and REGULARITY:
+            text = label + " " + " ".join(map(str, problems))
+            problems = list(problems) + [v for k, v in REG_DATA_CHANGE_REQUESTS.items()
+                                         if k in text]
         self.rows.append((item, label, problems))
         print(f"  {'PASS' if not problems else 'FAIL'}  [{item}] {label}")
         for p in problems[:MAX_SHOWN]:
@@ -1389,6 +1625,15 @@ SUITE_BAD_MOVES = [
 
 # ARCHITECTURE.md §6's kernel-local codes, each of which some case must name
 # (SUITE_BAD_MOVES, or DIRECT_CODES' check for the two no move data reaches).
+if REGULARITY:  # REG_SUITE_CHANGES, the suite's own cases under the switch
+    SUITE_BAD_MOVES = [
+        dict(b, refusal="shadowing") if b["id"] == "rewrite_inst_shadows" else
+        dict(b, refusal="orientation-undecided", at="install",
+             message=("orientation-undecided", {"lo": "1", "hi": "x"}))
+        if b["id"] in ("rewrite_under_D_through_Int_R_former",
+                       "rewrite_under_D_through_Int_R_former_ln") else b
+        for b in SUITE_BAD_MOVES]
+
 KERNEL_LOCAL_CODES = ("state-not-minted", "proof-finished", "bad-move", "bad-args",
                       "goal-shape", "ftc-no-integral", "close-no-mvar",
                       "field-fact-shape", "power-too-large")
@@ -1692,18 +1937,36 @@ def forge_foreign(slot, case):
                     relabel)], slot.post()
 
 
-def tracker_write(st):
-    """Public API only: delete t >= 0 @ [0, pi/2] from what obligations()
-    returns, and mark 0 <= pi/2 discharged, by attribute and then through
-    vars(), which looks like a copy but is the record's own dict when it has
-    one. Returns what raised."""
+def forgery_state(case):
+    """The finished state the two admission-bearing forgeries attack, with
+    what its tracker and report must stay: P1.1 at s6 before regularity; and
+    since every proof reads 'Proved.' (E69), REG_FORGERY_STATE, REG_Q23_CASES
+    d_atoms_cancel_undefined after its close (N = 1). Also the admission
+    tracker_write deletes and the key it marks discharged."""
+    if REGULARITY:
+        c = next(q for q in REG_Q23 if q["id"] == X.REG_FORGERY_STATE[1])
+        st = install(c["goal"], (case["id"], "goal"))
+        move, args = c["move"]
+        st = take(st, move, args, {}, (case["id"], move))
+        k = key("abs x in C^1(true)", "true")
+        return (st, [("abs x in C^1(true)", "true", X.ADMITTED, X.T_NONE)],
+                X.VERDICT.format(n=1), k, k)
+    return (replay(*case["state"])[0], FINAL["P1.1"], VERDICTS["P1.1"],
+            key("t >= 0", "[0, pi/2]"), key("0 <= pi/2", "true"))
+
+
+def tracker_write(st, delete, mark):
+    """Public API only: delete the admission `delete` from what
+    obligations() returns, and mark `mark` discharged, by attribute and
+    then through vars(), which looks like a copy but is the record's own
+    dict when it has one. Returns what raised."""
     raised = []
     obs = st.obligations()
     try:
-        del obs[next(i for i, o in enumerate(obs) if o.key == key("t >= 0", "[0, pi/2]"))]
+        del obs[next(i for i, o in enumerate(obs) if o.key == delete)]
     except Exception as e:  # noqa: BLE001
         raised.append(("delete", crash_text(e)))
-    target = next(o for o in obs if o.key == key("0 <= pi/2", "true"))
+    target = next(o for o in obs if o.key == mark)
     try:
         target.status = X.DISCHARGED
     except Exception as e:  # noqa: BLE001
@@ -1715,20 +1978,21 @@ def tracker_write(st):
     return raised
 
 
-def p1_1_post(st):
-    out = [fmt(("FINAL_TRACKER", "P1.1") + sfx, d) for sfx, d in
-           tracker_problems(st.obligations(), FINAL["P1.1"])]
-    if K.report(st) != VERDICTS["P1.1"]:
+def p1_1_post(st, final, verdict):
+    out = [fmt(("FINAL_TRACKER", "forgery state") + sfx, d) for sfx, d in
+           tracker_problems(st.obligations(), final)]
+    if K.report(st) != verdict:
         out.append(f"the report is {K.report(st)!r}")
     return out
 
 
 def forge_tracker_write(case):
-    st = replay(*case["state"])[0]
-    raised = tracker_write(st)
+    st, final, verdict, delete, mark = forgery_state(case)
+    raised = tracker_write(st, delete, mark)
     outcome = "raise_at_mutation" if raised else "no_effect"
     detail = "; ".join(f"{op} raised {e}" for op, e in raised) or "both completed"
-    return [("delete an admission and mark one discharged", outcome, detail)], p1_1_post(st)
+    return ([("delete an admission and mark one discharged", outcome, detail)],
+            p1_1_post(st, final, verdict))
 
 
 def report_attempt(label, build, reports):
@@ -1747,7 +2011,7 @@ def report_attempt(label, build, reports):
 
 
 def forge_print_proved(case):
-    st = replay(*case["state"])[0]
+    st, final, verdict, delete, mark = forgery_state(case)
     reports, attempts, captured = [], [], io.StringIO()
     with contextlib.redirect_stdout(captured):
         # (a) a report or state object built from outside, handed to report
@@ -1774,11 +2038,11 @@ def forge_print_proved(case):
                 attempts.append((f"(b) report(st, {extra[0]!r})", "returned", repr(text)))
         # (c) the report again, after the direct_tracker_write attempt. The
         # kernel declining the forged change is recorded as 'refused'.
-        tracker_write(st)
+        tracker_write(st, delete, mark)
         text = K.report(st)
         reports.append(text)
         attempts.append(("(c) report after a tracker write",
-                         "refused" if text == VERDICTS["P1.1"] else "returned",
+                         "refused" if text == verdict else "returned",
                          repr(text)))
         # (d) a script-side tactic's result object claiming the goal closed
         fake = types.SimpleNamespace(goal=None, theorem=st.theorem, closed=True,
@@ -1795,15 +2059,15 @@ def forge_print_proved(case):
                              "refused" if isinstance(r, K.Refusal) else "accepted",
                              describe(r)))
         reports.append(K.report(st))
-    post = [f"a report is {t!r}, not {VERDICTS['P1.1']!r}" for t in reports
-            if t != VERDICTS["P1.1"]]
+    post = [f"a report is {t!r}, not {verdict!r}" for t in reports
+            if t != verdict]
     post += [f"a report contains 'Proved.': {t!r}" for t in reports
              if "Proved." in str(t)]
     post += [f"{f.__name__}(state) contains 'Proved.'" for f in (str, repr)
              if "Proved." in f(st)]
     if "Proved." in captured.getvalue():
         post.append("'Proved.' was printed")
-    return attempts, post + p1_1_post(st)
+    return attempts, post + p1_1_post(st, final, verdict)
 
 
 def public_names():
@@ -1965,6 +2229,98 @@ if CONSOLIDATED:
             "DISCHARGE_NEW_PLANTED_BUGS search_scales_wrongly"))
 
 
+# REG_BUG_RETRACE: under the switch a proof's N under a bug is its
+# post-discharge N minus the Reg keys it had, each now discharged under the
+# bug as without it, except where the retrace lists otherwise; caught_by
+# unchanged except its drops and adds; ring_reads_D_as_atom and
+# field_reads_D_as_atom retired (vacuous: the kernel itself reads every D
+# node as an atom, E66 (1)).
+REG_COUNT = {"P1.1": 3, "P1.1-fallback": 3, "P1.2": 3, "P1.2-alt": 3, SHEET: 5,
+             "S1": 3, "S2": 3, "S3": 3, "S3-ring": 3, "SUB1": 5, "SUB2": 5,
+             "QC1": 5, "S2R": 4}
+_RT = X.REG_BUG_RETRACE
+REG_RETIRED = ("ring_reads_D_as_atom", "field_reads_D_as_atom")
+# The data's scope names -> the suite's tables of bugs they re-trace.
+# P1_1_SHEET_TRACES' entries apply wherever a child runs PROOFS.
+_RT_SCOPES = {
+    "PLANTED_BUGS": ("P1",), "E56_CHANGES": ("P1",),
+    "DISCHARGE_NEW_PLANTED_BUGS": ("DISCHARGE",),
+    "DISCHARGE_MUTATION_CHANGES": ("MUTATIONS",), "DEFINEDNESS_MUTATIONS": ("MUTATIONS",),
+    "P1_1_SHEET_TRACES": ("P1", "DISCHARGE", "MUTATIONS"),
+    "INT_SUBST_PLANTED_BUGS": ("SUBST",), "REVIEW_PLANTED_BUGS": ("SUBST",),
+    "INT_SUBST_SEAMS": ("SUBST_SEAMS",),
+    "CONSOLIDATION_PLANTED_BUGS": ("CONSOLIDATION",), "E56_PLANTED_BUGS": ("CONSOLIDATION",),
+    "REVIEW2_PLANTED_BUGS": ("CONSOLIDATION",),
+}
+
+
+def _rt_entries():
+    """REG_BUG_RETRACE read as (scope, bug name) -> [entry, ...], each entry
+    a dict of any of 'admissions' (merged over the rule's N), 'drop' and
+    'add' (caught_by locations) and 'step_lists_changed'. A key names its
+    table and then one bug, or several separated by ', '; an entry whose
+    'add' or 'drop' is a dict names its bugs inside ({bug: locations})."""
+    out = {}
+    for k, v in _RT.items():
+        if not isinstance(v, dict):
+            continue
+        table, _, rest = k.replace(",", " ,", 1).partition(" ")
+        scopes = _RT_SCOPES.get(table.rstrip(","))
+        if scopes is None:
+            continue
+        per_bug = {f: v[f] for f in ("add", "drop") if isinstance(v.get(f), dict)}
+        if per_bug:
+            names = {n for d in per_bug.values() for n in d}
+            items = {n: {f: d.get(n, ()) for f, d in per_bug.items()} for n in names}
+        else:
+            names = [n.strip() for n in rest.lstrip(" ,").split(",")]
+            items = {n: {f: v[f] for f in ("admissions", "add", "drop",
+                                           "step_lists_changed") if f in v}
+                     for n in names}
+        for n, e in items.items():
+            for sc in scopes:
+                out.setdefault((sc, n), []).append(e)
+    return out
+
+
+_RT_ENTRIES = _rt_entries() if REGULARITY else {}
+
+
+def _reg_retrace(name, bug, scope):
+    """One planted bug, mutation or seam as REG_BUG_RETRACE re-traces it:
+    the rule (N less the Reg keys each proof had, the sheet's too), then
+    every entry the retrace records for it in this scope, applied the same
+    way (admissions merged, drop and add on caught_by, step_lists_changed)."""
+    if not REGULARITY:
+        return bug
+    b = dict(bug)
+    if "admissions" in b:
+        b["admissions"] = {p: n - REG_COUNT[p] for p, n in b["admissions"].items()}
+    if b.get("sheet_N") is not None:
+        b["sheet_N"] -= REG_COUNT[SHEET]
+    caught = [tuplify(c) for c in b["caught_by"]]
+    for e in _RT_ENTRIES.get((scope, name), ()):
+        if "admissions" in e:
+            b["admissions"] = {**b.get("admissions", {}), **e["admissions"]}
+            if SHEET in e["admissions"] and "sheet_N" in b:
+                b["sheet_N"] = e["admissions"][SHEET]
+        drop = {tuplify(c) for c in e.get("drop", ())}
+        caught = [c for c in caught if c not in drop] + [
+            tuplify(c) for c in e.get("add", ()) if tuplify(c) not in caught]
+        if "step_lists_changed" in e:
+            b["step_lists_changed"] = e["step_lists_changed"]
+    b["caught_by"] = caught
+    return b
+
+
+if REGULARITY:
+    PLANTED_BUGS = {n: _reg_retrace(n, b, "P1") for n, b in PLANTED_BUGS.items()}
+    DEFINEDNESS_MUTATIONS = {n: _reg_retrace(n, b, "MUTATIONS")
+                             for n, b in DEFINEDNESS_MUTATIONS.items()
+                             if n not in REG_RETIRED}
+    DISCHARGE_BUGS = {n: _reg_retrace(n, b, "DISCHARGE") for n, b in DISCHARGE_BUGS.items()}
+
+
 def closed_admissions(data):
     """The child's N per proof, a proof it refused left out, which is how
     the data writes a mutation's admissions."""
@@ -2049,6 +2405,8 @@ def case_failures():
                 problems = [str(m)]
             if problems:
                 out.append([table, c["id"]])
+    if REGULARITY and TD is not None:  # REG_BUG_RETRACE's adds name these
+        out += TD.reg_must_reject_verdicts()
     return out
 
 
@@ -2425,14 +2783,17 @@ def mutation_patch(name, mock):
     """The child's patch for one DEFINEDNESS_MUTATIONS key. Each seam is
     asserted to exist first."""
     if name in TABLE_MUTATIONS:
+        # the one table the formers and the regularity checker both read
+        # (domains.NATURAL_DOMAINS, E61), so the patch reaches both
+        import domains as DM
         fn, row = TABLE_MUTATIONS[name]
-        assert fn in K.NATURAL_DOMAINS, f"seam kernel.NATURAL_DOMAINS[{fn!r}] is missing"
-        table = dict(K.NATURAL_DOMAINS)
+        assert fn in DM.NATURAL_DOMAINS, f"seam domains.NATURAL_DOMAINS[{fn!r}] is missing"
+        table = dict(DM.NATURAL_DOMAINS)
         if row is None:
             del table[fn]
         else:
             table[fn] = row
-        return mock.patch.object(K, "NATURAL_DOMAINS", types.MappingProxyType(table))
+        return mock.patch.object(DM, "NATURAL_DOMAINS", types.MappingProxyType(table))
     if name in ATOM_MUTATIONS:
         is_field, node = ATOM_MUTATIONS[name]
         assert callable(getattr(FD._Normaliser, "tree", None)), \
@@ -2574,6 +2935,14 @@ def placement_install(g, want):
     return lambda: emitted_problems(emitted_of(K.install(goal(g))), want)
 
 
+def placement_refused(g, code):
+    def run():
+        r = K.install(goal(g))
+        return [] if isinstance(r, K.Refusal) and r.code == code else [
+            f"installed or refused otherwise: {describe(r)}"]
+    return run
+
+
 def placement_fact_hyp():
     """§6.4's premises and E9's children for F := sqrt x, checked by field
     with the fact sqrt_sq_val x: the fact's hypothesis lands on the check's
@@ -2650,44 +3019,61 @@ def placement_close(g, value, check, want):
 EMISSION_PLACEMENT = [
     ("one former at two position domains in one term gives two keys (E6, E26)",
      placement_install("(Int[x=0..1] ln(x+2)) - (Int[x=-1..0] ln(x+2)) == ?A",
-                       {"x + 2 > 0 @ [0, 1]": ["former"], "x + 2 > 0 @ [-1, 0]": ["former"]})),
+                       {"x + 2 > 0 @ [0, 1]": ["former"], "x + 2 > 0 @ [-1, 0]": ["former"],
+                        "ln(x + 2) in C^0([0, 1])": ["former"],
+                        "ln(x + 2) in C^0([-1, 0])": ["former"]})),
     ("install charges both sides' formers when the rhs is not ?A (E6)",
      placement_install("x == x*y/y @ y > 0", {"y # 0 @ y > 0": ["former"]})),
-    ("a closed key uses no range, so no orientation (ARCHITECTURE.md §4)",
+    # E64: each statable Int also owes its integrand in C^0 on its range,
+    # after the term's E6/E26 formers, and that key uses the range (E68)
+    ("a closed key uses no range; the Int's own former does (ARCHITECTURE.md §4, E68)",
      placement_install("Int[x=0..pi] 1/sqrt 3 == ?A",
-                       {"sqrt 3 # 0": ["former"], "3 >= 0": ["former"]})),
+                       {"sqrt 3 # 0": ["former"], "3 >= 0": ["former"],
+                        "1/sqrt 3 in C^0(x in [0, pi])": ["former"], "0 <= pi": ["orient"]})),
     # E56: 1 <= pi is not provable from pi_pos alone, so these two use
     # 1 + pi, whose order is linear with pi_pos
     ("a key that uses the range brings its orientation (E56, E6)",
      placement_install("Int[x=1..1 + pi] 1/x == ?A",
-                       {"x # 0 @ [1, 1 + pi]": ["former"], "1 <= 1 + pi": ["orient"]})),
+                       {"x # 0 @ [1, 1 + pi]": ["former"], "1 <= 1 + pi": ["orient"],
+                        "1/x in C^0([1, 1 + pi])": ["former"]})),
     ("a reversed symbolic range is built from the order discharge proves (E56)",
      placement_install("Int[x=1 + pi..1] 1/x == ?A",
-                       {"x # 0 @ [1, 1 + pi]": ["former"], "1 <= 1 + pi": ["orient"]})),
+                       {"x # 0 @ [1, 1 + pi]": ["former"], "1 <= 1 + pi": ["orient"],
+                        "1/x in C^0([1, 1 + pi])": ["former"]})),
     ("ftc places a fact's hypothesis on the check's domain (E9, E10)",
      placement_fact_hyp),
     ("a negative integer power charges its base's former NonZero (E6, §5.1)",
-     placement_install("Int[x=1..2] x^(-2) == ?A", {"x # 0 @ [1, 2]": ["former"]})),
+     placement_install("Int[x=1..2] x^(-2) == ?A", {"x # 0 @ [1, 2]": ["former"],
+                                                     "x^(-2) in C^0([1, 2])": ["former"]})),
     ("the boundary power n = -1 charges the same former (E6, §5.1)",
-     placement_install("Int[x=1..2] x^(-1) == ?A", {"x # 0 @ [1, 2]": ["former"]})),
+     placement_install("Int[x=1..2] x^(-1) == ?A", {"x # 0 @ [1, 2]": ["former"],
+                                                     "x^(-1) in C^0([1, 2])": ["former"]})),
     ("a real power charges base > 0, strict (E6; GRAMMAR.md RPow owes a > 0)",
-     placement_install("Int[x=1..2] x^y == ?A", {"x > 0 @ [1, 2]": ["former"]})),
+     placement_install("Int[x=1..2] x^y == ?A", {"x > 0 @ [1, 2]": ["former"],
+                                                  "x^y in C^0(x in [1, 2])": ["former"]})),
     ("an infinite lower end is open, the finite end closed, no orientation (E4)",
      placement_install("Int[x=-oo..-1] 1/x == ?A", {"x # 0 @ (-oo, -1]": ["former"]})),
     ("NegInf is the lower end whichever limit it was written as (E4)",
      placement_install("Int[x=-1..-oo] 1/x == ?A", {"x # 0 @ (-oo, -1]": ["former"]})),
     ("literal ends are ordered into [min, max], with no orientation (E4)",
-     placement_install("Int[x=2..1] 1/x == ?A", {"x # 0 @ [1, 2]": ["former"]})),
+     placement_install("Int[x=2..1] 1/x == ?A", {"x # 0 @ [1, 2]": ["former"],
+                                                  "1/x in C^0([1, 2])": ["former"]})),
     ("each enclosing Int's orientation is owed, not only the innermost (E56, E6)",
      placement_install("Int[y=1..1 + pi] (Int[x=1..y] 1/(x*y)) == ?A",
                        {"x*y # 0 @ y in [1, 1 + pi], x in [1, y]": ["former"],
-                        "1 <= 1 + pi": ["orient"], "1 <= y @ [1, 1 + pi]": ["orient"]})),
-    ("an undecided order is refused only where a key uses the range (E56)",
-     placement_install("Int[x=1..pi] 2*x == ?A", {})),
+                        "1 <= 1 + pi": ["orient"], "1 <= y @ [1, 1 + pi]": ["orient"],
+                        # E64 in pre-order: the outer Int's former (no rule
+                        # for its Int body, so admitted none), then the inner's
+                        "Int[x = 1 .. y] 1/(x*y) in C^0([1, 1 + pi])": ["former"],
+                        "1/(x*y) in C^0(y in [1, 1 + pi], x in [1, y])": ["former"]})),
+    ("an undecided order is refused at installation once the Int's own former "
+     "uses the range (E68)",
+     placement_refused("Int[x=1..pi] 2*x == ?A", "orientation-undecided")),
     ("an orientation that is not closed keeps the goal's domain (E4, E5)",
      placement_install("Int[x=1..y] 1/x == ?A @ y > 1",
                        {"x # 0 @ y > 1, x in [1, y]": ["former"],
-                        "1 <= y @ y > 1": ["orient"]})),
+                        "1 <= y @ y > 1": ["orient"],
+                        "1/x in C^0(y > 1, x in [1, y])": ["former"]})),
     ("a goal hypothesis's former is charged at the hypotheses before it (E6, E26)",
      placement_install("x == ?A @ x > 0, ln x > 0", {"x > 0 @ x > 0": ["former"]})),
     ("the first hypothesis's former owes on the empty domain (E6)",
@@ -3575,6 +3961,10 @@ class Book:
             "consolidation": lambda: S0.CONSOLIDATION_WRONG_ANSWERS}[kind]()
 
     def table(self, name):
+        if REGULARITY:  # stage0/expected.py section 14, every problem file
+            return getattr(S0, {"OBLIGATIONS": "REG_OBLIGATIONS", "FINAL": "REG_FINAL_TRACKER",
+                                "ADMISSIONS": "REG_ADMISSIONS",
+                                "VERDICTS": "REG_VERDICTS"}[name])
         if not self.stage1:
             return s0_table(name)
         return getattr(S0, self.pre + {"OBLIGATIONS": "OBLIGATIONS",
@@ -3587,7 +3977,10 @@ class Book:
             return None
         table = getattr(S0, self.pre + "EXPECTED") if self.stage1 else \
             S0.DISCHARGE_EXPECTED
-        return {s0_key(p, d): c for (p, d), (_, c) in table[proof].items()}
+        rows = dict(table[proof])
+        if REGULARITY:
+            rows.update(S0.REG_EXPECTED[proof])
+        return {s0_key(p, d): c for (p, d), (_, c) in rows.items()}
 
     def deriv(self, proof, sid):
         """The DERIV row of a step: stage 0 keys its one ftc by proof, the
@@ -4030,8 +4423,9 @@ def s0_seam_switched(name, case):
     go, the list locations stay, and the admissions are expected.py's."""
     if not DISCHARGE_WIRED:
         return case
+    table = S0.REG_S0_SEAMS if REGULARITY else S0.DISCHARGE_S0_SEAMS
     return dict(case, caught_by=[c for c in case["caught_by"] if c[0] != "N"],
-                admissions=S0.DISCHARGE_S0_SEAMS[name]["admissions"])
+                admissions=table[name]["admissions"])
 
 
 def s0_seam_problems(name, case):
@@ -4202,6 +4596,20 @@ def discharge_checks(suite):
     for c in TD.SQRT_FACT_CHECKER_ACCEPTS:
         suite.check("D", f"SQRT_FACT_CHECKER_ACCEPTS {c['id']}: accepted as {c['tag']}",
                     lambda c=c: TD.checker_accept_problems(c))
+    if REGULARITY:  # section 17: the regularity checker called directly
+        suite.check("D", "REG_SIDES_LISTED is the checker's own derivation of the "
+                    "sides from the natural-domain table and C1_EXTRA",
+                    TD.reg_sides_listed_problems)
+        for c in TD.REG_MUST_REJECT:
+            suite.check("D", f"REG_MUST_REJECT {c['id']}: rejected {c['rejects_because']}; "
+                        f"{c['if_emitted'][0]} if emitted",
+                        lambda c=c: TD.reg_must_reject_problems(c))
+        for c in TD.REG_CHECKER_ACCEPTS:
+            suite.check("D", f"REG_CHECKER_ACCEPTS {c['id']}: accepted as {c['tag']}",
+                        lambda c=c: TD.checker_accept_problems(c))
+        for c in X.REG_DECIDED_FALSE:
+            suite.check("D", f"REG_DECIDED_FALSE {c['id']}: refused by E63's "
+                        "'reg_undefined'", lambda c=c: TD.reg_decided_false_problems(c))
     for table in ("SIGN_PRODUCT", "CONSOLIDATION"):  # E53, E54
         for c in getattr(TD, table + "_MUST_REJECT"):
             suite.check("D", f"{table}_MUST_REJECT {c['id']}: rejected "
@@ -4381,8 +4789,8 @@ def subst_accept_problems(c, found=None, table="INT_SUBST_ACCEPTS"):
     # sum_second_occurrence's keys are P1.1-sheet's, key for key, and so are
     # their certificates; any other case states its own
     certs = case_certs(c) if "certificates" in c else (
-        proof_certs(SHEET, SUBST_TABLES) if c["id"] == "sum_second_occurrence"
-        else {})
+        {**(case_certs({}) or {}), **proof_certs(SHEET, SUBST_TABLES)}
+        if c["id"] == "sum_second_occurrence" else case_certs({}) or {})
     for step in c.get("then", ()):
         certs = {**certs, **(case_certs(step) or {})}
     reasons = case_reasons(c)
@@ -4493,6 +4901,9 @@ if CONSOLIDATED:  # E56_CHANGES: one catch moves with its case, one seam re-trac
     SUBST_SEAMS["pi_pos_not_in_constraint_set"] = _e56_planted(
         "pi_pos_not_in_constraint_set", SUBST_SEAMS["pi_pos_not_in_constraint_set"],
         "INT_SUBST_SEAMS pi_pos_not_in_constraint_set")
+if REGULARITY:
+    SUBST_BUGS = {n: _reg_retrace(n, b, "SUBST") for n, b in SUBST_BUGS.items()}
+    SUBST_SEAMS = {n: _reg_retrace(n, b, "SUBST_SEAMS") for n, b in SUBST_SEAMS.items()}
 
 
 def subst_seam_patch(name, mock):
@@ -4692,7 +5103,7 @@ def subst_planted_problems(name, result):
     found = data["mismatches"]
     if name is None:
         out += [f"unpatched child found {m}" for m in sorted(found, key=str)]
-        if data["admissions"] != X.INT_SUBST_ADMISSIONS:
+        if data["admissions"] != {p: ADMISSIONS[p] for p in SUBST_PROOFS}:
             out.append(f"unpatched admissions {data['admissions']}")
         return out
     bug = SUBST_BUGS.get(name) or SUBST_SEAMS[name]
@@ -4721,21 +5132,47 @@ def subst_planted_problems(name, result):
 # product (E53) and the atom labels (E54) are item D's, through
 # test_discharge.py; QC1 is item 7's; the planted bugs are item 3's.
 
-FLIP_ACCEPTS, FLIP_BAD_MOVES = X.INT_FLIP_ACCEPTS, X.INT_FLIP_BAD_MOVES
-E56_ACCEPTS, E56_BAD_MOVES = X.E56_ACCEPTS, X.E56_BAD_MOVES
+FLIP_ACCEPTS = [reg_case("INT_FLIP_ACCEPTS", c) for c in X.INT_FLIP_ACCEPTS]
+FLIP_BAD_MOVES = [reg_case("INT_FLIP_BAD_MOVES", b, {}) for b in X.INT_FLIP_BAD_MOVES]
+E56_ACCEPTS = [reg_case("E56_ACCEPTS", c) for c in X.E56_ACCEPTS]
+E56_BAD_MOVES = [reg_case("E56_BAD_MOVES", b, {}) for b in X.E56_BAD_MOVES]
 # section 15 (the consolidation review, REVIEW2_SWITCH): E57's cases and
 # E56_AMENDMENTS' (the enclosing range refused and decided, and the lazy
-# install asserted by its time bound)
-E57_ACCEPTS, E57_BAD_MOVES = X.E57_ACCEPTS, X.E57_BAD_MOVES
-REVIEW_BAD = X.E56_REVIEW_CASES["bad_moves"]
-REVIEW_ACCEPTS = [c for c in X.E56_REVIEW_CASES["accepts"] if "move" in c]
-REVIEW_LAZY = [c for c in X.E56_REVIEW_CASES["accepts"] if "timing_bound" in c]
+# install asserted by its time bound); under REG_SWITCH, E57's D case
+# moves to REG_E57_ACCEPTS, the enclosing range is refused at
+# installation, and the lazy install decides its order (E68)
+E57_ACCEPTS = [reg_case("E57_ACCEPTS", c) for c in X.E57_ACCEPTS]
+E57_BAD_MOVES = [b for b in X.E57_BAD_MOVES
+                 if not (REGULARITY and b["id"] == "pyth_erases_D")]
+
+
+def _review_bad(b):
+    ch = X.REG_CASE_CHANGES["E56_REVIEW_CASES"].get(b["id"], {})
+    if REGULARITY and "new" in ch:
+        return dict(b, at="install", refusal=ch["new"][1],
+                    message=(ch["new"][1], ch["new"][2]))
+    return b
+
+
+REVIEW_BAD = [_review_bad(b) for b in X.E56_REVIEW_CASES["bad_moves"]]
+REVIEW_ACCEPTS = [reg_case("E56_REVIEW_CASES", c)
+                  for c in X.E56_REVIEW_CASES["accepts"] if "move" in c]
+REVIEW_LAZY = [reg_case("E56_REVIEW_CASES", c)
+               for c in X.E56_REVIEW_CASES["accepts"] if "timing_bound" in c]
+# section 17's own cases (REG_SWITCH)
+REG_Q23 = [reg_case("REG_Q23_CASES", c, {}) for c in X.REG_Q23_CASES] if REGULARITY else []
+REG_Q23_REFUSALS = list(X.REG_Q23_REFUSALS) if REGULARITY else []
+REG_E57_ACCEPTS = [reg_case("REG_E57_ACCEPTS", c, {})
+                   for c in X.REG_E57_ACCEPTS] if REGULARITY else []
+REG_INSTALL_CASES = list(X.REG_INSTALL_CASES) if REGULARITY else []
+REG_BAD_MOVES = list(X.REG_BAD_MOVES) if REGULARITY else []
 
 
 def lazy_install_problems(c):
     """E56_AMENDMENTS' laziness: the goal installs emitting its goal_emits
     (nothing: no key uses the range, so no order is decided), within the
     case's timing_bound of CPU time (_cpu_timed). The time is printed."""
+    K._ORDER_MEMO.clear()  # timed cold: no orientation answer is remembered
     r, secs = _cpu_timed(lambda: K.install(goal(c["goal"])), c["timing_bound"])
     print(f"          installed in {secs:.4f} s of CPU time (bound {c['timing_bound']} s)")
     if not isinstance(r, K.ProofState):
@@ -4786,14 +5223,20 @@ def e57_halves_problems():
     side, and a check that tests only one half fails here."""
     out = []
     tree, plain = term("Int[y = 1 .. oo] 1"), term("z")
-    d_tree = term("D[x](abs x)")
+    # a limit holding a tree: unstatable too; under REG_SWITCH a D node and
+    # a statable Int pass step 2a (E66 (3)), their definedness owed
+    d_tree = term("Int[y = 0 .. D[x](abs x)] 1") if REGULARITY else term("D[x](abs x)")
+    passing = ([("a D in inst", {"u": term("D[x](abs x)")}, plain, False),
+                ("a statable Int in the target", {"u": plain},
+                 T.App("sin", term("Int[y = 0 .. 1] y")), False)] if REGULARITY else [])
     for lhs in (term("(sin u)^2 + (cos u)^2"), term("atan(u)")):
         for label, inst, at, refused in (
                 ("an Int in inst only", {"u": tree}, plain, True),
-                ("a D in inst only", {"u": d_tree}, plain, True),
+                ("a tree-limited Int in inst only", {"u": d_tree}, plain, True),
                 ("an Int in the target only", {"u": plain}, T.App("sin", tree), True),
-                ("a D in the target only", {"u": plain}, T.App("sin", d_tree), True),
-                ("neither", {"u": plain}, T.App("sin", plain), False)):
+                ("a tree-limited Int in the target only", {"u": plain},
+                 T.App("sin", d_tree), True),
+                ("neither", {"u": plain}, T.App("sin", plain), False), *passing):
             try:
                 K._no_trees_erased(lhs, inst, at)
                 code = None
@@ -4835,6 +5278,52 @@ def order_memo_depth_problems():
     elif K._ORDER_MEMO.get(k) is not True:
         out.append("the stable answer was not memoised")
     return out
+
+
+def install_case_problems(c):
+    """A REG_INSTALL_CASES case: installation's list, with its certificates
+    and reasons."""
+    st = install(c["goal"], (c["id"], "goal"))
+    out = []
+
+    def miss(item, where, detail):
+        out.append(fmt(where, detail))
+
+    compare_emitted(miss, c["id"], "goal", c["goal_emits"], st.last.emitted,
+                    frozenset(), certs=case_certs(c), reasons=case_reasons(c))
+    return out
+
+
+def reg_gap_problems():
+    """Every pre-regularity Reg row of every switched case has its new
+    status in the data (REG_CASE_CERTS or REG_CASE_ADMITTED)."""
+    return [f"data_change_request: {p} @ {d} has neither a REG_CASE_CERTS nor a "
+            f"REG_CASE_ADMITTED row" for p, d in dict.fromkeys(REG_GAPS)]
+
+
+def regularity_checks(suite):
+    """Item R's rows (section 17's own cases)."""
+    suite.check("R", "every Reg row the switched cases list has its new status in "
+                "the data", reg_gap_problems)
+    for c in REG_Q23:
+        suite.check("R", f"REG_Q23_CASES {c['id']} -> {c['report']!r}",
+                    lambda c=c: subst_accept_problems(c, table="REG_Q23_CASES"))
+    for b in REG_Q23_REFUSALS:
+        suite.check("R", f"REG_Q23_REFUSALS {b['id']} -> {b['refusal']}",
+                    lambda b=b: bad_move_problems(b))
+    for c in REG_E57_ACCEPTS:
+        suite.check("R", f"REG_E57_ACCEPTS {c['id']} -> {c['report']!r}",
+                    lambda c=c: subst_accept_problems(c, table="REG_E57_ACCEPTS"))
+    for c in REG_INSTALL_CASES:
+        suite.check("R", f"REG_INSTALL_CASES {c['id']}: {c['goal']}",
+                    lambda c=c: install_case_problems(c))
+    for b in REG_BAD_MOVES:
+        suite.check("R", f"REG_BAD_MOVES {b['id']} -> {b['refusal']}",
+                    lambda b=b: bad_move_problems(b))
+    for c in REG_ACCEPTED_MOVES:
+        suite.check("R", f"REG_BAD_MOVES_CHANGED {c['id']}: accepted"
+                    + (f" -> {c['report']!r}" if "report" in c else ""),
+                    lambda c=c: subst_accept_problems(c, table="REG_BAD_MOVES_CHANGED"))
 
 
 def e57_principle_problems():
@@ -4948,8 +5437,9 @@ def consolidation_checks(suite):
 # cases beyond DISCHARGE_MUST_REJECT (their verdicts), and the property
 # test's families a bug's caught_by names.
 
-CONSOLIDATION_BUGS = {**X.CONSOLIDATION_PLANTED_BUGS, **X.E56_PLANTED_BUGS,
-                      **X.REVIEW2_PLANTED_BUGS}
+CONSOLIDATION_BUGS = {n: _reg_retrace(n, b, "CONSOLIDATION") for n, b in {
+    **X.CONSOLIDATION_PLANTED_BUGS, **X.E56_PLANTED_BUGS,
+    **X.REVIEW2_PLANTED_BUGS}.items()}
 
 
 def consolidation_seam_patch(name, mock):
@@ -5091,6 +5581,193 @@ def consolidation_planted_problems(name, result):
         return out + [f"unpatched child found {m}" for m in sorted(found, key=str)]
     return out + [f"not caught at {c}" for c in map(tuplify, CONSOLIDATION_BUGS[name]["caught_by"])
                   if c not in found]
+
+
+# ---------------------------------------------------------------- regularity planted bugs
+#
+# REG_PLANTED_BUGS, each in a child process (`--reg NAME`, the control
+# `--reg-control`) through the seams of ARCHITECTURE.md §7: one function per
+# REG_CHECK_RULE paragraph in discharge.py, the search's _reg_sides, E63's
+# refute_reg, and the kernel's former functions. The child runs what their
+# caught_by names: every proof in PROOFS (N and the step lists), the
+# regularity checker's must-reject verdicts and decided-false keys,
+# section 17's cases, E56_REVIEW_CASES, E57_BAD_MOVES, the switched
+# BAD_MOVES and their accepted twins, and the property families named; and,
+# for a bug whose data 'expect's it, whether REG_BAD_MOVES' cases are still
+# refused with their 'as_well' messages.
+
+REG_BUGS = dict(X.REG_PLANTED_BUGS) if REGULARITY else {}
+# the REG_BAD_MOVES cases each 'expect' says are refused as_well
+REG_AS_WELL = {"former_div_dropped": ("ftc_across_pole", "ftc_f_not_C0_at_an_end"),
+               "ftc_no_F_formers": ("ftc_F_across_pole",)}
+
+
+def reg_seam_patch(name, mock):
+    """The child's patch for one REG_PLANTED_BUGS key: the mutation's own
+    text, through the function that holds the rule."""
+    import discharge as DC
+    import domains as DM
+    import refute as RF
+    import search as SR
+    rule, sides = DC._reg_rule, DC._reg_sides
+
+    def charged_first(buf, term_, dom, goal_dom, anc=()):
+        walk = list(K._positions(term_, dom, anc))
+        K._tree_formers(buf, walk, goal_dom)
+        K._e6_formers(buf, walk, goal_dom)
+
+    def no_div(buf, walk, goal_dom):
+        for _, s_, d, a in walk:
+            if isinstance(s_, T.Div):
+                continue
+            for prop, divisor in K._owed(s_):
+                K._emit_at(buf, prop, d, a, "former", goal_dom, divisor)
+
+    def old_e57(lhs, inst, at):
+        for t in (*inst.values(), at):
+            if next(T.trees(t), None) is not None:
+                raise T.Refused("Int-or-D-not-normalisable", "E57 as it stood")
+
+    def all_atoms(self, t):
+        return self.atom(("tree", t), t)
+
+    c1 = mock.patch.object(DM, "C1_EXTRA", types.MappingProxyType({}))
+    patches = {
+        "reg_side_not_decided": [(DC, "_reg_side_holds", lambda prop, cert, dom: ())],
+        "reg_side_count_unchecked": [(DC, "_reg_side_count_ok", lambda g, r: True)],
+        "reg_side_from_certificate": [(DC, "_reg_side_prop", lambda rebuilt, given: given)],
+        "reg_rule_from_certificate": [(DC, "_reg_rule", lambda t, node: node["rule"])],
+        "reg_children_not_walked": [(DC, "_reg_children", lambda *a: None)],
+        "reg_c1_uses_c0_sides": [(DC, "_interior", lambda props: props), c1],
+        "reg_no_c1_extra": [c1],
+        "reg_div_no_side": [(DC, "_reg_sides", lambda t, r, k: () if r == "div"
+                             else sides(t, r, k))],
+        "reg_negative_power_as_power": [(DC, "_reg_rule", lambda t, node: "pow"
+                                         if type(t) is T.Pow else rule(t, node))],
+        "reg_rpow_no_side": [(DC, "_reg_sides", lambda t, r, k: () if r == "rpow"
+                              else sides(t, r, k))],
+        "reg_any_class": [(DC, "_reg_class_ok", lambda k: True)],
+        "reg_tree_as_const": [(DC, "_reg_rule", lambda t, node: "const"
+                               if type(t) in (T.Integral, T.Deriv) else rule(t, node))],
+        "reg_extra_fields_ignored": [(DC, "_reg_fields", lambda x, names: hasattr(
+            x, "keys") and set(names) <= set(x))],
+        "reg_search_drops_side": [(SR, "_reg_sides", lambda s_: s_[:-1])],
+        "reg_refute_off": [(RF, "refute_reg", lambda key_, owed: None)],
+        "int_former_not_charged": [(K, "_int_former", lambda *a: None)],
+        "d_former_not_charged": [(K, "_d_former", lambda *a: None)],
+        "d_former_at_goal_domain": [(K, "_d_former", lambda buf, dx, dom, anc, goal_dom:
+                                     K._emit_at(buf, T.Reg(dx.body, 1), goal_dom, (),
+                                                "former", goal_dom))],
+        "int_former_charged_first": [(K, "_charge_formers", charged_first)],
+        "former_div_dropped": [(K, "_e6_formers", no_div)],
+        "ftc_no_F_formers": [(K, "_ftc_F_formers", lambda buf, F, on_ab, G: None)],
+        "e57_refuses_nothing": [(K, "_no_trees_erased", lambda lhs, inst, at: None)],
+        "e57_refuses_statable": [(K, "_no_trees_erased", old_e57)],
+        "improper_Int_as_atom": [(FD._Normaliser, "tree", all_atoms)],
+    }
+    if name not in patches:
+        raise KeyError(f"no seam for regularity planted bug {name!r}")
+    stack = contextlib.ExitStack()
+    for p in patches[name]:
+        if isinstance(p, tuple):
+            module, attr, new = p
+            assert callable(getattr(module, attr, None)), f"seam {attr} is missing"
+            stack.enter_context(mock.patch.object(module, attr, new))
+        else:
+            stack.enter_context(p)
+    return stack
+
+
+def reg_child(name):
+    """`--reg NAME`: under one REG_PLANTED_BUGS patch (None: the control),
+    print {"mismatches": [...], "admissions": {proof: N}, "as_well":
+    {id: problems}}. A crash exits 2."""
+    if K is None or TD is None:
+        print(KERNEL_ERROR or DISCHARGE_ERROR, file=sys.stderr)
+        return 2
+    try:
+        if name is None:
+            ctx = contextlib.nullcontext()
+        else:
+            from unittest import mock
+            ctx = reg_seam_patch(name, mock)
+        bug = REG_BUGS.get(name, {})
+        found, admissions, as_well = [], {}, {}
+        with ctx:
+            for p in PROOFS:
+                run = run_proof(p, strict=False, out=lambda line: None)
+                found += [list(where) for _, where, _ in run.found]
+                admissions[p] = run.n
+            found += TD.reg_must_reject_verdicts()
+            found += [["REG_DECIDED_FALSE", c["id"]] for c in X.REG_DECIDED_FALSE
+                      if TD.reg_decided_false_problems(c)]
+            for table, cases, fn in (
+                    ("REG_Q23_CASES", REG_Q23,
+                     lambda c: subst_accept_problems(c, table="REG_Q23_CASES")),
+                    ("REG_Q23_REFUSALS", REG_Q23_REFUSALS, bad_move_problems),
+                    ("REG_E57_ACCEPTS", REG_E57_ACCEPTS,
+                     lambda c: subst_accept_problems(c, table="REG_E57_ACCEPTS")),
+                    ("REG_INSTALL_CASES", REG_INSTALL_CASES, install_case_problems),
+                    ("REG_BAD_MOVES", REG_BAD_MOVES, bad_move_problems),
+                    ("REG_BAD_MOVES_CHANGED", REG_ACCEPTED_MOVES,
+                     lambda c: subst_accept_problems(c, table="REG_BAD_MOVES_CHANGED")),
+                    ("E56_REVIEW_CASES", REVIEW_BAD, bad_move_problems),
+                    ("E56_REVIEW_CASES", REVIEW_ACCEPTS,
+                     lambda c: subst_accept_problems(c, table="E56_REVIEW_CASES")),
+                    ("E57_BAD_MOVES", E57_BAD_MOVES, bad_move_problems),
+                    ("BAD_MOVES", BAD_MOVES, bad_move_problems)):
+                for c in cases:
+                    try:
+                        problems = fn(c)
+                    except Mismatch as m:
+                        problems = [str(m)]
+                    if problems:
+                        found.append([table, c["id"]])
+            for b in REG_BAD_MOVES:
+                if "as_well" in b:
+                    try:
+                        as_well[b["id"]] = bad_move_problems(dict(b, message=b["as_well"]))
+                    except Mismatch as m:
+                        as_well[b["id"]] = [str(m)]
+            families = [c[1] for c in bug.get("caught_by", ()) if c[0] == "PROPERTY"]
+            if families:
+                results = TD.property_results(families=families)
+                found += [["PROPERTY", n] for n, st in results.items() if st.violations]
+    except Exception:  # noqa: BLE001 -- a crash, not a catch
+        traceback.print_exc()
+        return 2
+    print(json.dumps({"mismatches": found, "admissions": admissions, "as_well": as_well}))
+    return 0
+
+
+def reg_child_results():
+    from concurrent.futures import ThreadPoolExecutor
+    names = [None, *REG_BUGS]
+    with ThreadPoolExecutor(max_workers=max(2, min(8, os.cpu_count() or 2))) as ex:
+        futures = {n: ex.submit(spawn, *(("--reg-control",) if n is None else
+                                         ("--reg", n))) for n in names}
+    return {n: f.result() for n, f in futures.items()}
+
+
+def reg_planted_problems(name, result):
+    data, out = result
+    if data is None:
+        return out
+    found = data["mismatches"]
+    if name is None:
+        out += [f"unpatched child found {m}" for m in sorted(found, key=str)]
+        if data["admissions"] != ADMISSIONS:
+            out.append(f"unpatched admissions {data['admissions']}")
+        return out
+    bug = REG_BUGS[name]
+    out += [f"not caught at {c}" for c in map(tuplify, bug["caught_by"]) if c not in found]
+    if "admissions" in bug and closed_admissions(data) != bug["admissions"]:
+        out.append(f"admissions {data['admissions']}, expected {bug['admissions']}")
+    for cid in REG_AS_WELL.get(name, ()):  # 'expect': refused as_well
+        if data["as_well"].get(cid):
+            out.append(f"{cid} is not refused with its as_well message: "
+                       f"{data['as_well'][cid]}")
+    return out
 
 
 # ---------------------------------------------------------------- main
@@ -5518,6 +6195,10 @@ def main():
     if K is not None and CONSOLIDATED:
         consolidation_checks(suite)
 
+    print("\nRegularity (item R; p1_expected section 17)")
+    if K is not None and REGULARITY:
+        regularity_checks(suite)
+
     print("\nPlanted bugs (each in a child process)")
     suite.check(3, "control: the child, unpatched, finds nothing", control_problems)
     for name, bug in PLANTED_BUGS.items():
@@ -5554,6 +6235,15 @@ def main():
             suite.check(3, f"{name}: {bug['mutation']}; caught at "
                         f"{len(bug['caught_by'])} location(s)",
                         lambda n=name: consolidation_planted_problems(n, cresults[n]))
+    if REGULARITY:
+        print("\nRegularity planted bugs (section 17; each in a child process)")
+        rresults = reg_child_results() if K is not None and TD is not None else {}
+        suite.check(3, "regularity control: the child, unpatched, finds nothing",
+                    lambda: reg_planted_problems(None, rresults[None]))
+        for name, bug in REG_BUGS.items():
+            suite.check(3, f"{name}: {bug['mutation']}; caught at "
+                        f"{len(bug['caught_by'])} location(s)",
+                        lambda n=name: reg_planted_problems(n, rresults[n]))
     suite.check(3, "the unmutated run is clean afterwards", clean_after_problems)
 
     print("\nUnit tests (a child process)")
@@ -5605,6 +6295,10 @@ if __name__ == "__main__":
         sys.exit(subst_child(sys.argv[2]))
     if sys.argv[1:] == ["--int-subst-control"]:
         sys.exit(subst_child(None))
+    if sys.argv[1:2] == ["--reg"] and len(sys.argv) == 3:
+        sys.exit(reg_child(sys.argv[2]))
+    if sys.argv[1:] == ["--reg-control"]:
+        sys.exit(reg_child(None))
     if sys.argv[1:2] == ["--consolidation"] and len(sys.argv) == 3:
         sys.exit(consolidation_child(sys.argv[2]))
     if sys.argv[1:] == ["--consolidation-control"]:

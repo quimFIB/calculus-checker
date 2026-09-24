@@ -33,8 +33,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import field as FD  # noqa: E402
 import residual  # noqa: E402
 from terms import (Add, App, Call, Const, Deriv, Div, Integral, MVar, Mul,  # noqa: E402
-                   Neg, Num, Pow, RPow, Refused, Var, lit, parse_judgement,
-                   parse_term, show, trees)
+                   POS_INF, Neg, Num, Pow, RPow, Refused, Var, lit, parse_judgement,
+                   parse_term, show, statable)
 
 SIG = {"f": 1, "h": 2}
 
@@ -331,41 +331,61 @@ class Refusals(unittest.TestCase):
         self.assertRefused("divisor-normalises-to-zero", FD.field,
                            T("2"), T("1/(x/x - 1)"))
 
-    def test_trees_are_not_atoms(self):
-        # p1_expected E26 (b): D and Int have no definedness condition the
-        # kernel can state, so no normaliser reads one as an atom. Each pair
-        # below was decided before E26 (the first three as atoms), and each
-        # is now refused, whichever side holds the node, and inside an atom
-        # argument too. BAD_MOVES close_D_goal_scope_passes, ring_refuses_*.
+    def test_trees_are_atoms_when_statable(self):
+        # p1_expected E66 (1), since regularity: a statable Int and every D
+        # node is an opaque atom keyed by its tree exactly (no alpha
+        # equivalence, no normalisation under the binder), its definedness
+        # owed where it enters (E64). Before E26 the first three were atoms,
+        # E26 (b) refused them all, and now they are atoms again.
         for rule in ("ring", "field"):
-            for lhs, rhs in (("D[x] x^2", "2*x"), ("D[x] x^2 + 1", "1 + D[x] x^2"),
-                             ("D[x](x + 0)", "D[x] x"),
-                             ("Int[t = 0 .. 1] 1/t", "Int[t = 0 .. 1] 1/t"),
-                             ("(Int[x = 0 .. oo] 1) - (Int[x = 0 .. oo] 1)", "0"),
-                             ("0", "sin(D[x](abs x) - D[x](abs x))")):
+            for lhs, rhs, equal in (("D[x] x^2", "2*x", False),
+                                    ("D[x] x^2 + 1", "1 + D[x] x^2", True),
+                                    ("D[x](x + 0)", "D[x] x", False),
+                                    ("Int[t = 0 .. 1] 1/t", "Int[t = 0 .. 1] 1/t", True),
+                                    ("Int[t = 0 .. 1] t", "Int[u = 0 .. 1] u", False),
+                                    ("0", "sin(D[x](abs x) - D[x](abs x))", False),
+                                    ("sin 0", "sin(D[x](abs x) - D[x](abs x))", True)):
+                with self.subTest(rule=rule, lhs=lhs, rhs=rhs):
+                    self.assertIs(holds(rule, lhs, rhs), equal)
+
+    def test_unstatable_trees_are_not_atoms(self):
+        # E26 (b) as E66 (1) keeps it: an Int with an infinite limit, or a
+        # limit holding an Int or D node, has no definedness the kernel can
+        # state (E65), so no normaliser reads it, whichever side holds it,
+        # and inside an atom argument or a fact too.
+        for rule in ("ring", "field"):
+            for lhs, rhs in (("(Int[x = 0 .. oo] 1) - (Int[x = 0 .. oo] 1)", "0"),
+                             ("Int[t = 0 .. D[x] x] 1", "Int[t = 0 .. D[x] x] 1"),
+                             ("0", "sin((Int[x = 1 .. oo] 1) - (Int[x = 1 .. oo] 1))")):
                 with self.subTest(rule=rule, lhs=lhs, rhs=rhs):
                     self.assertRefused("Int-or-D-not-normalisable", decide,
                                        rule, lhs, rhs)
-        # and in a fact, which field normalises too
         self.assertRefused("Int-or-D-not-normalisable", FD.field, T("x"), T("x"),
-                           [(T("(sqrt(Int[t = 0 .. 1] t))^2"), T("Int[t = 0 .. 1] t"))])
+                           [(T("(sqrt(Int[t = 0 .. oo] t))^2"), T("Int[t = 0 .. oo] t"))])
         for fn in (FD.ring_is_zero, lambda t: FD.ring_equal(t, t),
                    lambda t: FD.ring_polys([t])):
             self.assertRefused("Int-or-D-not-normalisable", fn,
                                T("(Int[x = 0 .. oo] 1) - (Int[x = 0 .. oo] 1)"))
-            self.assertRefused("Int-or-D-not-normalisable", fn, T("1/(D[x](abs x))"))
+            self.assertRefused("Int-or-D-not-normalisable", fn,
+                               T("1/(Int[t = 0 .. D[x] x] 1)"))
 
-    def test_field_refuses_trees_holding_zero_divisors(self):
-        # Before E26 (b) these were D and Int atoms whose inner divisors
-        # field tested (E25). Now no side holding one is normalised at all,
-        # so each is refused, and never decided or given a divisor list.
+    def test_atoms_hide_their_inner_divisors(self):
+        # An atom is read by its tree, never inside: the divisors in a
+        # statable Int's integrand or limits, or in a D's body, are its
+        # formers' business (the kernel charges them where the node enters,
+        # E6 before E64), not field's. So two copies cancel with no divisor
+        # owed, and E25 finds no zero divisor inside.
         for lhs in ("(Int[y = 0 .. 1] 1/(y/y - 1)) - (Int[y = 0 .. 1] 1/(y/y - 1)) + 1",
                     "D[x](1/(x/x - 1)) - D[x](1/(x/x - 1)) + 1",
-                    "(Int[t = 0 .. 1/(x/x - 1)] t) - (Int[t = 0 .. 1/(x/x - 1)] t) + 1",
-                    "Int[t = 0 .. 1/0] t",
-                    "(Int[t = 1 .. 2] 1/t) + 1/x"):
-            self.assertRefused("Int-or-D-not-normalisable", FD.field,
-                               T(lhs), T("1"))
+                    "(Int[t = 0 .. 1/(x/x - 1)] t) - (Int[t = 0 .. 1/(x/x - 1)] t) + 1"):
+            with self.subTest(lhs=lhs):
+                ok, ds, _ = decide("field", lhs, "1")
+                self.assertTrue(ok)
+                self.assertEqual(list(ds), [])
+        ok, ds, _ = decide("field", "(Int[t = 1 .. 2] 1/t) + 1/x",
+                           "1/x + (Int[t = 1 .. 2] 1/t)")
+        self.assertTrue(ok)
+        self.assertEqual(list(map(show, ds)), ["x"])
 
     def test_malformed_facts(self):
         for facts in ([("2*(sqrt 3)^2", "6")],
@@ -446,9 +466,10 @@ def _f(v):
 
 
 # Opaque atoms, modelled by rational functions with no rational pole.
-# random_term still draws Deriv nodes, which ring and field refuse
-# (p1_expected E26 (b)); `attempt` fails the test if either decides a pair
-# holding one. "tree" models a Deriv only for the printer and the residual.
+# random_term draws Deriv nodes, which ring and field read as atoms keyed by
+# their tree (p1_expected E66 (1)), modelled here by "tree", a function of
+# the tree alone; and improper Ints, which they refuse (E26 (b), E65):
+# `attempt` fails the test if either decides a pair holding one.
 FUNCS = {"f": _f, "h": lambda u, v: u * v - 2 * v + 1,
          "sin": lambda v: v / (v * v + 1), "exp": lambda v: 2 - v,
          "rpow": lambda b, e: b * b + e,
@@ -509,6 +530,9 @@ def random_term(rng, depth):
         return App(rng.choice(("sin", "exp")), sub())
     if k == "rpow":
         return RPow(sub(), Var(rng.choice("xyz")))
+    if k == "deriv" and rng.random() < 0.2:
+        # improper, so refused (a leaf body: no Int nested in it to shadow)
+        return Integral("t", Num(0), POS_INF, random_term(rng, 0))
     return Deriv("x", sub())
 
 
@@ -609,18 +633,29 @@ def check_sound(tc, rule, ok, divs, lhs, rhs, rng, n_points=12, funcs=FUNCS,
 
 def attempt(rule, lhs, rhs, facts=()):
     """decide(), or None when the rule refuses. A rule that decides a pair
-    holding a Deriv or Integral node, rather than refusing it, is a failure
-    (E26 (b)): such a node is never an atom."""
+    holding an unstatable Integral, rather than refusing it, is a failure
+    (E26 (b), E65): such a node is never an atom. A Deriv node or a
+    statable Int is an atom (E66 (1))."""
     try:
         got = decide(rule, lhs, rhs, facts)
     except Refused:
         return None
     held = [t for t in (lhs, rhs, *(x for f in facts for x in f))
-            if not isinstance(t, str) and any(trees(t))]
+            if not isinstance(t, str) and _exposed_improper(t)]
     if held:
         raise AssertionError(f"{rule} decided {show(held[0])}, which holds "
-                             "a Deriv or Integral node (E26 (b))")
+                             "an unstatable Integral (E26 (b), E65)")
     return got
+
+
+def _exposed_improper(t):
+    """An unstatable Integral that the normaliser reaches: one not inside an
+    atom (a Deriv or a statable Integral, read by its tree, never inside)."""
+    if isinstance(t, Integral) and not statable(t):
+        return True
+    if isinstance(t, (Deriv, Integral)):
+        return False
+    return any(_exposed_improper(k) for k in _children(t))
 
 
 class Properties(unittest.TestCase):

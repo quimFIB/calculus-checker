@@ -68,11 +68,12 @@ import math
 from dataclasses import fields, is_dataclass, replace
 from fractions import Fraction
 
+import domains
 import field as FD
 import poly as P
 import residual
 from entries import ENTRIES
-from terms import (Add, App, Const, Div, Mul, Neg, NonZero, Num, Pow, Refused,
+from terms import (Add, App, Const, Div, Mul, Neg, NonZero, Num, Pow, RPow, Refused,
                    Reg, Rel, Term, Var, subst, with_domain)
 
 # Constant name -> (entry name, sign fact). Read at call time. It is a seam:
@@ -112,7 +113,7 @@ def _tag(key, gamma, split, depth=0):
     a content split, which is monic and is not split again (E18). `depth`
     counts the factorisations enclosing this obligation (FACTOR_DEPTH)."""
     if isinstance(key, Reg):
-        return ("reg", ())
+        return _reg(key, gamma)
     prop, dom = replace(key, dom=()), key.dom
     methods = (lambda: _hyp(prop, gamma),
                lambda: _linear(prop, dom),
@@ -131,6 +132,116 @@ def _tag(key, gamma, split, depth=0):
         if found:
             return found
     return NONE
+
+
+# ---------------------------------------------------------------- reg
+
+# p1_expected REG_RULES as the untrusted side reads them: this module's own
+# copy of the rule table's shape, apart from discharge.py's checker, over
+# the trusted natural-domain data (domains.py), as the tagger reads ENTRIES.
+_REG_HEADS = {Neg: "neg", Add: "add", Mul: "mul", Div: "div"}
+_OPEN = {">=": ">", "<=": "<"}
+
+
+def reg_rule(t):
+    """The rule a term's head gives it, or None (an Int, a D, a Call, an
+    MVar): REG_RULES."""
+    k = type(t)
+    if k is Num or k is Const:
+        return "const"
+    if k is Var:
+        return "var"
+    if k is Pow:
+        return "pow" if t.n >= 0 else "pow_neg"
+    if k is RPow:
+        return "rpow"
+    if k is App:
+        return t.fn
+    return _REG_HEADS.get(k)
+
+
+def reg_children(t, rule):
+    if rule in ("const", "var"):
+        return ()
+    if rule == "neg":
+        return (t.a,)
+    if rule in ("add", "mul", "div"):
+        return (t.a, t.b)
+    if rule in ("pow", "pow_neg"):
+        return (t.base,)
+    if rule == "rpow":
+        return (t.base, t.exp)
+    return (t.arg,)
+
+
+def reg_sides(t, rule, k):
+    """A node's side propositions at class k (REG_RULES, E61): the C^0
+    sides a builtin's natural-domain row, the C^1 sides its interior plus
+    C1_EXTRA."""
+    if rule == "div":
+        return (NonZero(t.b),)
+    if rule == "pow_neg":
+        return (NonZero(t.base),)
+    if rule == "rpow":
+        return (Rel(">", t.base, ZERO),)
+    if type(t) is not App:
+        return ()
+    row = domains.NATURAL_DOMAINS.get(t.fn)
+    props = tuple(row(t.arg)) if row else ()
+    if k == 0:
+        return props
+    props = tuple(Rel(_OPEN[p.op], p.lhs, p.rhs) if isinstance(p, Rel)
+                  and p.op in _OPEN else p for p in props)
+    extra = domains.C1_EXTRA.get(t.fn)
+    return props + (tuple(extra(t.arg)) if extra else ())
+
+
+def reg_derivation(e, k):
+    """The derivation of e in C^k, (rule, sides, children), children each a
+    derivation; or None when k is not 0 or 1, or some node of e has no rule
+    (REG_NOT_COVERED). Iterative over nodes, children in order."""
+    if k not in (0, 1) or type(k) is not int:
+        return None
+
+    def build(t):
+        rule = reg_rule(t)
+        if rule is None:
+            return None
+        kids = []
+        for c in reg_children(t, rule):
+            d = build(c)
+            if d is None:
+                return None
+            kids.append(d)
+        return (rule, reg_sides(t, rule, k), tuple(kids))
+    return build(e)
+
+
+def reg_side_props(d):
+    """Every side of a derivation in pre-order, a node's own before its
+    children's."""
+    out, todo = [], [d]
+    while todo:
+        rule, sides, kids = todo.pop()
+        out += sides
+        todo.extend(reversed(kids))
+    return out
+
+
+def _reg(key, gamma):
+    """REG_TAG_RULE: ('reg', cites) when the derivation exists and no side,
+    keyed at the Reg's domain, is tagged none by this same list; cites the
+    sides' in pre-order first use. Otherwise ('none', ())."""
+    d = reg_derivation(key.e, key.k)
+    if d is None:
+        return NONE
+    cites = []
+    for prop in reg_side_props(d):
+        t = _tag(with_domain(prop, key.dom), gamma, split=True)
+        if t == NONE:
+            return NONE
+        cites += t[1]
+    return ("reg", _dedup(cites))
 
 
 def _dedup(cites):

@@ -126,7 +126,20 @@ def cert_of(c):
         return {**c, "inst": {v: term(s) for v, s in c["inst"].items()},
                 "hyps": tuple((judgement(p), cert_of(cc))
                               for p, cc in c["hyps"])}
+    if m == "reg" and isinstance(c.get("tree"), dict):
+        return {**c, "tree": _reg_node_of(c["tree"])}
     return dict(c)
+
+
+def _reg_node_of(n):
+    """A regularity certificate node (REG_CERTIFICATE) in the checker's
+    form: each side's proposition parsed, its certificate converted. A node
+    that is not REG_CERTIFICATE's shape passes through, for the checker to
+    reject."""
+    if not (isinstance(n, dict) and set(n) == {"rule", "args", "side"}):
+        return n
+    return {"rule": n["rule"], "args": tuple(_reg_node_of(a) for a in n["args"]),
+            "side": tuple((judgement(p), cert_of(cc)) for p, cc in n["side"])}
 
 
 def show_tag(tag):
@@ -214,6 +227,8 @@ def cert_differences(got, want, where="certificate"):
             else:
                 left.remove(hit)
         out += [f"{where}: extra factor {T.show(f)} {r}" for f, r, _ in left]
+    elif m == "reg":
+        out += _reg_differences(got["tree"], want["tree"], f"{where}/tree")
     elif m == "cite":
         if got["entry"] != want["entry"] or got["inst"] != want["inst"]:
             out.append(f"{where}: {got['entry']} {got['inst']}, expected "
@@ -226,6 +241,30 @@ def cert_differences(got, want, where="certificate"):
             out += cert_differences(gc, wc, f"{where}/hyp {i}")
     elif got != want:
         out.append(f"{where}: {got}, expected {want}")
+    return out
+
+
+def _reg_differences(got, want, where):
+    """Two regularity derivations compared node by node: the rule, the
+    side propositions as trees, each side's certificate as
+    cert_differences compares it, and the children in order."""
+    if not (hasattr(got, "keys") and set(got) == {"rule", "args", "side"}):
+        return [f"{where}: {got!r} is not a node"]
+    out = []
+    if got["rule"] != want["rule"]:
+        return [f"{where}: rule {got['rule']!r}, expected {want['rule']!r}"]
+    if len(got["side"]) != len(want["side"]):
+        out.append(f"{where} {want['rule']}: {len(got['side'])} sides, expected "
+                   f"{len(want['side'])}")
+    for i, ((gp, gc), (wp, wc)) in enumerate(zip(got["side"], want["side"])):
+        if gp != wp:
+            out.append(f"{where} {want['rule']}: side {T.show(gp)}, expected {T.show(wp)}")
+        out += cert_differences(gc, wc, f"{where} {want['rule']}/side {i}")
+    if len(got["args"]) != len(want["args"]):
+        return out + [f"{where} {want['rule']}: {len(got['args'])} children, expected "
+                      f"{len(want['args'])}"]
+    for i, (g, w) in enumerate(zip(got["args"], want["args"])):
+        out += _reg_differences(g, w, f"{where}.{i}")
     return out
 
 
@@ -268,6 +307,13 @@ def expected_certificates():
         for (p, d), (tag, c) in table.items():
             rows.append((("stage0 CONSOLIDATION_EXPECTED", proof, p, d), key(p, d),
                          tag, c))
+    # regularity (section 17): every Reg key's certificate, both files
+    for name, data in (("REG_EXPECTED", X), ("stage0 REG_EXPECTED", S0)):
+        for proof, table in data.REG_EXPECTED.items():
+            for (p, d), (tag, c) in table.items():
+                rows.append(((name, proof, p, d), key(p, d), tag, c))
+    for (p, d), (tag, c) in X.REG_CASE_CERTS.items():
+        rows.append((("REG_CASE_CERTS", p, d), key(p, d), tag, c))
     ch = X.CONSOLIDATION_CHANGES["INT_SUBST_ACCEPTS cos_theta_canonical"]
     tags = _tags(list(ch["goal_emits"]) + [ch["emits_change"]])
     for (p, d), c in ch["certificates_add"].items():
@@ -384,10 +430,22 @@ def sqrt_fact_accepted():
 
 def outcome(k):
     """DISCHARGE_RULE's order at emission, steps (3)-(7), for a key that is
-    neither a Reg nor ftc's premise, read from the rule apart from
-    kernel._emit, which implements it. ('discharged', tag, certificate), ('refused',
-    code, message) or ('admitted', tag, reason). Γ is the key's non-Interval
-    items, as a goal's own domain would give them."""
+    not ftc's premise, read from the rule apart from kernel._emit, which
+    implements it; a Reg by REG_DISCHARGE_ORDER (E60). ('discharged', tag,
+    certificate), ('refused', code, message) or ('admitted', tag, reason).
+    Γ is the key's non-Interval items, as a goal's own domain would give
+    them."""
+    gamma = tuple(i for i in k.dom if type(i) is not T.Interval)
+    if type(k) is T.Reg:
+        cert = SR.propose(k)
+        tag = DC.check(k, cert) if cert is not None else None
+        if tag is not None:
+            return ("discharged", show_tag(tag), cert)
+        r = RF.refute_reg(k, K._owed)
+        if r is not None:
+            return ("refused", X.OBLIGATION_DECIDED_FALSE, r.message)
+        tag = show_tag(TG.tag(k, gamma))
+        return ("admitted", tag, X.REASON_NONE if tag == X.T_NONE else X.REASON_REJECTED)
     try:
         said = FD.norm_num(k)
     except T.Refused as r:
@@ -420,6 +478,10 @@ def expected_message(spec):
     DECIDED_FALSE_MESSAGES, every key and term printed by terms.show after
     parsing."""
     how, parts = spec
+    if how in X.DECIDED_FALSE_MESSAGES_REG:  # E63: the side's own message inside
+        return X.DECIDED_FALSE_MESSAGES_REG[how].format(
+            key=T.show(judgement(parts["key"])), cond=T.show(judgement(parts["cond"])),
+            inner=expected_message(parts["inner"]))
     fill = {"key": T.show(judgement(parts["key"]))}
     if "point" in parts:
         fill["point"] = ", ".join(f"{v} = {T.show(T.lit(Fraction(q)))}"
@@ -483,6 +545,94 @@ def checker_accept_problems(case):
     got, why = DC.verdict(key(*case["key"]), cert_of(case["cert"]))
     return [] if show_tag(got) == case["tag"] else [f"{show_tag(got) or why}, "
                                                     f"expected {case['tag']}"]
+
+
+# ---------------------------------------------------------------- regularity (section 17)
+#
+# The regularity checker called directly (item D, REG_SWITCH commit 1):
+# REG_MUST_REJECT rejected for its REG_REASONS name ('child-rejected' by
+# prefix, the child's own reason after it), its point inside the domain,
+# and its outcome if emitted; REG_CHECKER_ACCEPTS accepted with its tag;
+# REG_DECIDED_FALSE refused with its message; every certificate REG_EXPECTED
+# (both files) and REG_CASE_CERTS give accepted with its tag and proposed by
+# the search node by node (expected_certificates); REG_SIDES_LISTED against
+# the checker's own derivation of the sides; and the property test's 'reg'
+# family.
+
+def _reg_case(c):
+    return {**c, "cert": c["cert"]}
+
+
+REG_MUST_REJECT = [_reg_case(c) for c in X.REG_MUST_REJECT]
+REG_CHECKER_ACCEPTS = [_reg_case(c) for c in X.REG_CHECKER_ACCEPTS]
+
+
+def reg_must_reject_problems(case):
+    """One REG_MUST_REJECT case: rejected for its reason, its false point
+    inside the key's domain, and the kernel's outcome if emitted."""
+    out = []
+    k, cert = key(*case["key"]), cert_of(case["cert"])
+    got, why = DC.verdict(k, cert)
+    if got is not None:
+        return [f"accepted with {got}"]
+    reason = case["rejects_because"]
+    if not (why == reason or reason == "child-rejected" and why.startswith(reason + "/")):
+        out.append(f"rejected {why!r}, expected {reason!r}")
+    if case["truth"][0] == "false":
+        env = {v: Fraction(q) for v, q in case["truth"][1].items()}
+        try:
+            if not in_domain(k.dom, env):
+                out.append(f"truth: {case['truth'][1]} is not in the domain")
+        except Skip:
+            pass
+    out += reg_outcome_problems(k, case["if_emitted"])
+    return out
+
+
+def reg_outcome_problems(k, want):
+    got = outcome(k)
+    if want[0] == "refused":
+        msg = expected_message(want[1])
+        if got[:2] != ("refused", X.OBLIGATION_DECIDED_FALSE) or got[2] != msg:
+            return [f"if emitted: {got[:3]}, expected {msg!r}"]
+    elif want[0] == "discharged":
+        if got[:2] != ("discharged", want[1]):
+            return [f"if emitted: {got[:2]}, expected {want}"]
+    elif got != tuple(want):
+        return [f"if emitted: {got}, expected {want}"]
+    return []
+
+
+def reg_decided_false_problems(case):
+    """A REG_DECIDED_FALSE key emitted alone: refused by E63 with its
+    message."""
+    return reg_outcome_problems(key(*case["key"]), case["if_emitted"])
+
+
+def reg_must_reject_verdicts():
+    """[table, id] for each REG_MUST_REJECT case the checker accepts, or
+    rejects for another reason (the planted-bug children's view)."""
+    out = []
+    for c in REG_MUST_REJECT:
+        got, why = DC.verdict(key(*c["key"]), cert_of(c["cert"]))
+        reason = c["rejects_because"]
+        if got is not None or not (why == reason or reason == "child-rejected"
+                                   and why.startswith(reason + "/")):
+            out.append(["REG_MUST_REJECT", c["id"]])
+    return out
+
+
+def reg_sides_listed_problems():
+    """REG_SIDES_LISTED, the sides spelled out once for review, against the
+    checker's own derivation from the natural-domain table and C1_EXTRA."""
+    out, u = [], T.Var("u")
+    for fn, (c0, c1) in X.REG_SIDES_LISTED.items():
+        t = T.App(fn, u)
+        for k, want in ((0, c0), (1, c1)):
+            got = tuple(DC._reg_sides(t, DC._reg_rule(t, None), k))
+            if got != tuple(judgement(w) for w in want):
+                out.append(f"{fn} at C^{k}: {[T.show(g) for g in got]}, expected {list(want)}")
+    return out
 
 
 def more_must_reject_failures(tables=None):
@@ -782,7 +932,7 @@ def judge_at(k, env):
 SEED = 20260924
 PER_CERT = 20      # points sampled per accepted certificate
 MIN_ACCEPTED, MIN_POINTS, MIN_REFUTED = 50, 1000, 50
-CHECKERS = ("farkas", "hyp", "sign", "sign product", "cite", "norm_num",
+CHECKERS = ("reg", "farkas", "hyp", "sign", "sign product", "cite", "norm_num",
             "dispatcher")
 XV, YV = T.Var("x"), T.Var("y")
 
@@ -1341,6 +1491,115 @@ def _dispatcher_key(rng):
     return _key(prop, k.dom), ()
 
 
+# -- the 'reg' family (REG_PROPERTY_TEST)
+
+_REG_BUILTINS = ("ln", "sqrt", "tan", "asin", "acos", "acosh", "atanh", "sin",
+                 "cos", "atan", "exp", "abs", "sinh", "cosh", "tanh", "asinh")
+
+
+def _reg_term(rng, depth):
+    """A random term over x from REG_RULES' node kinds: literals, x, neg,
+    add, mul, div, pow with n in -2..3, and the sixteen builtins."""
+    if depth <= 0 or rng.random() < 0.3:
+        return XV if rng.random() < 0.6 else T.lit(_q(rng, 4, 2))
+    r = rng.random()
+    if r < 0.1:
+        return T.Neg(_reg_term(rng, depth - 1))
+    if r < 0.3:
+        return T.Add(_reg_term(rng, depth - 1), _reg_term(rng, depth - 1))
+    if r < 0.45:
+        return T.Mul(_reg_term(rng, depth - 1), _reg_term(rng, depth - 1))
+    if r < 0.55:
+        return T.Div(_reg_term(rng, depth - 1), _reg_term(rng, depth - 1))
+    if r < 0.65:
+        return T.Pow(_reg_term(rng, depth - 1), rng.choice((-2, -1, 0, 1, 2, 3)))
+    return T.App(rng.choice(_REG_BUILTINS), _reg_term(rng, depth - 1))
+
+
+def _reg_key(rng):
+    lo, hi = _q(rng), _q(rng)
+    while lo == hi:
+        hi = _q(rng)
+    lo, hi = min(lo, hi), max(lo, hi)
+    iv = T.Interval("x", T.lit(lo), rng.random() < 0.5, T.lit(hi), rng.random() < 0.5)
+    return T.Reg(_reg_term(rng, rng.randint(1, 4)), rng.choice((0, 1)), (iv,)), (lo, hi, iv)
+
+
+def _reg_tree_sides(tree):
+    out, todo = [], [tree]
+    while todo:
+        n = todo.pop()
+        out += [p for p, _ in n["side"]]
+        todo.extend(reversed(n["args"]))
+    return out
+
+
+def _reg_points(rng, lo, hi, iv):
+    """The interval's rational points: its closed ends, its midpoint and 16
+    more inside, and a point a margin inside each open end."""
+    pts = [(lo + hi) / 2] + [_inside(rng, lo, hi) for _ in range(16)]
+    pts += [e for e, closed in ((lo, iv.lo_closed), (hi, iv.hi_closed)) if closed]
+    eps = Fraction(1, 10 ** 6) * (hi - lo)
+    pts += [lo + eps, hi - eps]
+    return pts
+
+
+def _side_holds(prop, env):
+    try:
+        return holds(prop, env)
+    except Skip:
+        pass
+    try:
+        return float_holds(prop, env)
+    except Skip:
+        return True  # not evaluable at this point by either reading
+
+
+def _reg_mutants(rng, cert, dom):
+    """The accepted certificate's three mutations REG_PROPERTY_TEST names, and
+    a side certificate replaced by the norm_num leaf where the side is not
+    closed: each must be rejected."""
+    out = []
+    nodes, todo = [], [cert["tree"]]
+    while todo:
+        n = todo.pop()
+        nodes.append(n)
+        todo.extend(n["args"])
+
+    def rebuilt(target, fn):
+        def walk(n):
+            if n is target:
+                return fn(n)
+            return {**n, "args": tuple(walk(a) for a in n["args"])}
+        return {"method": "reg", "tree": walk(cert["tree"])}
+    with_sides = [n for n in nodes if n["side"]]
+    if with_sides:
+        n = rng.choice(with_sides)
+        out.append(rebuilt(n, lambda m: {**m, "side": m["side"][:-1]}))
+        strict = [i for i, (p, _) in enumerate(n["side"])
+                  if type(p) is T.Rel and p.op in (">", "<")]
+        if strict:
+            i = rng.choice(strict)
+            p, c = n["side"][i]
+            weak = T.Rel(p.op + "=", p.lhs, p.rhs)
+            out.append(rebuilt(n, lambda m: {**m, "side": m["side"][:i] + ((weak, c),)
+                                                   + m["side"][i + 1:]}))
+        open_sides = [i for i, (p, _) in enumerate(n["side"])  # the leaf fails there
+                      if DC.check(T.with_domain(p, dom), {"method": "norm_num"}) is None]
+        if open_sides:
+            i = rng.choice(open_sides)
+            p, _ = n["side"][i]
+            out.append(rebuilt(n, lambda m: {**m, "side": m["side"][:i]
+                                                   + ((p, {"method": "norm_num"}),)
+                                                   + m["side"][i + 1:]}))
+    kids = [n for n in nodes if n is not cert["tree"]]
+    if kids:
+        n = rng.choice(kids)
+        other = "cos" if n["rule"] != "cos" else "sin"
+        out.append(rebuilt(n, lambda m: {**m, "rule": other}))
+    return out
+
+
 def property_results(seed=SEED, families=None):
     """Run DISCHARGE_PROPERTY_TEST: {checker: Stats}, plus 'refutation'.
     Each family of keys draws from its own stream, seeded from `seed` and
@@ -1422,8 +1681,32 @@ def property_results(seed=SEED, families=None):
             trial(rng, "dispatcher", k,
                   random_certs=farkas_candidates(DC.exact_values(k)[0])[:6])
 
-    runs = {"farkas": farkas, "hyp": hyp, "sign": sign, "sign product": product,
-            "cite": cite, "norm_num": leaf, "dispatcher": dispatcher}
+    def reg(rng):  # REG_PROPERTY_TEST
+        st = stats["reg"]
+        for _ in range(2000):
+            k, (lo, hi, iv) = _reg_key(rng)
+            cert = SR.propose(k)
+            if cert is None or DC.check(k, cert) is None:
+                continue
+            st.accepted += 1
+            sides = _reg_tree_sides(cert["tree"])
+            for q in _reg_points(rng, lo, hi, iv):
+                env = {"x": q}
+                st.evaluated += 1
+                bad = [p for p in sides if not _side_holds(p, env)]
+                if bad:
+                    st.violations.append(f"{T.show(k)} accepted, and its side "
+                                         f"{T.show(bad[0])} fails at x = {q}")
+                    break
+            for m in _reg_mutants(rng, cert, k.dom):
+                if DC.check(k, m) is not None:
+                    st.violations.append(f"{T.show(k)}: a mutated certificate is "
+                                         f"accepted: {m!r}")
+                    break
+
+    runs = {"reg": reg, "farkas": farkas, "hyp": hyp, "sign": sign,
+            "sign product": product, "cite": cite, "norm_num": leaf,
+            "dispatcher": dispatcher}
     for name, run in runs.items():
         if families is None or name in families:
             run(random.Random(f"{seed}/{name}"))
@@ -1553,6 +1836,32 @@ class MustReject(unittest.TestCase):
     def test_equations_and_regularity_are_never_targets(self):
         for s in ("x == x @ [0, 1]", "sin x in C^0([0, 1])"):
             self.assertIsNone(DC.check(judgement(s), {"method": "norm_num"}))
+
+
+class Regularity(unittest.TestCase):
+    def test_must_reject(self):
+        self.assertEqual(len(REG_MUST_REJECT), 22)
+        for c in REG_MUST_REJECT:
+            with self.subTest(case=c["id"]):
+                self.assertEqual(reg_must_reject_problems(c), [])
+
+    def test_checker_accepts(self):
+        self.assertEqual(len(REG_CHECKER_ACCEPTS), 17)
+        for c in REG_CHECKER_ACCEPTS:
+            with self.subTest(case=c["id"]):
+                self.assertEqual(checker_accept_problems(c), [])
+
+    def test_decided_false(self):
+        for c in X.REG_DECIDED_FALSE:
+            with self.subTest(case=c["id"]):
+                self.assertEqual(reg_decided_false_problems(c), [])
+
+    def test_sides_listed(self):
+        self.assertEqual(reg_sides_listed_problems(), [])
+
+    def test_reasons_are_the_checkers(self):
+        for reason in X.REG_REASONS:
+            self.assertIn(reason, DC.REASONS)
 
 
 class DecidedFalse(unittest.TestCase):

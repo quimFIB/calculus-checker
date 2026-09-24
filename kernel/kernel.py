@@ -47,9 +47,19 @@ included (E8), and has one of three statuses, decided once, at emission
 then norm_num (E31); a certificate the untrusted search proposes and the
 trusted checker (discharge.py) accepts; otherwise the untrusted refuter may
 decide it false, which refuses the step 'obligation-decided-false' (E33),
-and failing that it is admitted with a reason (REASON_REG, REASON_NONE,
+and failing that it is admitted with a reason (REASON_NONE,
 REASON_EMPTY or REASON_REJECTED) and the untrusted tagger's tag. 'open' is
-a status the tracker knows and this milestone never produces.
+a status the tracker knows and this milestone never produces. A regularity
+judgement e in C^k(D) is decided by E60's REG_DISCHARGE_ORDER instead
+(`_discharge_reg`): the search's derivation checked by discharge.py's
+regularity checker, E63's decided-false through its definedness sides, or
+an admission tagged by the tagger.
+
+**The Int and D formers** (p1_expected E64, §18 Q23). Wherever a term
+enters, after its E6/E26 formers, a statable Int owes its integrand in C^0
+on its range and a D[x] e owes e in C^1 at its position domain; ring and
+field then read both as atoms (E66 (1)), and only an unstatable Int is
+still refused, by them and by E57's step 2a.
 
 **refl, trans and cong** (§6.1) are not moves (E16). trans is the linear
 proof state: each accepted step replaces the goal by one proved equal to it.
@@ -92,6 +102,7 @@ from dataclasses import dataclass, replace
 from types import MappingProxyType
 
 import deriv as DV
+import domains
 import field as FD
 import discharge
 import refute
@@ -103,8 +114,8 @@ from entries import ENTRIES
 from terms import (NEG_INF, POS_INF, Add, App, Deriv, Div, Integral, Mul,
                    Interval, MVar, Neg, NegInf, NonZero, Num, PosInf, Pow,
                    Refused, Reg, Rel, RPow, Term, Var, _shown, bv, check_goal,
-                   check_names, children, fv, instantiate, lit, parse_term,
-                   show, show_goal, subst, trees, with_domain)
+                   check_names, children, fv, instantiate, parse_term,
+                   show, show_goal, statable, subst, trees, with_domain)
 
 # §15.3: "say which is in force". Both are, one per kind of object. Fact
 # slots take handles, accepted only by identity with the kernel's record
@@ -117,7 +128,7 @@ from terms import (NEG_INF, POS_INF, Add, App, Deriv, Div, Integral, Mul,
 HANDLES_IN_FORCE = "handles for facts, sentinel for proof states"
 DISCHARGED, ADMITTED, OPEN = "discharged", "admitted", "open"
 # An admission's reason (p1_expected E32; 'discharge not built' is retired).
-REASON_REG = "regularity not built"          # every Reg key (WHAT.md item 3)
+REASON_REG = "regularity not built"  # retired (p1_expected E60): no key carries it
 REASON_NONE = "no method decides it"         # tagged ('none', ())
 REASON_REJECTED = "certificate not accepted"  # a method is named, but the
 # checker refused the search's certificate, or none was built
@@ -156,7 +167,7 @@ class Obligation:
     status   DISCHARGED or ADMITTED (OPEN is never produced here)
     tag      (method, cites): the procedure that closed it, or the tagger's
              proposal for an admission
-    reason   REASON_REG, REASON_NONE, REASON_EMPTY or REASON_REJECTED for
+    reason   REASON_NONE, REASON_EMPTY or REASON_REJECTED for
              an admission, else None
     certificate  the certificate discharge.check accepted (methods 1-6),
              deep-frozen (dicts read-only, lists tuples), else None
@@ -778,7 +789,9 @@ def _emit(buf, key, source, goal_dom, discharged_by=None, divisor=True):
     expression ring-normalises to zero refuses 'divisor-normalises-to-zero'
     (E25); `divisor` is False only for tan's cos u # 0, a domain and not a
     divisor (E26), which E25 does not test. Then (1) discharged_by given:
-    DISCHARGED with that tag; (2) a Reg: ADMITTED ('reg', ()), REASON_REG;
+    DISCHARGED with that tag; (2) a Reg: _discharge_reg (E60's
+    REG_DISCHARGE_ORDER, in place of DISCHARGE_RULE's step (2); E7 never
+    sees a Reg);
     (3) field.norm_num True is DISCHARGED ('norm_num', ()), False refuses
     'obligation-refuted' (E7), and a key holding an Int or D node refuses
     'Int-or-D-not-normalisable' (E26 (b)); (4)-(7) _discharge. gamma,
@@ -794,7 +807,7 @@ def _emit(buf, key, source, goal_dom, discharged_by=None, divisor=True):
     if discharged_by:
         ob = Obligation(key, sources, DISCHARGED, discharged_by)
     elif isinstance(key, Reg):
-        ob = Obligation(key, sources, ADMITTED, tagger.tag(key), REASON_REG)
+        ob = _discharge_reg(key, sources, goal_dom if key.dom else ())
     else:
         said = FD.norm_num(key)
         if said is False:
@@ -853,6 +866,32 @@ def _discharge(key, sources, gamma):
     return Obligation(key, sources, ADMITTED, tag, reason)
 
 
+def _discharge_reg(key, sources, gamma):
+    """REG_DISCHARGE_ORDER (E60): (2r-b) the untrusted search proposes one
+    regularity certificate and the trusted checker decides it, DISCHARGED
+    ('reg', cites) with the certificate; (2r-c) otherwise the untrusted
+    refuter walks the C^0 sides of the term's derivation (E63), and one
+    decided false refuses 'obligation-decided-false'; (2r-d) otherwise
+    ADMITTED with the tagger's tag, REASON_NONE when it is ('none', ()),
+    else REASON_REJECTED. A RecursionError withholds, as in _discharge."""
+    try:
+        cert = search.propose(key)
+    except RecursionError:
+        cert = None
+    tag = None if cert is None else discharge.check(key, cert)
+    if tag is not None:
+        return Obligation(key, sources, DISCHARGED, tag, None, _frozen(cert))
+    try:
+        found = refute.refute_reg(key, _owed)
+    except RecursionError:
+        found = None
+    if found is not None:
+        raise Refused(DECIDED_FALSE, found.message)
+    tag = tagger.tag(key, gamma)
+    return Obligation(key, sources, ADMITTED, tag,
+                      REASON_NONE if tag == ("none", ()) else REASON_REJECTED)
+
+
 def _frozen(x):
     """A certificate as the tracker keeps it: every dict a read-only
     mapping and every list a tuple, all the way down, so no caller can
@@ -881,29 +920,10 @@ def _emit_at(buf, prop, dom, anc, source, goal_dom, divisor=True):
     _emit(buf, key, source, goal_dom, divisor=divisor)
 
 
-# E26 (a): each partial builtin's natural domain, the set on which §6.9
-# makes it C^0, as the propositions its former owes, fn -> u -> props. One
-# linear item per bound, written `u REL c` (the orientation of §6.3's d_ln
-# and d_sqrt, GRAMMAR.md D12), so a two-sided domain is two keys and
-# Fourier–Motzkin reads each bound directly (TAG_RULES range, linear). Not
-# abs u <= 1: abs u is an opaque atom to every §5.3 method. Closed where the
-# builtin is defined at the end (sqrt at 0, asin and acos at ±1, acosh at
-# 1), open where it is not (ln at 0, atanh at ±1, tan where cos u = 0),
-# which is also REWRITE_RULE 9(a)'s split into open and closed domains.
-# sin, cos, atan, exp, abs, sinh, cosh, tanh and asinh are total: no row.
-# A seam (ARCHITECTURE.md §7): _owed reads it by this global name at call
-# time, and the definedness mutations swap the whole mapping in a child
-# process. It is read-only, like deriv.APP_RULES, because a missing or wrong
-# row is a false 'Proved.' whose admissions all hold.
-NATURAL_DOMAINS = MappingProxyType({
-    "ln": lambda u: (Rel(">", u, Num(0)),),
-    "sqrt": lambda u: (Rel(">=", u, Num(0)),),
-    "tan": lambda u: (NonZero(App("cos", u)),),
-    "asin": lambda u: (Rel(">=", u, lit(-1)), Rel("<=", u, Num(1))),
-    "acos": lambda u: (Rel(">=", u, lit(-1)), Rel("<=", u, Num(1))),
-    "acosh": lambda u: (Rel(">=", u, Num(1)),),
-    "atanh": lambda u: (Rel(">", u, lit(-1)), Rel("<", u, Num(1))),
-})
+# E26 (a)'s natural-domain table lives in domains.py, the one datum the
+# formers here and the regularity checker in discharge.py both read
+# (p1_expected E61): `_owed` looks it up as domains.NATURAL_DOMAINS at call
+# time, the seam the definedness mutations swap (ARCHITECTURE.md §7).
 
 
 def _owed(s):
@@ -919,8 +939,9 @@ def _owed(s):
         return ((NonZero(s.base), True),)
     if isinstance(s, RPow):
         return ((Rel(">", s.base, Num(0)), False),)
-    if isinstance(s, App) and s.fn in NATURAL_DOMAINS:
-        return tuple((p, False) for p in NATURAL_DOMAINS[s.fn](s.arg))
+    table = domains.NATURAL_DOMAINS
+    if isinstance(s, App) and s.fn in table:
+        return tuple((p, False) for p in table[s.fn](s.arg))
     return ()
 
 
@@ -937,10 +958,56 @@ def _charge_formers(buf, term, dom, goal_dom, anc=()):
     replace it in a child process that runs PROOFS and the case tables.
     Since E52 PROOFS holds P1.1-sheet, whose int_subst acts on a top-level
     Int of a goal with no domain, where both mutations charge what the rule
-    charges (P1_1_SHEET_TRACES: N 5, no change)."""
-    for _, s, d, a in _positions(term, dom, anc):
+    charges (P1_1_SHEET_TRACES: N 5, no change).
+
+    Then E64's formers, after every E6/E26 former of the term, in pre-order
+    among themselves (FORMER_RULE, 'When'), so that no existing refusal
+    changes its cause: a statable Int owes its integrand in C^0 on its
+    range, and a D[x] e owes e in C^1 at its position domain."""
+    walk = list(_positions(term, dom, anc))
+    _e6_formers(buf, walk, goal_dom)
+    _tree_formers(buf, walk, goal_dom)
+
+
+def _e6_formers(buf, walk, goal_dom):
+    """E6 and E26 (a): each node's _owed propositions at its position. A
+    seam (ARCHITECTURE.md §7): the planted bug former_div_dropped replaces
+    it."""
+    for _, s, d, a in walk:
         for prop, divisor in _owed(s):
             _emit_at(buf, prop, d, a, "former", goal_dom, divisor)
+
+
+def _tree_formers(buf, walk, goal_dom):
+    """E64 (§18 Q23's formers), for the positions `walk` of one term, in
+    pre-order: _int_former at each statable Integral, _d_former at each
+    Deriv. An unstatable Int owes nothing (E65). A seam (ARCHITECTURE.md
+    §7)."""
+    body = {p: (d, a) for p, _, d, a in walk}
+    for p, s, d, a in walk:
+        if isinstance(s, Integral) and statable(s):
+            bd, ba = body[p + ("body",)]
+            _int_former(buf, s, bd, ba, goal_dom)
+        elif isinstance(s, Deriv):
+            _d_former(buf, s, d, a, goal_dom)
+
+
+def _int_former(buf, it, body_dom, body_anc, goal_dom):
+    """A statable Int[x = a .. b] f owes Reg(f, 0) on its body's position
+    domain, P plus its range I (built by E56: the range's order is decided
+    here, since this key uses it, and emitted; neither order refuses
+    'orientation-undecided'). Continuity on a closed bounded interval gives
+    Riemann integrability, so this is the statable, sufficient form of 'f
+    integrable on [a, b]', and it is ftc's own f premise (E64). A seam
+    (ARCHITECTURE.md §7)."""
+    _emit_at(buf, Reg(it.body, 0), body_dom, body_anc, "former", goal_dom)
+
+
+def _d_former(buf, dx, dom, anc, goal_dom):
+    """D[x] e owes Reg(e, 1) at the node's own position domain P: e is C^1
+    near every point of P, so D[x] e denotes there (E64). A seam
+    (ARCHITECTURE.md §7)."""
+    _emit_at(buf, Reg(dx.body, 1), dom, anc, "former", goal_dom)
 
 
 def _check(check, lhs, rhs, minted, dom, goal_dom, buf, code):
@@ -1001,14 +1068,17 @@ def _open_in(h, x):
 
 
 def _no_trees_erased(lhs, inst, at):
-    """REWRITE_RULE step 2a (E57): refuse 'Int-or-D-not-normalisable' when
-    any inst value, or the target `at`, holds an Integral or Deriv node,
-    whichever branch step 3 takes. Step 3's App branch refuses one through
-    ring_nf (E26 (b)), but its tree branch, for a left side that is not an
-    App (pyth's sum, pyth_cos's power), never normalises, and an entry
-    whose right side drops a schema variable (pyth's 1) would erase the
-    node, whose definedness nothing owes. No rule may erase an Int or D
-    node (E57_PRINCIPLE). Both halves are tested, each alone (the suite
+    """REWRITE_RULE step 2a (E57, narrowed by E66 (3)): refuse
+    'Int-or-D-not-normalisable' when any inst value, or the target `at`,
+    holds an UNSTATABLE Integral (an infinite limit, or a limit holding an
+    Int or D node), whichever branch step 3 takes. Step 3's tree branch,
+    for a left side that is not an App (pyth's sum, pyth_cos's power),
+    never normalises, and an entry whose right side drops a schema
+    variable (pyth's 1) would erase the node. No rule may erase an Int or
+    D node unless its definedness is owed (E57_PRINCIPLE): a statable Int
+    or a D node in the target was owed where it entered, and R's are
+    charged at step 10 (E64), so only an unstatable Int, whose convergence
+    no rule states yet (E65), is refused. Both halves are tested, each alone (the suite
     calls this function directly, since under today's ENTRIES each half is
     redundant through the moves). `lhs`, the instantiated left side, is not
     read here: the seam's signature carries the branch so that the planted
@@ -1018,9 +1088,10 @@ def _no_trees_erased(lhs, inst, at):
     planted bug rewrite_tree_branch_skips_E57 and the BACKSTOPS case
     rewrite_closing_check_goal replace it in a child process."""
     for t in (*inst.values(), at):
-        if next(trees(t), None) is not None:
+        if any(isinstance(n, Integral) and not statable(n) for n in trees(t)):
             raise Refused("Int-or-D-not-normalisable", f"{_brief(t)} holds an "
-                          "Int or D node, which a rewrite could erase (E57)")
+                          "improper or unstatable Int, which a rewrite could "
+                          "erase (E57, E65)")
 
 
 def _no_trees_in_limits(*limits):
@@ -1085,6 +1156,11 @@ def _rewrite(state, args, minted, buf):
     # between D[x] and the occurrence whenever any of them is owed there,
     # since each is emitted on that closed, x-dependent range.
     bounds = hyps + [p for s in _subterms(rhs) for p, _ in _owed(s)]
+    # E66 (3): the Reg formers step 10 charges from R's statable Ints and D
+    # nodes (E64). A Reg is never open, so one whose proposition or domain
+    # (the node's own limits included) mentions x is not open in x
+    regs = [n for n in _subterms(rhs) if isinstance(n, Deriv)
+            or isinstance(n, Integral) and statable(n)]
     for _, _, _, a in found:  # step 9, for each D[x] above the occurrence
         for i, dx in enumerate(a):
             if isinstance(dx, _IntScope):
@@ -1092,7 +1168,8 @@ def _rewrite(state, args, minted, buf):
             x = dx.var
             through = [y.integral for y in a[i + 1:]
                        if isinstance(y, _IntScope)]
-            if (any(x in fv(h) and not _open_in(h, x) for h in bounds) or bounds
+            if (any(x in fv(h) and not _open_in(h, x) for h in bounds)
+                    or any(x in fv(n) for n in regs) or (bounds or regs)
                     and any(x in fv(y.lo) | fv(y.hi) for y in through)):
                 raise Refused("rewrite-under-D-needs-open-domain",
                               f"under D[{x}] the equation's domain in {x} "
@@ -1136,7 +1213,9 @@ def _ftc(state, args, minted, buf):
     which holds for either order (§5.1).
 
     Everything that can refuse runs in the order ARCHITECTURE.md §4 gives:
-    the orientation, F's formers, deriv, the check, the new goal's formers,
+    the orientation, F's formers, F's C^0 premise (a Reg, decided by
+    regularity or refused by E63), deriv, the check, the other premises,
+    the new goal's formers,
     then check_goal on the new goal. That last check is the only guard
     against a variable free in F that the goal's rhs binds
     (D11-bound-and-free). An Int inside F, whose binder could be free in
@@ -1158,14 +1237,21 @@ def _ftc(state, args, minted, buf):
     on_deriv = G + (derivative_domain(closed),)  # (a, b), through the seam
     if orient is not None:
         _emit(buf, orient, "orient", G)
-    _charge_formers(buf, F, on_ab, G)
+    _ftc_F_formers(buf, F, on_ab, G)
+    # F's C^0 premise is decided here, before deriv (REG_BAD_MOVES
+    # ftc_F_across_pole: an F undefined inside [a, b] is refused by E63
+    # through it even when its formers are not charged), and listed in
+    # §6.4's premise order below
+    pre = {}
+    _emit(pre, with_domain(Reg(F, 0), on_ab), "ftc_F_C0", G)
     later = {}
     d = DV.deriv(F, x, on_deriv)
     for key, source in d.emissions:
         _emit(later, key, source, G)
     _check(check, d.output, f, minted, on_deriv, G, later, "ftc-check-failed")
     cites = tuple(dict.fromkeys(rec.entry for rec in minted))
-    _emit(buf, with_domain(Reg(F, 0), on_ab), "ftc_F_C0", G)
+    for ob in pre.values():
+        buf[ob.key] = _merged(buf.get(ob.key), ob)
     _emit(buf, with_domain(Reg(F, 1), on_open), "ftc_F_C1", G)
     _emit(buf, with_domain(Rel("==", Deriv(x, F), f), on_deriv), "ftc_D", G,
           ("deriv+" + check, cites))
@@ -1178,6 +1264,13 @@ def _ftc(state, args, minted, buf):
         _charge_formers(buf, side, G, G)
     check_goal(goal)
     return goal, None, {"trace": d.trace, "output": d.output}
+
+
+def _ftc_F_formers(buf, F, on_ab, G):
+    """E9 (ii): F's formers on [a, b]. A seam (ARCHITECTURE.md §7): the
+    planted bug ftc_no_F_formers replaces it, and E63 then refuses F's own
+    C^0 premise at the same point (REG_BAD_MOVES ftc_F_across_pole)."""
+    _charge_formers(buf, F, on_ab, G)
 
 
 def _holds_infinity(t):

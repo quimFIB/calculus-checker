@@ -275,6 +275,20 @@ def trees(x):
         yield from trees(k)
 
 
+def statable(t):
+    """p1_expected E64: an Integral node is statable when neither limit is
+    oo or -oo and neither limit holds an Integral or Deriv node, so its
+    range, and with it its definedness (its integrand in C^0 on the range),
+    can be stated. A Deriv node is always statable. Anything else is not a
+    tree node, and not statable."""
+    if isinstance(t, Deriv):
+        return True
+    if not isinstance(t, Integral):
+        return False
+    return all(isinstance(e, Term) and next(trees(e), None) is None
+               for e in (t.lo, t.hi))
+
+
 def _kids(x):
     """The children of a node, tuple fields flattened; a goal's judgements."""
     if isinstance(x, tuple):

@@ -40,7 +40,9 @@ its own small function, looked up by name at call time: `_ends`,
 `_is_fact`, `_atom_fact`, `_multiplier_ok`, `_goal_used`, `_contradicts`,
 `_square_ok`,
 `_constant_ok`, `_sign_identity`, `_parity_ok`, `_relation_ok`, `_factors_hold`,
-`_hyps_hold`. Keep their names and signatures, and call them only as
+`_hyps_hold`, and the regularity checker's `_reg_class_ok`, `_reg_fields`,
+`_reg_rule`, `_reg_children`, `_interior`, `_reg_sides`,
+`_reg_side_count_ok`, `_reg_side_prop` and `_reg_side_holds`. Keep their names and signatures, and call them only as
 written here.
 """
 
@@ -51,9 +53,10 @@ from types import MappingProxyType
 import field as FD
 import poly as P
 from entries import ENTRIES
-from terms import (Add, App, Const, Interval, Mul, Neg, NonZero, Num, Pow,
-                   Refused, Rel, Term, Var, _kids, check_goal, fv, lit,
-                   subst, trees, with_domain)
+import domains
+from terms import (Add, App, BUILTINS, Const, Div, Interval, Mul, Neg, NonZero,
+                   Num, Pow, RPow, Refused, Reg, Rel, Term, Var, _kids,
+                   check_goal, fv, lit, subst, trees, with_domain)
 from terms import _fields as _node_fields
 
 GOAL = ("goal",)
@@ -82,7 +85,12 @@ REASONS = (
     "zero-content", "bad-relation", "parity", "unknown-entry",
     "entry-not-ordering", "bad-instance", "schema-not-in-conclusion",
     "conclusion-does-not-imply", "hypothesis-count", "hypothesis-mismatch",
-    "not-literal-true", "child-rejected", "refused", "too-deep")
+    "not-literal-true", "child-rejected", "refused", "too-deep",
+    # the regularity checker's own (p1_expected REG_REASONS, in its order:
+    # class-not-built, malformed, no-rule, wrong-rule, arity, side-count,
+    # wrong-side, child-rejected, too-deep)
+    "class-not-built", "no-rule", "wrong-rule", "arity", "side-count",
+    "wrong-side")
 
 
 class _Reject(Exception):
@@ -119,7 +127,11 @@ def verdict(key, cert):
 
 def _decide(key, cert):
     """The exact values first (E31), then the certificate's own checker.
-    The entries used are prepended to the checker's cites."""
+    The entries used are prepended to the checker's cites. A Reg key goes
+    to the regularity checker alone (E60): the exact values apply inside
+    its sides, never to the Reg itself."""
+    if type(key) is Reg:
+        return _reg(key, cert)
     _need(type(key) in (Rel, NonZero), "not-a-proposition")
     _need(type(key) is NonZero or key.op in ORDERINGS, "equation")
     key, used = exact_values(key)
@@ -571,6 +583,159 @@ def _norm_num(key, cert):
 
 _CHECKERS = {"farkas": _farkas, "hyp": _hyp, "sign": _sign,
              "sign product": _product, "cite": _cite, "norm_num": _norm_num}
+
+
+# ---------------------------------------------------------------- regularity (E60-E62)
+#
+# p1_expected REG_CHECK_RULE, one function per paragraph, each a seam that
+# REG_PLANTED_BUGS names (ARCHITECTURE.md §7). A certificate is
+# {'method': 'reg', 'tree': NODE}, NODE = {'rule': name, 'args': (NODE, ...),
+# 'side': ((prop, cert), ...)}. The checker walks the key's term and the
+# certificate together, dispatches on the TERM's head, rebuilds every side
+# proposition from the term and k (a builtin's from domains.NATURAL_DOMAINS
+# and domains.C1_EXTRA, the one table the formers read), and decides each
+# side at the Reg's whole domain by this module's own dispatcher. Sound per
+# rule, in E59's reading (REG_SOUNDNESS): if the children are C^k on D and
+# the sides hold on D, the node is C^k on D.
+
+_REG_ARITY = {"const": 0, "var": 0, "neg": 1, "add": 2, "mul": 2, "div": 2,
+              "pow": 1, "pow_neg": 1, "rpow": 2}
+
+
+def _reg_class_ok(k):
+    """k is 0 or 1: C^2 and up and C^omega are not built. A seam
+    (ARCHITECTURE.md §7)."""
+    return type(k) is int and k in (0, 1)
+
+
+def _reg_fields(x, names):
+    """x is a dict with exactly the fields `names`: one the checker does not
+    know rejects. A seam (ARCHITECTURE.md §7)."""
+    return type(x) is dict and set(x) == set(names)
+
+
+def _reg_rule(t, node):
+    """The rule the term's head determines, or None (Integral, Deriv, Call,
+    MVar and anything else): const for Num and Const, var for Var, neg,
+    add, mul, div, pow (n >= 0), pow_neg (n < 0), rpow, and a builtin's own
+    name for App. Never read from the certificate (`node` is unused here).
+    A seam (ARCHITECTURE.md §7)."""
+    k = type(t)
+    if k is Num or k is Const:
+        return "const"
+    if k is Var:
+        return "var"
+    if k is Pow:
+        return "pow" if t.n >= 0 else "pow_neg"
+    if k is App and t.fn in BUILTINS:
+        return t.fn
+    return {Neg: "neg", Add: "add", Mul: "mul", Div: "div", RPow: "rpow"}.get(k)
+
+
+def _reg_kids(t, rule):
+    """The term's children the rule consumes, in GRAMMAR.md §7's order."""
+    if rule in ("const", "var"):
+        return ()
+    if rule == "neg":
+        return (t.a,)
+    if rule in ("add", "mul", "div"):
+        return (t.a, t.b)
+    if rule in ("pow", "pow_neg"):
+        return (t.base,)
+    if rule == "rpow":
+        return (t.base, t.exp)
+    return (t.arg,)
+
+
+def _interior(props):
+    """C^1's sides from a natural-domain row: its interior (domains). A
+    seam (ARCHITECTURE.md §7)."""
+    return domains.interior(props)
+
+
+def _reg_sides(t, rule, k):
+    """The node's side propositions, rebuilt from the term and k
+    (REG_RULES): div b # 0, pow_neg a # 0, rpow a > 0, a builtin's
+    natural-domain row at k = 0 and its interior plus C1_EXTRA at k = 1,
+    nothing else. A seam (ARCHITECTURE.md §7)."""
+    if rule == "div":
+        return (NonZero(t.b),)
+    if rule == "pow_neg":
+        return (NonZero(t.base),)
+    if rule == "rpow":
+        return (Rel(">", t.base, ZERO),)
+    if rule in BUILTINS:
+        row = domains.NATURAL_DOMAINS.get(rule)
+        props = row(t.arg) if row else ()
+        if k == 0:
+            return tuple(props)
+        extra = domains.C1_EXTRA.get(rule)
+        return tuple(_interior(props)) + (tuple(extra(t.arg)) if extra else ())
+    return ()
+
+
+def _reg_side_count_ok(given, rebuilt):
+    """Exactly one pair per rebuilt side. A seam (ARCHITECTURE.md §7)."""
+    return len(given) == len(rebuilt)
+
+
+def _reg_side_prop(rebuilt, given):
+    """The proposition to decide: the rebuilt one, which the certificate's
+    must equal as a tree, else 'wrong-side'. A seam (ARCHITECTURE.md §7)."""
+    _need(given == rebuilt, "wrong-side")
+    return rebuilt
+
+
+def _reg_side_holds(prop, cert, dom):
+    """One side, keyed with_domain(prop, dom) (E5) at the Reg's whole
+    domain, decided by this module's dispatcher, exact values first, as a
+    child is; its cites, or 'child-rejected/<reason>'. A seam
+    (ARCHITECTURE.md §7)."""
+    tag, why = verdict(with_domain(prop, dom), cert)
+    if tag is None:
+        raise _Reject("child-rejected/" + why)
+    return tag[1]
+
+
+def _reg_children(t, rule, node, k, dom, cites):
+    """'args' has exactly the rule's number of children, else 'arity', and
+    each is checked, recursively, against the term's own child. A seam
+    (ARCHITECTURE.md §7)."""
+    kids = _reg_kids(t, rule)
+    _need(len(node["args"]) == len(kids), "arity")
+    for kid, sub in zip(kids, node["args"]):
+        _reg_node(kid, sub, k, dom, cites)
+
+
+def _reg_node(t, node, k, dom, cites):
+    _need(_reg_fields(node, ("rule", "args", "side"))
+          and type(node["args"]) is tuple and type(node["side"]) is tuple
+          and all(type(p) is tuple and len(p) == 2 for p in node["side"]),
+          "malformed")
+    rule = _reg_rule(t, node)
+    _need(rule is not None, "no-rule")
+    _need(node["rule"] == rule, "wrong-rule")
+    own, kids = [], []
+    try:
+        _reg_children(t, rule, node, k, dom, kids)
+        rebuilt = _reg_sides(t, rule, k)
+    except AttributeError:  # a rule forced onto a term it does not fit
+        raise _Reject("malformed") from None
+    _need(_reg_side_count_ok(node["side"], rebuilt), "side-count")
+    for want, (prop, cert) in zip(rebuilt, node["side"]):
+        own += list(_reg_side_holds(_reg_side_prop(want, prop), cert, dom))
+    cites += own + kids  # a node's own sides before its children's
+
+
+def _reg(key, cert):
+    """§6.9's closure rules as a checked derivation (E60, REG_CHECK_RULE):
+    ('reg', cites), cites the side certificates' in pre-order first use."""
+    _need(_reg_class_ok(key.k), "class-not-built")
+    _need(_reg_fields(cert, ("method", "tree")) and cert["method"] == "reg",
+          "malformed")
+    cites = []
+    _reg_node(key.e, cert["tree"], key.k, key.dom, cites)
+    return "reg", _dedup(cites)
 
 
 # ---------------------------------------------------------------- exact values (E31)

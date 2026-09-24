@@ -38,11 +38,12 @@ tests alone: `python3 -m unittest discover -s kernel`.
 |---|---|---|---|
 | `terms.py` | trusted | 1, 8: nodes, fv/bv, substitution, goal checks, parser, printer | stdlib |
 | `entries.py` | trusted | 7: the twenty-three §6.8 entries, pinned (P1's ten, stage 0's four, the owner's `sqrt_zero` and `cos_zero`, E35, `sqrt_nonneg`, E49, and the consolidation's six, E54) | terms |
+| `domains.py` | trusted | 2, 5: E26 (a)'s natural-domain table and regularity's one added datum (C1_EXTRA), the one table the formers and the regularity checker both read (E61, §13) | terms |
 | `poly.py` | trusted | 4: copied from `spike/ring/poly.py` | stdlib |
 | `field.py` | trusted | 4: `ring`, `field`, `norm_num` | poly, terms |
 | `deriv.py` | trusted | 2: §6.3's entries, applied | terms |
 | `kernel.py` | trusted | 2, 3, 5: rules (`int_subst` and `int_flip` among them, §11, §12), E56's orientation rule, E6 and E26's formers, matcher, tracker, handles, `step`, discharge at emission (§5) | terms, entries, field, deriv, discharge, tagger, search, refute, residual, schema (poly only through field) |
-| `discharge.py` | trusted | 5: the certificate checkers (hyp, Farkas, sign, sign product, cite, the norm_num leaf) and the exact-value rewrite (E28–E31) | terms, entries, field, poly |
+| `discharge.py` | trusted | 5: the certificate checkers (hyp, Farkas, sign, sign product, cite, the norm_num leaf, and regularity's, §13) and the exact-value rewrite (E28–E31) | terms, entries, field, poly, domains |
 | `tagger.py` | untrusted | none (§7, E24): computes admission tags; its Fourier–Motzkin keeps its Farkas witness (`refutation`) | terms, poly, field, residual, entries |
 | `search.py` | untrusted | none (E28): proposes one certificate per obligation | terms, poly, field, entries, tagger, discharge |
 | `refute.py` | untrusted | none (E33): decided false, F1–F3, which can only refuse | terms, field, discharge, search |
@@ -61,7 +62,7 @@ argument, each named below: what only proposes (the tagger), what only
 renders (residuals), and what only sets a statement's strength (the
 `closed` whitelist). What stays in is kept readable by stating each rule
 once, as data where it is a table: ENTRIES, `deriv.APP_RULES` and
-`kernel.NATURAL_DOMAINS` are read-only mappings, a definedness condition is
+`domains.NATURAL_DOMAINS` are read-only mappings, a definedness condition is
 one row, and the one child table (`terms.children`) says what every walk
 visits. The parser is trusted because a misparse is a different theorem
 (§15.2 item 8). Its diagnostic-only branches (hint tables, the D6/D7/D8
@@ -139,7 +140,7 @@ nor `poly.py` formats anything: the spike's `to_str`, `divide_exact` and
   (frozenset of p1_expected SOURCES codes, or the kernel-local source codes
   listed in §6), `status` (`"discharged"`, `"admitted"`, or
   `"open"`, which is never produced here), `tag` (`(method, cites)`),
-  `reason` (for an admission `REASON_REG`, `REASON_NONE`, `REASON_EMPTY` or
+  `reason` (for an admission `REASON_NONE`, `REASON_EMPTY` or
   `REASON_REJECTED`, otherwise None; 'discharge not built' is retired, E32)
   and `certificate` (the certificate `discharge.check` accepted for methods
   1–6, deep-frozen by `kernel._frozen`, every dict a read-only mapping and
@@ -247,8 +248,10 @@ refute(key, owed) -> Refutation | None      # F2, F3; owed is kernel._owed
 Refutation(how, message, point)             # how a DECIDED_FALSE_MESSAGES key; point {var: Fraction} for F3
 settled(key) -> tag | None                  # DISCHARGE_RULE's steps (3)-(5)
 # kernel.py
+REASON_NONE, REASON_EMPTY, REASON_REJECTED;  DECIDED_FALSE   # E32, E33; REASON_REG retired (E60)
+# domains.py
 NATURAL_DOMAINS: Mapping[str, u -> props]  # read-only; E26 (a)'s table; a seam (§7)
-REASON_REG, REASON_NONE, REASON_EMPTY, REASON_REJECTED;  DECIDED_FALSE   # E32, E33
+C1_EXTRA: Mapping[str, u -> props];  interior(props) -> props   # E61
 install(goal) -> ProofState | Refusal
 step(state, move, args) -> ProofState | Refusal
 report(state) -> str
@@ -287,11 +290,12 @@ proceeds as follows, with refusals given in the order they are tested:
   optionally `"occurrence": int`. It follows REWRITE_RULE steps 1–11. The
   refusals, in order: an unknown or non-equation entry, or inst keys that are
   not the schema (`bad-args`); instantiation (`rpow-literal-exponent`); step 2
-  (`rewrite-target-not-found`); step 2a, E57 (`Int-or-D-not-normalisable`
-  when an inst value or the target holds an Int or D node, on every match
-  branch: `kernel._no_trees_erased`, a seam); step 3
-  (`Int-or-D-not-normalisable` when either argument holds an Int or D node,
-  E26 (b), now reached only through a seam; else
+  (`rewrite-target-not-found`); step 2a, E57 as E66 (3) narrows it
+  (`Int-or-D-not-normalisable` when an inst value or the target holds an
+  unstatable Int, on every match branch: `kernel._no_trees_erased`, a
+  seam; a statable Int or a D passes, its former owed where it entered and
+  R's charged at step 10); step 3 (`Int-or-D-not-normalisable` when either
+  argument holds an unstatable Int, E26 (b); else
   `rewrite-lhs-mismatch`); step 6 per occurrence (`rewrite-scope`); step 9
   per occurrence (`rewrite-under-D-needs-open-domain`); then E25/E7 on the
   emissions; then `check_goal` on the new goal. Step 9 tests H and
@@ -337,7 +341,8 @@ proceeds as follows, with refusals given in the order they are tested:
   decided). With G the goal's domain, `I` the closed
   interval between the limits by E56 (`[a, b]` or `[b, a]`, whichever order
   discharge proved; neither refuses `orientation-undecided`), and
-  `J = derivative_domain(I)`, it emits:
+  `J = derivative_domain(I)`, it emits (F's C^0 premise decided right
+  after F's formers, before deriv, and listed in premise order; §13):
   - the orientation, the order proved;
   - F's formers at G+I, its partial builtins' domains included (E26 (a));
   - `Reg(F, 0, G+I)`, `Reg(F, 1, G+(a, b))` and `Reg(f, 0, G+I)`, sources
@@ -462,8 +467,14 @@ buffer, and nothing reaches the tracker until the step has
 succeeded. Status is decided in this order:
 1. `discharged_by` is given (only ftc's premise), so the status is DISCHARGED
    with that tag.
-2. The key is a `Reg`, so it is ADMITTED with `tagger.tag(key)`, which gives
-   `("reg", ())`, and reason `REASON_REG` (regularity is not built).
+2. The key is a `Reg` (never ftc's derivative premise, step 1): E60's
+   REG_DISCHARGE_ORDER (`kernel._discharge_reg`, §13). The search proposes
+   a regularity certificate and the checker decides it (DISCHARGED `('reg',
+   cites)`); otherwise E63's refuter walks the C^0 sides of the term's
+   derivation and refuses `obligation-decided-false` on one decided false;
+   otherwise ADMITTED with the tagger's tag, `REASON_NONE` when it is
+   `('none', ())`, else `REASON_REJECTED`. `REASON_REG` is retired. E7 never
+   sees a Reg.
 3. `field.norm_num(key)` returns True, so the status is DISCHARGED with
    `("norm_num", ())`. If it returns False, the step is refused with
    `obligation-refuted`. A key holding an Int or D node in its proposition
@@ -535,9 +546,12 @@ close's value; and a used fact's inst values at the using step's domain,
 E10), at the position domain, so the same
 E56, E5, E7, E8 and E24 apply as to a divisor. field is unchanged: it emits
 its divisors and nothing for the partial builtins in its input, whose
-atoms were charged where they entered. Integral and Deriv nodes owe no
-condition, because none can be stated until regularity and `diverges`
-exist, so they are refused instead (E26 (b)): field's normaliser refuses a
+atoms were charged where they entered. Integral and Deriv nodes owed no
+condition before regularity, so they were refused instead (E26 (b)); since
+§13 a statable Int owes its integrand in C^0 on its range and a D[x] e owes
+e in C^1 at its position domain (E64), and ring and field read both as
+atoms, only an unstatable Int (an infinite limit, or a limit holding an Int
+or D node, E65) being refused: field's normaliser refuses a
 side holding one (every entry point normalises through it), norm_num
 refuses an obligation holding one in its proposition or domain, and deriv
 refuses to read an x-free one as a constant. **No P1 step is affected**:
@@ -602,8 +616,8 @@ Each patch is the mutation's own text, written in `proof_of_life.py`:
 
 | DEFINEDNESS_MUTATIONS keys | Seam | The child's patch |
 |---|---|---|
-| the 19 table mutations (`no_ln_former` … `atanh_closed`) | `kernel.NATURAL_DOMAINS`, read by `_owed` at call time | `patch.object(kernel, "NATURAL_DOMAINS", ...)` with the builtin's row removed or replaced |
-| `ring_reads_Int_as_atom`, `ring_reads_D_as_atom`, `field_reads_Int_as_atom`, `field_reads_D_as_atom` | `field._Normaliser.tree`, which `norm` calls for each Integral or Deriv node | a method that returns the spike's tree atom for that node kind in ring's (or field's) normaliser, and calls the original otherwise |
+| the 19 table mutations (`no_ln_former` … `atanh_closed`) | `domains.NATURAL_DOMAINS`, read by `kernel._owed` and by the regularity checker's `_reg_sides` at call time (one table, E61) | `patch.object(domains, "NATURAL_DOMAINS", ...)` with the builtin's row removed or replaced |
+| `ring_reads_Int_as_atom`, `field_reads_Int_as_atom` (`ring_reads_D_as_atom` and `field_reads_D_as_atom` retired by REG_BUG_RETRACE: the kernel reads every D as an atom) | `field._Normaliser.tree`, which `norm` calls for each Integral or Deriv node | a method that returns the spike's tree atom for that node kind in ring's (or field's) normaliser (so an unstatable Int too), and calls the original otherwise |
 | `norm_num_admits_Int`, `norm_num_admits_D`, `norm_num_ignores_domain` | `field.norm_num_tree(node, in_domain)`, which only norm_num calls, and `field.hypothesis_tree(node)`, install's gate on the goal's hypotheses | a wrapper on each that returns instead of raising for that node kind, or for any node in the domain (a hypothesis counts as one); both, because the data's caught_by names install cases the gate refuses first |
 | `deriv_d_const_on_Int_or_D` | `deriv.const_guard` | `lambda t: None` |
 | `rewrite_R_former_at_goal_domain`, `rewrite_R_former_on_ranges_only` | `kernel._charge_formers`, which only rewrite, int_subst and int_flip call with `anc=` (these children reach int_subst only in P1.1-sheet's s1, a top-level Int with no goal domain, where both patches charge what the rule does) | a wrapper that charges R at the goal's domain, or at the position domain less the goal's items |
@@ -1166,3 +1180,108 @@ lazy install, whose goal_emits are compared and whose CPU time
 (`time.process_time`, so other processes' load does not count; one repeat
 over the bound, the smaller kept) must be within E56_TIMING_BOUND. Item 5's
 `1/(x - 1)^150` bound of 3 s is measured the same way.
+
+## 13. Regularity (p1_expected section 17, E59–E70)
+
+§6.9's closure rules as a discharge method for Reg keys, the formers of
+§18 Q23, and ring and field's atoms, switched in the suite by one constant,
+`REGULARITY` in `proof_of_life.py`. Every proof in PROOFS and every problem
+file reads 'Proved.'. (E70's two commits, the checker first and the wiring
+second, are one working tree here; the coordinator commits.)
+
+**One table** (`domains.py`, trusted). `NATURAL_DOMAINS` is E26 (a)'s
+table, moved out of `kernel.py` so that the formers (`kernel._owed`) and
+the regularity checker (`discharge._reg_sides`) read one object, which the
+definedness mutations patch; `C1_EXTRA` is regularity's one datum (abs: u #
+0); `interior` makes a row open (>= to >, <= to <).
+
+**The checker** (`discharge._reg`, trusted; REG_CHECK_RULE, one seam per
+paragraph). A Reg key goes to it alone from the dispatcher. k is 0 or 1
+(`_reg_class_ok`, 'class-not-built'); the certificate `{'method': 'reg',
+'tree': NODE}` and each node `{'rule', 'args', 'side'}` have exactly those
+fields (`_reg_fields`, 'malformed'). At each node the rule comes from the
+TERM's head (`_reg_rule`: const, var, neg, add, mul, div, pow n >= 0,
+pow_neg n < 0, rpow, a builtin's name; none for Int, D, Call and MVar:
+'no-rule'), the node must name it ('wrong-rule'), `args` must match the
+rule's children, each checked recursively (`_reg_children`, 'arity'), and
+the sides are REBUILT from the term and k (`_reg_sides`: div b # 0, pow_neg
+a # 0, rpow a > 0, a builtin's row at k = 0, its `_interior` plus C1_EXTRA
+at k = 1), counted (`_reg_side_count_ok`, 'side-count'), compared as trees
+(`_reg_side_prop`, 'wrong-side'), and each decided at the Reg's whole
+domain by the dispatcher, exact values first (`_reg_side_holds`,
+'child-rejected/<reason>'). The tag is `('reg', cites)`, the sides' cites
+in pre-order, a node's own before its children's.
+
+**The untrusted side.** `tagger.reg_derivation` builds the derivation by
+term structure from the same trusted data with its own code;
+`tagger.tag` gives a Reg `('reg', cites)` when every side is not tagged
+none (REG_TAG_RULE), else `('none', ())`; `search.propose` proposes the
+tree with each side's certificate from itself (`search._reg_sides`, the
+seam reg_search_drops_side patches), or nothing. `refute.refute_reg` is
+E63: the C^0 sides of the derivation, pre-order, not descending into a node
+without a rule, each keyed at the Reg's domain and decided false by F1–F3,
+refuse with 'reg_undefined'.
+
+**The search's bound** (E68's risk). `search.propose` memoises every
+sub-search within one call (`search._MEMO`, (key, split, depth) ->
+certificate, dropped when the outermost call returns), so a factorisation
+that meets the same repeated factor again and again stays polynomial: the
+E56 timing goal's `(a - 1)^40 <= 0` now fails in about 0.3 s where it took
+29.7 s, and its install, which now decides `0 <= (a - 1)^40`, is within
+E56_TIMING_BOUND. Untrusted, so a bound can only cost admissions; the memo
+costs none, since a sub-search is a function of its arguments.
+
+**The formers** (E64, `kernel._charge_formers`). After every E6/E26 former
+of an entering term (`_e6_formers`), `_tree_formers` charges, in
+pre-order, `_int_former` at each statable Int (Reg(f, 0) on the body's
+position domain, P plus the range: its order is decided there, E68) and
+`_d_former` at each D (Reg(e, 1) at the node's position domain). An
+unstatable Int (`terms.statable`) owes nothing. ftc decides F's C^0 premise
+before deriv (`kernel._ftc_F_formers` charges F's formers first). E57's
+step 2a refuses only an unstatable Int; REWRITE_RULE step 9 (a) counts the
+Regs R's statable Ints and D nodes will owe as not open in x.
+
+**Atoms** (E66 (1), `field._Normaliser.tree`): a statable Int and every D
+node is an atom keyed by its tree exactly; an unstatable Int is still
+refused. E7, install's hypothesis gate and deriv's d_const guard are
+unchanged.
+
+**The suite** (item R, and the switch). Items 1–7 assert REG_OBLIGATIONS,
+REG_FINAL_TRACKER, REG_ADMISSIONS and REG_VERDICTS (both data files), each
+Reg's certificate; every case as REG_CASE_CHANGES re-traces it
+(`reg_case`: Reg rows turned by REG_CASE_CERTS or REG_CASE_ADMITTED, the
+added rows, the not_new flags, the report), REG_BAD_MOVES_CHANGED,
+REG_E57_CHANGES, REG_SUITE_CHANGES, REG_FORGERY_CHANGES (the two admission
+forgeries on REG_FORGERY_STATE) and REG_BUG_RETRACE (every planted bug's N
+less the Reg keys each proof had, with the listed exceptions, drops and
+adds). Item R runs REG_Q23_CASES, REG_Q23_REFUSALS, REG_E57_ACCEPTS,
+REG_INSTALL_CASES, REG_BAD_MOVES and the BAD_MOVES the switch accepts. Item
+D runs REG_MUST_REJECT, REG_CHECKER_ACCEPTS, REG_DECIDED_FALSE,
+REG_SIDES_LISTED and every regularity certificate (accepted with its tag,
+the search's compared node by node), and the property test's `reg` family.
+Item 3 runs REG_PLANTED_BUGS as `--reg NAME` children (control
+`--reg-control`), asserting the 'as_well' refusals where the data expects
+them.
+
+| Regularity planted bug | Seam | The child's patch |
+|---|---|---|
+| `reg_side_not_decided` | `discharge._reg_side_holds` | `()` |
+| `reg_side_count_unchecked` | `discharge._reg_side_count_ok` | always true |
+| `reg_side_from_certificate` | `discharge._reg_side_prop` | the certificate's prop |
+| `reg_rule_from_certificate` | `discharge._reg_rule` | the certificate's rule name |
+| `reg_children_not_walked` | `discharge._reg_children` | a no-op |
+| `reg_c1_uses_c0_sides` | `discharge._interior`, `domains.C1_EXTRA` | identity, empty |
+| `reg_no_c1_extra` | `domains.C1_EXTRA` | empty |
+| `reg_div_no_side`, `reg_rpow_no_side` | `discharge._reg_sides` | no side for div, rpow |
+| `reg_negative_power_as_power`, `reg_tree_as_const` | `discharge._reg_rule` | pow for n < 0; const for Int and D |
+| `reg_any_class` | `discharge._reg_class_ok` | always true |
+| `reg_extra_fields_ignored` | `discharge._reg_fields` | a superset allowed |
+| `reg_search_drops_side` | `search._reg_sides` | the last side dropped |
+| `reg_refute_off` | `refute.refute_reg` | never refutes |
+| `int_former_not_charged`, `d_former_not_charged` | `kernel._int_former`, `kernel._d_former` | no-ops |
+| `d_former_at_goal_domain` | `kernel._d_former` | at the goal's domain |
+| `int_former_charged_first` | `kernel._charge_formers` | tree formers before E6's |
+| `former_div_dropped` | `kernel._e6_formers` | no '/' former |
+| `ftc_no_F_formers` | `kernel._ftc_F_formers` | a no-op |
+| `e57_refuses_nothing`, `e57_refuses_statable` | `kernel._no_trees_erased` | no-op; any tree |
+| `improper_Int_as_atom` | `field._Normaliser.tree` | every tree an atom |

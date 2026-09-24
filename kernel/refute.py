@@ -37,6 +37,7 @@ import discharge as DC
 import field as FD
 import poly as P
 import search as SR
+import tagger as TG
 from terms import (Add, Interval, Mul, Neg, NonZero, Pow, Refused, Rel, Term,
                    Var, children, fv, lit, show, with_domain, subst)
 
@@ -49,6 +50,8 @@ MESSAGES = {
                    "reads {reading}",
     "point_negation": "{key} is false at {point}, where its negation "
                       "{negation} holds ({tag})",
+    # E63 (p1_expected DECIDED_FALSE_MESSAGES_REG)
+    "reg_undefined": "{key} is false: its term owes {cond}. {inner}",
 }
 NEGATION = {">": "<=", ">=": "<", "<": ">=", "<=": ">"}
 # COUNTERPOINT_CANDIDATES' bound: the walk visits at most this many points
@@ -73,6 +76,35 @@ def decided_false(key, owed):
     F1 at step (4) and the others at step (6), after certification; a key
     the checker accepts is true, so neither order refutes one."""
     return exact_false(key) or refute(key, owed)
+
+
+def refute_reg(key, owed):
+    """E63: a Reg is decided false when one of the C^0 sides of its term's
+    derivation (REG_RULES at every node that has a rule, pre-order, a
+    node's own sides before its children's, not descending into a node
+    without one), keyed at the Reg's domain, is decided false by F1, F2 or
+    F3. Those sides are exactly the term's definedness conditions, and a
+    term undefined at a point of the domain is C^k there for no k. The
+    C^1-only sides never refute: failing a sufficient condition decides
+    nothing. The Refutation, or None."""
+    todo = [key.e]
+    while todo:
+        t = todo.pop()
+        rule = TG.reg_rule(t)
+        if rule is None:
+            continue
+        for prop in TG.reg_sides(t, rule, 0):
+            side = with_domain(prop, key.dom)
+            try:
+                found = decided_false(side, owed)
+            except (Refused, RecursionError):
+                found = None
+            if found is not None:
+                return Refutation("reg_undefined", MESSAGES["reg_undefined"].format(
+                    key=show(key), cond=show(side), inner=found.message),
+                    found.point)
+        todo.extend(reversed(TG.reg_children(t, rule)))
+    return None
 
 
 def exact_false(key):

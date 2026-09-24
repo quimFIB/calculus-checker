@@ -53,7 +53,7 @@ import field as FD
 import poly as P
 import tagger as TG
 from entries import ENTRIES
-from terms import (Add, Const, Div, Interval, Mul, Neg, NonZero, Num, Pow,
+from terms import (Add, Const, Div, Interval, Mul, Neg, NonZero, Num, Pow, Reg,
                    Refused, Rel, Term, Var, lit, subst, with_domain)
 
 NORM_NUM = {"method": "norm_num"}
@@ -61,11 +61,32 @@ ZERO = Num(0)
 ORDERINGS = ("<", "<=", ">", ">=")
 
 
+# Sub-searches already answered within one propose call: (key, split,
+# depth) -> certificate or None. A sub-search is a function of its
+# arguments, so the answer is reused, which keeps a factorisation that
+# meets the same factor again and again (a high power's repeated root, the
+# E56 timing goal's (a - 1)^40 <= 0) polynomial rather than exponential.
+# Set by the outermost propose and dropped when it returns: no cache
+# outlives a call.
+_MEMO = None
+
+
 def propose(key):
-    """One certificate for `key` (a Rel or NonZero with its domain), or
-    None. The certificate is for the key as the checker reads it, after the
-    exact values (E31). Deterministic, and it keeps no cache."""
-    return _search(key, split=True)
+    """One certificate for `key` (a Rel or NonZero with its domain, or a Reg
+    key), or None. The certificate is for the key as the checker reads it,
+    after the exact values (E31). Deterministic; it keeps no cache between
+    calls."""
+    global _MEMO
+    outer = _MEMO is None
+    if outer:
+        _MEMO = {}
+    try:
+        if type(key) is Reg:
+            return _reg(key)
+        return _search(key, split=True)
+    finally:
+        if outer:
+            _MEMO = None
 
 
 def domain_empty(key):
@@ -80,6 +101,16 @@ def domain_empty(key):
 
 
 def _search(key, split, depth=0):
+    memo = (key, split, depth)
+    if _MEMO is not None and memo in _MEMO:
+        return _MEMO[memo]
+    cert = _search_uncached(key, split, depth)
+    if _MEMO is not None:
+        _MEMO[memo] = cert
+    return cert
+
+
+def _search_uncached(key, split, depth):
     try:
         key, _ = DC.exact_values(key)
         said = FD.norm_num(key)
@@ -101,6 +132,44 @@ def _search(key, split, depth=0):
         if cert is not None:
             return cert
     return None
+
+
+# ---------------------------------------------------------------- reg
+
+def _reg_sides(sides):
+    """The sides of one node the search certifies: all of them. A seam
+    (ARCHITECTURE.md §7): the planted bug reg_search_drops_side drops the
+    last."""
+    return sides
+
+
+def _reg(key):
+    """REG_SEARCH_RULE: the derivation of the term by its structure
+    (tagger.reg_derivation, over the trusted natural-domain data), each
+    side's certificate from this search at the Reg's domain. A node with no
+    rule, or a side with no certificate, and nothing is proposed. There is
+    one derivation per term, so no alternative is tried."""
+    d = TG.reg_derivation(key.e, key.k)
+    if d is None:
+        return None
+
+    def node(d):
+        rule, sides, kids = d
+        side = []
+        for prop in _reg_sides(sides):
+            cert = propose(with_domain(prop, key.dom))
+            if cert is None:
+                return None
+            side.append((prop, cert))
+        args = []
+        for k in kids:
+            a = node(k)
+            if a is None:
+                return None
+            args.append(a)
+        return {"rule": rule, "args": tuple(args), "side": tuple(side)}
+    tree = node(d)
+    return None if tree is None else {"method": "reg", "tree": tree}
 
 
 # ---------------------------------------------------------------- hyp

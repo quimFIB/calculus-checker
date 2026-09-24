@@ -53,6 +53,13 @@ to the same form. That is congruence, and nothing more.
   it visits every node of a side before it returns, so no verdict, divisor
   list or zero test is produced for a side holding one. `norm_num` refuses
   the same nodes in a judgement's proposition or its domain (E7).
+  **Since regularity (p1_expected E64, E66 (1))** a statable Integral and
+  every Deriv node is an opaque atom again, keyed by its tree exactly: its
+  definedness is now owed where it enters (the kernel's Int and D formers),
+  so the identity holds wherever the atom denotes. Only an unstatable
+  Integral (an infinite limit, or a limit holding an Int or D node, whose
+  convergence no rule states yet, E65) is still refused. `norm_num`'s
+  refusal is unchanged (E66 (2)).
 
 The `_Normaliser` (atoms, factors, add/mul/pow/invert, facts, reduce) is the
 spike's, ported to the new node classes. Its soundness argument for `reduce`
@@ -75,7 +82,8 @@ from fractions import Fraction
 
 import poly as P
 from terms import (Add, App, Call, Const, Deriv, Div, Integral, Mul, Neg,
-                   NonZero, Num, Pow, Refused, Rel, RPow, Var, show, trees)
+                   NonZero, Num, Pow, Refused, Rel, RPow, Var, show, statable,
+                   trees)
 
 TREE_CODE = "Int-or-D-not-normalisable"  # p1_expected E26 (b)
 
@@ -291,13 +299,22 @@ class _Normaliser:
         raise TypeError(f"ring and field cannot read {t!r}")
 
     def tree(self, t):
-        """E26 (b): an Integral or Deriv node is not an atom, so the side
-        holding it is refused. Returns nothing, ever.
+        """E66 (1): a statable Integral and every Deriv node is an opaque
+        atom, keyed by its tree exactly (no alpha equivalence, no
+        normalisation under the binder: incomplete, never unsound), since
+        its definedness is owed where it entered (E64's formers). An
+        unstatable Integral (an infinite limit, or a limit holding an Int
+        or D node) is not an atom, so the side holding it is refused, as
+        E26 (b) had it.
 
         A seam (kernel/ARCHITECTURE.md §7): norm calls it by this name for
         each such node, and the definedness mutations ring_reads_Int_as_atom
-        and the like replace it, in a child process, with one that returns
-        an atom. Keep the name and signature."""
+        and field_reads_Int_as_atom (and the planted bug
+        improper_Int_as_atom) replace it, in a child process, with one that
+        returns an atom for an unstatable Int too. Keep the name and
+        signature."""
+        if statable(t):
+            return self.atom(("tree", t), t)
         raise Refused(TREE_CODE, f"{show(t)} has no definedness condition the "
                       "kernel can state, so ring and field do not read it as "
                       "an atom (E26 (b))")
@@ -379,8 +396,8 @@ def ring(lhs, rhs):
 
     Raises Refused 'divisor-normalises-to-zero' when some divisor's ring
     normal form is the zero polynomial (E25; the spike's `invert`), and
-    'Int-or-D-not-normalisable' when a side holds an Integral or Deriv node
-    (E26 (b)), whichever the walk meets first.
+    'Int-or-D-not-normalisable' when a side holds an unstatable Integral
+    (E26 (b), E66 (1)), whichever the walk meets first.
     """
     return _decide(False, lhs, rhs)
 
@@ -395,8 +412,8 @@ def field(lhs, rhs, facts=()):
     it is met, before the zero test. A numerator of zero in its field normal
     form raises Refused 'divisor-normalises-to-zero' (E25), so `x/x - 1` is
     refused here although ring sees it as nonzero. A side or fact holding an
-    Integral or Deriv node raises Refused 'Int-or-D-not-normalisable'
-    (E26 (b)). Returns Checked(divisors), or raises NotEqual.
+    unstatable Integral raises Refused 'Int-or-D-not-normalisable' (E26 (b),
+    E66 (1)). Returns Checked(divisors), or raises NotEqual.
     """
     return _decide(True, lhs, rhs, facts)
 
