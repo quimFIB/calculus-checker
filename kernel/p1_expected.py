@@ -129,13 +129,19 @@ ADMISSION_METHODS = {
                     "(3*sqrt 3, 2*sqrt x), which §5.3 as written does not "
                     "allow (see DESIGN_DEFECTS)",
     "cite": "§5.3 method 6, a §6.8 entry",
-    "reg": "§6.9 closure rules via §7's reg tactic (regularity is only "
-           "listed in this milestone)",
+    "reg": "§6.9's closure rules, a derivation checked rule by rule (E60, "
+           "section 17's REG_CHECK_RULE); an admitted Reg is tagged "
+           "('reg', cites) or ('none', ()) by TAG_RULES' reg paragraph "
+           "(regularity build 2026-09-25; before it, 'regularity is only "
+           "listed in this milestone')",
 }
 DISCHARGE_METHODS = {
     "norm_num": "§6.2, closes a goal over rational literals exactly (E7)",
     "deriv+ring": "§6.3 deriv then §6.2 ring, run inside the ftc step (E9)",
     "deriv+field": "§6.3 deriv then §6.2 field, facts as cited (E9)",
+    # regularity build 2026-09-25 (section 17's DISCHARGE_METHODS_REG)
+    "reg": "§6.9's closure rules as a checked derivation by term structure, "
+           "each side condition a §5.3 certificate (E60, REG_CHECK_RULE)",
 }
 
 T_NONE = ("none", ())
@@ -168,10 +174,15 @@ TAG_RULES = (
     "sub-obligations used, without repeats. If no check passes, the tag is "
     "('none', ()).",
 
-    "reg. A regularity judgement e in C^k(D) is tagged ('reg', ()) by its "
-    "shape alone. Regularity is only listed in this milestone (WHAT.md Out, "
-    "§6.9). No other method sees a regularity judgement, and reg sees "
-    "nothing else.",
+    # regularity build 2026-09-25: REG_TAG_RULE (E60) replaces the stub
+    # phase's 'tagged ('reg', ()) by its shape alone'
+    "reg. A regularity judgement e in C^k(D) is tagged ('reg', cites) when "
+    "its derivation exists (every node of e has a rule, REG_CHECK_RULE) "
+    "and every side condition of it, keyed at D, is not tagged none by "
+    "this same list (the side's tag, recursively, as sub-obligations are); "
+    "cites are the sides' cites in pre-order first use. Otherwise "
+    "('none', ()). No other method sees a regularity judgement, and reg "
+    "sees nothing else.",
 
     "hyp (§5.3 method 1). prop is in Γ, or follows from Γ's ordering "
     "hypotheses by reflexive-transitive closure. Γ is the goal's own "
@@ -240,9 +251,11 @@ TAG_RULES = (
 SOURCES = {
     "former": "a former in a term entering the proof (§5.1): '/' or a "
               "negative power owes its divisor d # 0 and a real power its "
-              "base > 0 (E6), and a partial builtin its natural domain "
+              "base > 0 (E6), a partial builtin its natural domain "
               "(E26: ln u owes u > 0, sqrt u owes u >= 0, tan u owes "
-              "cos u # 0, and so on)",
+              "cos u # 0, and so on), a statable Int[x = a .. b] f its "
+              "integrand in C^0 on its range, and a D[x] e its body in C^1 "
+              "at its position domain (E64)",
     "orient": "range orientation lo <= hi (E4; §5.1 reversed limits, §5.3 "
               "method 2)",
     "rewrite_hyp": "rewrite by a §6.8 entry: its hypothesis instantiated "
@@ -7482,6 +7495,58 @@ DATA_CHANGES = (
      "checks",
      "the places this file records what DESIGN.md must change",
      "regularity spec 2026-09-24"),
+    # regularity build 2026-09-25, adjudicated: the builder's five
+    # data_change_requests, each checked against the spec's own rules
+    ("INT_SUBST_BAD_MOVES non_monotone_divergent 'message' (amended in "
+     "place, old kept as 'was'); REG_BAD_MOVES_CHANGED's 'unchanged, "
+     "re-traced' INT_SUBST_BAD_MOVES line",
+     "_point('t^2 # 0 @ [-1, 1]', '0^2 # 0', t='0') -> _reg_undefined("
+     "'1/t^2 in C^0([-1, 1])', 't^2 # 0 @ [-1, 1]', that point message); "
+     "the re-trace line now names the exception; _reg_undefined moves "
+     "beside _point so the table can use it",
+     "INT_SUBST_RULE step 15 emits step 13's premises before step 14's "
+     "formers, and REG_DISCHARGE_ORDER (2r-c) refutes the C^0 premise "
+     "Reg(1/t^2, 0, [-1, 1]) through its div side at t = 0 (the same point "
+     "and reading); the spec's re-trace missed it. Same code",
+     "regularity build 2026-09-25, adjudicated"),
+    ("REG_CASE_CHANGES INT_FLIP_ACCEPTS flip_sum_second_occurrence",
+     "'certificates' added: {('0 <= pi/2', 'true'): _PI_HALF}",
+     "the case adds a DISCHARGED 0 <= pi/2 row, and REG_CASE_CHANGES' own "
+     "rule requires every added row's certificate; _PI_HALF is the one "
+     "DISCHARGE_EXPECTED pins for that key",
+     "regularity build 2026-09-25, adjudicated"),
+    ("REG_BUG_RETRACE 'PLANTED_BUGS tracker_drops_one'",
+     "'add': (P1.2|P1.2-alt, s2, '1/(1 + x^3) in C^0([0, 1])', 'new'); "
+     "'step_lists_changed': True (PLANTED_BUGS' False superseded)",
+     "E64 emits that key first at installation, the wrapper drops every "
+     "emission, and KEYING reads `new` from the tracker before the step, "
+     "so ftc's row at s2 reads new where REG_NOT_NEW says not new; the "
+     "other drop keys are each emitted once",
+     "regularity build 2026-09-25, adjudicated"),
+    ("REG_BUG_RETRACE 'INT_SUBST_PLANTED_BUGS int_subst_no_orientation' "
+     "(new)",
+     "'drop': (INT_SUBST_BAD_MOVES, orientation_undecided)",
+     "E64/E68: step 14's new-integral former decides the order the mutation "
+     "skipped and refuses with the case's own code and message (0, 1/y); "
+     "still caught at its two INT_SUBST_ACCEPTS locations. "
+     "int_subst_flips_without_decision keeps the location (its message "
+     "names 1/y and 0)",
+     "regularity build 2026-09-25, adjudicated"),
+    ("REG_BUG_RETRACE 'REVIEW2_PLANTED_BUGS rewrite_tree_branch_skips_E57' "
+     "(new)",
+     "'drop': (E57_BAD_MOVES, pyth_erases_D)",
+     "REG_E57_CHANGES moved the case to REG_E57_ACCEPTS, where E66 (3) "
+     "passes a D node on every branch, so the mutation changes nothing "
+     "there; still caught at pyth_erases_divergent_Int",
+     "regularity build 2026-09-25, adjudicated"),
+    ("SOURCES['former'], DISCHARGE_METHODS ('reg' added), TAG_RULES' reg "
+     "paragraph, ADMISSION_METHODS['reg'] (prose, as REG_TEXT_CHANGES "
+     "listed)",
+     "the stub-phase texts ('tagged by its shape alone', 'only listed in "
+     "this milestone') replaced by E60/E64's",
+     "REG_SWITCH's second commit names REG_TEXT_CHANGES; the prose is the "
+     "spec's to edit, and no check reads it",
+     "regularity build 2026-09-25, adjudicated"),
 )
 
 
@@ -8105,6 +8170,12 @@ def _point(key, reading, entries=(), **values):
         parts["entries"] = tuple(entries)
         return ("point_exact", parts)
     return ("point", parts)
+
+
+def _reg_undefined(key, cond, inner):
+    """E63's refusal (section 17): a Reg decided false through one of its
+    C^0 sides, whose own message is `inner`."""
+    return ("reg_undefined", {"key": key, "cond": cond, "inner": inner})
 
 
 def _exact(key, entries, rewritten):
@@ -10037,7 +10108,14 @@ INT_SUBST_BAD_MOVES = [
                             "lo": "-1", "hi": "1", "check": "ring",
                             "facts": []}),
      "refusal": OBLIGATION_DECIDED_FALSE,
-     "message": _point("t^2 # 0 @ [-1, 1]", "0^2 # 0", t="0"),
+     # regularity build 2026-09-25, adjudicated (DATA_CHANGES): step 13's
+     # C^0 premise 1/t^2 in C^0([-1, 1]) is emitted before step 14's formers
+     # (INT_SUBST_RULE step 15) and is refuted by E63 through its div side
+     "message": _reg_undefined("1/t^2 in C^0([-1, 1])", "t^2 # 0 @ [-1, 1]",
+                               _point("t^2 # 0 @ [-1, 1]", "0^2 # 0",
+                                      t="0")),
+     "was": "_point('t^2 # 0 @ [-1, 1]', '0^2 # 0', t='0'), the new "
+            "integrand's divisor at step 14, before regularity",
      "why": "§6.4's own example of why the C^0 premise is on the composed "
             "integrand: the endpoint interval is {1}, so f = 1/x is fine "
             "there, but (1/t^2)*(2*t) has a pole at 0 in [-1, 1] and "
@@ -12346,9 +12424,7 @@ DECIDED_FALSE_MESSAGES_REG = {
     "reg_undefined": "{key} is false: its term owes {cond}. {inner}",
 }
 
-
-def _reg_undefined(key, cond, inner):
-    return ("reg_undefined", {"key": key, "cond": cond, "inner": inner})
+# _reg_undefined(key, cond, inner) is defined beside _point (section 11b).
 
 
 # What this step does not cover, each with where it goes.
@@ -13525,7 +13601,10 @@ REG_CASE_CHANGES = {
             "emits_add": [
                 ("0 <= pi/2", "true", (S_ORIENT,), DISCHARGED, T_LINEAR_PI,
                  False),
-                _rrow("-(2*x) in C^0([0, pi/2])", "[0, pi/2]")]},
+                _rrow("-(2*x) in C^0([0, pi/2])", "[0, pi/2]")],
+            # regularity build 2026-09-25, adjudicated: the added row's
+            # certificate, which the case's rule requires
+            "certificates": {_KEY_PI_HALF: _PI_HALF}},
         "flip_oriented_symbolic_with_former": {
             "goal_emits_add": [_rrow("sqrt x in C^0([0, pi/2])",
                                      "[0, pi/2]")],
@@ -13694,7 +13773,11 @@ REG_BAD_MOVES_CHANGED = {
         "now (linear, sqrt_nonneg), and step 6 refuses as before",
         "INT_SUBST_BAD_MOVES and INT_FLIP_BAD_MOVES: every goal installs as "
         "before (each symbolic range's order is decidable, the stated ones "
-        "by hypothesis), and each refusal comes before step 14's formers",
+        "by hypothesis), and each refusal comes before step 14's formers, "
+        "except INT_SUBST_BAD_MOVES non_monotone_divergent, whose step-13 "
+        "premise 1/t^2 in C^0([-1, 1]) is now refuted by E63 before step 14 "
+        "(same code, E63's message; amended in place, regularity build "
+        "2026-09-25, adjudicated)",
         "SECOND_REVIEW_BAD_MOVES: an Int with a tree in a limit is "
         "unstatable, owes nothing, and every move still refuses it",
         "F3_ROOTS_CASES, DISCHARGE_BAD_MOVES_ADDED's decided_false_*, "
@@ -13980,11 +14063,42 @@ REG_BUG_RETRACE = {
         "admissions": {"P1.1": 0, "P1.1-fallback": 0, "P1.2": 0,
                        "P1.2-alt": 0},
         "drop": [("N", "P1.1"), ("N", "P1.2"), ("N", "P1.2-alt")],
+        # regularity build 2026-09-25, adjudicated
+        "add": [("P1.2", "s2", "1/(1 + x^3) in C^0([0, 1])", "new"),
+                ("P1.2-alt", "s2", "1/(1 + x^3) in C^0([0, 1])", "new")],
+        "step_lists_changed": True,
         "why": "its drop keys sin t * (2*t) in C^0 and 1/(1 + x^3) in C^0 "
                "are discharged now, so dropping them no longer moves N; "
                "the FINAL_TRACKER locations still catch it (E69). "
                "1/(1 + x^3) in C^0([0, 1]) is now first emitted at "
-               "installation, and the wrapper drops every emission of it"},
+               "installation, and the wrapper drops every emission of it, "
+               "so at s2 the key is absent from the tracker before the "
+               "step and ftc's row reads new, where REG_NOT_NEW makes it "
+               "not new (KEYING: new is read from the tracker): the step "
+               "lists now catch it at P1.2's and P1.2-alt's s2, and "
+               "PLANTED_BUGS' 'step_lists_changed': False no longer holds. "
+               "Its other drop keys are emitted once each (t >= 0 at P1.1's "
+               "s1, sin t * (2*t) in C^0 at P1.1's s2, 1 + x^3 # 0 at P1.2's "
+               "installation), so no other list changes"},
+    # regularity build 2026-09-25, adjudicated
+    "INT_SUBST_PLANTED_BUGS int_subst_no_orientation": {
+        "drop": [("INT_SUBST_BAD_MOVES", "orientation_undecided")],
+        "why": "with step 8's orientation skipped and the limits kept, step "
+               "14's new integral Int[t = 0 .. 1/y] still owes its own "
+               "former (E64), which uses its range, so E68 decides the order "
+               "there and refuses 'orientation-undecided' naming 0 and 1/y: "
+               "the case's own code and message, so the case no longer sees "
+               "the mutation. It stays caught at decreasing_symbolic_ends_"
+               "flipped and cos_theta_full (the unflipped new integral). "
+               "int_subst_flips_without_decision keeps that location: its "
+               "flipped Int[t = 1/y .. 0] refuses naming 1/y and 0, a "
+               "different message"},
+    "REVIEW2_PLANTED_BUGS rewrite_tree_branch_skips_E57": {
+        "drop": [("E57_BAD_MOVES", "pyth_erases_D")],
+        "why": "REG_E57_CHANGES moves pyth_erases_D to REG_E57_ACCEPTS, "
+               "where a D node passes step 2a on every branch (E66 (3)), so "
+               "the mutation changes nothing there; it stays caught at "
+               "pyth_erases_divergent_Int, whose Int is unstatable"},
     "DISCHARGE_NEW_PLANTED_BUGS search_scales_wrongly": {
         "admissions": {"P1.1-fallback": 1, "P1.2": 0, "P1.2-alt": 0},
         "why": "P1.1 and the sheet are still refused (orientation-"
@@ -14131,6 +14245,8 @@ REG_SWITCH = (
 
 # Text that changes at the switch (the build edits the data's prose it
 # asserts nothing of; listed so the change is reviewed, not incidental).
+# The first four were applied in place by the regularity build adjudication
+# (2026-09-25); the rest are read with FORMER_RULE and REG_DISCHARGE_ORDER.
 REG_TEXT_CHANGES = {
     "SOURCES['former']": "adds: a statable Int owes its integrand in C^0 on "
                          "its range, and a D[x] e owes e in C^1 at its "
