@@ -6104,6 +6104,10 @@ DATA_CHANGES = (
      "farkas_any_fact is now caught at the new case farkas_schema_entry_as_fact (sqrt a # 0 @ [0, 1] with a sqrt_pos 'fact'), not at farkas_non_fact_entry",
      "the build (commit 1 of DISCHARGE_SWITCH) showed farkas_non_fact_entry cannot isolate the mutation: with the fact rule dropped its combination -pi/2 + (1/2)*sqrt a is still no constant, so it is rejected anyway. In the new case the entry's atom is the proposition's, so only the fact rule stops the false claim; it is false at a = 0 (sqrt_zero). Checked by the main session",
      'adjudicated during implementation'),
+    ("PLANTED discharge bug farkas_swaps_interval_ends's caught_by",
+     "('N', 'P1.2') removed; the bug stays caught at farkas_constant_not_contradiction, N for P1.1 and P1.1-fallback, and the farkas property test",
+     "the wiring build (commit 2) showed P1.2's count does not move: on [0, 1] the swapped lower-end label gives x - 1 >= 0, a stronger constraint, and -(1 + x) + (x - 1) = -2 still refutes each range key's negated goal, so the certificates stay accepted. The spec's reasoning holds only where the upper end is not a rational constant. Checked by the main session",
+     'adjudicated during implementation'),
 )
 
 
@@ -7354,11 +7358,14 @@ DISCHARGE_NEW_PLANTED_BUGS = {
     "farkas_swaps_interval_ends": {
         "mutation": "('dom', i, 'lo') is built from the interval's hi end "
                     "and ('dom', i, 'hi') from its lo end",
-        # every range certificate using a lower end is then rejected, so
-        # each proof's range keys fall back to admissions
+        # a range certificate using a lower end is then rejected where the
+        # upper end is not a rational constant (P1.1's pi/2, the fallback's
+        # pi^2/4). P1.2's [0, 1] is not caught: the swapped x - 1 >= 0 is a
+        # stronger constraint, and -(1 + x) + (x - 1) = -2 still refutes the
+        # negated goal (DATA_CHANGES, adjudicated)
         "caught_by": [("DISCHARGE_MUST_REJECT",
                        "farkas_constant_not_contradiction"),
-                      ("N", "P1.1"), ("N", "P1.1-fallback"), ("N", "P1.2"),
+                      ("N", "P1.1"), ("N", "P1.1-fallback"),
                       ("PROPERTY", "farkas")]},
     "farkas_closed_as_open": {
         "mutation": "a closed interval end is read as strict",
