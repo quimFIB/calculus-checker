@@ -332,7 +332,9 @@ proceeds as follows, with refusals given in the order they are tested:
 - **`ftc`** takes `{"F": Term, "check": "ring" | "field", "facts": [obj,
   ...]}`. `ring` with facts is `bad-args`. The goal's lhs must be an
   `Integral` (`ftc-no-integral`), and neither limit may be infinite
-  (`ftc-infinite-endpoint`). With G the goal's domain, `I` the closed
+  (`ftc-infinite-endpoint`), and neither limit may hold an Int or D node
+  (`Int-or-D-not-normalisable`, SECOND_REVIEW_RULE, before any order is
+  decided). With G the goal's domain, `I` the closed
   interval between the limits by E56 (`[a, b]` or `[b, a]`, whichever order
   discharge proved; neither refuses `orientation-undecided`), and
   `J = derivative_domain(I)`, it emits:
@@ -408,6 +410,8 @@ proceeds as follows, with refusals given in the order they are tested:
   `new_var` read as variable names and no oo in a term);
   `int-subst-no-integral`, `int-subst-wrong-variable` and
   `int-subst-ambiguous` (the selection); `int-subst-infinite-endpoint`;
+  `Int-or-D-not-normalisable` when the selected Int's limits or lo and hi
+  hold an Int or D node (SECOND_REVIEW_RULE);
   `int-subst-not-fresh`; `int-subst-scope`; rewrite's
   `rewrite-under-D-needs-open-domain`; `subst-under-D` and
   `rpow-literal-exponent` from `terms.subst`; E56's
@@ -421,6 +425,8 @@ proceeds as follows, with refusals given in the order they are tested:
   INT_FLIP_RULE (E51) and described in §12. Its args are `{}` or
   `{"occurrence": k}` (`bad-args` otherwise). The refusals, in order:
   `int-flip-no-integral` and `int-flip-ambiguous` (the selection);
+  `Int-or-D-not-normalisable` when a limit holds an Int or D node
+  (SECOND_REVIEW_RULE);
   rewrite's `rewrite-under-D-needs-open-domain`; the new integral's
   formers (E56's `orientation-undecided`, decided-false formers); and
   `check_goal` on the new goal. It owes no order of its own.
@@ -1044,13 +1050,28 @@ key uses is never decided: an Int whose body owes nothing needs no order
 (INT_FLIP_ACCEPTS flip_reversed_symbolic_to_value's goal, and the timing
 goal `Int[x = (a-1)^40 .. 0] sin 0`, which installs in under a millisecond,
 bound E56_TIMING_BOUND, where eager decisions took 30 s). Each orientation
-question is memoised per key (`kernel._ORDER_MEMO`).
+question is memoised per key (`kernel._ORDER_MEMO`), except an answer a
+RecursionError decided (raised in the question, or mapped by the checker to
+`too-deep`), which depends on the stack's depth rather than the key and is
+not kept; the suite asserts that under an artificially low recursion
+limit.
 
 **E57** (`kernel._no_trees_erased`, rewrite's step 2a, a seam): an inst
 value or target holding an Int or D node is refused
 `Int-or-D-not-normalisable` on every match branch, since a tree-branch
 entry whose right side drops a schema variable (pyth) would erase it. It
 makes step 3's ring_nf refusal of such an argument unreachable from a move.
+Under today's ENTRIES each of its two halves (inst values, target) is also
+redundant through the moves, so the suite calls it directly with a tree in
+each half alone (item C), and a check that tests only one half fails.
+
+**The second review** (section 16, SECOND_REVIEW_SWITCH). ftc (after its
+infinite-endpoint check), int_subst (after step 3: the selected Int's
+limits and the new lo and hi) and int_flip (after its selection) refuse
+`Int-or-D-not-normalisable` when a limit holds an Int or D node, before
+anything is emitted or any order decided (`kernel._no_trees_in_limits`).
+E58: `0^0` is 1, as ring already normalises it. Item C asserts
+SECOND_REVIEW_BAD_MOVES and E58_ACCEPTS.
 
 **int_flip (E51)** is the sixth move. `_flip_select` is int_subst's
 selector without a variable (`int-flip-no-integral`, with the occurrence

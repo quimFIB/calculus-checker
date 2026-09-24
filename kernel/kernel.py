@@ -606,24 +606,35 @@ def _settles(key):
     answer is memoised per key (_ORDER_MEMO)."""
     if key in _ORDER_MEMO:
         return _ORDER_MEMO[key]
-    if len(_ORDER_MEMO) >= _ORDER_MEMO_BOUND:
-        _ORDER_MEMO.clear()
-    _ORDER_MEMO[key] = said = _settles_uncached(key)
+    said, stable = _settles_uncached(key)
+    if stable:  # a RecursionError's answer depends on the stack, not the key
+        if len(_ORDER_MEMO) >= _ORDER_MEMO_BOUND:
+            _ORDER_MEMO.clear()
+        _ORDER_MEMO[key] = said
     return said
 
 
 def _settles_uncached(key):
+    """(answer, stable). `stable` is False when a RecursionError decided the
+    answer, raised here or mapped by the checker to 'too-deep': that answer
+    depends on the depth of the stack it ran on, not on the key alone, so
+    it is not memoised."""
     try:
         said = FD.norm_num(key)
         if said is None:
             new, _ = discharge.exact_values(key)
             said = FD.norm_num(new)
         if said is not None:
-            return said
+            return said, True
         cert = search.propose(key)
-        return cert is not None and discharge.check(key, cert) is not None
-    except (Refused, RecursionError):
-        return False
+        if cert is None:
+            return False, True
+        tag, why = discharge.verdict(key, cert)
+        return tag is not None, not (why or "").endswith("too-deep")
+    except Refused:
+        return False, True
+    except RecursionError:
+        return False, False
 
 
 def _range_of(v, lo, hi, dom):
@@ -997,7 +1008,11 @@ def _no_trees_erased(lhs, inst, at):
     App (pyth's sum, pyth_cos's power), never normalises, and an entry
     whose right side drops a schema variable (pyth's 1) would erase the
     node, whose definedness nothing owes. No rule may erase an Int or D
-    node (E57_PRINCIPLE). `lhs` is the instantiated left side.
+    node (E57_PRINCIPLE). Both halves are tested, each alone (the suite
+    calls this function directly, since under today's ENTRIES each half is
+    redundant through the moves). `lhs`, the instantiated left side, is not
+    read here: the seam's signature carries the branch so that the planted
+    bug rewrite_tree_branch_skips_E57 can test it.
 
     A seam (ARCHITECTURE.md §7): rewrite calls it by this global name; the
     planted bug rewrite_tree_branch_skips_E57 and the BACKSTOPS case
@@ -1006,6 +1021,21 @@ def _no_trees_erased(lhs, inst, at):
         if next(trees(t), None) is not None:
             raise Refused("Int-or-D-not-normalisable", f"{_brief(t)} holds an "
                           "Int or D node, which a rewrite could erase (E57)")
+
+
+def _no_trees_in_limits(*limits):
+    """SECOND_REVIEW_RULE (E57's principle, amended): an Integral or Deriv
+    node in a limit of the Int that ftc, int_subst or int_flip acts on (or
+    in int_subst's new lo and hi) refuses 'Int-or-D-not-normalisable',
+    before anything is emitted and before any order is decided. Such a
+    limit has no definedness condition the kernel can state, and F(b) -
+    F(a), the endpoint images or the new integral would carry it into the
+    goal. An infinite limit holds no node."""
+    for t in limits:
+        if isinstance(t, Term) and next(trees(t), None) is not None:
+            raise Refused("Int-or-D-not-normalisable", f"the limit {_brief(t)} "
+                          "holds an Int or D node, whose definedness no rule "
+                          "can state (E57)")
 
 
 def _rewrite(state, args, minted, buf):
@@ -1120,6 +1150,7 @@ def _ftc(state, args, minted, buf):
     if any(isinstance(e, (PosInf, NegInf)) for e in (it.lo, it.hi)):
         raise Refused("ftc-infinite-endpoint", "F(oo) is not a term (§5.1); "
                       "an infinite range needs int_improper")
+    _no_trees_in_limits(it.lo, it.hi)  # SECOND_REVIEW_RULE
     x, f = it.var, it.body
     closed, orient = _range(it, G)
     on_ab = G + (closed,)  # [a, b]
@@ -1374,6 +1405,7 @@ def _int_subst(state, args, minted, buf):
             raise Refused("int-subst-infinite-endpoint", "int_subst needs finite "
                           f"limits, and {'oo' if isinstance(end, PosInf) else '-oo'}"
                           " is not (int_improper is the route)")
+    _no_trees_in_limits(a, b, lo, hi)  # SECOND_REVIEW_RULE, after step 3
     _fresh(state.goal, v)  # step 4
     parts = ([("the substitution", sub, {var}), ("the new integrand", f, {v})]
              if reverse else [("the substitution", sub, {v})])
@@ -1463,6 +1495,7 @@ def _int_flip(state, args, minted, buf):
     key uses it), then check_goal. Returns (new goal, None, no extras)."""
     g = state.goal[0]
     side, path, it, P, anc = _flip_select(g, args.get("occurrence"))  # step 2
+    _no_trees_in_limits(it.lo, it.hi)  # SECOND_REVIEW_RULE
     _flip_under_D(anc, it)  # step 3
     new = _flipped(it)  # step 4
     sides = list(_sides(g))

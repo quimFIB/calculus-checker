@@ -1414,6 +1414,7 @@ def refusal_coverage_problems():
     named = {c["refusal"] for c in BAD_MOVES + X.WRONG_ANSWERS + SUITE_BAD_MOVES
              + SUBST_BAD_MOVES + (X.INT_FLIP_BAD_MOVES + X.E56_BAD_MOVES
                                   + X.E57_BAD_MOVES + X.E56_REVIEW_CASES["bad_moves"]
+                                  + X.SECOND_REVIEW_BAD_MOVES
                                   if CONSOLIDATED else [])}
     if S0 is not None:
         named |= {c["refusal"] for c in S0.INT_SUBST_WRONG_ANSWERS
@@ -4751,6 +4752,91 @@ def lazy_install_problems(c):
     return out
 
 
+# section 16 (the second review, SECOND_REVIEW_SWITCH)
+SECOND_BAD_MOVES, E58_ACCEPTS = X.SECOND_REVIEW_BAD_MOVES, X.E58_ACCEPTS
+# Section-16 cases the rules do not reach, each left failing with its
+# evidence until the data changes (a data_change_request).
+SECOND_REVIEW_DATA_CHANGE_REQUESTS = {
+    "int_subst_reverse_limit_holds_Int":
+        "data_change_request: the move's hi, Int[y = 1 .. oo] 1, holds oo, and "
+        "INT_SUBST_RULE step 1 refuses a term argument holding oo 'bad-args' "
+        "('lo, hi and f are Terms holding no MVar and no oo'), before step 3 "
+        "and SECOND_REVIEW_RULE's test, so the case cannot be refused "
+        "Int-or-D-not-normalisable as written (nor was it orientation-"
+        "undecided on 45132e5: it was bad-args). Proposed: hi := '1' (the "
+        "selected Int's upper limit alone then holds the Int, and the move "
+        "is refused Int-or-D-not-normalisable after step 3), or an Int or D "
+        "with finite limits such as 'D[y](abs y)'",
+}
+
+
+def second_review_bad_move_problems(b):
+    out = bad_move_problems(b)
+    if out and b["id"] in SECOND_REVIEW_DATA_CHANGE_REQUESTS:
+        out.append(SECOND_REVIEW_DATA_CHANGE_REQUESTS[b["id"]])
+    return out
+
+
+def e57_halves_problems():
+    """E57's step 2a tests both halves, each alone: a tree in an inst value
+    only, and in the target only, are each refused, and neither is refused
+    without one. Under today's ENTRIES each half is redundant through the
+    moves (step 3's ring_nf, or a target that holds the inst value), so
+    kernel._no_trees_erased is called directly, on both kinds of left
+    side, and a check that tests only one half fails here."""
+    out = []
+    tree, plain = term("Int[y = 1 .. oo] 1"), term("z")
+    d_tree = term("D[x](abs x)")
+    for lhs in (term("(sin u)^2 + (cos u)^2"), term("atan(u)")):
+        for label, inst, at, refused in (
+                ("an Int in inst only", {"u": tree}, plain, True),
+                ("a D in inst only", {"u": d_tree}, plain, True),
+                ("an Int in the target only", {"u": plain}, T.App("sin", tree), True),
+                ("a D in the target only", {"u": plain}, T.App("sin", d_tree), True),
+                ("neither", {"u": plain}, T.App("sin", plain), False)):
+            try:
+                K._no_trees_erased(lhs, inst, at)
+                code = None
+            except T.Refused as r:
+                code = r.code
+            want = "Int-or-D-not-normalisable" if refused else None
+            if code != want:
+                out.append(f"{label}, left side {show(lhs)}: {code}, expected {want}")
+    return out
+
+
+def order_memo_depth_problems():
+    """The orientation memo never keeps an answer a RecursionError decided:
+    under a recursion limit too low for the search, _settles answers False
+    for a key it proves at the normal limit, and the key is not memoised,
+    so the next call, at the normal limit, proves it."""
+    import inspect
+    k = key("0 <= pi/7 + 1/11", "true")
+    old, out, low = sys.getrecursionlimit(), [], None
+    # the margin above the current depth at which the search itself runs
+    # out of stack, found by lowering it until _settles answers False
+    for margin in range(24, 4, -1):
+        K._ORDER_MEMO.pop(k, None)
+        sys.setrecursionlimit(len(inspect.stack()) + margin)
+        try:
+            low = K._settles(k)
+        except RecursionError:  # the limit is below _settles' own frames
+            low = None
+        finally:
+            sys.setrecursionlimit(old)
+        if low is False:
+            break
+    if low is not False:
+        out.append("no recursion limit made the search fail: the check is vacuous")
+    if k in K._ORDER_MEMO:
+        out.append("an answer decided by a RecursionError was memoised")
+    if K._settles(k) is not True:
+        out.append("at the normal limit the key is not proved")
+    elif K._ORDER_MEMO.get(k) is not True:
+        out.append("the stable answer was not memoised")
+    return out
+
+
 def e57_principle_problems():
     """E57_PRINCIPLE checks every move: each of MOVES is named there."""
     return [f"{m} is not checked against E57's principle" for m in K.MOVES
@@ -4839,6 +4925,19 @@ def consolidation_checks(suite):
         suite.check("C", f"E56_REVIEW_CASES {c['id']}: {c['goal']} installs emitting "
                     f"nothing, within {c['timing_bound']} s (E56_TIMING_BOUND)",
                     lambda c=c: lazy_install_problems(c))
+    suite.check("C", "E57's step 2a, called directly: a tree in inst only, and in the "
+                "target only, is each refused (both kinds of left side)",
+                e57_halves_problems)
+    suite.check("C", "the orientation memo keeps no answer a RecursionError decided",
+                order_memo_depth_problems)
+    print("\nThe second review (section 16): limits holding a tree, and 0^0 = 1")
+    for b in SECOND_BAD_MOVES:
+        suite.check("C", f"SECOND_REVIEW_BAD_MOVES {b['id']} -> {b['refusal']}",
+                    lambda b=b: second_review_bad_move_problems(b))
+    for c in E58_ACCEPTS:
+        suite.check("C", f"E58_ACCEPTS {c['id']}: {c['goal']} closes with 1 -> "
+                    f"{c['report']!r}",
+                    lambda c=c: subst_accept_problems(c, table="E58_ACCEPTS"))
 
 
 # CONSOLIDATION_PLANTED_BUGS and E56_PLANTED_BUGS, each in a child process
