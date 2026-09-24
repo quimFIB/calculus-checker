@@ -6645,6 +6645,10 @@ DATA_CHANGES = (
      "what DESIGN.md must now say, and the record of the re-run checks",
      "the places this file records what DESIGN.md must change",
      "int_subst spec 2026-09-24, owner answers"),
+    ("INT_SUBST_SEAMS pi_pos_not_in_constraint_set",
+     "the seam no longer expects P1.1-sheet to finish with 6 admissions and 0 <= pi/2 admitted tagged none; it is caught at P1.1-sheet s1 as a refusal (int-subst-orientation-undecided)",
+     "the int_subst build showed the old expectation contradicts E46: [0, pi/2] is not a literal range, so s1 must prove one order of the new limits to choose the new integral's form, and without pi's sign fact neither is proved, so s1 is refused. Checked by the main session against E46's text",
+     'adjudicated during implementation'),
 )
 
 
@@ -9599,14 +9603,11 @@ INT_SUBST_SEAMS = {
     # without pi_pos the search has no certificate for 0 <= pi/2 nor for
     # its negation: admitted ('none', ()), REASON_NONE, wherever emitted
     "pi_pos_not_in_constraint_set": {
-        "admissions": {"P1.1-sheet": 6},
-        "retagged": {"P1.1-sheet": [("0 <= pi/2", "true", ADMITTED,
-                                     T_NONE)]},
-        "caught_by": [("P1.1-sheet", "s1", "0 <= pi/2", "tag"),
-                      ("P1.1-sheet", "s1", "0 <= pi/2", "status"),
-                      ("P1.1-sheet", "s2", "0 <= pi/2", "tag"),
-                      ("P1.1-sheet", "s3", "0 <= pi/2", "tag"),
-                      ("N", "P1.1-sheet")]},
+        # E46: [0, pi/2] is not literal, so s1 must decide the new range's
+        # order; without pi's sign neither 0 <= pi/2 nor pi/2 <= 0 is
+        # proved, and s1 is refused int-subst-orientation-undecided rather
+        # than admitting 0 <= pi/2 (DATA_CHANGES, adjudicated)
+        "caught_by": [("P1.1-sheet", "s1", "refused")]},
     # deriv's APP_RULES seam, reached through int_subst's step 10
     "d_ln_emits_nothing": {
         "admissions": {"P1.1-sheet": 5},
