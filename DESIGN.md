@@ -128,7 +128,10 @@ planted bugs, wrong answers with their residuals, refusals, and handle
 forgeries. Building it found:
 - **Two unsound rules.** §6.4's `ftc` never required a ≤ b, so with reversed
   limits its four premises held vacuously and it proved ∫₁⁻¹ 1/x² ≐ 2. Every
-  step over a range now owes `lo ≤ hi` (§6.1, §6.4). And **partial functions
+  step over a range was made to owe `lo ≤ hi` (§6.1, §6.4). *(The
+  consolidation replaced that rule: every step now builds the range from
+  whichever order discharge proves, and refuses when neither is proved, §6.4.)*
+  And **partial functions
   owed nothing**: `0*ln(-1) ≐ ?A` and `tan(pi/2) − tan(pi/2) ≐ ?A` closed as
   a plain `Proved.`, because `ring` cancelled atoms that denote nothing. Each
   partial builtin is now a former that owes its natural domain, and `ring`,
@@ -765,16 +768,34 @@ reversed limit made the constraint set inconsistent, and Fourier–Motzkin prove
 Reversed limits are normal output of `int_subst` with a decreasing φ — `x = a
 cos θ` is the canonical case — so this was reachable, not hypothetical.
 *(Revision 10, int_subst: the claim holds, through a flip. Once every range
-owes `lo ≤ hi` (§6.4), a reversed range with symbolic ends owes an order that
-is false, so x = cos θ over [π/2, 0] was at first refused at the substitution
-itself. `int_subst` now builds the oriented form, ∫₀^{π/2} −(…) dθ, when
-discharge proves the ends' order the other way. That is this paragraph's
-definition applied once. Literal ends, as in x := 1 − t over [1, 0], are kept
+owed `lo ≤ hi` (§6.4, since replaced), a reversed range with symbolic ends
+owed an order that is false, so x = cos θ over [π/2, 0] was at first refused
+at the substitution itself. `int_subst` now builds the oriented form,
+∫₀^{π/2} −(…) dθ, when discharge proves the ends' order the other way. That
+is this paragraph's definition applied once. Literal ends, as in x := 1 − t over [1, 0], are kept
 reversed, since every later step orders them the same way and owes nothing.
 ∫₀¹ √(1−x²) by x = cos θ is accepted as a move. It does not finish yet. The
 goal still owes `1 − x^2 ≥ 0` and the new integrand owes `1 − (cos θ)^2 ≥ 0`,
 both tagged `none`, and closing needs `pyth` and a sign fact for cos on
 [0, π/2]. Neither gap is the substitution's.)*
+
+*(Revision 10, consolidation, E56: reversed limits are now ordinary input to
+every move, not only `int_subst`'s output. Owing `lo ≤ hi` was stronger than
+this paragraph needs. It refused a correctly reversed symbolic range such as
+∫_{π/2}^0 wherever a key used it, because `pi/2 ≤ 0` is false. Every step
+that builds an interval from an integral's limits now orders two literal
+ends by `norm_num` and otherwise builds the interval from whichever order
+discharge proves, [lo, hi] or [hi, lo], and it is refused
+`orientation-undecided` when neither is proved (§6.4). **This closes the
+exploit above without assuming an order.** The exploit was a constraint set
+that assumed a ≤ b when b < a, so the range was empty and every obligation on
+it vacuous. A proved order cannot be wrong, because its certificate is
+checked, so the interval built is exactly the set of points between the
+limits and is never empty. An integral's value, by this paragraph's
+definition, and its definedness depend only on the integrand on that set, so
+every obligation stated on it is the right one for either order. Both gaps
+above are closed too: ∫₀¹ √(1−x²) by x = cos θ now finishes, `Proved modulo 5
+admissions` (§13).)*
 
 **Inverse hyperbolics are in.** Separable ODEs with quadratic drag integrate
 to `artanh`, and §8.5's recognizer row √(x²+a²) → x = a sinh u needs `asinh` to
@@ -822,6 +843,17 @@ Both spellings now emit the same obligation, and §17's bank tests both.
 is an integer power exactly when it is a literal n or −n, and anything else is
 a real power owing base > 0. `x^2^3` is refused as ambiguous rather than read
 either way — `kernel/GRAMMAR.md` D8.)*
+
+**`u^0` is 1 for every base, 0 included** *(revision 10, second review,
+E58)*. An integer power is repeated multiplication, and `u^0` is the empty
+product. That is the convention `ring` already implements, since it
+normalises `u^0` to the constant 1, and it is the one that keeps `ring_nf` a
+sound identity under every assignment of the atoms. So `0^0 ≐ ?A` and
+`(x − x)^0 ≐ ?A` both prove 1: the convention is about the integer exponent,
+not about the base. The real power `e ^ e` is untouched and still owes
+base > 0. A limit of the form 0⁰ is §6.7's business, since it asks about a
+limit and not about a term's value. `deriv` still refuses `d_pow_int` at
+n = 0 (§6.3), which is incompleteness, not unsoundness.
 
 A *function* is not a first-class object: "the function x ↦ e" is the pair
 (variable, expression), and `D[x]`, `Int[x=..]`, `Sum[n=..]`, `lim[x->..]` bind
@@ -955,8 +987,13 @@ A goal may first be `field`-normalised. Then, **in the order tried**:
    inequalities.
 2. **by range** — inside `Int[t = a .. b] ...` the domain is extended with
    `min(a,b) ≤ t ≤ max(a,b)`, so a rewrite under the integral sign may use it.
-   *(Revision 10: the step that uses a range now owes its orientation `a ≤ b`
-   (§6.4), so the order method 2 needs is established rather than hoped for.)*
+   *(Revision 10: the step that uses a range was made to owe its orientation
+   `a ≤ b` (§6.4), so the order method 2 needs is established rather than
+   hoped for.)* *(Revision 10, consolidation, E56: it no longer owes `a ≤ b`
+   outright. The step builds the range from whichever order discharge
+   proves, [a, b] or [b, a], and is refused if neither is proved (§6.4). So
+   a range item is never empty, its lower end is always the smaller, and
+   method 2 never meets a range whose order is unknown.)*
 3. **by linear arithmetic** — Fourier–Motzkin over ℚ on the linear constraints,
    complete for that fragment. **FM emits its Farkas witness** — the
    non-negative combination — and the kernel re-checks it with `norm_num`/`ring`.
@@ -1034,7 +1071,8 @@ A goal may first be `field`-normalised. Then, **in the order tried**:
    by `ring`**, like methods 3 and 4's witnesses; each factor's sign is an
    ordinary obligation and goes back through this same list, terminating
    because the factors are of strictly lower degree. It closes `> 0`, `< 0`
-   and `# 0` goals alike — for `#` it is enough that every factor is nonzero.
+   and `# 0` goals alike — for `#` it is enough that every factor is nonzero
+   — and, since the consolidation, non-strict ones (below).
    *(Discharge, E30: "strictly lower degree" is the search's rule. The
    checker checks the factorisation by `ring`, each factor's own certificate
    and the sign parity, and it terminates because every certificate is
@@ -1047,6 +1085,39 @@ A goal may first be `field`-normalised. Then, **in the order tried**:
    atom, so the strict-degree precondition let neither through, and no other
    method reaches them alone. The split is not applied again to p, so the
    recursion still terminates. *(Revision 10, E18.)*
+
+   **It closes non-strict goals too** *(revision 10, consolidation, E53)*.
+   `1 − x^2 ≥ 0` on [0, 1] is the domain of every √(a² − x²) substitution,
+   and no method reached it: a factor of 1 − x² is 0 at an end, so it has no
+   strict sign there. Under a `≥ 0` or `≤ 0` target, each factor may now
+   carry any of `>`, `<`, `≥`, `≤`. Under a strict target every factor must
+   still be strict. The checker checks three things beside the `ring`
+   identity and c ≠ 0:
+   - the relations suit the target, as just stated;
+   - the parity holds: with the target written g ≥ 0, sign(c) times (−1)
+     to the number of `<` and `≤` factors is +1;
+   - each factor's own obligation, fj rj 0 at the key's domain, holds by
+     its own certificate.
+
+   **Why it is sound.** At any point of the domain where the terms are
+   defined, each factor has its certified sign, so the product's sign follows
+   from the parity, zero included. A strict factor may serve a non-strict
+   target, because it only strengthens it. A non-strict factor may never
+   serve a strict one, because a factor that is 0 makes the product 0. The
+   search tries each factor strict first, then non-strict. So 1 − x² is
+   −(x − 1)(x + 1), with x − 1 ≤ 0 by the upper end (not < 0, since it is 0
+   at 1) and x + 1 > 0 by the lower end, and the parity is (−1)(−1) = +1.
+   **A content of −1 is not split off under a non-strict target**, because
+   the one factor's goal would restate the key. The sign stays with the
+   content in the certificate, as in −(x − 1)(x + 1).
+
+   One consequence was missed by the consolidation's own specification, and
+   found while re-tracing E56. π/2's sign now also closes as (1/2)·π with
+   π > 0 by `cite pi_pos`, so a search that has lost the linear method's
+   sign facts still proves `0 ≤ pi/2`. Two routes to one fact cost nothing in
+   soundness. The cost is to the suite: the planted bug that drops `pi_pos`
+   from the constraint set now shows only as a changed tag, where it used to
+   change P1.1's admission count and refuse the sheet's substitution.
 6. **by `cite`** — a named library fact (§6.8), with its own hypotheses
    emitted as obligations.
 
@@ -1085,7 +1156,9 @@ reversed-limit exploit of §5.1 was one instance of it. *(Discharge, E28–E29,
 owner's decision 2026-09-24: with checked witnesses, what carries soundness
 has moved. An accepted Farkas certificate proves its obligation on its
 domain, vacuously if the domain is empty. The danger was a wrongly built
-constraint set, and E4 closes that by owing every range's `lo ≤ hi`. The
+constraint set. E4 closed that by owing every range's `lo ≤ hi`, and since
+the consolidation E56 closes it more strongly: every range is built from a
+proved order, so no range item is ever empty (§6.4). The
 pre-check stays, **untrusted**, inside the search, so that the search never
 reaches for a vacuous witness. It can only withhold a discharge. The checker
 also demands a positive multiplier on the negated goal.)*
@@ -1240,8 +1313,14 @@ must still avoid the non-open partial formers (`sqrt`, `asin`, `acos`,
 **Rewriting under `Int` owes the range's orientation (revision 10).** The range
 domain `a ≤ t ≤ b` is only the range once `a ≤ b` is known; with the limits
 reversed it is empty, and an empty domain makes every obligation on it
-vacuous. So a rewrite whose position lies under an integral owes `a ≤ b`,
-exactly as `ftc` does (§6.4).
+vacuous. So a rewrite whose position lies under an integral was made to owe
+`a ≤ b`, exactly as `ftc` was (§6.4). *(Revision 10, consolidation, E56: it
+now decides the order instead, as every step that builds a range does. The
+position domain holds [a, b] or [b, a], whichever discharge proves, and the
+step is refused `orientation-undecided` if neither is. That is enough,
+because the integral depends only on the range as a set. The order of each
+enclosing integral is decided, outermost first, before any key at the
+position is emitted.)*
 
 **`rewrite` matches up to ring-normalised atom arguments, and acts on every
 occurrence it is given** (revision 10, settling §18 Q21). The rule is
@@ -1254,6 +1333,36 @@ side conditions. A bound variable is matched by the binder case, with the side
 condition discharged from the enclosing integral's range; that is §11.1's
 `sqrt_sq` on t. The full statement is `kernel/p1_expected.py`'s
 `REWRITE_RULE`.
+
+**No rule may erase an `Int` or `D` node unless its definedness is owed**
+*(revision 10, consolidation review, E57)*. This principle was found through
+a false `Proved.`. `rewrite` matches a left side that is not an application,
+such as `pyth`'s sum, as a tree, and that branch never passed its instance
+values through `ring_nf`. `ring_nf`'s refusal of `Int` and `D` (§6.2) was
+what had kept those nodes out of every earlier rewrite. `pyth` was also the
+first equation entry whose right side drops its schema variable. So
+`(sin(D[x](abs x)))^2 + (cos(D[x](abs x)))^2 ≐ ?A` rewrote to `1`, owing
+nothing, and `close 1` reported a plain `Proved.`, though |x|′ does not exist
+at 0. With u := `Int[x = 1 .. oo] 1`, a divergent integral, it went the same
+way. Until §18 Q23's formers land, nothing states when such a node denotes,
+so "unless its definedness is owed" means never, except where the rule's own
+premises owe it, as `ftc`'s do for the integral it consumes.
+- **`rewrite` refuses at a new step 2a, on every match branch.** If any
+  instance value, or the target position itself, holds an `Int` or `D` node,
+  the step is refused `Int-or-D-not-normalisable` before anything is
+  matched. `(sin z)^2 + (cos z)^2` still rewrites to 1 and proves, owing
+  nothing, which is right.
+- **Every other move was checked against the principle, and complies.**
+  `close`'s whitelist refuses such a value, and its check's `ring` or `field`
+  refuses any side holding one. `int_subst` and `int_flip` carry a nested
+  node into the new body and drop nothing. A `fact` whose instance holds one
+  keeps it in its conclusion, and every use refuses it. Field facts, exact
+  values and every certificate checker go through `ring_nf`, which refuses
+  the node.
+- **A limit holding an `Int` or `D` node is refused outright by `ftc`,
+  `int_subst` and `int_flip`** *(second review)*. Such a limit has no
+  definedness the kernel can state, and each move would carry it into the
+  goal (§6.4).
 
 ### 6.2 Algebra — the three places a normal form is allowed
 
@@ -1320,7 +1429,11 @@ it is the price of soundness. `ring` is sound precisely *because* it knows
 nothing about `sin`, so every fact about `sin` has to enter through a rule that
 is a theorem. Which rule to reach for is a question `auto` will happily answer
 for you (§8.1) — the point is only that something has to answer it, and a
-normalizer that guessed would be the unsound kind.
+normalizer that guessed would be the unsound kind. *(Revision 10,
+consolidation, E54: `pyth` as stated cannot be a `field` fact, because its
+left side is a sum and a fact must be a^k ≐ r. `rewrite` can use it, at a
+subterm that is the sum as a tree. The form both can use at (cos b)^2 is its
+solved form `pyth_cos` (§6.8).)*
 
 **The same property is what makes surds awkward, and §11.2 is where it bites.**
 `sqrt 3` is an opaque atom, so `field` sees a free atom *s* unrelated to 3.
@@ -1450,12 +1563,82 @@ empty, all four premises hold vacuously, and the rule as drawn proves
 ∫₁⁻¹ 1/x² dx ≐ 2, which gives a divergent integral a value. §5.1 says what a
 reversed integral denotes, and §5.3's method 2 guarded its own use of the
 range, but `ftc` itself was unguarded, and so was rewriting under `Int` (§6.1).
-**Every step that uses a range now owes `a ≤ b`.** It is decided by `norm_num`
-when both ends are literals, fixed by an infinite end, and otherwise emitted as
-an ordinary obligation. Readiness P1.1's is `0 ≤ pi/2`, closed by linear
-arithmetic with `pi_pos`. `ftc` refuses an infinite endpoint outright, since
-F(∞) is not a term, and `int_improper` is the route. *(Found by the
-proof-of-life: `kernel/p1_expected.py` E4 and E9.)*
+**The first fix made every step that uses a range owe `a ≤ b`.** It was
+decided by `norm_num` when both ends are literals, fixed by an infinite end,
+and otherwise emitted as an ordinary obligation. `ftc` refuses an infinite
+endpoint outright, since F(∞) is not a term, and `int_improper` is the route.
+*(Found by the proof-of-life: `kernel/p1_expected.py` E4 and E9.)*
+
+**Since the consolidation, the range is built from whichever order
+discharge proves** *(revision 10, consolidation, E56, the owner's answer)*.
+Owing `a ≤ b` outright was too strong. A correctly reversed symbolic range,
+∫_{π/2}^0, owed `pi/2 ≤ 0`, which is false, so it was refused wherever a key
+used the range, and only `int_subst` had a way round it. There is now one
+rule for every step that builds an interval from an integral's limits:
+installation's and every new goal's formers, `rewrite`'s position domain,
+`ftc`'s premises, `int_subst`'s old and new ranges, and `int_flip`'s new one.
+- **Two literal ends** are ordered by `norm_num`, and **an infinite end**
+  fixes the order, as before.
+- **Otherwise the kernel asks discharge for lo ≤ hi, then for hi ≤ lo**, at
+  the integral's position domain, with no counter-point search. The first
+  proved is emitted as the step's orientation key, already discharged, and
+  the interval is [lo, hi] or [hi, lo] accordingly. Nothing more is owed
+  about order. Readiness P1.1's key is `0 ≤ pi/2`, closed by linear
+  arithmetic with `pi_pos`, as before.
+- **If neither is proved, the step is refused `orientation-undecided`**,
+  naming both ends and asking for the order in the goal's domain. That is
+  one code for every step. `Int[t = 0 .. y] sqrt(t^2)` is refused at
+  installation, because y is free. Under E4 it owed `0 ≤ y`, which the
+  counter-point search refuted at y = −1, a refusal for the wrong reason.
+- **Enclosing ranges are decided first** *(consolidation review)*. A position
+  domain holds the range of every enclosing integral, so a step emitting any
+  key there first decides each enclosing order, outermost first, and is
+  refused on the first that no discharge decides. The skeptic's case,
+  `Int[y = a .. b] (Int[x = a .. y] 1)` with `int_subst` on the inner
+  integral, had emitted its premises on y ∈ [a, b] with a ≤ b never
+  decided. It is refused now, and with `@ a ≤ b` on the goal it is accepted,
+  that hypothesis certifying the order.
+- **Orders are decided lazily, and memoised** *(consolidation review)*. An
+  order is decided only when a key whose domain holds that interval is
+  emitted, so a range no key uses is never decided. Each decision is
+  memoised per key, which is safe because discharge is a function of the key
+  and the entries alone. `Int[x = (a-1)^40 .. 0] sin 0 ≐ ?A` owes nothing at
+  installation, and the first build took 30.5 s deciding its order anyway.
+  It now decides nothing and installs at once.
+
+**Why a proved order is enough.** §5.1's exploit was a constraint set that
+assumed a ≤ b when b < a, so the range was empty and every obligation on it
+vacuous. A proved order cannot be wrong, because its certificate is checked,
+so the interval built is exactly the set of points between the limits, and
+it is never empty. An integral's value (§5.1: ∫_a^b = −∫_b^a) and its
+definedness depend only on the integrand on that set, so every former,
+hypothesis and premise stated on it is the right one for either order.
+`ftc`'s F(b) − F(a) holds for either order, since for b < a,
+∫_a^b f = −(F(a) − F(b)), and its premises sit on [min, max] and
+(min, max). Rewriting under an integral needs only the range as a set
+(§6.1), and `int_subst`'s premises are on the closed interval between its
+limits. Equal limits make both orders provable and give the same point. The
+order key is still emitted, so what a proof relied on stays in its tracker.
+So `Int[x = pi/2 .. 0] 2*x` closes to −π²/4 by `ftc` alone, and
+`Int[t = pi/2 .. 0] sqrt(t^2)` to −π²/8 through `sqrt_sq` under the reversed
+integral, both modulo their 3 regularity admissions.
+
+**No tree in a limit** *(revision 10, second review, E57 amended)*. `ftc`,
+`int_subst` and `int_flip` test the limits of the integral they act on, and
+`int_subst` its new limits too, for an `Int` or `D` node, and refuse
+`Int-or-D-not-normalisable` before anything is emitted and before any order
+is decided. Such a limit has no definedness the kernel can state, and
+`ftc`'s F(b) − F(a), `int_subst`'s endpoint images and `int_flip`'s new
+integral would each carry it into the goal with nothing owed (§6.1). `ftc`
+and `int_subst` did refuse `Int[x = 0 .. (Int[y = 1 .. oo] 1)] 0` before,
+but only by accident. `ftc` and reverse `int_subst` read
+`orientation-undecided`, because `norm_num` refused the orientation key
+inside the order decision, and forward `int_subst` was stopped by its
+endpoint check's `ring`. `int_flip` accepted it, since no key used the new
+range. `int_flip` erased nothing, and is included by decision, so that one
+rule covers the three moves.
+Installation is unchanged: a goal may hold such an integral, and every key
+holding the tree is refused as before.
 
 **The regularity premises split across the closed and the open interval, and
 that is a correction rather than a refinement** (stage 0, `STAGE0.md` gap 1).
@@ -1643,18 +1826,25 @@ reversed new limits, a > b.
   proved, it is owed and the limits are kept. Otherwise it asks for b ≤ a. If
   that is proved, the step emits the **flipped, oriented** integral
   `Int[t = b .. a] −(f(φ(t))·φ′(t))`, with the premises on [b, a]. If neither
-  order is proved, the step is refused with
-  `int-subst-orientation-undecided`. The flip is §5.1's definition of a
-  reversed integral composed with this rule. It is a trusted addition to the
-  rule table and owes nothing beyond the discharged order. It is what lets
-  §5.1's x = cos θ over [π/2, 0] through.
+  order is proved, the step is refused with `orientation-undecided`. The flip
+  is §5.1's definition of a reversed integral composed with this rule. It is
+  a trusted addition to the rule table and owes nothing beyond the
+  discharged order. It is what lets §5.1's x = cos θ over [π/2, 0] through.
 
-Reverse mode orients its new limits c and d in the same way. It owes the old
-range's a ≤ b as `ftc` does, since its premises sit there.
+Reverse mode orients its new limits c and d in the same way. It decides the
+old range's order as every step does, and its premises sit on the interval
+that order gives.
 
-One consequence is stricter than `ftc`. An undecided symbolic order, which
-`ftc` would emit and admit, refuses here, because the kernel must know which
-form to build. Readiness P1.1 without `pi_pos` is refused at its `subst` step.
+*(Revision 10, consolidation, E56: this decision rule began here and is now
+every step's, above, with `int_subst`'s own code
+`int-subst-orientation-undecided` replaced by the shared one. Two things
+follow. It is no longer stricter than `ftc`, which under E4 emitted an
+undecided order and admitted it; every step now refuses one. And the flipped
+form is a choice rather than a necessity, since the unflipped reversed
+integral is now usable too; `int_subst` keeps it. Readiness P1.1 without
+`pi_pos` in the constraint set is no longer refused at its `subst` step:
+since E53, `0 ≤ pi/2` also closes by sign product with `cite pi_pos`
+(§5.3).)*
 
 **It acts on one integral, chosen as `rewrite` chooses a position.** An
 optional occurrence selects the k-th integral, counting as `rewrite` counts
@@ -1672,6 +1862,35 @@ If it occurs in none of them, nothing emitted mentions y. *(Specified before
 the code as `kernel/p1_expected.py` E36–E49, with the owner deciding the
 reverse mode, the flip, the selector and §5.3's `sqrt_nonneg`, then built and
 reviewed. P1.1 now starts from the sheet's own goal, §11.1.)*
+
+**`int_flip` reverses an integral's limits, as an explicit move**
+*(revision 10, consolidation, E51, the owner's decision)*.
+
+```
+  int_flip   Int[x = a .. b] f  ≐  Int[x = b .. a] −(f)          for every a, b
+```
+
+It is §5.1's definition of a reversed integral composed with pointwise
+linearity, the identity `int_subst`'s flip already uses, so the rule table
+gains a move and no theorem. It holds whatever the order of a and b, so the
+step owes no orientation of its own and has no premise. It selects as
+`int_subst` does, without a variable: the one integral in the goal, or the
+k-th by `occurrence`, and it is refused `int-flip-no-integral` or
+`int-flip-ambiguous` otherwise. Under a `D[y]` it takes `int_subst`'s
+open-domain test. The new integral's formers are charged as a new term's
+are, on its range, whose order is decided like any other (E56).
+
+**The form was chosen so that `ftc` can run after it.** The owner stated the
+move as `Int[x = a .. b] f ≐ −(Int[x = b .. a] f)`. `ftc` acts on a
+top-level integral, and on `−(Int …)` it refuses `ftc-no-integral`, so the
+owner's aim needed either the negation inside or a position argument for
+`ftc`. The negation inside is the same identity, and the owner accepted it.
+`Int[x = pi/2 .. 0] 2*x` flips to `Int[x = 0 .. pi/2] −(2*x)`, and `ftc`
+closes it to −π²/4. Since E56 the flip is a convenience, because `ftc`
+reaches the same value on the reversed goal directly. The limitation it had
+under E4 is gone: flipping an oriented symbolic integral whose body owes a
+former, such as ∫₀^{π/2} √x to ∫_{π/2}^0 −(√x), is accepted, where `pi/2 ≤ 0`
+had refused it.
 
 **The split premises do not over-admit, and the case that shows it is
 ∫₀¹ x^(−1/2) dx = 2.** Splitting the regularity across [a,b] and (a,b) was
@@ -1945,6 +2164,38 @@ because the corpus raises them; they are stated by the mathematics:
   row meets. §5.3's linear method reads it once for each `sqrt` atom in an
   obligation, as it reads `pi_pos`. Its hypothesis owes nothing, since it is
   the former the `sqrt` already paid on entry (§5.3).
+
+**Six entries for a trigonometric substitution** *(revision 10,
+consolidation, E54)*. They are what ∫₀¹ √(1−x²) by x = cos θ needs to finish
+(§13), and each is read by exactly one route, which is the part worth
+stating:
+- `pyth : (sin u)^2 + (cos u)^2 ≐ 1` — the identity as the owner states it,
+  and the parent of the next. `rewrite` can use it at a subterm that is that
+  sum as a tree, turning it into 1, soundly for every real b, and refuses a b
+  holding an `Int` or `D` node, which the rewrite would erase (§6.1, E57).
+  `field` cannot, since a fact must be a^k ≐ r (§6.2).
+- `pyth_cos : (cos u)^2 ≐ 1 − (sin u)^2` — `pyth` solved for (cos u)^2. It
+  is a rewrite at (cos b)^2 and a `field` fact in §6.2's shape, and it is the
+  form a √(a² − x²) substitution actually uses. Its statement minus `pyth`'s
+  is a `ring` identity, so it adds no trust beyond `pyth`.
+- `sin_nonneg_on : sin u ≥ 0 @ u ≥ 0, u ≤ pi` and
+  `cos_nonneg_on : cos u ≥ 0 @ u ≥ 0, u ≤ pi/2` — the sign facts on the
+  half and the quarter period, the second the owner's. **Both are read by
+  `cite` only** (§5.3 method 6), whose children certify each instantiated
+  hypothesis at the key's domain. They cannot be linear-method labels like
+  `pi_pos`, because a Farkas certificate has no children, and u ≥ 0, u ≤ π
+  are real conditions on the argument, not its definedness. x = cos θ uses
+  the sine fact. x = sin θ would use the cosine one.
+- `cos_le_one : cos u ≤ 1` and `cos_ge_neg_one : cos u ≥ −1` — the total
+  bounds. The linear method reads each once per `cos` atom in an obligation,
+  as it reads `sqrt_nonneg`, with nothing owed, since `cos` is total. They
+  are what closes `1 − (cos θ)^2 ≥ 0` as −(cos θ − 1)(cos θ + 1) (§5.3
+  method 5).
+
+None is an exact value, since each has a schema variable. E27's
+evaluated-answer check (§15.2) counts `pyth` at a tree-equal sum, since a value holding one is
+unevaluated, and does not count `pyth_cos`, which trades one atom for
+another. The count of 70 above predates these six, as it predates `pi_pos`.
 
 `cite <Lemma>` invokes a named theorem from a curated library file with its
 hypotheses checked. **The library file is part of the trusted base** (§15) and
@@ -2898,6 +3149,14 @@ new integrand is shown tidied: the kernel carries `deriv`'s `2*t^1*1`, which
 `ring` reads as `2*t`. The run is staged beside the main proof set, and it
 joins that set in the next consolidation step.)*
 
+*(Revision 10, consolidation, E52: it has joined. The sheet's goal is now
+P1.1's official route, run by every check that runs the main proof set, and
+it reports `Proved modulo 5 admissions`, all regularity. Before the build,
+every planted bug and mutation the suite runs was re-traced by hand against
+it. The proof that starts from the substituted goal stays, as the proof of
+that goal. The `0 ≤ pi/2` line is now the orientation key of §6.4's
+decision, discharged the same way.)*
+
 Three things to notice, and one correction from revision 1. *(Revision 9
 brought the `ftc` premises up to §6.4's split form, named `pi_pos` beside
 by-range, dropped `cos_zero`, which `ring` makes unnecessary since
@@ -3181,6 +3440,52 @@ scalar parts of 06, 08 and 09. That is a smaller and much more defensible
 project than revision 1's table advertised, it is what the stated need is, and
 it is measurable.
 
+**The √(a² − x²) row now runs end to end, and it shows what a trigonometric
+substitution costs** *(revision 10, consolidation, E55)*. ∫₀¹ √(1−x²) dx =
+π/4 by x = cos θ is §5.1's canonical reversed case, and §8.5's second
+recognizer row with cos for sin. It is
+`kernel/problems/consolidation/QC1.json`, and it proves `Proved modulo 5
+admissions`, all regularity:
+
+```
+problem consolidation.QC1
+  goal  Int[x = 0 .. 1] sqrt(1 - x^2)  ≐  ?A
+       obl  1 - x^2 ≥ 0  @ [0, 1]                 by sign product      ✓
+
+proof
+  step int_subst (x := cos θ) over θ from pi/2 to 0
+       obl  0 ≤ pi/2                              by linear, pi_pos    ✓
+       obl  cos(pi/2) ≐ 0,  cos 0 ≐ 1             exact values, in step ✓
+       obl  cos θ ∈ C¹,  sqrt(1 - (cos θ)^2) ∈ C⁰  on [0, pi/2]   by reg
+       obl  1 - (cos θ)^2 ≥ 0  @ [0, pi/2]        by sign product, cos bounds ✓
+  ⊢ Int[θ = 0 .. pi/2] −(sqrt(1 - (cos θ)^2) * (−sin θ))  ≐  ?A
+
+  step rewrite pyth_cos at (cos θ)^2
+  step rewrite sqrt_sq  (u := sin θ)
+       obl  sin θ ≥ 0  @ [0, pi/2]                by cite sin_nonneg_on ✓
+  ⊢ Int[θ = 0 .. pi/2] −(sin θ * (−sin θ))  ≐  ?A
+
+  fact h := pyth_cos (u := θ)
+  step ftc  F := (θ - sin θ * cos θ)/2
+       obl  D[θ] F ≐ −(sin θ * (−sin θ))  @ (0, pi/2)   by deriv; field [h] ✓
+       obl  F ∈ C⁰, F ∈ C¹, the integrand ∈ C⁰    by reg
+  step rewrite [sin_pi_half, cos_pi_half, sin_zero]
+  step close  ?A := pi/4                          by ring              ✓
+```
+
+Integrands are shown tidied, as in §11.1, and the literal divisors' `# 0`
+lines are left out. The five `reg` judgements are the admissions. The
+substitution flips, because x = cos θ is decreasing and `0 ≤ pi/2` is
+proved (§6.4). Three things are the point. **Both sign products are non-strict** (§5.3 method 5), and
+before the consolidation both were admitted `none`. **`pyth_cos` is used
+twice, by two routes**: as a rewrite, so that `sqrt_sq` can match
+√(1 − (1 − sin²θ)) through `ring_nf`, and as a `field` fact, because F′ holds
+cos²θ and the check is §6.4's trig-identity case, which escapes ℚ(atoms)
+until the fact reduces cos²θ to 1 − sin²θ. **Nothing large was needed**: no extension of `field`, and no `trig_norm`.
+Two wrong moves are in the suite. Dropping the fact refuses `ftc` with the
+residual, and applying `sqrt_sq` before `pyth_cos` is refused as a
+left-hand-side mismatch.
+
 ### The limits that remain, all of them technical
 
 Nothing below is a policy. These are the places where the mathematics or the
@@ -3457,6 +3762,10 @@ whether or not it looks like a kernel.
 3. **The rule matcher and instantiator.** §11.1's `rewrite sqrt_sq` binds the
    schema's `u` to a bound `t`; "capture-avoidance is a solved problem" is a
    claim about the term language, not about the implementation.
+   *(Revision 10, consolidation review, E57: it is also what bound `pyth`'s
+   u to `D[x](abs x)`, a term that does not denote everywhere, and the
+   entry's right side then erased it. `rewrite` now refuses any instance
+   value or target holding an `Int` or `D` node, §6.1.)*
 4. **`ring`, `field` and `norm_num`** — the three reflective procedures, with
    `field`'s divisor obligations and its reduction modulo facts (§6.2) the
    soundness-bearing behaviour.
@@ -3615,7 +3924,16 @@ evidence for item 3; and there were five, in a table of sixty, which is
 evidence for how much §14 would be worth. *(Revision 10: building the kernel
 found two more of the same kind, both passed by every reading before it: `ftc`
 without `a ≤ b` (§6.4), and the normalisers treating partial functions as total
-(§5.1).)*
+(§5.1).)* *(Revision 10, consolidation review, E57: and one of a different
+kind, which reached a false `Proved.` in the committed kernel. Every rule
+involved was true. `pyth` holds for every real u. What failed was an
+assumption under all of them, that a schema variable is bound to a term that
+denotes. The matcher bound u to `D[x](abs x)`, and an entry whose right side
+drops u erased it. That is §15.2 item 3 and a missing principle, not a
+missing hypothesis, which is why the fix is one rule checked against every
+move (§6.1) rather than a side condition on `pyth`. A falsifier bank
+generated one case per side condition could not have produced it from
+`pyth`, which has none. The skeptic reading the build found it.)*
 
 So the honest v1 statement is: **"sound by construction where certificates
 exist, sound by test against a mechanically generated adversarial bank
@@ -4102,6 +4420,9 @@ rest of the kernel list — real discharge, `int_subst`, regularity, `abs`,
 `diverges` — and everything under assistance and UI are still to do.
 *(Revision 10, int_subst: real discharge and `int_subst` have since landed, and
 P1.1 proves from the sheet's own goal. Regularity, `abs` and `diverges` remain.)*
+*(Revision 10, consolidation: so have `int_flip`, one orientation rule for
+every step and the non-strict sign product, and ∫₀¹ √(1−x²) by x = cos θ
+proves, §13. The list that remains is unchanged.)*
 
 **Against revision 4's OCaml plan**, Python is simpler to write for exactly this
 shape of code — dictionaries of exponent tuples, pattern dispatch over a term
@@ -4572,7 +4893,11 @@ the change of language and deployment, and reopen Q7.
     A is the same discipline E26 applies to `ln`: a term owes its own
     definedness where it enters, and algebra then treats it as a number. It
     lands with §6.9's regularity and `diverges`, stage 1's third piece. Until
-    then E26 (b)'s refusal stands as the safe placeholder.
+    then E26 (b)'s refusal stands as the safe placeholder. *(Revision 10,
+    consolidation review, E57: and until then no rule may erase an `Int` or
+    `D` node, except where its own premises owe the node's definedness,
+    §6.1. The refusal in the normalisers was not enough on its own: a
+    `rewrite` that never normalised erased one.)*
 
 ---
 
@@ -4706,6 +5031,24 @@ each upheld findings, and the last round's fixes were applied and re-run but not
 reviewed again. The late findings were almost all bugs planted to test the
 suite that it failed to catch, fixed by adding tests without changing what the
 kernel does.
+
+**A false `Proved.` reached the committed kernel, and review caught it before
+any push** *(revision 10, consolidation review, 2026-09-24)*. The
+consolidation build passed its whole suite and was committed. The skeptic
+given it then found `rewrite pyth` erasing `D[x](abs x)`, and likewise a
+divergent integral, and `close 1` reporting a plain `Proved.` with nothing
+owed (§6.1, E57). It also found two gaps in the new orientation rule: an
+enclosing range used without its order decided, and orders decided eagerly
+at 30 s for a range nothing used (§6.4). Nothing had been pushed. The fix is
+committed with both reproducers as must-refuse cases, and an independent
+second review of the fix found no false `Proved.` and four minor points,
+two of which became the refusal of trees in limits (§6.4) and `0^0 = 1`
+(§5.1). **What it says about the evidence is the part to keep.** The suite
+was green on a kernel that could prove a falsehood, because a suite checks
+what was specified, and nobody had specified that a rewrite may not drop a
+term. The adversarial review is what found it. **A green suite is evidence
+about the cases written down, and a clean adversarial review is the stronger
+signal**, however large the count of checks.
 
 **One thing worth reading, and it is optional.** Waterproof (TU Eindhoven,
 arXiv:2606.01875) is the closest existing artefact to the *interaction* §16
@@ -4966,7 +5309,8 @@ and their obligation lists derived by hand. The kernel proves readiness P1
 modulo 6 and 14 admissions, with discharge stubbed, and its regression script
 passes 225 checks. What reached this document:
 - **§6.1 / §6.4** — `ftc` and rewriting under `Int` owe the range's
-  orientation. Without it `ftc` proved ∫₁⁻¹ 1/x² ≐ 2.
+  orientation. Without it `ftc` proved ∫₁⁻¹ 1/x² ≐ 2. (The form of that
+  debt, `lo ≤ hi`, was replaced by the consolidation's E56, below.)
 - **§5.1 / §6.2 / §14** — the partial builtins are formers owing their natural
   domain, and `ring`, `field` and `norm_num` refuse `Int` and `D`. Without it
   `0*ln(-1) ≐ ?A` proved as `Proved.`. The owner chose this over committing to
@@ -5017,6 +5361,44 @@ rational pole that the counter-point search never tried (E50). The suite passes
 **The pattern holds a fifth time, in a new place.** The flagship example's own
 wrong guess, which §8.1 builds its argument on, had been marked legal since it
 was written. Specifying the move was enough to find that.
+
+**Revision 10, continued — the consolidation and two reviews, 2026-09-24.**
+The consolidation step was specified by hand before any code
+(`kernel/p1_expected.py` E51–E56, the owner deciding `int_flip`'s form and
+the orientation rule), built, and given to a skeptic, whose findings were
+specified (E57, E56 amended) and built in turn. An independent second review of that fix found no false
+`Proved.`, and its two spec-level points are E57's amendment and E58. The
+suite passes 655 checks. What reached this document:
+- **§5.1 / §5.3 / §6.1 / §6.4** — reversed ranges everywhere (E56). Every
+  step builds its interval from whichever order discharge proves, emits that
+  order as its key, and refuses `orientation-undecided` when neither is
+  proved. Enclosing ranges are decided first, and every order is decided
+  lazily and memoised. E4's `lo ≤ hi` is superseded wherever it was stated,
+  and the soundness argument is in §6.4: a proved order cannot be wrong, so
+  no range is empty.
+- **§6.4** — `int_flip`, `Int[x = a .. b] f ≐ Int[x = b .. a] −(f)`, in the
+  form that lets `ftc` run after it (E51).
+- **§5.3** — method 5 closes non-strict goals, with the parity over `<` and
+  `≤` and no split of a −1 content under a non-strict target (E53).
+- **§6.2 / §6.8** — `pyth`, `pyth_cos`, `sin_nonneg_on`, `cos_nonneg_on`,
+  `cos_le_one` and `cos_ge_neg_one`, each with the one route that reads it
+  (E54).
+- **§6.1 / §15.2 / §15.4 / §18 Q23** — no rule may erase an `Int` or `D`
+  node unless its definedness is owed (E57), after `rewrite pyth` proved a
+  falsehood. `ftc`, `int_subst` and `int_flip` refuse a tree in a limit
+  (§6.4).
+- **§5.1** — `u^0` is 1 for every base, 0 included, and `e ^ e` still owes
+  base > 0 (E58).
+- **§11.1** — P1.1 runs officially from the sheet's goal, modulo 5 (E52).
+- **§13** — ∫₀¹ √(1−x²) = π/4 by x = cos θ proves modulo 5, all regularity
+  (E55).
+- **How much to trust** — the false `Proved.`, recorded as what it was.
+
+**The pattern holds a sixth time, and closer than before.** The earlier
+rounds found their unsound steps while specifying or building, or found a
+false value behind an admission (E50). This one found a plain `Proved.` for a
+falsehood in code already committed with every check green, and what found
+it was a reader trying to break it.
 
 **This file is the whole design record.** The review document and the
 revision-1 draft were folded in and deleted on 2026-09-20, before the project
