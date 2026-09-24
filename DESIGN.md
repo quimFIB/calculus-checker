@@ -4254,9 +4254,31 @@ the change of language and deployment, and reopen Q7.
     is assumed to denote and nothing yet shows that these do (§5.1). Once
     §6.9's regularity and §5.2's `diverges` exist, the natural former is
     "`Int[x = a .. b] f` owes f integrable on the range" and "`D[x] e` owes e
-    differentiable at x". Whether those are stated as formers, like `/`, or
-    only as `ftc`'s and `int_subst`'s premises, with the normalisers still
-    refusing, is open.
+    differentiable at x". The choice was between stating those as formers,
+    like `/`, and stating them only as `ftc`'s and `int_subst`'s premises,
+    with the normalisers still refusing.
+
+    **Settled, 2026-09-24: they are formers (option A).** `Int[x = a .. b] f`
+    owes "f integrable on [a, b]" where it enters, and `D[x] e` owes "e
+    differentiable at x". From then on `ring` and `field` read each one as an
+    ordinary atom. Three cases decided it, each run against the kernel as it
+    stood, where all three are refused:
+    - **Integration by parts that returns the same integral.** I = ∫₀^π eˣ
+      sin x gives I ≐ (e^π + 1) − I, and solving for I is `ring` algebra
+      on the atom I. Under A, the owed integrability is closed by regularity
+      and the algebra goes through. Under premises-only, it needs a
+      dedicated trusted rule.
+    - **The same algebra on a divergent integral.** I = ∫₁^∞ 1/x with
+      I − I ≐ 0: under A it stops at the owed "1/x integrable on [1, ∞)",
+      which is false (`diverges`, §5.2). The refusal is then for the right
+      reason rather than a blanket one.
+    - **An ODE with an unknown function.** Checking `D[x] y(x) − 2*y(x) ≐ 0`
+      needs `D[x] y(x)` as an atom, owing y differentiable.
+
+    A is the same discipline E26 applies to `ln`: a term owes its own
+    definedness where it enters, and algebra then treats it as a number. It
+    lands with §6.9's regularity and `diverges`, stage 1's third piece. Until
+    then E26 (b)'s refusal stands as the safe placeholder.
 
 ---
 

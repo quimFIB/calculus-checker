@@ -104,8 +104,12 @@ has three pieces left:
 2. **`int_subst` (§6.4).** P1.1 then starts from the sheet's own goal,
    ∫₀^{π²/4} sin √x, rather than from the goal after the substitution.
 3. **The C⁰/C¹ subset of regularity (§6.9)** that `ftc` needs. This closes
-   the `reg` admissions, and is where `Int` and `D` get their definedness
-   (§18 Q23).
+   the `reg` admissions. It is also where `Int` and `D` get their
+   definedness. §18 Q23 is settled (2026-09-24): they become formers, like
+   `/` and `ln`. `Int[x = a .. b] f` owes f integrable on [a, b] and
+   `D[x] e` owes e differentiable at x, after which `ring` treats them as
+   atoms, which makes "solve for I" after integration by parts work. Until
+   then, E26 (b)'s refusal stays.
 
 Each piece works as the proof-of-life did. Write the expected results by hand
 before the code (for discharge, each obligation's new status and certificate),
