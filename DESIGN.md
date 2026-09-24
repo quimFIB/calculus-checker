@@ -2481,6 +2481,39 @@ form* ("give the answer as a single logarithm"), which is a real specification
 and belongs in the goal. (Revision 1 said that and then used the discarded
 whitelists in both worked examples; §11 is corrected.)
 
+**`closed` also means fully evaluated (E27, owner's decision 2026-09-24).**
+The whitelist on its own accepted an unevaluated F(b) − F(a): after `ftc`,
+S2 closed as `(exp 1 − exp 0)/2` and S3 as `(ln e_const)^2/2 − (ln 1)^2/2`,
+with no §6.8 entry ever used. That made `close` vacuous and §6.8's "every
+authored goal terminates in this table" unenforced. A closed value must now
+be **fully evaluated**. This is a checkable property, not a canonical form,
+because equality of closed constants is undecidable in general, and both of
+P1.2's forms stay accepted. It has two clauses:
+- **(a) No subterm can still be evaluated by a §6.8 entry in force.** The
+  match is the one `rewrite` uses, with ring-normalised arguments, so
+  `exp(0^2)` counts. Each schema entry has a stated reading:
+  - `sqrt_sq`: a closed perfect square;
+  - `atan_odd`: every coefficient negative;
+  - `sqrt_sq_val`: a power with |n| ≥ 2.
+- **(b) No unreduced literal arithmetic.** The tests are local and
+  order-independent: a literal term not in lowest terms, a zero or combinable
+  summand (counted by monomials), a unit, zero or like factor, and a trivial
+  or nested power.
+
+A value that fails is refused `close-not-evaluated`. The refusal names the
+move still available, for example "`exp 1` can still be evaluated
+(`exp_one`)". The check is **untrusted**: it sits beside the whitelist in
+`schema.py` and runs **last** in `close`, so every trusted refusal wins, and
+the code only ever means "right value, unevaluated form". The kernel never
+simplifies anything itself. Applying the entry is the learner's move (§2).
+
+It is relative to the entries in force. `cos 0`, `exp(ln 2)` and `sin(pi)`
+pass until their §6.8 entries are built, and `ln 2 + ln 3` passes because
+no entry reduces it. These are listed as limitations in
+`kernel/p1_expected.py`'s `EVALUATED_RULE`, with every accepted and refused
+case. Refusing `atan(-1/2)` in favour of `-atan(1/2)` is a deliberate
+canonical sign, not evaluation.
+
 **Goals are authored with the problem, not written as you go.** That is not
 about integrity — it is that a goal you write yourself while solving can drift
 to fit what you found, and then proving it tells you nothing. Authoring them is

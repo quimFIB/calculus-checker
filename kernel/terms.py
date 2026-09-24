@@ -1058,44 +1058,69 @@ _LEVEL = {Integral: 0, Add: 1, Mul: 2, Div: 2, Neg: 3, App: 4, Deriv: 4,
 
 
 def _show(t, need, left):
+    """(text, tail) for t, driving _show_steps with an explicit stack
+    instead of Python recursion, so a deeply nested term (500 Negs) prints
+    rather than raising RecursionError. Each `yield (t, need, left)` in
+    _show_steps is a recursive _show call, answered with its result."""
+    stack, result = [_show_steps(t, need, left)], None
+    while stack:
+        try:
+            call = stack[-1].send(result)
+        except StopIteration as done:
+            stack.pop()
+            result = done.value
+        else:
+            stack.append(_show_steps(*call))
+            result = None
+    return result
+
+
+def _show_steps(t, need, left):
     if _LEVEL.get(type(t), 6) < need or isinstance(t, Neg) and not left:
-        return f"({_show(t, 0, True)[0]})", False
+        inner = (yield t, 0, True)[0]
+        return f"({inner})", False
     if isinstance(t, Num):
         return str(t.n), False
     if isinstance(t, (Var, Const, MVar)):
         return ("?" if isinstance(t, MVar) else "") + t.name, False
     if isinstance(t, Call):
-        args = ", ".join(_show(a, 0, True)[0] for a in t.args)
-        return f"{t.fn}({args})", False
+        args = []
+        for a in t.args:
+            args.append((yield a, 0, True)[0])
+        return f"{t.fn}({', '.join(args)})", False
     if isinstance(t, Add):  # a - b is Add(a, Neg b)
         sub = isinstance(t.b, Neg)
-        b, tail = _show(t.b.a if sub else t.b, 2, False)
-        return f"{_show(t.a, 1, left)[0]} {'-' if sub else '+'} {b}", tail
+        b, tail = yield t.b.a if sub else t.b, 2, False
+        a = (yield t.a, 1, left)[0]
+        return f"{a} {'-' if sub else '+'} {b}", tail
     if isinstance(t, (Mul, Div)):
         # R2: a Div left operand is parenthesised, which ends no application
-        a, spaced = _show(t.a, 3 if isinstance(t.a, Div) else 2, left)
-        b, tail = _show(t.b, 4, False)
+        a, spaced = yield t.a, 3 if isinstance(t.a, Div) else 2, left
+        b, tail = yield t.b, 4, False
         op = "*" if isinstance(t, Mul) else "/"
         return a + (f" {op} " if spaced else op) + b, tail
     if isinstance(t, Neg):
-        a, tail = _show(t.a, 4, False)
+        a, tail = yield t.a, 4, False
         return "-" + a, tail
     if isinstance(t, (Pow, RPow)):
-        base = _show(t.base, 6, False)[0]
+        base = (yield t.base, 6, False)[0]
         if isinstance(t, Pow):
             return base + (f"^{t.n}" if t.n >= 0 else f"^({t.n})"), False
-        named = isinstance(t.exp, (Var, Const))
-        return base + "^" + (t.exp.name if named else
-                             f"({_show(t.exp, 0, True)[0]})"), False
+        if isinstance(t.exp, (Var, Const)):
+            return base + "^" + t.exp.name, False
+        exp = (yield t.exp, 0, True)[0]
+        return base + "^" + f"({exp})", False
     if isinstance(t, (App, Deriv)):
         head, arg = (t.fn, t.arg) if isinstance(t, App) else (
             f"D[{t.var}]", t.body)
         if isinstance(arg, (Num, Var, Const)):
-            return f"{head} {_show(arg, 6, True)[0]}", True
-        return f"{head}({_show(arg, 0, True)[0]})", False
+            a = (yield arg, 6, True)[0]
+            return f"{head} {a}", True
+        a = (yield arg, 0, True)[0]
+        return f"{head}({a})", False
     if isinstance(t, Integral):
-        return (f"Int[{t.var} = {_end(t.lo)} .. {_end(t.hi)}] "
-                f"{_show(t.body, 0, True)[0]}"), False
+        body = (yield t.body, 0, True)[0]
+        return f"Int[{t.var} = {_end(t.lo)} .. {_end(t.hi)}] {body}", False
     raise TypeError(f"not a term: {t!r}")
 
 

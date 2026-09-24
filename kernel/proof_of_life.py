@@ -40,6 +40,10 @@ mirroring the implementation.
      the closing check_goal of rewrite and ftc reached through a seam
      (BACKSTOPS, each in a child process), install's hypothesis gate and
      E7's own Int-or-D check each weakened alone (ISOLATED_SEAMS, likewise),
+     E27's evaluated-form check (each e27 refusal's code, residual subterm
+     as a tree and message from E27_MESSAGES, its clause through
+     schema.evaluated_offence, the ordering case refused by the check
+     first, and every EVALUATED_ACCEPTS value closing by refl),
      each FORGERIES case by its
      accept rule, and the review's trust cases:
      hand-built trees, vars() writes, a report that fails closed, a
@@ -53,7 +57,8 @@ mirroring the implementation.
      obligation list (prop, dom, sources, status, tag, new), deriv's trace,
      the final tracker, N, the verdict, the theorem and answer, the entries
      used, the loader against a direct drive, a math-module check, and each
-     of its WRONG_ANSWERS refused with its code and residual. Also the four
+     of its WRONG_ANSWERS refused with its code and residual (S2-W3 and
+     S3-W3's E27 residual compared as a tree, with its message). Also the four
      stage-0 entries pinned in entries.py, and the tagger's sign facts
      against ENTRIES.
 
@@ -95,10 +100,11 @@ try:
     import entries as EN
     import field as FD
     import kernel as K
+    import schema as SC
     import tagger as TG
     KERNEL_ERROR = None
 except Exception as e:  # noqa: BLE001 -- reported, never swallowed
-    DV = EN = FD = K = TG = None
+    DV = EN = FD = K = SC = TG = None
     KERNEL_ERROR = "".join(traceback.format_exception_only(type(e), e)).strip()
 
 
@@ -997,6 +1003,87 @@ def bad_move_problems(b):
         out.append(f"refused {r.code}: {r.message}")
     if st.obligations() != before or st.goal != before_goal:
         out.append("the refused step changed the state (E13)")
+    if "e27" in b:
+        out += e27_refusal_problems(r, b["e27"], term)
+    return out
+
+
+def e27_refusal_problems(r, e27, parse):
+    """EVALUATED_RULE, Reporting: the residual is the offending subterm
+    `at`, as a tree, and the message is E27_MESSAGES[clause[0]] filled with
+    show(residual) and the entry. The printer's output is asserted only
+    through that template (PRINT_EXACT's convention)."""
+    out = []
+    if r.residual != parse(e27["at"]):
+        out.append(f"residual {show(r.residual)} is not the subterm "
+                   f"{e27['at']} as a tree")
+    want = X.E27_MESSAGES[e27["clause"][0]].format(term=show(r.residual),
+                                                   entry=e27["entry"])
+    if r.message != want:
+        out.append(f"message {r.message!r}, expected {want!r}")
+    return out
+
+
+def e27_cases():
+    return [b for b in X.BAD_MOVES if "e27" in b]
+
+
+def e27_clause_problems():
+    """Each e27 case's clause ('a', 'b1' to 'b4'), subterm and entry, read
+    through schema.evaluated_offence (ARCHITECTURE.md §3) on the value
+    alone: the refusal carries only the code, message and residual, and
+    'which of b1-b4' is part of the rule (1 + 1 is b1, tried before b2)."""
+    out = []
+    for b in e27_cases():
+        e = b["e27"]
+        got = SC.evaluated_offence(term(b["move"][1]["value"]))
+        want = (e["clause"], term(e["at"]), e["entry"])
+        if got != want:
+            out.append(f"{b['id']}: {got and (got[0], show(got[1]), got[2])}, "
+                       f"expected {(e['clause'], e['at'], e['entry'])}")
+    return out
+
+
+def e27_order_problems(b):
+    """EVALUATED_RULE, Order in close: a value both wrong and unevaluated is
+    refused by the check, with the residual lhs - value (E14), not by E27,
+    which runs last. The value must be one E27 would refuse, or the case
+    would not test the order."""
+    g, v = goal(b["goal"])[0], term(b["move"][1]["value"])
+    out = [] if SC.evaluated_offence(v) is not None else [
+        f"{show(v)} is fully evaluated, so the order is not what is tested"]
+    st = install(b["goal"], (b["id"], "goal"))
+    r = K.step(st, "close", build_args(b["move"][1], {}))
+    if not isinstance(r, K.Refusal):
+        return out + [describe(r)]
+    if r.code != b["refusal"]:
+        out.append(f"refused {r.code}: {r.message}")
+    if r.residual is None:
+        return out + ["the refusal carries no residual"]
+    ok, note = equal_by("ring", r.residual, T.Add(g.lhs, T.Neg(v)))
+    if not ok:
+        out.append(f"residual {show(r.residual)} is not lhs - value "
+                   f"{show(g.lhs)} - ({show(v)}) under ring{note}")
+    zero, note = equal_by("ring", r.residual, T.Num(0))
+    if zero or note:
+        out.append(f"residual {show(r.residual)} is zero under ring{note}")
+    return out
+
+
+def evaluated_accept_problems(c):
+    """One EVALUATED_ACCEPTS case: refl on V == ?A with value V is accepted,
+    goal None and theorem V == V as a tree. The verdict is not asserted
+    (sqrt(y^2) owes y^2 >= 0, pi/pi owes pi # 0: no part of E27)."""
+    st = install(c["goal"], (c["id"], "goal"))
+    move, args = c["move"]
+    r = K.step(st, move, build_args(args, {}))
+    if not isinstance(r, K.ProofState):
+        return [describe(r)]
+    out = []
+    if r.goal is not None:
+        out.append(f"the goal is still open: {T.show_goal(r.goal)}")
+    if r.theorem != goal(c["theorem"]):
+        out.append(f"theorem {show(r.theorem)}, expected {c['theorem']}")
     return out
 
 
@@ -2462,6 +2549,47 @@ def schema_call_problems():
     return []
 
 
+# Review D1: a close value of 500 nested Negs made close raise
+# RecursionError out of step(), through the printer that formats the
+# refusal's message (E27's, and E23's close-schema-not-closed). A crash is a
+# kernel bug, not a refusal (E21), so each must come back as a Refusal.
+DEEP_NEGS = 500
+DEEP_NEG_CLOSES = [
+    # (goal, value, code, residual): 500 Negs over pi is pi, so ring proves
+    # the refl and E27 refuses it, b4's Neg over a Neg at the root (the
+    # maximal sum has one summand, pi).
+    ("-" * DEEP_NEGS + "pi == ?A", "-" * DEEP_NEGS + "pi", "close-not-evaluated",
+     "-" * DEEP_NEGS + "pi"),
+    # The whitelist refuses the Int, and its message prints the value.
+    ("0 == ?A", "-" * DEEP_NEGS + "(Int[t = 0 .. 1] t)", "close-schema-not-closed",
+     None),
+]
+
+
+def deep_neg_close_problems():
+    out = []
+    for g, v, code, res in DEEP_NEG_CLOSES:
+        where = f"{DEEP_NEGS} Negs over {v.lstrip('-')}"
+        try:
+            st = K.install(goal(g))
+            if not isinstance(st, K.ProofState):
+                out.append(f"{where}: install: {describe(st)}")
+                continue
+            r = K.step(st, "close", {"value": term(v), "check": "ring", "facts": []})
+        except RecursionError:
+            out.append(f"{where}: RecursionError, not a Refusal (E21)")
+            continue
+        if not (isinstance(r, K.Refusal) and r.code == code):
+            out.append(f"{where}: {describe(r)}, expected {code}")
+        elif res is not None:
+            if r.residual != term(res):
+                out.append(f"{where}: the residual is not the whole value")
+            want = X.E27_MESSAGES["b"].format(term=T.show(r.residual))
+            if r.message != want:
+                out.append(f"{where}: the message is not E27_MESSAGES' (b)")
+    return out
+
+
 # REWRITE_RULE step 9(a)'s subterm clause, called directly: no entry in
 # ENTRIES has a strict hypothesis (sqrt_sq and sqrt_sq_val owe >= 0, refused
 # before the clause is reached), and ENTRIES is read-only, so no move reaches
@@ -2930,6 +3058,14 @@ def s0_wrong_answer_problems(w):
     if r.residual is None:
         return out + ["the refusal carries no residual"]
     method, names = w["compare"]
+    if method == "tree":
+        # E27's residual is the offending subterm, not lhs - rhs, so it is
+        # compared as a tree, and the message through E27_MESSAGES filled
+        # with show(residual) and the entry, as p1_expected's E27 cases are.
+        e27 = {"at": w["residual"], "entry": w.get("entry"),
+               "clause": "a" if w.get("entry") is not None else "b"}
+        return out + e27_refusal_problems(
+            r, e27, lambda s: T.parse_term(s, S0.SIG))
     facts = fact_pairs(st, handles, names)
     ok, note = equal_by(method, r.residual, T.parse_term(w["residual"], S0.SIG), facts)
     if not ok:
@@ -3227,6 +3363,20 @@ def main():
     for b in SUITE_BAD_MOVES:
         suite.check(5, f"{b['id']} (suite) -> {b['refusal']}",
                     lambda b=b: bad_move_problems(b))
+
+    print("\nEvaluated answers (E27)")
+    suite.check(5, f"E27's clause, subterm and entry for its {len(e27_cases())} "
+                "refusals, by schema.evaluated_offence on the value",
+                e27_clause_problems)
+    order = [b for b in X.BAD_MOVES if b["id"].startswith("e27_") and "e27" not in b]
+    if not order:
+        suite.record(5, "E27's order in close", ["no ordering case in BAD_MOVES"])
+    for b in order:
+        suite.check(5, f"{b['id']} (added): wrong and unevaluated -> {b['refusal']} "
+                    "with residual lhs - value, before E27", lambda b=b: e27_order_problems(b))
+    for c in X.EVALUATED_ACCEPTS:
+        suite.check(5, f"EVALUATED_ACCEPTS {c['id']} ({c['kind']}): {c['value']} "
+                    "closes by refl", lambda c=c: evaluated_accept_problems(c))
     for name, c in BACKSTOPS.items():
         suite.check(5, f"{name}: {c['case']} with {c['seam']} weakened -> {c['refusal']} "
                     "(a child process)", lambda n=name, c=c: backstop_problems(n, c))
@@ -3275,6 +3425,9 @@ def main():
                 call_name_problems)
     suite.check(5, "E23: a Call is off the closed whitelist (erf(1) == ?A := erf(1))",
                 schema_call_problems)
+    suite.check(5, f"a close value of {DEEP_NEGS} nested Negs is refused, not crashed, "
+                "by E27 (b4) and by E23 (close-schema-not-closed)",
+                deep_neg_close_problems)
     suite.check(5, f"REWRITE_RULE 9(a)'s subterm clause, directly: {len(OPEN_IN_CASES)} "
                 "hypotheses", open_in_problems)
 

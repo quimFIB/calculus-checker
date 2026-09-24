@@ -2,7 +2,7 @@
 
 How `kernel/` is cut into modules for `WHAT.md`'s proof-of-life, and the
 contracts between them. The specification is `GRAMMAR.md` (syntax, D1–D18)
-and `p1_expected.py` (behaviour, E1–E26). Both are frozen: the code is tested
+and `p1_expected.py` (behaviour, E1–E27). Both are frozen: the code is tested
 against them. Each skeleton file's docstrings carry the per-function detail;
 this file carries what crosses module lines. `§n` is `DESIGN.md` unless it
 says otherwise.
@@ -40,7 +40,7 @@ tests alone: `python3 -m unittest discover -s kernel`.
 | `kernel.py` | trusted | 2, 3, 5: rules, E6 and E26's formers, matcher, tracker, handles, `step` | terms, entries, field, deriv, tagger, residual, schema (poly only through field) |
 | `tagger.py` | untrusted | none (§7, E24): computes admission tags | terms, poly, field, residual, entries |
 | `residual.py` | untrusted | none (§8.7): residual normal form to a term | poly, terms |
-| `schema.py` | untrusted | none (§9): the `closed` whitelist | terms |
+| `schema.py` | untrusted | none (§9): the `closed` whitelist (E23) and the evaluated-form check (E27) | terms, poly, field, entries |
 | `loader.py` | untrusted | none (§16.4): reads a problem file, feeds its proof to `install` and `step` | kernel, terms |
 | `proof_of_life.py` | script | none | everything, p1_expected, problems/stage0/expected.py |
 
@@ -82,7 +82,11 @@ is later work.
 produce a theorem.** `tagger.tag` names the method expected to close an
 admission, and nothing relies on it (E24). `residual.residual_term` renders
 the residual on a refusal, and a refused step changes nothing (E13).
-`schema.closed_ok` filters on statement strength (§9). Neither `field.py`
+`schema.closed_ok` filters on statement strength (§9), and
+`schema.check_evaluated` (E27) can only refuse a close whose value the
+trusted check has already proved: it reads ring normal forms
+(`field.ring_polys`) and `entries.ENTRIES`, as the tagger does, and never
+builds a term for the goal, a theorem or a state. Neither `field.py`
 nor `poly.py` formats anything: the spike's `to_str`, `divide_exact` and
 `_Normaliser.residual` now live in `residual.py`.
 
@@ -212,6 +216,8 @@ const_guard(t) -> None                     # E12's d_const guard; a seam (§7)
 SIGN_FACTS: dict[str, (str, Judgement)];  tag(key, gamma=()) -> (method, cites)
 residual_term(r: Residual) -> Term;  poly_term(p, atoms) -> Term
 closed_ok(value) -> bool
+check_evaluated(value) -> None             # E27; Refused 'close-not-evaluated', residual = the offending subterm
+evaluated_offence(value) -> (clause, Term, entry | None) | None   # clause 'a' or 'b1'..'b4'
 # kernel.py
 NATURAL_DOMAINS: Mapping[str, u -> props]  # read-only; E26 (a)'s table; a seam (§7)
 install(goal) -> ProofState | Refusal
@@ -335,7 +341,23 @@ proceeds as follows, with refusals given in the order they are tested:
   `Int-or-D-not-normalisable`, and a failed check refuses
   `close-check-failed` with the residual. Last, `check_goal` runs on the
   theorem (`D5-uncalled` when the value names, as a variable, a symbol the
-  original goal calls). On success `goal` is None and `theorem` is
+  original goal calls). LAST, E27 via `schema.check_evaluated`
+  (`close-not-evaluated`): (a) no subterm, in pre-order, can still be
+  evaluated by an equation entry in force, matched as rewrite matches, with
+  EVALUATED_RULE's readings for sqrt_sq (a closed perfect square),
+  atan_odd (a nonzero argument, every coefficient negative) and sqrt_sq_val
+  (`Pow(sqrt b, n)`, |n| >= 2); then (b) no unreduced literal arithmetic
+  (b1–b4; b2 refuses a zero summand, or a sum whose normal form has fewer
+  monomials than its summands' normal forms together; a non-literal
+  negative power counts on the denominator side in every b3 test). The
+  flattenings and the walk are iterative, and so is the printer that
+  formats the message (`terms._show` drives a generator per node on an
+  explicit stack), so a value of 500 nested Negs is refused, not crashed,
+  here and at E23's message. The residual is the first
+  offending subterm, and the message E27_MESSAGES' template. Being last and
+  untrusted, it changes no earlier refusal, so the code means "right value,
+  unevaluated form". Every goal carries the `closed` schema, the only one
+  (E23), so it runs on every close. On success `goal` is None and `theorem` is
   `instantiate(original, value)`. The oo refusal is redundant with E23 today
   (oo is only an Int limit, and the whitelist refuses every Int), and is
   kept on purpose: it is trusted, and no obligation charges an improper
@@ -557,7 +579,13 @@ E21's accept and post rules, at FORGERY_STATE), the parser round trip over
 ROUND_TRIP with ROUND_TRIP_SIGS (trees checked by a script-side S-expression
 printer in GRAMMAR.md §9's notation), PRINT_EXACT, the planted bugs and the
 30 definedness mutations as in §7 (under item 3), and a `math`-module check
-of NUMERIC.
+of NUMERIC. For E27 it asserts each e27 BAD_MOVES case's residual as a
+tree and its message through E27_MESSAGES, each case's clause through
+`schema.evaluated_offence`, the ordering case (`e27_check_failed_wins`,
+refused by the check with residual lhs − value), and every
+EVALUATED_ACCEPTS value closing by refl with theorem `V == V`; and that
+closes with 500 nested Negs return a Refusal (E27's b4, E23's
+`close-schema-not-closed`), not a RecursionError.
 
 It also runs **the suite's own cases**, for rules P1's data cannot see. They
 are not p1_expected data and do not carry its "(added)" label; each cites
@@ -640,9 +668,11 @@ goal, occurrences and obligation list with sources, status, tag and new;
 deriv's trace, output and emissions; the final tracker; N, the verdict,
 the theorem and answer; that no admission is tagged none; that the
 loader's states equal those of a drive that does not use it; and a
-`math`-module check of the answer. Each of its six WRONG_ANSWERS is
-refused with its code, its residual equal under `compare` and not zero,
-and the state unchanged. Three more checks pin the four stage-0 entries as
+`math`-module check of the answer. Each of its eight WRONG_ANSWERS is
+refused with its code and the state unchanged; the first six with the
+residual equal under `compare` and not zero, S2-W3 and S3-W3 (E27) with the
+residual equal to the offending subterm as a tree (`compare` "tree") and the
+message E27_MESSAGES' (a) template filled with it and the entry. Three more checks pin the four stage-0 entries as
 NEW_ENTRIES states them, the tagger's SIGN_FACTS against ENTRIES (so
 `e_gt_one`, which the tagger cites for `e_const`, is a real entry), and the
 loader's handle resolution and refusals, and a floor: PROOF_FILES is

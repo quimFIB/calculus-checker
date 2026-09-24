@@ -901,6 +901,10 @@ def _close(state, args, minted, buf):
            "close-check-failed")
     theorem = instantiate(state.original, v)
     check_goal(theorem)
+    # E27, untrusted, and LAST: every refusal above wins, so
+    # 'close-not-evaluated' means right value, unevaluated form. Every goal
+    # carries the `closed` schema, the only one there is (E23).
+    schema.check_evaluated(v)
     return None, theorem, {}
 
 

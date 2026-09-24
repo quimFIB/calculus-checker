@@ -78,7 +78,7 @@ tool's falsifier.
 ## Start here: the rest of stage 1, discharge first
 
 The kernel proves readiness P1 and stage 0's S1–S3. `python3 kernel/proof_of_life.py`
-runs both and passes 261 checks (`PROOF_OF_LIFE.md`). Every verdict still
+runs both and passes 334 checks (`PROOF_OF_LIFE.md`). Every verdict still
 reads *Proved modulo N admissions*, because nothing closes an obligation yet.
 Each one is admitted, tagged with the §5.3 method expected to close it. Stage 1
 has three pieces left:
@@ -180,6 +180,12 @@ recognizer table scored on a held-out set (revision 8), then the UI.
      `e_gt_one`;
    - §9's `closed` schema accepts an unevaluated F(b) − F(a), so the §6.8
      entries are never actually required.
+6. **Closed answers must be fully evaluated (E27) — done 2026-09-24.** By
+   the owner's decision, an unevaluated F(b) − F(a) is refused with
+   `close-not-evaluated`, which names the §6.8 move still available. The
+   check is untrusted and runs last in `close`. The spec was committed before
+   the code, and a skeptic's review was folded in. See `DESIGN.md` §9 and
+   `PROOF_OF_LIFE.md`.
 
 **Stage 0b is closed** (2026-09-21 and 2026-09-22; setup and notes in
 `_scratch/holpy-trial/` — outside this tool, and a dangling pointer if it is ever published; findings in §4.2). Its verdict: reimplement the core

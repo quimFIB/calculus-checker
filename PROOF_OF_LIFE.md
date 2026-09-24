@@ -14,7 +14,7 @@ lives only once.
 `PASS: 225 of 225 checks passed` for items 1–6, exit 0. The unit tests
 (`python3 -m unittest discover -s kernel`) pass 69 of 69. Both were re-run
 independently after the last change, on 2026-09-24. Since then the suite has
-grown to 261, when the problem files below added item 7.
+grown to 334: item 7 added the problem files, and E27 added evaluated-answer cases.
 
 | Proof | Verdict |
 |---|---|
@@ -243,11 +243,8 @@ run's saved output agrees, but the timestamps cannot rule out anything else.
 Next time the spec should be committed before the code.
 
 **Open, for `DESIGN.md`** (full text in `expected.py`'s `FINDINGS`):
-- **§9 and §6.8: the `closed` schema accepts an unevaluated answer.** S2
-  closes as `(exp 1 − exp 0)/2` and S3 as `(ln e_const)^2/2 − (ln 1)^2/2`,
-  with no §6.8 entry used. That is not unsound. But nothing enforces §6.8's
-  claim that every authored goal ends in its table, and whether `closed`
-  should require evaluated forms is a decision still to make.
+- **§9 and §6.8: the `closed` schema accepted an unevaluated answer.**
+  **Resolved by E27**, below.
 - **`WHAT.md`'s S3 sketch was wrong in three ways:**
   - it missed four obligations: the integrand's `x # 0 @ [1, e]`,
     `e_const > 0`, `1 > 0` and `2 # 0`;
@@ -265,6 +262,39 @@ Next time the spec should be committed before the code.
   no shape.** The files decide both, in PF1 and PF2.
 - **§6.8 names `ln_e`, `exp_zero` and `exp_one` without their statements.**
   They are now pinned in `entries.py`.
+
+## Since: closed answers must be fully evaluated, E27 (2026-09-24)
+
+The owner decided that a value closing a `closed` goal must be simplified.
+An unevaluated F(b) − F(a) such as `(exp 1 − exp 0)/2` is no longer accepted.
+"Fully evaluated" is a checkable property, not a canonical form. No subterm
+can still be evaluated by a §6.8 entry in force, and no unreduced literal
+arithmetic is left. The full rule is in `DESIGN.md` §9 and in
+`p1_expected.EVALUATED_RULE`.
+
+The check is untrusted, in `schema.py`, and runs last in `close`. It can only
+refuse, with `close-not-evaluated`, and it names the move still available.
+The kernel never simplifies anything itself.
+
+**Process.** The spec was committed before any code (`1c26495`). A skeptic's
+amendments were committed the same way (`2e717e5`). The code matched the spec
+on the first run both times. The suite checks 38 refusals, 29 accepted values
+and an ordering case, and stands at 334 of 334. A skeptic found:
+- no way for the check to change a trusted verdict;
+- no wrong refusal of the answers a learner would write, such as `3*pi/4`,
+  `2*sqrt 3/3` and `1 − 1/e_const`.
+
+Its findings were folded in:
+- unevaluated sums like `2*(pi + 1) − 2` slipped through, and a monomial
+  count now catches them;
+- negative powers of `sqrt` are now caught;
+- four suite gaps are closed;
+- a deep chain of minus signs crashed the error-message printer, which is
+  now iterative, fixing an older crash on the same path too.
+
+**Limitations, by design.** The check is only as strong as the §6.8 table.
+`cos 0`, `exp(ln 2)`, `sin(pi)` and `atan 1` pass until their entries are
+built, and `ln 2 + ln 3` passes because no entry reduces it.
 
 ## What is in `kernel/`
 
