@@ -206,6 +206,20 @@ _STATES = weakref.WeakSet()  # every ProofState the kernel has made
 _TOKEN = object()  # ProofState's constructor demands it
 
 
+MESSAGE_LIMIT = 400  # characters of a term a refusal's message prints
+
+
+def _brief(x):
+    """show(x) for a refusal's message, cut at MESSAGE_LIMIT characters, and
+    never raising: a number too long for str() (a residual's constant, say)
+    is named, not printed. The Refusal's `residual` keeps the whole term."""
+    try:
+        text = show(x)
+    except ValueError:  # Python's int-to-str digit limit
+        return f"(a {type(x).__name__} too large to print)"
+    return text if len(text) <= MESSAGE_LIMIT else text[:MESSAGE_LIMIT] + " ..."
+
+
 def _merged(old, new):
     """E8: a second emission of a key adds its sources and nothing else."""
     if old is None:
@@ -815,7 +829,7 @@ def _check(check, lhs, rhs, minted, dom, goal_dom, buf, code):
                                                                   facts)
     except FD.NotEqual as e:
         res = residual.residual_term(e.residual)
-        raise Refused(code, f"{check} leaves lhs - rhs = {show(res)}",
+        raise Refused(code, f"{check} leaves lhs - rhs = {_brief(res)}",
                       res) from None
     for d in done.divisors:
         _emit(buf, with_domain(NonZero(d), dom), "field_div", goal_dom)
@@ -1029,8 +1043,9 @@ def _close(state, args, minted, buf):
 # p1_expected's INT_SUBST_RULE (DESIGN.md §6.4, E36-E49), step by step. Each
 # rule a planted bug removes is its own function, looked up by its global
 # name at call time (ARCHITECTURE.md §7): _select, _fresh, _subst_under_D,
-# _new_orientation, _subst_deriv, _reverse_check, _endpoint,
-# _forward_premises, _reverse_premises, _new_integrand and _new_integral.
+# _old_range, _new_orientation, _sub_formers, _subst_deriv, _reverse_check,
+# _endpoint, _forward_premises, _reverse_premises, _new_integrand and
+# _new_integral.
 
 S_SUBST_LO, S_SUBST_HI = "int_subst_lo", "int_subst_hi"
 S_SUBST_C1, S_SUBST_C0 = "int_subst_phi_C1", "int_subst_f_C0"
@@ -1150,7 +1165,7 @@ def _reverse_check(check, body, Fg, dg, f, minted, D, G, buf):
         if r.code != "int-subst-check-failed":
             raise
         raise Refused(r.code, "the integrand is not f(g(x))*g'(x) for f := "
-                      f"{show(f)}", r.residual) from None
+                      f"{_brief(f)}", r.residual) from None
     cites = tuple(dict.fromkeys(rec.entry for rec in minted))
     _emit(buf, with_domain(Rel("==", body, rhs), D), S_SUBST_INT, G,
           ("deriv+" + check, cites))
@@ -1168,10 +1183,28 @@ def _endpoint(check, image, limit, end, source, minted, P, G, buf):
     except Refused as r:
         if r.code != "int-subst-endpoint-mismatch":
             raise
-        raise Refused(r.code, f"{show(image)} == {show(limit)} fails at the "
+        raise Refused(r.code, f"{_brief(image)} == {_brief(limit)} fails at the "
                       f"{end} limit", r.residual) from None
     cites = tuple(dict.fromkeys(used + tuple(rec.entry for rec in minted)))
     _emit(buf, eq, source, G, (check, cites))
+
+
+def _old_range(buf, it, P, G):
+    """Step 8, reverse mode: the old range I, owing its orientation a <= b
+    at P when its ends are not two literals, since the premises use I."""
+    old, orient = _range(it, P)
+    if orient is not None:
+        _emit(buf, orient, "orient", G)
+    return old
+
+
+def _sub_formers(buf, sub, Fg, D, G, anc):
+    """Step 9: the substitution's formers on the closed range D, then, in
+    reverse mode, f(g(x))'s: phi (or g) is defined on the whole range, ends
+    included, which makes the endpoint images defined (E39, E45)."""
+    _charge_formers(buf, sub, D, G, anc=anc)
+    if Fg is not None:
+        _charge_formers(buf, Fg, D, G, anc=anc)
 
 
 def _forward_premises(sub, F, D, it, P):
@@ -1228,16 +1261,12 @@ def _int_subst(state, args, minted, buf):
         F = subst(body, {var: sub})
         eqs = ((subst(sub, {v: lo}), a), (subst(sub, {v: hi}), b))
     if reverse:  # step 8: the old range, owing its orientation
-        old, orient = _range(it, P)
-        if orient is not None:
-            _emit(buf, orient, "orient", G)
+        old = _old_range(buf, it, P, G)
     for t in (lo, hi):
         _charge_formers(buf, t, P, G, anc=anc)
     flip, new_range = _new_orientation(buf, v, lo, hi, P, G)
     D = P + ((old,) if reverse else (new_range,))
-    _charge_formers(buf, sub, D, G, anc=anc)  # step 9
-    if reverse:
-        _charge_formers(buf, Fg, D, G, anc=anc)
+    _sub_formers(buf, sub, Fg if reverse else None, D, G, anc)  # step 9
     d = _subst_deriv(sub, var if reverse else v, D)  # step 10
     for key, source in d.emissions:
         _emit(buf, key, source, G)

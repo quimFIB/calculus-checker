@@ -68,6 +68,7 @@ polynomial gcd is ever computed; nothing needs one to decide equality,
 because N/F = 0 exactly when N = 0.
 """
 
+import math
 import operator
 from dataclasses import dataclass
 from fractions import Fraction
@@ -77,6 +78,37 @@ from terms import (Add, App, Call, Const, Deriv, Div, Integral, Mul, Neg,
                    NonZero, Num, Pow, Refused, Rel, RPow, Var, show, trees)
 
 TREE_CODE = "Int-or-D-not-normalisable"  # p1_expected E26 (b)
+
+# The literal powers ring, field and norm_num expand, bounded so that no
+# input makes them compute without end (x := t^1000000000 at t = 3) or
+# build a number no message can print. A power b^n is refused
+# 'power-too-large' when |n| exceeds POWER_BOUND, when its value's bit size
+# (n times the largest coefficient's) would exceed BITS_BOUND, or when the
+# expansion of a sum would have more than TERMS_BOUND monomials. A refusal
+# withholds a result, never makes one.
+POWER_CODE = "power-too-large"
+POWER_BOUND = 10 ** 4
+BITS_BOUND = 2 ** 13
+TERMS_BOUND = 10 ** 5
+
+
+def _power_ok(poly, n):
+    """poly^n stays within the bounds above (poly a poly.py polynomial)."""
+    n = abs(n)
+    if n > POWER_BOUND:
+        return False
+    bits = max((max(c.numerator.bit_length(), c.denominator.bit_length())
+                for c in poly.values()), default=0)
+    if bits * n > BITS_BOUND:
+        return False
+    k = len(poly)
+    return k <= 1 or math.comb(n + k - 1, k - 1) <= TERMS_BOUND
+
+
+def _too_large(t):
+    return Refused(POWER_CODE, f"a literal power with exponent {t.n} is beyond "
+                   f"the bounds ring and norm_num expand (|n| <= {POWER_BOUND}, "
+                   f"{BITS_BOUND} bits, {TERMS_BOUND} monomials)")
 
 
 class NotEqual(Exception):
@@ -242,6 +274,9 @@ class _Normaliser:
             return self.mul(self.norm(t.a), self.invert(self.norm(t.b), t.b))
         if k is Pow:
             base, n = self.norm(t.base), t.n
+            if not (_power_ok(base.num, n) and all(
+                    _power_ok(self.factor_polys[f], n * e) for f, e in base.den.items())):
+                raise _too_large(t)
             if n < 0:
                 base, n = self.invert(base, t.base), -n
             return self.pow(base, n)
@@ -420,6 +455,8 @@ def _value(t):
         return a + b if k is Add else a * b if k is Mul else a / b
     if k is Pow:
         b = _value(t.base)
+        if b is not None and not _power_ok({(): b} if b else {}, t.n):
+            raise _too_large(t)
         return None if b is None else b ** t.n
     return None
 
@@ -432,6 +469,8 @@ def rational_value(t):
         return _value(t)
     except ZeroDivisionError:  # a / 0, or 0 ** n with n < 0
         return None
+    except Refused:  # a power beyond the bounds: not read as a literal here;
+        return None  # ring and norm_num refuse it (POWER_CODE)
 
 
 def norm_num_tree(node, in_domain):
@@ -483,7 +522,10 @@ def norm_num(j):
             norm_num_tree(node, in_domain)
     if j.dom != ():
         return None
-    vals = [rational_value(s) for s in sides]
+    try:  # a literal power beyond the bounds refuses (POWER_CODE)
+        vals = [_value(s) for s in sides]
+    except ZeroDivisionError:
+        vals = [rational_value(s) for s in sides]
     if any(v is None for v in vals):
         return None
     if type(j) is NonZero:

@@ -31,11 +31,14 @@ import itertools
 from dataclasses import dataclass, replace
 from fractions import Fraction
 
+import math
+
 import discharge as DC
 import field as FD
+import poly as P
 import search as SR
-from terms import (Interval, Refused, Rel, Term, Var, children, fv, lit,
-                   show, with_domain, subst)
+from terms import (Add, Interval, Mul, Neg, NonZero, Pow, Refused, Rel, Term,
+                   Var, children, fv, lit, show, with_domain, subst)
 
 # p1_expected's DECIDED_FALSE_MESSAGES, which the suite checks these against.
 MESSAGES = {
@@ -52,6 +55,10 @@ NEGATION = {">": "<=", ">=": "<", "<": ">=", "<=": ">"}
 # (the Cartesian product is exponential in the number of variables), and a
 # key with no refuting point among them is admitted, tagged none (E35 (5)).
 POINT_BOUND = 256
+# E50's bound on the rational root test, as the tagger's factoriser's: a
+# polynomial whose lowest nonzero or leading integer coefficient exceeds it
+# contributes no root.
+ROOT_TEST_BOUND = 10 ** 6
 
 
 @dataclass(frozen=True)
@@ -134,8 +141,9 @@ def candidates(key):
     free variable of the key. (1) each domain item that bounds v alone
     against a rational literal c: c when closed or non-strict, c + 1 for a
     strict lower bound, c - 1 for a strict upper one; (2) each Interval
-    item's midpoint when both ends are rational; (3) 0, 1, -1. A value is
-    kept at its first occurrence only."""
+    item's midpoint when both ends are rational; (3) 0, 1, -1; (4) E50's
+    rational roots of the target's univariate pieces in v (`roots`). A
+    value is kept at its first occurrence only."""
     values = {v: [] for v in sorted(fv(key))}
 
     def add(v, q):
@@ -162,7 +170,98 @@ def candidates(key):
     for v in values:
         for q in (0, 1, -1):
             add(v, q)
+    for v in values:
+        for q in roots(key, v):
+            add(v, q)
     return values
+
+
+def roots(key, v):
+    """E50, COUNTERPOINT_CANDIDATES (4): the rational roots in v of each
+    polynomial piece of the key's target (the target, each factor of a
+    top-level product, each base of an integer power, recursively) whose
+    ring normal form has v as its only atom, by the rational root test on
+    its integer coefficients, bounded by ROOT_TEST_BOUND, each kept only
+    where the polynomial is exactly 0, smallest |r| first and positive
+    before negative, and dropped when a domain item bounding v against a
+    rational literal excludes it. A seam (ARCHITECTURE.md §7)."""
+    prop = replace(key, dom=())
+    target = prop.e if type(prop) is NonZero else Add(prop.lhs, Neg(prop.rhs))
+    found = []
+    for piece in _pieces(target):
+        try:
+            (p,), atoms = FD.ring_polys([piece])
+        except Refused:
+            continue
+        if atoms != (Var(v),):
+            continue
+        found += [r for r in _rational_roots(p) if r not in found]
+    found.sort(key=lambda r: (abs(r), r < 0))
+    return [r for r in found if _within(key, v, r)]
+
+
+def _pieces(t):
+    """t, each factor of a top-level product in it, and each base of an
+    integer power, recursively (E50)."""
+    out, todo = [], [t]
+    while todo:
+        u = todo.pop()
+        out.append(u)
+        if type(u) is Mul:
+            todo += [u.a, u.b]
+        elif type(u) is Neg:
+            todo.append(u.a)
+        elif type(u) is Pow and u.n > 0:
+            todo.append(u.base)
+    return out
+
+
+def _rational_roots(p):
+    """The rational roots of a univariate polynomial p (one atom, index 0)
+    by the rational root test, bounded by ROOT_TEST_BOUND."""
+    if not p:
+        return []
+    n = P.degree_in(p, 0)
+    coeffs = [p.get(((0, k),) if k else P.ONE_MONO, Fraction(0)) for k in range(n + 1)]
+    lcm = math.lcm(*(c.denominator for c in coeffs))
+    ints = [int(c * lcm) for c in coeffs]
+    low = next(k for k, c in enumerate(ints) if c)
+    if max(abs(ints[low]), abs(ints[n])) > ROOT_TEST_BOUND:
+        return []
+    out = [Fraction(0)] if low else []
+    divs, dens = _divisors(ints[low]), _divisors(ints[n])
+    for r in sorted({Fraction(s * a, b) for a in divs for b in dens for s in (1, -1)},
+                    key=lambda r: (abs(r), r < 0)):
+        if sum(c * r ** k for k, c in enumerate(coeffs)) == 0 and r not in out:
+            out.append(r)
+    return out
+
+
+def _divisors(n):
+    n = abs(n)
+    small = [d for d in range(1, math.isqrt(n) + 1) if n % d == 0]
+    return sorted(set(small + [n // d for d in small]))
+
+
+def _within(key, v, r):
+    """r satisfies every domain item that bounds v against a rational
+    literal (an Interval's rational ends, a relation v REL c)."""
+    for item in key.dom:
+        if type(item) is Interval and item.var == v:
+            for end, closed, lower in ((item.lo, item.lo_closed, True),
+                                       (item.hi, item.hi_closed, False)):
+                c = FD.rational_value(end) if isinstance(end, Term) else None
+                if c is not None and not (
+                        (r > c if lower else r < c) or (closed and r == c)):
+                    return False
+        elif type(item) is Rel:
+            bound = _bound(item)
+            if bound is not None and bound[0] == v:
+                x = Rel(item.op, lit(r) if type(item.lhs) is Var else item.lhs,
+                        lit(r) if type(item.rhs) is Var else item.rhs)
+                if FD.norm_num(x) is False:
+                    return False
+    return True
 
 
 _FLIP = {">": "<", ">=": "<=", "<": ">", "<=": ">=", "==": "=="}

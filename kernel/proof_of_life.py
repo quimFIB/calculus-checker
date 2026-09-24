@@ -279,13 +279,26 @@ def _cases_switched():
     return match, defn, occurrence
 
 
+# F3_ROOTS_CHANGES applied (E50, REVIEW_SWITCH), as test_discharge.py
+# applies them for item D.
+_ROOTS = X.F3_ROOTS_CHANGES
+DISCHARGE_UNDECIDED = [c for c in X.DISCHARGE_UNDECIDED
+                       if c["id"] not in _ROOTS["DISCHARGE_UNDECIDED_remove"]] \
+    + list(X.F3_ROOTS_UNDECIDED)
+DISCHARGE_BAD_MOVES_ADDED = list(X.DISCHARGE_BAD_MOVES_ADDED) \
+    + list(_ROOTS["DISCHARGE_BAD_MOVES_ADDED_add"])
+# The review's three test-gap cases join section 12's tables (REVIEW_SWITCH).
+SUBST_ACCEPTS = list(X.INT_SUBST_ACCEPTS) + list(X.REVIEW_ACCEPTS)
+SUBST_BAD_MOVES = list(X.INT_SUBST_BAD_MOVES) + list(X.REVIEW_BAD_MOVES)
+
 if DISCHARGE_WIRED:
     MATCH_ACCEPTS, DEFINEDNESS_CASES, OCCURRENCE_CASE = _cases_switched()
     BAD_MOVES = [dict(b, **{k: X.DISCHARGE_BAD_MOVES_CHANGED[b["id"]][k]
                             for k in ("refusal", "at", "message")})
                  if b["id"] in X.DISCHARGE_BAD_MOVES_CHANGED else b
-                 for b in BAD_MOVES] + list(X.DISCHARGE_BAD_MOVES_ADDED)
-    UNDECIDED = list(X.DISCHARGE_UNDECIDED)
+                 for b in BAD_MOVES] + list(DISCHARGE_BAD_MOVES_ADDED) \
+        + list(X.F3_ROOTS_CASES)  # REVIEW_SWITCH: beside BAD_MOVES_ADDED (E50)
+    UNDECIDED = list(DISCHARGE_UNDECIDED)  # with F3_ROOTS_CHANGES applied
     REFUSAL_CODES = {**X.REFUSAL_CODES, **X.REFUSAL_CODES_DISCHARGE,
                      **X.REFUSAL_CODES_INT_SUBST}  # INT_SUBST_SWITCH
 else:
@@ -1090,6 +1103,19 @@ def wrong_answer_problems(w):
 # meaning is REFUSAL_CODES', GRAMMAR.md's or ARCHITECTURE.md's, and the
 # only thing chosen here is a move that reaches it.
 SUITE_BAD_MOVES = [
+    # field.py's power bound (POWER_BOUND, BITS_BOUND, TERMS_BOUND): a literal
+    # power ring or norm_num would expand without end, or into a number no
+    # message can print, is refused. The skeptic's two: int_subst's upper
+    # image 2^20000 raised ValueError from the residual's message, and close
+    # meets the same power in its check.
+    {"id": "power_beyond_bound_int_subst", "goal": "Int[x = 0 .. 1] x == ?A",
+     "setup": [],
+     "move": ("int_subst", {"var": "x", "sub": "t^20000", "new_var": "t",
+                            "lo": "0", "hi": "2", "check": "ring", "facts": []}),
+     "refusal": "power-too-large"},
+    {"id": "power_beyond_bound_close", "goal": "x == ?A @ x > 0", "setup": [],
+     "move": ("close", {"value": "2^20000", "check": "ring", "facts": []}),
+     "refusal": "power-too-large"},
     {"id": "literal_hyp_false", "goal": "sqrt((-1)^2) == ?A", "setup": [],
      "move": ("rewrite", {"entry": "sqrt_sq", "inst": {"u": "-1"},
                           "at": "sqrt((-1)^2)"}),
@@ -1250,7 +1276,7 @@ SUITE_BAD_MOVES = [
 # (SUITE_BAD_MOVES, or DIRECT_CODES' check for the two no move data reaches).
 KERNEL_LOCAL_CODES = ("state-not-minted", "proof-finished", "bad-move", "bad-args",
                       "goal-shape", "ftc-no-integral", "close-no-mvar",
-                      "field-fact-shape")
+                      "field-fact-shape", "power-too-large")
 DIRECT_CODES = ("state-not-minted", "proof-finished")  # unminted_finished_problems
 
 
@@ -1271,7 +1297,7 @@ def refusal_coverage_problems():
     are true of P1's proofs, not of the kernel: every REFUSAL_CODES code
     needs a case too, from DIRECT_REFUSALS when no move reaches it."""
     named = {c["refusal"] for c in BAD_MOVES + X.WRONG_ANSWERS + SUITE_BAD_MOVES
-             + X.INT_SUBST_BAD_MOVES}
+             + SUBST_BAD_MOVES}
     if S0 is not None:
         named |= {c["refusal"] for c in S0.INT_SUBST_WRONG_ANSWERS
                   + S0.INT_SUBST_S0_REFUSALS}
@@ -4138,12 +4164,12 @@ def subst_checks(suite):
         suite.check("S", f"{name}: the answer is the integral (math module)",
                     lambda n=name: subst_sheet_numeric_problems(n), needs_kernel=False)
     print("\nint_subst: accepted moves")
-    for c in X.INT_SUBST_ACCEPTS:
+    for c in SUBST_ACCEPTS:
         suite.check("S", f"INT_SUBST_ACCEPTS {c['id']}"
                     + (f" -> {c['report']!r}" if "report" in c else ""),
                     lambda c=c: subst_accept_problems(c))
     print("\nint_subst: refused moves")
-    for b in X.INT_SUBST_BAD_MOVES:
+    for b in SUBST_BAD_MOVES:
         suite.check("S", f"INT_SUBST_BAD_MOVES {b['id']} -> {b['refusal']}",
                     lambda b=b: bad_move_problems(b))
     return runs
@@ -4158,10 +4184,16 @@ def subst_checks(suite):
 # as the data writes them), SQRT_FACT_MUST_REJECT, and the property test's
 # families a bug's caught_by names.
 
+# INT_SUBST_PLANTED_BUGS and the review's REVIEW_PLANTED_BUGS, one set of
+# child processes.
+SUBST_BUGS = {**X.INT_SUBST_PLANTED_BUGS, **X.REVIEW_PLANTED_BUGS}
+
+
 def subst_seam_patch(name, mock):
     """The child's patch for one INT_SUBST_PLANTED_BUGS key: the mutation's
     own text, through the kernel function that holds the rule."""
     import discharge as DC
+    import refute as RF
     orig = {n: getattr(K, n) for n in (
         "_select", "_new_orientation", "_forward_premises", "_new_integral")}
 
@@ -4224,7 +4256,21 @@ def subst_seam_patch(name, mock):
         c = sqrt_fact(key, label)
         return None if c is None else (c[0], c[1], True)
 
+    def sqrt_any_u(key, label):  # any u, once the key holds some sqrt atom
+        if not (len(label) == 3 and label[1] == DC.SQRT_FACT
+                and DC._sqrt_arguments(key)):
+            return None
+        return (T.App("sqrt", label[2]), T.Num(0), False)
+
+    def old_range_unoriented(buf, it, P, G):
+        return K._range(it, P)[0]
+
     patches = {
+        "f3_no_root_candidates": (RF, "roots", lambda key, v: []),
+        "int_subst_no_sub_formers": (K, "_sub_formers",
+                                     lambda buf, sub, Fg, D, G, anc: None),
+        "int_subst_reverse_no_old_orient": (K, "_old_range", old_range_unoriented),
+        "sqrt_fact_any_u": (DC, "_sqrt_fact", sqrt_any_u),
         "int_subst_skips_endpoint_check": (K, "_endpoint", endpoint_unchecked),
         "int_subst_drops_phi_prime": (K, "_new_integrand", lambda F, dphi: F),
         "int_subst_deriv_on_open": (K, "_subst_deriv", deriv_on_open),
@@ -4256,10 +4302,10 @@ def subst_child(name):
         return 2
     try:
         from unittest import mock
-        bug = X.INT_SUBST_PLANTED_BUGS.get(name) or X.INT_SUBST_SEAMS.get(name) or {}
+        bug = SUBST_BUGS.get(name) or X.INT_SUBST_SEAMS.get(name) or {}
         if name is None:
             ctx = contextlib.nullcontext()
-        elif name in X.INT_SUBST_PLANTED_BUGS:
+        elif name in SUBST_BUGS:
             ctx = subst_seam_patch(name, mock)
         elif name in X.DEFINEDNESS_MUTATIONS:
             ctx = mutation_patch(name, mock)
@@ -4276,8 +4322,11 @@ def subst_child(name):
                     [T.show(o.key), o.status, o.tag[0], list(o.tag[1])]
                     for o in run.state.obligations()]
             for table, cases, fn in (
-                    ("INT_SUBST_ACCEPTS", X.INT_SUBST_ACCEPTS, None),
-                    ("INT_SUBST_BAD_MOVES", X.INT_SUBST_BAD_MOVES, bad_move_problems)):
+                    ("INT_SUBST_ACCEPTS", SUBST_ACCEPTS, None),
+                    ("INT_SUBST_BAD_MOVES", SUBST_BAD_MOVES, bad_move_problems),
+                    ("F3_ROOTS_CASES", X.F3_ROOTS_CASES, bad_move_problems),
+                    ("DISCHARGE_BAD_MOVES_ADDED", DISCHARGE_BAD_MOVES_ADDED,
+                     bad_move_problems)):
                 for c in cases:
                     try:
                         problems = (fn(c) if fn else subst_accept_problems(c, found))
@@ -4295,7 +4344,9 @@ def subst_child(name):
                     problems = [str(m)]
                 if problems:
                     found.append(["S0", w["id"]])
-            found += [["SQRT_FACT_MUST_REJECT", i] for i in TD.sqrt_fact_accepted()]
+            # each case in full: accepted, or rejected for another reason
+            found += [["SQRT_FACT_MUST_REJECT", c["id"]] for c in TD.SQRT_FACT_MUST_REJECT
+                      if TD.must_reject_problems(c)]
             families = [c[1] for c in bug.get("caught_by", ()) if c[0] == "PROPERTY"]
             if families:
                 results = TD.property_results(families=families)
@@ -4311,7 +4362,7 @@ def subst_child_results():
     """The control and every INT_SUBST_PLANTED_BUGS and INT_SUBST_SEAMS
     child, a few at a time: name -> spawn's (data, problems)."""
     from concurrent.futures import ThreadPoolExecutor
-    names = [None, *X.INT_SUBST_PLANTED_BUGS, *X.INT_SUBST_SEAMS]
+    names = [None, *SUBST_BUGS, *X.INT_SUBST_SEAMS]
     with ThreadPoolExecutor(max_workers=max(2, min(8, os.cpu_count() or 2))) as ex:
         futures = {n: ex.submit(spawn, *(("--int-subst-control",) if n is None else
                                          ("--int-subst", n))) for n in names}
@@ -4342,7 +4393,7 @@ def subst_planted_problems(name, result):
         if data["admissions"] != X.INT_SUBST_ADMISSIONS:
             out.append(f"unpatched admissions {data['admissions']}")
         return out
-    bug = X.INT_SUBST_PLANTED_BUGS.get(name) or X.INT_SUBST_SEAMS[name]
+    bug = SUBST_BUGS.get(name) or X.INT_SUBST_SEAMS[name]
     out += [f"not caught at {c}" for c in map(tuplify, bug["caught_by"])
             if c not in found]
     if out and name in SUBST_DATA_CHANGE_REQUESTS:
@@ -4406,6 +4457,51 @@ def deep_input_problems():
     return out
 
 
+def huge_input_problems():
+    """The skeptic's inputs beyond the bounds, each a Refusal (or a state),
+    never an exception, and quick: x := t^1000000000 at t = 3 (it ran over
+    90 s) within 2 s; a residual whose constant is too long for str() gives
+    a truncated message, the residual itself kept whole; and a programmatic
+    substitution 600 nodes deep, in int_subst's sub and in ftc's F
+    (terms.subst is iterative)."""
+    out = []
+    st = K.install(goal("Int[x = 0 .. 1] x == ?A"))
+    args = {"var": "x", "sub": term("t^1000000000"), "new_var": "t",
+            "lo": term("3"), "hi": term("1"), "check": "ring", "facts": []}
+    r, secs = _timed(lambda: K.step(st, "int_subst", args))
+    if not (isinstance(r, K.Refusal) and r.code == "power-too-large"):
+        out.append(f"t^1000000000 at 3: {describe(r)}")
+    if secs > 2.0:
+        out.append(f"t^1000000000 at 3 took {secs:.1f} s, more than 2 s")
+    # 3^4000 is within the bounds (2 * 4000 bits <= 8192); the product of
+    # three has 5726 digits, which str() will not print, so the message
+    # names the number instead
+    st = K.install(goal("x == ?A @ x > 0"))
+    r, _ = _timed(lambda: K.step(st, "close", {"value": term("3^4000*3^4000*3^4000"),
+                                               "check": "ring", "facts": []}))
+    if not (isinstance(r, K.Refusal) and r.code == "close-check-failed"
+            and "too large to print" in r.message and r.residual is not None):
+        out.append(f"a residual too long to print: {describe(r)}")
+    deep = T.Var("t")
+    for _ in range(600):
+        deep = T.Add(deep, T.Num(1))
+    st = K.install(goal("Int[x = 0 .. 1] x == ?A"))
+    r, _ = _timed(lambda: K.step(st, "int_subst", {
+        "var": "x", "sub": deep, "new_var": "t", "lo": term("0"), "hi": term("1"),
+        "check": "ring", "facts": []}))
+    if not isinstance(r, (K.ProofState, K.Refusal)):
+        out.append(f"a 600-deep sub: {describe(r)}")
+    F = T.Var("x")
+    for _ in range(600):
+        F = T.Add(F, T.Num(0))
+    st = K.install(goal("Int[x = 0 .. 1] 2*x == ?A"))
+    r, _ = _timed(lambda: K.step(st, "ftc", {"F": T.Mul(F, F), "check": "ring",
+                                             "facts": []}))
+    if not isinstance(r, K.ProofState):
+        out.append(f"ftc with a 600-deep F: {describe(r)}")
+    return out
+
+
 def point_bound_problems():
     """COUNTERPOINT_CANDIDATES' 256-point bound: nine variables give 3^9
     candidate points, and the walk stops at 256, so installation completes
@@ -4426,8 +4522,13 @@ def f3_definedness_problems():
     """COUNTERPOINT_CANDIDATES as amended: a point counts only where the
     domain items' formers are settled too. x > 0 on [0, 1] with a
     hypothesis whose real power owes x^2 > 0 is not refuted at x = 0, where
-    that hypothesis is undefined; and ln(x - 5) under such a hypothesis on
-    [5, 6] installs, its x - 5 > 0 admitted, tagged none."""
+    that hypothesis is undefined. End to end, ln(x - 5) under such a
+    hypothesis on [5, 6] is refused, and by the hypothesis's own former:
+    (x - 5)^2 > 0, charged on the empty domain (it is the first
+    hypothesis), is false at its root x = 5 (E50's candidate), which is the
+    point where the hypothesis is undefined. Before E50 the goal installed
+    with both keys admitted, tagged none; ln's x - 5 > 0 was never refuted
+    at 5, and still is not."""
     import refute as RF
     out = []
     k = T.parse_judgement("x > 0 @ x in [0, 1], ((x^2)^(1/2))^2 + 1 > 0", SIG)
@@ -4435,18 +4536,9 @@ def f3_definedness_problems():
     if r is not None:
         out.append(f"refuted: {r.message}")
     st = K.install(goal("ln(x - 5) == ?A @ (((x-5)^2)^(1/2))^2 + 1 > 0, x in [5, 6]"))
-    if not isinstance(st, K.ProofState):
-        return out + [f"install: {describe(st)}"]
-
-    def miss(item, where, detail):
-        out.append(fmt(where, detail))
-
-    compare_emitted(miss, "ln(x - 5)", "goal", [
-        ("(x - 5)^2 > 0", "true", (X.S_FORMER,), X.ADMITTED, X.T_NONE, True),
-        ("2 # 0", "true", (X.S_FORMER,), X.DISCHARGED, X.T_NORM_NUM, True),
-        ("x - 5 > 0", "(((x - 5)^2)^(1/2))^2 + 1 > 0, x in [5, 6]", (X.S_FORMER,),
-         X.ADMITTED, X.T_NONE, True)], st.last.emitted, frozenset(), certs={})
-    return out
+    return out + refusal_problems_of(st, {
+        "refusal": X.OBLIGATION_DECIDED_FALSE,
+        "message": X._point("(x - 5)^2 > 0", "(5 - 5)^2 > 0", x="5")})
 
 
 def frozen_certificate_problems():
@@ -4559,7 +4651,8 @@ def main():
     suite.check(2, "OCCURRENCE_CASE one with occurrence 1 rewrites the second Int",
                 occurrence_k_problems)
     suite.check(2, "F3 counts a point only where the domain items are defined "
-                "(COUNTERPOINT_CANDIDATES, amended)", f3_definedness_problems)
+                "(COUNTERPOINT_CANDIDATES, amended), and E50's root refutes the "
+                "undefined hypothesis's own former", f3_definedness_problems)
 
     print("\nBeyond P1's data: rules P1 masks")
     suite.check(2, "field owes divisors inside atom arguments: sin(x/y)",
@@ -4659,6 +4752,9 @@ def main():
     suite.check(5, "inputs deeper than the stack (a 500-term divisor, a 600-term close "
                 "value, 1/(x - 1)^300) give a state or a Refusal, never an exception; "
                 "1/(x - 1)^150 installs within 3 s", deep_input_problems)
+    suite.check(5, "inputs beyond the bounds give a Refusal, never an exception: "
+                "t^1000000000 at 3 within 2 s, a residual too long to print, and a "
+                "600-deep sub and F (terms.subst iterative)", huge_input_problems)
     suite.check(5, "F3 walks at most 256 points: nine variables install within 5 s, "
                 "ln's argument admitted", point_bound_problems)
     suite.check(5, "a certificate the tracker keeps cannot be written through "
@@ -4726,7 +4822,7 @@ def main():
     sresults = subst_child_results() if K is not None and S0 is not None else {}
     suite.check(3, "int_subst control: the child, unpatched, finds nothing",
                 lambda: subst_planted_problems(None, sresults[None]))
-    for name, bug in {**X.INT_SUBST_PLANTED_BUGS, **X.INT_SUBST_SEAMS}.items():
+    for name, bug in {**SUBST_BUGS, **X.INT_SUBST_SEAMS}.items():
         suite.check(3, f"{name}: {bug.get('mutation', 're-traced on int_subst')}; "
                     f"caught at {len(bug['caught_by'])} location(s)",
                     lambda n=name: subst_planted_problems(n, sresults[n]))

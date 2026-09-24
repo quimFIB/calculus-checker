@@ -72,6 +72,17 @@ def _load_stage0():
 S0 = _load_stage0()
 GOAL = X.GOAL
 
+# DISCHARGE_UNDECIDED and DISCHARGE_BAD_MOVES_ADDED as F3_ROOTS_CHANGES
+# re-traces them once F3 tries rational roots (E50, REVIEW_SWITCH): the
+# unbounded-range key is now refused at its root x = 5, and the
+# false-but-undecided example is the irrational pole.
+_ROOTS = X.F3_ROOTS_CHANGES
+DISCHARGE_UNDECIDED = [c for c in X.DISCHARGE_UNDECIDED
+                       if c["id"] not in _ROOTS["DISCHARGE_UNDECIDED_remove"]] \
+    + list(X.F3_ROOTS_UNDECIDED)
+DISCHARGE_BAD_MOVES_ADDED = list(X.DISCHARGE_BAD_MOVES_ADDED) \
+    + list(_ROOTS["DISCHARGE_BAD_MOVES_ADDED_add"])
+
 
 # ---------------------------------------------------------------- data to calls
 
@@ -237,7 +248,7 @@ def expected_certificates():
     cases = [(f"DISCHARGE_DEFINEDNESS_CASES {i}", c)
              for i, c in X.DISCHARGE_DEFINEDNESS_CASES.items()]
     cases += [(f"DISCHARGE_BAD_MOVES_ADDED {c['id']}", c)
-              for c in X.DISCHARGE_BAD_MOVES_ADDED]
+              for c in DISCHARGE_BAD_MOVES_ADDED]
     for where, c in cases:
         tags = _tags(c.get("goal_emits", ()))
         for (p, d), cc in c.get("certificates", {}).items():
@@ -297,9 +308,11 @@ REJECT_REASONS = {
     "hyp_chain_broken": "chain-broken",
     "hyp_interval_item": "not-hypothesis-item",
     "norm_num_leaf_not_literal": "not-literal-true",
-    # SQRT_FACT_MUST_REJECT (E49)
+    # SQRT_FACT_MUST_REJECT (E49), with the review's
+    # REVIEW_SQRT_FACT_MUST_REJECT
     "sqrt_fact_nonstrict_pair": "zero-without-strict",
     "sqrt_fact_absent_atom": "unknown-label",
+    "sqrt_fact_label_for_absent_atom": "unknown-label",
 }
 
 
@@ -308,7 +321,8 @@ def _sqrt_case(c):
     return {**c, "cert": c["certificate"]}
 
 
-SQRT_FACT_MUST_REJECT = [_sqrt_case(c) for c in X.SQRT_FACT_MUST_REJECT]
+SQRT_FACT_MUST_REJECT = [_sqrt_case(c) for c in X.SQRT_FACT_MUST_REJECT
+                         + X.REVIEW_SQRT_FACT_MUST_REJECT]
 SQRT_FACT_CHECKER_ACCEPTS = [_sqrt_case(c) for c in X.SQRT_FACT_CHECKER_ACCEPTS]
 
 
@@ -443,7 +457,9 @@ def decided_false_cases():
     rows += [(f"DISCHARGE_BAD_MOVES_CHANGED {i}", c["message"])
              for i, c in X.DISCHARGE_BAD_MOVES_CHANGED.items()]
     rows += [(f"DISCHARGE_BAD_MOVES_ADDED {c['id']}", c["message"])
-             for c in X.DISCHARGE_BAD_MOVES_ADDED if "message" in c]
+             for c in DISCHARGE_BAD_MOVES_ADDED if "message" in c]
+    rows += [(f"F3_ROOTS_CASES {c['id']}", c["message"]) for c in X.F3_ROOTS_CASES
+             if c["move"][0] == "install"]
     for name, bug in X.DISCHARGE_PLANTED_BUGS.items():
         for proof, (sid, msg) in bug.get("refused", {}).items():
             rows.append((f"DISCHARGE_PLANTED_BUGS {name} {proof} {sid}", msg))
@@ -461,10 +477,10 @@ def decided_false_problems(spec):
 
 def undecided_cases():
     rows = []
-    for c in X.DISCHARGE_UNDECIDED:
+    for c in DISCHARGE_UNDECIDED:
         for ob in c["goal_emits"]:
             rows.append((c["id"], ob, c["reasons"].get((ob[0], ob[1]))))
-    for c in X.DISCHARGE_BAD_MOVES_ADDED:
+    for c in DISCHARGE_BAD_MOVES_ADDED:
         for ob in c.get("goal_emits", ()):
             if ob[3] == X.ADMITTED:
                 rows.append((c["id"], ob, c.get("reasons", {}).get((ob[0], ob[1]))))
@@ -1016,6 +1032,21 @@ def _sqrt_key(rng):
     return _key(prop, (iv,)), targets
 
 
+def _root_key(rng):
+    """A false univariate key with a rational root strictly inside its
+    range (E50): (x - r) * (a x + b) # 0, or x - r # 0, over an Interval
+    around r whose ends and midpoint are not r."""
+    r = Fraction(rng.randint(-20, 20), rng.randint(2, 7))
+    lo = r - Fraction(rng.randint(1, 5), rng.randint(1, 3))
+    hi = r + Fraction(rng.randint(1, 5), rng.randint(1, 3))
+    f = T.Add(XV, T.Neg(T.lit(r)))
+    if rng.random() < 0.5:
+        f = T.Mul(f, T.Add(T.Mul(T.lit(Fraction(rng.randint(1, 3))), XV),
+                           T.lit(Fraction(rng.randint(-5, 5)))))
+    iv = T.Interval("x", T.lit(lo), rng.random() < 0.5, T.lit(hi), rng.random() < 0.5)
+    return _key(T.NonZero(f), (iv,))
+
+
 def _hyp_key(rng):
     """Γ relations sharing constants, so that chains exist, and a
     proposition that is an item, a # 0 of one, a chain's ends, or a random
@@ -1280,7 +1311,9 @@ def property_results(seed=SEED, families=None):
     if families is not None:
         return stats
     rng, s = random.Random(f"{seed}/refutation"), stats["refutation"]
-    for k in refute_keys[::2]:
+    for _ in range(40):  # E50: univariate # 0 keys with a rational root inside
+        refute_keys.append(_root_key(rng))
+    for k in refute_keys[::2] + refute_keys[-40:]:
         r = RF.decided_false(k, K._owed)
         if r is None:
             continue

@@ -345,10 +345,43 @@ def subst(x, mapping):
     not mapped and y is free in no replacement. Anything else raises
     Refused 'subst-under-D'. Deriv is never renamed.
     """
-    if isinstance(x, Var):
-        return mapping.get(x.name, x)
-    if not isinstance(x, (Deriv, Integral)):
-        return _map(lambda k: subst(k, mapping), x)
+    # Iterative over every node that binds nothing, children before parents,
+    # so a term of any depth is substituted without exhausting the stack;
+    # each binder is _subst_binder's, which recurses only into binders.
+    todo, done = [(x, False)], []
+    while todo:
+        node, ready = todo.pop()
+        if isinstance(node, Var):
+            done.append(mapping.get(node.name, node))
+            continue
+        if isinstance(node, (Deriv, Integral)):
+            done.append(_subst_binder(node, mapping))
+            continue
+        fields = (tuple(enumerate(node)) if isinstance(node, tuple)
+                  else _fields(node))
+        if not ready:
+            todo.append((node, True))
+            kids = [k for _, v in fields
+                    for k in (v if isinstance(v, tuple) else (v,))]
+            todo.extend((k, False) for k in reversed(kids))
+            continue
+        count = sum(len(v) if isinstance(v, tuple) else 1 for _, v in fields)
+        rebuilt = done[len(done) - count:] if count else []
+        del done[len(done) - count:]
+        new, i = {}, 0
+        for n, v in fields:  # _map's rebuild: a tuple field elementwise
+            width = len(v) if isinstance(v, tuple) else 1
+            new[n] = tuple(rebuilt[i:i + width]) if isinstance(v, tuple) else rebuilt[i]
+            i += width
+        if isinstance(node, tuple):
+            done.append(tuple(new[n] for n, _ in fields))
+        else:
+            done.append(replace(node, **new) if new else node)
+    return done[0]
+
+
+def _subst_binder(x, mapping):
+    """subst at a Deriv or Integral node (GRAMMAR.md §5's rules below)."""
     # A binder. Only the mapped names free in x matter, so only their
     # replacements can be captured.
     live = {k: t for k, t in mapping.items() if k in fv(x)}

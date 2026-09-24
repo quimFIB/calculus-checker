@@ -535,9 +535,20 @@ GRAMMAR.md §1 codes that `check_goal` raises, and constructors can raise
 `rpow-literal-exponent` and `oo-misplaced`. Beyond those, there are
 **kernel-local codes, none reachable in any P1 run**: `state-not-minted`,
 `proof-finished`, `bad-move`, `bad-args`, `goal-shape`, `ftc-no-integral`,
-`close-no-mvar` and `field-fact-shape`. The last is for a fact that is not
-`a^k == r`, such as `fact pi_pos` passed to field. The suite's
-`KERNEL_LOCAL_CODES` lists these eight, and a case must assert each one.
+`close-no-mvar`, `field-fact-shape` and `power-too-large`. `field-fact-shape`
+is for a fact that is not `a^k == r`, such as `fact pi_pos` passed to field.
+`power-too-large` is field.py's bound on the literal powers ring, field and
+norm_num expand: a power b^n is refused when |n| > `POWER_BOUND` (10^4),
+when n times the bit size of its base's largest coefficient exceeds
+`BITS_BOUND` (2^13), or when expanding a sum would give more than
+`TERMS_BOUND` (10^5) monomials, so that no input computes without end
+(x := t^1000000000 at t = 3) or builds a number no message can print.
+Messages print terms through `kernel._brief`, cut at `MESSAGE_LIMIT` (400)
+characters, and a number too long for `str()` is named, not printed; the
+Refusal's residual keeps the whole term. `terms.subst` is iterative over
+every node that binds nothing, so a term of any depth is substituted. The
+suite's `KERNEL_LOCAL_CODES` lists these nine, and a case must assert each
+one.
 
 **Kernel-local source codes, none reachable in any P1 run**: `d_inv` (u =
 1/v with x free in v, owing v # 0) and `d_pow_int` (a negative literal n,
@@ -834,7 +845,13 @@ rejection, so E7 stays the only place `Int-or-D-not-normalisable` is raised
 one `field.ring_polys` call rather than `field.ring_equal`, so the BACKSTOPS
 seam on `ring_equal` does not reach it.
 
-**Decided false (E33).** `refute.py` is untrusted and can only refuse: F1
+**Decided false (E33).** `refute.py` is untrusted and can only refuse. Its
+candidate points (`refute.candidates`) end with E50's rational roots
+(`refute.roots`, a seam): the rational roots, by the rational root test
+bounded by `ROOT_TEST_BOUND` (10^6), of each piece of the key's target
+(itself, a top-level product's factors, an integer power's base,
+recursively) that is a polynomial in one variable, smallest |r| first,
+after every other candidate for that variable. F1
 (`exact_false`, the exact values made the key literal and false), F2 (a
 closed ordering whose negation `settled` discharges) and F3 (the first
 COUNTERPOINT_CANDIDATES point, among the first `POINT_BOUND` (256), where
@@ -937,6 +954,10 @@ atoms.
 
 | INT_SUBST_PLANTED_BUGS key | Seam | The child's patch |
 |---|---|---|
+| `int_subst_no_sub_formers` (REVIEW_PLANTED_BUGS) | `kernel._sub_formers` | a no-op (step 9 charges nothing) |
+| `int_subst_reverse_no_old_orient` (REVIEW_PLANTED_BUGS) | `kernel._old_range` | the old range, its orientation not owed |
+| `sqrt_fact_any_u` (REVIEW_PLANTED_BUGS) | `discharge._sqrt_fact` | any u once the key holds some sqrt atom |
+| `f3_no_root_candidates` (REVIEW_PLANTED_BUGS) | `refute.roots` | no roots (COUNTERPOINT_CANDIDATES (4) not walked) |
 | `int_subst_skips_endpoint_check` | `kernel._endpoint` | records the equation discharged, unchecked |
 | `int_subst_drops_phi_prime` | `kernel._new_integrand` | F alone |
 | `int_subst_deriv_on_open` | `kernel._subst_deriv` | deriv on the open interval |
