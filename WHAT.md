@@ -108,10 +108,13 @@ routes on 127.0.0.1, over the attempt tree, with `/hint` and `/palette`
 refusing `not-built`. `python3 -m unittest discover -s app` replays every
 problem file through it against the loader.
 
-**The check-mode page is up** (`app/PAGE.md`, 2026-09-25): `./calc` serves
-it at `http://127.0.0.1:8765/`. Pick a problem or type a goal, choose each
-move and its arguments, and the kernel checks it; the attempt tree keeps
-retracted branches. No hints, palette or KaTeX yet.
+**The check-mode page is up** (`app/PAGE.md`, revision 2, 2026-09-25):
+`./calc` serves it at `http://127.0.0.1:8765/`, laid out like rocq-mode. You
+type a tactic script in the centre (`app/SCRIPT.md`, e.g. `ftc x^3 + x^2 by
+ring.`), step through it with Alt+↓ / Alt+↑ / Ctrl+Enter, and the goals,
+obligations and the last response show on the right. The checked region
+is shaded, and editing inside it retracts to that sentence. The attempt
+tree keeps retracted branches. No hints, palette or KaTeX yet.
 `app/test_page.py` drives it in a headless browser when Playwright is
 installed.
 

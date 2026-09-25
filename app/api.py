@@ -12,6 +12,7 @@ import json
 import os
 import secrets
 
+import script
 import session as S
 from session import K, KERNEL, Refusal, loader
 from terms import Refused, parse_goal, parse_term, show
@@ -162,6 +163,17 @@ def step(body):
     return render(sess, sess.step(at.id, move, args))
 
 
+def tactic(body):
+    """SCRIPT.md: one sentence, parsed to (move, args) and fed as /step."""
+    sess = _session(body)
+    at = _node(sess, body)
+    try:
+        move, args = script.parse(_field(body, "text", str))
+    except script.TacticError as e:
+        raise Refusal("bad-tactic", str(e)) from None
+    return render(sess, sess.step(at.id, move, args))
+
+
 def retract(body):
     sess = _session(body)
     return render(sess, sess.retract(_node(sess, body).id))
@@ -217,6 +229,7 @@ def not_built(query):
 ROUTES = {("GET", "/problems"): problems,
           ("POST", "/session"): new_session,
           ("POST", "/step"): step,
+          ("POST", "/tactic"): tactic,
           ("POST", "/retract"): retract,
           ("GET", "/node"): node,
           ("GET", "/tree"): tree,

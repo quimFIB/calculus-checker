@@ -1,8 +1,10 @@
 """PAGE.md Done-when item 2: the check-mode page in a headless browser.
 
 Skipped when Playwright is not installed (it is not part of the standard
-library, so it is never required). Proves S1 through the page, checks that
-a wrong F is refused with no node added, and that a retracted node is kept.
+library, so it is never required). Revision 2 (rocq-mode): proves S1 by
+stepping a typed script, refuses a wrong F with nothing checked, keeps an
+undone node, retracts on an edit inside the checked region, and proves
+COS_SQ with To cursor.
 """
 
 import os
@@ -55,58 +57,101 @@ class Page(unittest.TestCase):
         self.page.close()
         self.assertEqual(self.errors, [])
 
-    def start_s1(self):
+    def start(self, pid="stage0.S1"):
         p = self.page
-        p.select_option("#problem-select", "stage0.S1")
+        p.select_option("#problem-select", pid)
         p.click("#start-problem")
-        p.wait_for_selector(".node.selected[data-node='n0']")
+        p.wait_for_selector(".node.current[data-node='n0']")
+        p.fill("#script", "")
 
-    def move(self, name, **args):
-        p = self.page
-        p.select_option("#move-select", name)
-        for k, v in args.items():
-            sel = f"#arg-{k}"
-            if p.eval_on_selector(sel, "e => e.tagName") == "SELECT":
-                p.select_option(sel, v)
-            else:
-                p.fill(sel, v)
-        p.click("#check")
+    def type_script(self, text):
+        self.page.fill("#script", text)
+
+    def report(self):
+        return self.page.inner_text("#status-report")
 
     def nodes(self):
         return self.page.eval_on_selector_all(".node", "es => es.length")
 
-    def test_s1_proved_through_the_page(self):
+    def wait_idle(self):
+        self.page.wait_for_function(
+            "() => !document.querySelector('#backdrop mark.pending')")
+        self.page.wait_for_function(
+            "() => !document.getElementById('to-cursor').disabled")
+
+    def test_s1_proved_by_stepping(self):
         p = self.page
-        self.start_s1()
+        self.start()
         self.assertIn("Int[x = 0 .. 1]", p.inner_text("#problem-info"))
-        self.move("ftc", F="x^3 + x^2", check="ring")
-        p.wait_for_selector(".node.selected[data-node='n1']")
-        self.move("close", value="2", check="ring")
-        p.wait_for_selector(".node.selected[data-node='n2']")
-        self.assertEqual(p.inner_text("#status-report"), "Proved.")
+        self.type_script("ftc x^3 + x^2 by ring.\nclose 2.\n")
+        p.click("#next")
+        p.wait_for_selector(".node.current[data-node='n1']")
+        p.keyboard.press("Alt+ArrowDown")
+        p.wait_for_selector(".node.current[data-node='n2']")
+        self.assertEqual(self.report(), "Proved.")
         self.assertEqual(p.inner_text("#report"), "Proved.")
         self.assertIn("0 machine-checked", p.inner_text("#status-line"))
+        self.assertEqual(p.inner_text("#backdrop mark.checked"),
+                         "ftc x^3 + x^2 by ring.\nclose 2.")
 
-    def test_wrong_F_is_refused_and_adds_nothing(self):
+    def test_wrong_F_is_refused_and_checks_nothing(self):
         p = self.page
-        self.start_s1()
-        self.move("ftc", F="3*x^3 + 2*x^2", check="ring")
-        p.wait_for_selector(".refusal")
+        self.start()
+        self.type_script("ftc 3*x^3 + 2*x^2 by ring.")
+        p.click("#next")
+        p.wait_for_selector("#refusal")
         self.assertIn("ftc-check-failed", p.inner_text("#refusal"))
         self.assertIn("residual", p.inner_text("#refusal"))
         self.assertEqual(self.nodes(), 1)
+        self.assertEqual(p.query_selector_all("#backdrop mark.checked"), [])
+        self.assertEqual(len(p.query_selector_all("#backdrop mark.error")), 1)
 
-    def test_retract_keeps_the_node(self):
+    def test_undo_keeps_the_node(self):
         p = self.page
-        self.start_s1()
-        self.move("ftc", F="x^3 + x^2", check="ring")
-        p.wait_for_selector(".node.selected[data-node='n1']")
-        p.click("#retract")
-        p.wait_for_selector(".node.selected[data-node='n0']")
+        self.start()
+        self.type_script("ftc x^3 + x^2 by ring.")
+        p.click("#next")
+        p.wait_for_selector(".node.current[data-node='n1']")
+        p.click("#undo")
+        p.wait_for_selector(".node.current[data-node='n0']")
         self.assertEqual(self.nodes(), 2)
         row = p.query_selector(".node[data-node='n1']")
         self.assertIn("retracted", row.get_attribute("class"))
         self.assertEqual(row.query_selector(".mark").inner_text(), "✗")
+
+    def test_editing_the_checked_region_retracts(self):
+        p = self.page
+        self.start()
+        self.type_script("ftc x^3 + x^2 by ring.\nclose 2.")
+        p.click("#script")
+        p.keyboard.press("Control+End")
+        p.keyboard.press("Control+Enter")
+        p.wait_for_selector(".node.current[data-node='n2']")
+        # put the caret inside the first sentence and type
+        p.evaluate("() => { const t = document.getElementById('script');"
+                   " t.focus(); t.setSelectionRange(5, 5); }")
+        p.keyboard.type(" ")
+        p.wait_for_selector(".node.current[data-node='n0']")
+        self.wait_idle()
+        self.assertEqual(p.query_selector_all("#backdrop mark.checked"), [])
+        self.assertEqual(
+            p.eval_on_selector_all(".node.retracted", "es => es.length"), 2)
+
+    def test_cos_sq_to_cursor(self):
+        p = self.page
+        self.start("trig.COS_SQ")
+        self.type_script(
+            "(* DESIGN.md §8.9's first example *)\n"
+            "ftc t/2 + sin(2*t)/4 by field.\n"
+            "rewrite sin_pi at sin(2*(pi/2)).\n"
+            "rewrite sin_zero at sin(2*0).\n"
+            "close pi/4.\n")
+        p.click("#script")
+        p.keyboard.press("Control+End")
+        p.click("#to-cursor")
+        p.wait_for_selector(".node.current[data-node='n4']")
+        self.assertEqual(self.report(), "Proved.")
+        self.assertIn("pi/4", p.inner_text("#theorem"))
 
 
 if __name__ == "__main__":

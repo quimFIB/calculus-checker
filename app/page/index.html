@@ -4,13 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Calculus checker</title>
-<!-- The check-mode page (app/PAGE.md). Untrusted and holds nothing: every
-     goal, report and obligation below is a string from the JSON API. -->
+<!-- The check-mode page, revision 2 (app/PAGE.md, app/SCRIPT.md): a
+     rocq-mode script in the centre, goals on the right. Untrusted and holds
+     nothing: every goal, report and obligation is a string from the API. -->
 <style>
 :root {
   --bg: #fbfaf7; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a66;
   --line: #e2dfd8; --accent: #2f5d8a; --ok: #2e7d4f; --bad: #b3261e;
   --warn: #8a5a00; --sel: #e8eef5; --code: #f3f1ec;
+  --checked: #dcefe2; --pending: #fdf0c9; --error-bg: #fbe3e1;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
@@ -19,57 +21,68 @@
     --bg: #161615; --panel: #1f1f1d; --ink: #e9e7e1; --muted: #9b998f;
     --line: #34332f; --accent: #8fb6de; --ok: #7fc79a; --bad: #f08b83;
     --warn: #e0b35a; --sel: #26303a; --code: #2a2926;
+    --checked: #1f3a2a; --pending: #3d3418; --error-bg: #45211e;
   }
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
-body {
-  background: var(--bg); color: var(--ink); font: 14px/1.45 var(--sans);
-  display: grid; grid-template-rows: 1fr auto auto; min-height: 100vh;
-}
-main {
-  display: grid; grid-template-columns: minmax(240px, 1fr) minmax(260px, 1.2fr)
-  minmax(300px, 1.4fr); gap: 1px; background: var(--line); min-height: 0;
-}
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--sans);
+       display: grid; grid-template-rows: 1fr auto; height: 100vh; }
+main { display: grid; grid-template-columns: minmax(220px, 280px) minmax(360px, 1.5fr) minmax(320px, 1fr);
+       gap: 1px; background: var(--line); min-height: 0; }
 section { background: var(--panel); padding: 14px 16px; overflow: auto; min-height: 0; }
-h2 { font-size: 12px; letter-spacing: .06em; text-transform: uppercase;
-     color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+h2 { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+     margin: 0 0 10px; font-weight: 600; }
 h3 { font-size: 15px; margin: 14px 0 4px; }
-.mono, code, input.term, textarea { font-family: var(--mono); font-size: 13px; }
-.goal { background: var(--code); padding: 8px 10px; border-radius: 6px;
-        white-space: pre-wrap; word-break: break-word; }
+.mono, code, input.term { font-family: var(--mono); font-size: 13px; }
+.goal { background: var(--code); padding: 8px 10px; border-radius: 6px; white-space: pre-wrap;
+        word-break: break-word; font-family: var(--mono); font-size: 13px; }
 .muted { color: var(--muted); }
-label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 3px; }
-input, select, textarea, button {
-  font: inherit; color: var(--ink); background: var(--bg);
-  border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px;
-}
-input, textarea, select { width: 100%; }
-textarea { min-height: 3.2em; resize: vertical; }
-button { cursor: pointer; background: var(--panel); width: auto; }
+label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 3px; }
+input, select, button { font: inherit; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+input, select { width: 100%; }
+button { cursor: pointer; background: var(--panel); }
 button.primary { background: var(--accent); color: var(--panel); border-color: var(--accent); }
 button:disabled { opacity: .5; cursor: default; }
-.row { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
-.row > * { flex: 1 1 140px; }
-.row > button { flex: 0 0 auto; }
-details { margin-top: 12px; }
+.row { display: flex; gap: 8px; align-items: center; }
+.row > select, .row > input { flex: 1; min-width: 0; }
+details { margin-top: 10px; }
 summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 
 /* attempts */
-ul.tree, ul.tree ul { list-style: none; margin: 0; padding-left: 16px; }
+ul.tree, ul.tree ul { list-style: none; margin: 0; padding-left: 14px; }
 ul.tree { padding-left: 0; }
-.node { display: flex; gap: 6px; align-items: baseline; padding: 3px 6px;
-        border-radius: 5px; cursor: pointer; font-family: var(--mono); font-size: 13px; }
+.node { display: flex; gap: 6px; align-items: baseline; padding: 2px 6px; border-radius: 5px;
+        cursor: pointer; font-family: var(--mono); font-size: 12px; }
 .node:hover { background: var(--code); }
-.node.selected { background: var(--sel); }
+.node.current { background: var(--sel); }
 .node.retracted .label { text-decoration: line-through; color: var(--muted); }
 .mark { width: 1.1em; text-align: center; flex: none; }
-.mark.proved { color: var(--ok); } .mark.retracted { color: var(--bad); }
-.mark.open { color: var(--muted); }
+.mark.proved { color: var(--ok); } .mark.retracted { color: var(--bad); } .mark.open { color: var(--muted); }
 
-/* state */
-.report { font-weight: 600; font-size: 15px; margin-bottom: 8px; }
+/* script */
+#script-pane { display: grid; grid-template-rows: auto 1fr; padding: 0; }
+.toolbar { display: flex; gap: 6px; align-items: center; padding: 8px 12px;
+           border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.toolbar .keys { margin-left: auto; font-size: 11.5px; color: var(--muted); }
+.editor { position: relative; min-height: 0; overflow: hidden; }
+.editor > * { position: absolute; inset: 0; margin: 0; padding: 14px 16px; border: 0;
+  font: 14px/1.6 var(--mono); white-space: pre-wrap; word-wrap: break-word;
+  overflow-wrap: break-word; tab-size: 2; }
+#backdrop { color: transparent; overflow: hidden; pointer-events: none; }
+#backdrop mark { color: transparent; border-radius: 2px; }
+#backdrop mark.checked { background: var(--checked); }
+#backdrop mark.pending { background: var(--pending); }
+#backdrop mark.error { background: var(--error-bg); text-decoration: underline wavy var(--bad);
+                       text-decoration-skip-ink: none; }
+#script { background: transparent; color: var(--ink); resize: none; outline: none; overflow: auto;
+          caret-color: var(--ink); }
+
+/* goals */
+.report { font-weight: 600; font-size: 15px; margin-bottom: 4px; word-break: break-word; }
 .report.proved { color: var(--ok); }
+.viewing { font-size: 12px; color: var(--warn); margin-bottom: 6px; }
 table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
 th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { color: var(--muted); font-weight: 600; font-size: 11.5px; }
@@ -78,21 +91,22 @@ td.key { font-family: var(--mono); word-break: break-word; }
 .status.discharged { color: var(--ok); } .status.admitted { color: var(--warn); }
 .status.refuted { color: var(--bad); } .status.open { color: var(--muted); }
 .new { font-size: 11px; color: var(--accent); margin-left: 4px; }
-
-/* move strip */
-footer.moves { background: var(--panel); border-top: 1px solid var(--line); padding: 12px 16px; }
-.args { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px 12px; }
-.refusal { margin-top: 10px; padding: 8px 10px; border-radius: 6px;
-           border: 1px solid var(--bad); color: var(--ink); }
-.refusal .code { color: var(--bad); font-family: var(--mono); font-weight: 600; }
-.refusal .residual { font-family: var(--mono); margin-top: 4px; }
-.status-line { background: var(--bg); border-top: 1px solid var(--line);
-               padding: 5px 16px; font-size: 12px; color: var(--muted); }
+#goals-pane { display: grid; grid-template-rows: minmax(0, 1fr) auto; padding: 0; }
+.goals-scroll { overflow: auto; padding: 14px 16px; min-height: 0; }
+.response-pane { border-top: 1px solid var(--line); padding: 10px 16px 14px; max-height: 35vh;
+                 overflow: auto; }
+.msg { padding: 8px 10px; border-radius: 6px; border: 1px solid var(--line); font-size: 13px; }
+.msg.bad { border-color: var(--bad); }
+.msg.ok { border-color: var(--ok); }
+.msg .code { color: var(--bad); font-family: var(--mono); font-weight: 600; }
+.msg .residual { font-family: var(--mono); margin-top: 4px; word-break: break-word; }
+.status-line { background: var(--bg); border-top: 1px solid var(--line); padding: 5px 16px;
+               font-size: 12px; color: var(--muted); }
 .status-line b { color: var(--ink); font-weight: 600; }
-
-@media (max-width: 900px) {
+@media (max-width: 980px) {
+  body { height: auto; }
   main { grid-template-columns: 1fr; }
-  section { max-height: none; }
+  .editor { min-height: 320px; }
 }
 </style>
 </head>
@@ -100,9 +114,8 @@ footer.moves { background: var(--panel); border-top: 1px solid var(--line); padd
 <main>
   <section id="problem-pane" aria-label="Problem">
     <h2>Problem</h2>
-    <label for="problem-select">Corpus</label>
     <div class="row">
-      <select id="problem-select"></select>
+      <select id="problem-select" aria-label="Problem"></select>
       <button id="start-problem" class="primary">Start</button>
     </div>
     <details>
@@ -111,39 +124,55 @@ footer.moves { background: var(--panel); border-top: 1px solid var(--line); padd
       <input id="own-goal" class="term" placeholder="Int[x = 0 .. 1] x^2 == ?A">
       <label for="own-functions">Functions (name/arity, comma separated)</label>
       <input id="own-functions" class="term" placeholder="f/1">
-      <div class="row" style="margin-top:8px"><button id="start-own">Start</button></div>
+      <div style="margin-top:8px"><button id="start-own">Start</button></div>
     </details>
     <div id="problem-info"></div>
-    <h3>Parse echo</h3>
+    <label for="echo-input">Parse echo</label>
     <input id="echo-input" class="term" placeholder="type a term or a goal">
     <div id="echo-output" class="mono muted" style="margin-top:6px"></div>
-  </section>
-
-  <section id="attempts-pane" aria-label="Attempts">
-    <h2>Attempts</h2>
+    <h3>Attempts</h3>
     <div id="tree" class="muted">Start a problem.</div>
   </section>
 
-  <section id="state-pane" aria-label="State">
-    <h2>State</h2>
-    <div id="state" class="muted">No node selected.</div>
+  <section id="script-pane" aria-label="Script">
+    <div class="toolbar">
+      <button id="undo" title="Alt+Up" disabled>↑ Undo</button>
+      <button id="next" class="primary" title="Alt+Down" disabled>↓ Next</button>
+      <button id="to-cursor" title="Ctrl+Enter" disabled>⇥ To cursor</button>
+      <button id="help-toggle">Tactics</button>
+      <span class="keys">Alt+↓ next · Alt+↑ undo · Ctrl+Enter to cursor</span>
+    </div>
+    <div class="editor">
+      <div id="backdrop" aria-hidden="true"></div>
+      <textarea id="script" spellcheck="false" autocapitalize="off" autocomplete="off"
+        aria-label="Tactic script" placeholder="Start a problem, then type tactics, one per sentence:
+
+ftc x^3 + x^2 by ring.
+close 2."></textarea>
+    </div>
+  </section>
+
+  <section id="goals-pane" aria-label="Goals">
+    <div class="goals-scroll">
+    <h2>Goals</h2>
+    <div id="state" class="muted">No goal yet.</div>
+    <div id="help" hidden>
+      <h3>Tactics</h3>
+      <div class="goal" style="font-size:12px">ftc T [occurrence N] [by ring|field] [using h, ...].
+int_improper T [occurrence N] [by ...] [using ...].
+close T [by ring|field] [using h, ...].
+rewrite E [with x := T; ...] at T [occurrence N].
+fact h := E [with x := T; ...].
+int_subst x := T as y from T to T [reverse T] [occurrence N] [by ...] [using ...].
+int_flip [occurrence N].
+int_parts in x with u := T; v := T [occurrence N] [by ...] [using ...].
+(* comments like this *)</div>
+    </div>
+    </div>
+    <div class="response-pane"><h2>Response</h2><div id="response" class="muted">Nothing yet.</div></div>
   </section>
 </main>
-
-<footer class="moves" aria-label="Moves">
-  <div class="row">
-    <div style="flex:0 0 200px">
-      <label for="move-select">Move</label>
-      <select id="move-select"></select>
-    </div>
-    <div style="flex:1 1 auto"></div>
-    <button id="check" class="primary" disabled title="Ctrl+Enter">Check</button>
-    <button id="retract" disabled title="Alt+Up">Retract</button>
-  </div>
-  <div id="args" class="args"></div>
-  <div id="refusal"></div>
-</footer>
-<div class="status-line" id="status-line">No session · <b>0 machine-checked</b></div>
+<div class="status-line" id="status-line">No session · check mode · <b>0 machine-checked</b></div>
 
 <script>
 "use strict";
@@ -159,7 +188,10 @@ const el = (tag, attrs = {}, ...kids) => {
   return e;
 };
 
-const S = { session: null, node: null, nodes: {}, tree: [], moves: [], problems: [], title: null };
+// path[k] is the node after k checked sentences (path[0] is n0);
+// done[k] is sentence k's {start, end} in the script.
+const S = { session: null, problemId: null, title: null, path: [], done: [], nodes: {},
+            error: null, pending: null, busy: false, problems: [] };
 
 async function api(method, path, body) {
   const opts = { method, headers: {} };
@@ -172,116 +204,170 @@ async function api(method, path, body) {
   return data;
 }
 
-function showRefusal(r) {
-  const box = $("refusal");
-  box.replaceChildren();
-  if (!r) return;
-  box.append(el("div", { class: "refusal", role: "alert" },
-    el("div", {}, el("span", { class: "code" }, r.code), " ", r.message),
-    r.residual ? el("div", { class: "residual" }, "residual: " + r.residual) : ""));
-}
-
-function showError(e) { showRefusal({ code: "error", message: String(e.message || e) }); }
-
-// ---------------------------------------------------------------- problem
-async function loadProblems() {
-  const { problems } = await api("GET", "/problems");
-  S.problems = problems;
-  const sel = $("problem-select");
-  sel.replaceChildren(...problems.map((p) => el("option", { value: p.id }, `${p.id} · ${p.title}`)));
-}
-
-async function start(body, title, statement) {
-  showRefusal(null);
-  try {
-    const n = await api("POST", "/session", body);
-    if (n.refusal) return showRefusal(n.refusal);
-    S.session = n.session; S.nodes = {}; S.title = title;
-    S.nodes[n.node] = n;
-    $("problem-info").replaceChildren(
-      el("h3", {}, title),
-      statement ? el("p", {}, statement) : "",
-      el("label", {}, "Formal goal"),
-      el("div", { class: "goal mono" }, n.goal));
-    await refreshTree();
-    await select(n.node);
-  } catch (e) { showError(e); }
-}
-
-$("start-problem").onclick = () => {
-  const p = S.problems.find((q) => q.id === $("problem-select").value);
-  if (p) start({ problem: p.id }, p.title, p.statement);
-};
-$("start-own").onclick = () => {
-  const functions = {};
-  for (const part of $("own-functions").value.split(",").map((s) => s.trim()).filter(Boolean)) {
-    const [name, arity] = part.split("/");
-    functions[name.trim()] = parseInt(arity, 10);
+// ---------------------------------------------------------------- sentences
+// SCRIPT.md: a sentence ends at a '.' followed by whitespace or the end,
+// outside comments, and never inside '..'.
+function nextSentence(text, from) {
+  let i = from, start = -1, depth = 0;
+  while (i < text.length) {
+    if (text.startsWith("(*", i)) {
+      const j = text.indexOf("*)", i + 2);
+      if (j < 0) return null;
+      i = j + 2; continue;
+    }
+    const c = text[i];
+    if (start < 0 && !/\s/.test(c)) start = i;
+    if (c === "." && text[i - 1] !== "." && text[i + 1] !== "." &&
+        (i + 1 === text.length || /\s/.test(text[i + 1]))) {
+      return start < 0 ? null : { start, end: i + 1 };
+    }
+    i++;
   }
-  start({ goal: $("own-goal").value, functions }, "Your own goal", null);
-};
-
-let echoTimer = null;
-$("echo-input").oninput = () => {
-  clearTimeout(echoTimer);
-  echoTimer = setTimeout(async () => {
-    const text = $("echo-input").value.trim();
-    const out = $("echo-output");
-    if (!text) return out.replaceChildren();
-    try {
-      const r = await api("POST", "/parse", { text });
-      out.textContent = r.refusal ? `${r.refusal.code}: ${r.refusal.message}` : r.term;
-      out.className = "mono " + (r.refusal ? "" : "muted");
-      out.style.color = r.refusal ? "var(--bad)" : "";
-    } catch (e) { out.textContent = String(e.message); }
-  }, 200);
-};
-
-// ---------------------------------------------------------------- attempts
-async function refreshTree() {
-  const { nodes } = await api("GET", "/tree", { session: S.session });
-  S.tree = nodes;
-  const kids = {};
-  for (const n of nodes) (kids[n.parent] ??= []).push(n);
-  const mark = (n) => n.retracted ? ["✗", "retracted"]
-    : n.report.startsWith("Proved") ? ["✓", "proved"] : ["·", "open"];
-  const build = (parent) => {
-    const list = kids[parent];
-    if (!list) return "";
-    return el("ul", { class: parent === null ? "tree" : "" }, ...list.map((n) => {
-      const [m, cls] = mark(n);
-      const row = el("div", {
-        class: "node" + (n.retracted ? " retracted" : "") + (n.node === S.node ? " selected" : ""),
-        "data-node": n.node, tabindex: "0",
-        onclick: () => select(n.node),
-        onkeydown: (ev) => { if (ev.key === "Enter") select(n.node); },
-      }, el("span", { class: "mark " + cls, title: n.report }, m),
-         el("span", { class: "label" }, `${n.node} ${n.summary}`));
-      return el("li", {}, row, build(n.node));
-    }));
-  };
-  $("tree").className = "";
-  $("tree").replaceChildren(build(null));
+  return null;
 }
 
-// ---------------------------------------------------------------- state
-async function select(id) {
+const checkedEnd = () => (S.done.length ? S.done[S.done.length - 1].end : 0);
+const current = () => S.path[S.path.length - 1];
+
+// ---------------------------------------------------------------- highlight
+function paint() {
+  const text = $("script").value, bd = $("backdrop");
+  const marks = [];
+  const end = checkedEnd();
+  if (end > 0) marks.push([0, end, "checked"]);
+  if (S.pending) marks.push([S.pending.start, S.pending.end, "pending"]);
+  if (S.error) marks.push([S.error.start, S.error.end, "error"]);
+  marks.sort((a, b) => a[0] - b[0]);
+  const parts = [];
+  let at = 0;
+  for (const [a, b, cls] of marks) {
+    if (a < at) continue;
+    parts.push(text.slice(at, a), el("mark", { class: cls }, text.slice(a, b)));
+    at = b;
+  }
+  parts.push(text.slice(at) + "\n");
+  bd.replaceChildren(...parts);
+  bd.scrollTop = $("script").scrollTop;
+}
+
+// ---------------------------------------------------------------- stepping
+function setBusy(b) {
+  S.busy = b;
+  const has = !!S.session;
+  $("undo").disabled = b || !has || S.done.length === 0;
+  $("next").disabled = b || !has;
+  $("to-cursor").disabled = b || !has;
+}
+
+async function stepNext() {
+  const text = $("script").value;
+  const s = nextSentence(text, checkedEnd());
+  if (!s) return false;
+  S.pending = s; S.error = null; paint();
+  try {
+    const r = await api("POST", "/tactic",
+      { session: S.session, node: current(), text: text.slice(s.start, s.end) });
+    S.pending = null;
+    if (r.refusal) {
+      S.error = s; paint(); showResponse(r.refusal, false);
+      return false;
+    }
+    S.path.push(r.node); S.done.push(s); S.nodes[r.node] = r;
+    paint(); showResponse(null, true, r);
+    return true;
+  } catch (e) {
+    S.pending = null; paint(); showError(e); return false;
+  }
+}
+
+async function retractTo(k) {
+  // keep the first k sentences checked; retract the node of sentence k
+  if (k >= S.done.length) return;
+  const victim = S.path[k + 1];
+  S.path.length = k + 1; S.done.length = k; S.error = null;
+  paint();
+  try { await api("POST", "/retract", { session: S.session, node: victim }); }
+  catch (e) { showError(e); }
+}
+
+async function run(job) {
+  if (S.busy || !S.session) return;
+  setBusy(true);
+  try { await job(); } finally {
+    setBusy(false);
+    await refreshTree();
+    await showNode(current());
+  }
+}
+
+const next = () => run(async () => { await stepNext(); });
+const undo = () => run(async () => { await retractTo(S.done.length - 1); });
+const toCursor = () => run(async () => {
+  const cur = $("script").selectionStart;
+  if (cur < checkedEnd()) {
+    const k = S.done.findIndex((d) => d.end > cur);
+    await retractTo(k);
+    return;
+  }
+  for (;;) {
+    const s = nextSentence($("script").value, checkedEnd());
+    if (!s || s.start >= cur) break;
+    if (!(await stepNext())) break;
+  }
+});
+
+$("next").onclick = next;
+$("undo").onclick = undo;
+$("to-cursor").onclick = toCursor;
+$("help-toggle").onclick = () => { $("help").hidden = !$("help").hidden; };
+
+// An edit inside the checked region retracts back to that sentence, as
+// Proof General does.
+$("script").addEventListener("beforeinput", (ev) => {
+  const ta = $("script");
+  const pos = Math.min(ta.selectionStart, ta.selectionEnd) - (ev.inputType === "deleteContentBackward" && ta.selectionStart === ta.selectionEnd ? 1 : 0);
+  if (S.session && pos < checkedEnd()) {
+    const k = S.done.findIndex((d) => d.end > pos);
+    if (k >= 0 && !S.busy) run(() => retractTo(k));
+  }
+});
+$("script").addEventListener("input", () => { S.error = null; paint(); saveScript(); });
+$("script").addEventListener("scroll", () => { $("backdrop").scrollTop = $("script").scrollTop; });
+
+document.addEventListener("keydown", (ev) => {
+  if (ev.altKey && ev.key === "ArrowDown") { ev.preventDefault(); next(); }
+  else if (ev.altKey && ev.key === "ArrowUp") { ev.preventDefault(); undo(); }
+  else if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); toCursor(); }
+});
+
+// ---------------------------------------------------------------- goals
+function showError(e) { showResponse({ code: "error", message: String(e.message || e) }, false); }
+
+function showResponse(refusal, ok, node) {
+  const box = $("response");
+  box.className = "";
+  if (refusal) {
+    box.replaceChildren(el("div", { class: "msg bad", role: "alert", id: "refusal" },
+      el("div", {}, el("span", { class: "code" }, refusal.code), " ", refusal.message),
+      refusal.residual ? el("div", { class: "residual" }, "residual: " + refusal.residual) : ""));
+  } else if (ok && node) {
+    const newObs = node.obligations.filter((o) => o.new).length;
+    box.replaceChildren(el("div", { class: "msg ok" },
+      `${node.node}: ${node.move} accepted` + (newObs ? `, ${newObs} new obligation(s)` : "")));
+  } else box.replaceChildren();
+}
+
+async function showNode(id, viewing = false) {
+  if (!S.session || !id) return;
   const n = await api("GET", "/node", { session: S.session, node: id });
-  S.node = id; S.nodes[id] = n;
-  for (const row of document.querySelectorAll(".node"))
-    row.classList.toggle("selected", row.dataset.node === id);
-  renderState(n);
-  renderArgs();
-  $("check").disabled = false;
-  $("retract").disabled = n.parent === null;
-}
-
-function renderState(n) {
-  const parts = [el("div", { class: "report" + (n.report === "Proved." ? " proved" : ""), id: "report" }, n.report)];
-  if (n.goal) parts.push(el("label", {}, "Goal"), el("div", { class: "goal mono", id: "goal" }, n.goal));
-  if (n.theorem) parts.push(el("label", {}, "Theorem"), el("div", { class: "goal mono", id: "theorem" }, n.theorem));
-  if (n.handles.length) parts.push(el("label", {}, "Facts bound here"), el("div", { class: "mono" }, n.handles.join(", ")));
-  if (n.occurrences != null) parts.push(el("div", { class: "muted" }, `rewrite matched ${n.occurrences} occurrence(s)`));
+  S.nodes[id] = n;
+  const parts = [];
+  if (viewing && id !== current())
+    parts.push(el("div", { class: "viewing" }, `Viewing ${id} from the attempts tree; the script is at ${current()}.`));
+  parts.push(el("div", { class: "report" + (n.report === "Proved." ? " proved" : ""), id: "report" }, n.report));
+  if (n.goal) parts.push(el("label", {}, "Goal"), el("div", { class: "goal", id: "goal" }, n.goal));
+  if (n.theorem) parts.push(el("label", {}, "Theorem"), el("div", { class: "goal", id: "theorem" }, n.theorem));
+  if (n.handles.length) parts.push(el("label", {}, "Facts"), el("div", { class: "mono" }, n.handles.join(", ")));
   parts.push(el("label", {}, `Obligations (${n.obligations.length})`));
   if (n.obligations.length) {
     parts.push(el("table", {},
@@ -295,118 +381,99 @@ function renderState(n) {
   } else parts.push(el("div", { class: "muted" }, "none"));
   $("state").className = "";
   $("state").replaceChildren(...parts);
-  $("status-line").replaceChildren(
-    `${S.title ?? ""} · node ${n.node} · `, el("b", { id: "status-report" }, n.report),
-    " · check mode · ", el("b", {}, "0 machine-checked"));
-}
-
-// ---------------------------------------------------------------- moves
-async function loadMoves() {
-  const { moves } = await api("GET", "/moves");
-  S.moves = moves;
-  $("move-select").replaceChildren(...moves.map((m) => el("option", { value: m.name }, m.name)));
-  $("move-select").onchange = renderArgs;
-  renderArgs();
-}
-
-function renderArgs() {
-  const move = S.moves.find((m) => m.name === $("move-select").value);
-  const box = $("args");
-  const keep = {};
-  for (const inp of box.querySelectorAll("[data-arg]")) keep[inp.dataset.arg] = inp;
-  box.replaceChildren();
-  if (!move) return;
-  const handles = S.node ? S.nodes[S.node]?.handles ?? [] : [];
-  for (const a of move.args) {
-    const id = "arg-" + a.name;
-    const label = el("label", { for: id }, a.name + (a.optional ? " (optional)" : ""));
-    let input;
-    if (a.name === "check") {
-      input = el("select", { id }, el("option", { value: "ring" }, "ring"), el("option", { value: "field" }, "field"));
-    } else if (a.name === "mode") {
-      input = el("select", { id }, el("option", { value: "" }, "(forward)"),
-        el("option", { value: "forward" }, "forward"), el("option", { value: "reverse" }, "reverse"));
-    } else if (a.name === "facts") {
-      input = el("select", { id, multiple: "", size: String(Math.max(2, Math.min(4, handles.length))) },
-        ...handles.map((h) => el("option", { value: h }, h)));
-    } else if (a.type === "dict") {
-      input = el("textarea", { id, placeholder: "u := sin t\n(one per line; empty for none)" });
-    } else if (a.type === "int") {
-      input = el("input", { id, type: "number", min: "0", placeholder: "0" });
-    } else {
-      input = el("input", { id, class: a.term ? "term" : "", placeholder: a.term ? "a term" : "" });
-    }
-    input.dataset.arg = a.name;
-    input.dataset.optional = a.optional ? "1" : "";
-    const old = keep[a.name];
-    if (old && old.tagName === input.tagName && a.name !== "facts") input.value = old.value;
-    box.append(el("div", {}, label, input));
+  if (!viewing || id === current()) {
+    $("status-line").replaceChildren(`${S.title ?? ""} · ${id} · `,
+      el("b", { id: "status-report" }, n.report), " · check mode · ", el("b", {}, "0 machine-checked"));
   }
+  for (const row of document.querySelectorAll(".node"))
+    row.classList.toggle("current", row.dataset.node === current());
 }
 
-function collectArgs() {
-  const args = {};
-  for (const inp of $("args").querySelectorAll("[data-arg]")) {
-    const name = inp.dataset.arg, optional = inp.dataset.optional === "1";
-    if (name === "facts") {
-      args.facts = [...inp.selectedOptions].map((o) => ["handle", o.value]);
-    } else if (inp.tagName === "TEXTAREA") {
-      const inst = {};
-      for (const line of inp.value.split("\n").map((s) => s.trim()).filter(Boolean)) {
-        const i = line.indexOf(":=");
-        if (i < 0) throw new Error(`${name}: write each line as name := term`);
-        inst[line.slice(0, i).trim()] = line.slice(i + 2).trim();
-      }
-      args[name] = inst;
-    } else if (inp.type === "number") {
-      if (inp.value !== "") args[name] = parseInt(inp.value, 10);
-      else if (!optional) args[name] = 0;
-    } else if (inp.value !== "" || !optional) {
-      args[name] = inp.value;
-    }
-  }
-  return args;
+// ---------------------------------------------------------------- attempts
+async function refreshTree() {
+  if (!S.session) return;
+  const { nodes } = await api("GET", "/tree", { session: S.session });
+  const kids = {};
+  for (const n of nodes) (kids[n.parent] ??= []).push(n);
+  const mark = (n) => n.retracted ? ["✗", "retracted"]
+    : n.report.startsWith("Proved") ? ["✓", "proved"] : ["·", "open"];
+  const build = (parent) => {
+    const list = kids[parent];
+    if (!list) return "";
+    return el("ul", { class: parent === null ? "tree" : "" }, ...list.map((n) => {
+      const [m, cls] = mark(n);
+      return el("li", {},
+        el("div", { class: "node" + (n.retracted ? " retracted" : "") + (n.node === current() ? " current" : ""),
+                    "data-node": n.node, title: n.report, onclick: () => showNode(n.node, true) },
+          el("span", { class: "mark " + cls }, m), el("span", { class: "label" }, `${n.node} ${n.summary}`)),
+        build(n.node));
+    }));
+  };
+  $("tree").className = "";
+  $("tree").replaceChildren(build(null));
 }
 
-async function check() {
-  if (!S.session || !S.node) return;
-  showRefusal(null);
-  let args;
-  try { args = collectArgs(); } catch (e) { return showError(e); }
+// ---------------------------------------------------------------- problems
+function storageKey() { return "calc-script:" + (S.problemId ?? "own:" + $("own-goal").value); }
+function saveScript() {
+  try { localStorage.setItem(storageKey(), $("script").value); } catch (e) { /* private mode */ }
+}
+function loadScript() {
+  try { return localStorage.getItem(storageKey()) ?? ""; } catch (e) { return ""; }
+}
+
+async function start(body, title, statement, problemId) {
   try {
-    const r = await api("POST", "/step", { session: S.session, node: S.node, move: $("move-select").value, args });
-    if (r.refusal) return showRefusal(r.refusal);
-    S.nodes[r.node] = r;
+    const n = await api("POST", "/session", body);
+    if (n.refusal) return showResponse(n.refusal, false);
+    Object.assign(S, { session: n.session, problemId, title, path: [n.node], done: [],
+                       error: null, pending: null, nodes: { [n.node]: n } });
+    $("problem-info").replaceChildren(el("h3", {}, title),
+      statement ? el("p", {}, statement) : "",
+      el("label", {}, "Formal goal"), el("div", { class: "goal" }, n.goal));
+    $("script").value = loadScript();
+    paint(); showResponse(null);
+    setBusy(false);
     await refreshTree();
-    await select(r.node);
+    await showNode(n.node);
+    $("script").focus();
   } catch (e) { showError(e); }
 }
 
-async function retract() {
-  if (!S.session || !S.node) return;
-  showRefusal(null);
-  try {
-    const r = await api("POST", "/retract", { session: S.session, node: S.node });
-    if (r.refusal) return showRefusal(r.refusal);
-    await refreshTree();
-    await select(r.node);
-  } catch (e) { showError(e); }
+async function loadProblems() {
+  const { problems } = await api("GET", "/problems");
+  S.problems = problems;
+  $("problem-select").replaceChildren(...problems.map((p) => el("option", { value: p.id }, `${p.id} · ${p.title}`)));
 }
-
-$("check").onclick = check;
-$("retract").onclick = retract;
-document.addEventListener("keydown", (ev) => {
-  if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); check(); }
-  else if (ev.altKey && ev.key === "ArrowUp") { ev.preventDefault(); retract(); }
-  else if (ev.altKey && ev.key === "ArrowLeft" && S.node) {
-    const p = S.nodes[S.node]?.parent; if (p) { ev.preventDefault(); select(p); }
-  } else if (ev.altKey && ev.key === "ArrowRight" && S.node) {
-    const kids = S.tree.filter((n) => n.parent === S.node);
-    if (kids.length) { ev.preventDefault(); select(kids[kids.length - 1].node); }
+$("start-problem").onclick = () => {
+  const p = S.problems.find((q) => q.id === $("problem-select").value);
+  if (p) start({ problem: p.id }, p.title, p.statement, p.id);
+};
+$("start-own").onclick = () => {
+  const functions = {};
+  for (const part of $("own-functions").value.split(",").map((s) => s.trim()).filter(Boolean)) {
+    const [name, arity] = part.split("/");
+    functions[name.trim()] = parseInt(arity, 10);
   }
-});
+  start({ goal: $("own-goal").value, functions }, "Your own goal", null, null);
+};
 
-Promise.all([loadProblems(), loadMoves()]).catch(showError);
+let echoTimer = null;
+$("echo-input").oninput = () => {
+  clearTimeout(echoTimer);
+  echoTimer = setTimeout(async () => {
+    const text = $("echo-input").value.trim(), out = $("echo-output");
+    if (!text) return out.replaceChildren();
+    try {
+      const r = await api("POST", "/parse", { text });
+      out.textContent = r.refusal ? `${r.refusal.code}: ${r.refusal.message}` : r.term;
+      out.style.color = r.refusal ? "var(--bad)" : "";
+    } catch (e) { out.textContent = String(e.message); }
+  }, 200);
+};
+
+paint();
+loadProblems().catch(showError);
 </script>
 </body>
 </html>
