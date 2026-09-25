@@ -110,7 +110,22 @@ td.key { font-family: var(--mono); word-break: break-word; }
   main { grid-template-columns: 1fr; }
   .editor { min-height: 320px; }
 }
+.math { overflow-x: auto; padding: 6px 2px 2px; }
+.math .katex { font-size: 1.12em; }
+.plain { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin-top: 2px;
+         word-break: break-word; user-select: all; }
+.progress, .probe { font-size: 12.5px; margin-top: 6px; }
+.progress .tag { font-weight: 600; }
+.progress .tag.worse { color: var(--warn); } .progress .tag.good { color: var(--ok); }
+.probe.changed { color: var(--bad); font-weight: 600; }
+.palette { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.palette button { font-family: var(--mono); font-size: 11.5px; padding: 2px 7px; }
+.palette button.rw { border-style: dashed; }
+details.card table td.m { background: var(--sel); }
+details.card tr.match td { background: var(--sel); font-weight: 600; }
 </style>
+<link rel="stylesheet" href="/katex/katex.min.css">
+<script src="/katex/katex.min.js"></script>
 </head>
 <body>
 <main>
@@ -177,7 +192,7 @@ int_parts in x with u := T; v := T [occurrence N] [by ...] [using ...].
     <div class="response-pane"><h2>Response</h2><div id="response" class="muted">Nothing yet.</div></div>
   </section>
 </main>
-<div class="status-line" id="status-line">No session · check mode · <b>0 machine-checked</b></div>
+<div class="status-line" id="status-line">No session · assisted · <b>0 machine-checked</b></div>
 
 <script>
 "use strict";
@@ -197,6 +212,37 @@ const el = (tag, attrs = {}, ...kids) => {
 // done[k] is sentence k's {start, end} in the script.
 const S = { session: null, problemId: null, title: null, path: [], done: [], nodes: {},
             error: null, pending: null, busy: false, problems: [] };
+
+// UI.md §1: TeX from the server drawn by the vendored KaTeX, with the
+// plain text beside it (selectable: tactics are typed in it).
+function math(texSrc, plain, id) {
+  const box = el("div", { class: "goal", id });
+  const m = el("div", { class: "math" });
+  try {
+    if (!texSrc || !window.katex) throw new Error("no TeX");
+    katex.render("\\displaystyle " + texSrc, m, { throwOnError: true });
+    box.append(m, el("div", { class: "plain" }, plain));
+  } catch (e) { box.append(el("div", {}, plain)); }
+  return box;
+}
+
+// Insert a palette sentence at the cursor, or at the end of the script when
+// the cursor is inside the checked region (which is locked).
+function insertSentence(text) {
+  const ta = $("script");
+  const locked = S.done.length ? S.done[S.done.length - 1].end : 0;
+  let at = ta.selectionStart;
+  if (at < locked || document.activeElement !== ta && at === 0) at = ta.value.length;
+  const before = ta.value.slice(0, at), after = ta.value.slice(at);
+  const pre = before && !/\s$/.test(before) ? "\n" : "";
+  ta.value = before + pre + text + (after && !/^\s/.test(after) ? "\n" : "") + after;
+  const pos = (before + pre).length;
+  const hole = text.indexOf("_");
+  ta.focus();
+  ta.setSelectionRange(hole >= 0 ? pos + hole : pos + text.length,
+                       hole >= 0 ? pos + hole + 1 : pos + text.length);
+  paint(); saveScript();
+}
 
 async function api(method, path, body) {
   const opts = { method, headers: {} };
@@ -334,6 +380,8 @@ async function hint(rung) {
   try {
     const h = await api("GET", "/hint", { session: S.session, node: current(), rung });
     if (h.refusal) return showResponse(h.refusal, false);
+    S.maxRung = Math.max(S.maxRung ?? 0, h.rung);
+    paintStatus();
     const box = $("response");
     box.className = "";
     box.replaceChildren(el("div", { class: "msg hint", id: "hint" },
@@ -388,8 +436,24 @@ async function showNode(id, viewing = false) {
   if (viewing && id !== current())
     parts.push(el("div", { class: "viewing" }, `Viewing ${id} from the attempts tree; the script is at ${current()}.`));
   parts.push(el("div", { class: "report" + (n.report === "Proved." ? " proved" : ""), id: "report" }, n.report));
-  if (n.goal) parts.push(el("label", {}, "Goal"), el("div", { class: "goal", id: "goal" }, n.goal));
-  if (n.theorem) parts.push(el("label", {}, "Theorem"), el("div", { class: "goal", id: "theorem" }, n.theorem));
+  if (n.goal) parts.push(el("label", {}, "Goal"), math(n.goal_tex, n.goal, "goal"));
+  if (n.theorem) parts.push(el("label", {}, "Theorem"), math(n.theorem_tex, n.theorem, "theorem"));
+  if (n.progress) {
+    const good = ["finishable", "rule now matches", "technique named", "closed"].includes(n.progress.signal);
+    parts.push(el("div", { class: "progress", id: "progress", title: "a heuristic, never a judgement about the proof" },
+      "Progress (heuristic): ", el("span", { class: "tag " + (good ? "good" : n.progress.signal === "worse" ? "worse" : "") },
+        n.progress.signal), " · " + n.progress.detail));
+  }
+  if (n.probe) {
+    const p = n.probe, fmt = (v) => v.toPrecision(11);
+    parts.push(p.skipped
+      ? el("div", { class: "probe muted", id: "probe" }, `~ probe skipped: ${p.skipped}`)
+      : el("div", { class: "probe" + (p.agree ? "" : " changed"), id: "probe",
+                    title: "floating point: navigation, never evidence (§8.6)" },
+          `~ probe: ${fmt(p.before)} vs ${fmt(p.after)}, ` +
+          (p.agree ? `${p.digits} digits agree` : "VALUE CHANGED. Check the endpoints and the dx factor.")));
+  }
+  if (n.goal && (!viewing || id === current())) parts.push(el("div", { id: "palette-box" }));
   if (n.handles.length) parts.push(el("label", {}, "Facts"), el("div", { class: "mono" }, n.handles.join(", ")));
   parts.push(el("label", {}, `Obligations (${n.obligations.length})`));
   if (n.obligations.length) {
@@ -405,11 +469,52 @@ async function showNode(id, viewing = false) {
   $("state").className = "";
   $("state").replaceChildren(...parts);
   if (!viewing || id === current()) {
-    $("status-line").replaceChildren(`${S.title ?? ""} · ${id} · `,
-      el("b", { id: "status-report" }, n.report), " · check mode · ", el("b", {}, "0 machine-checked"));
+    S.status = n;
+    paintStatus();
+    if (n.goal) showPalette(id).catch(showError);
   }
   for (const row of document.querySelectorAll(".node"))
     row.classList.toggle("current", row.dataset.node === current());
+}
+
+// UI.md §5, DESIGN §16.4's status line.
+function paintStatus() {
+  const n = S.status;
+  if (!n) return;
+  $("status-line").replaceChildren(`${S.title ?? ""} · ${n.node} · `,
+    el("b", { id: "status-report" }, n.report),
+    ` · ${n.admissions} admission${n.admissions === 1 ? "" : "s"} · assisted · ` +
+    `max rung ${S.maxRung ?? 0} · ${n.steps} rule${n.steps === 1 ? "" : "s"} · `,
+    el("b", {}, "0 machine-checked"));
+}
+
+// ---------------------------------------------------------------- palette
+// UI.md §2: moves and rewrites insert a sentence; nothing steps until you do.
+async function showPalette(id) {
+  const pl = await api("GET", "/palette", { session: S.session, node: id });
+  const box = $("palette-box");
+  if (!box || id !== current()) return;
+  const btn = (label, sentence, cls, title) =>
+    el("button", { class: cls, title: title || sentence, onclick: () => insertSentence(sentence) }, label);
+  const matched = pl.card.filter((c) => c.matches).length;
+  const rows = pl.card.map((c) => {
+    const f = el("td", {}), a = el("td", {});
+    try {
+      katex.render("\\displaystyle " + c.form, f, { throwOnError: true });
+      katex.render("\\displaystyle " + c.antiderivative, a, { throwOnError: true });
+    }
+    catch (e) { f.textContent = c.form; a.textContent = c.antiderivative; }
+    return el("tr", { class: c.matches ? "match" : "", "data-card": c.id }, f, a);
+  });
+  box.replaceChildren(
+    el("label", {}, "Palette"),
+    el("div", { class: "palette", id: "palette-moves" },
+      ...pl.moves.map((m) => btn(m.move, m.sentence, "", m.why))),
+    pl.rewrites.length ? el("div", { class: "palette", id: "palette-rewrites" },
+      ...pl.rewrites.map((r) => btn(`${r.entry} at ${r.at}`, r.sentence, "rw"))) : "",
+    el("details", { class: "card", id: "card" },
+      el("summary", {}, `Antiderivative card${matched ? ` · ${matched} match` : ""}`),
+      el("table", {}, el("tbody", {}, ...rows))));
 }
 
 // ---------------------------------------------------------------- attempts
@@ -450,10 +555,10 @@ async function start(body, title, statement, problemId) {
     const n = await api("POST", "/session", body);
     if (n.refusal) return showResponse(n.refusal, false);
     Object.assign(S, { session: n.session, problemId, title, path: [n.node], done: [],
-                       error: null, pending: null, nodes: { [n.node]: n } });
+                       error: null, pending: null, nodes: { [n.node]: n }, maxRung: 0 });
     $("problem-info").replaceChildren(el("h3", {}, title),
       statement ? el("p", {}, statement) : "",
-      el("label", {}, "Formal goal"), el("div", { class: "goal" }, n.goal));
+      el("label", {}, "Formal goal"), math(n.goal_tex, n.goal, "formal-goal"));
     $("script").value = loadScript();
     paint(); showResponse(null);
     setBusy(false);
@@ -489,8 +594,9 @@ $("echo-input").oninput = () => {
     if (!text) return out.replaceChildren();
     try {
       const r = await api("POST", "/parse", { text });
-      out.textContent = r.refusal ? `${r.refusal.code}: ${r.refusal.message}` : r.term;
       out.style.color = r.refusal ? "var(--bad)" : "";
+      if (r.refusal) out.textContent = `${r.refusal.code}: ${r.refusal.message}`;
+      else out.replaceChildren(math(r.katex, r.term, "echo-math"));
     } catch (e) { out.textContent = String(e.message); }
   }, 200);
 };

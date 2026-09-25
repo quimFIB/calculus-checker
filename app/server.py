@@ -15,7 +15,23 @@ import api
 
 MAX_BODY = 1 << 20  # a move is a few hundred bytes
 PAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "page",
-                    "index.html")  # PAGE.md: the one static file
+                    "index.html")  # PAGE.md: the page
+KATEX = os.path.join(os.path.dirname(PAGE), "katex")  # UI.md: vendored
+TYPES = {".js": "text/javascript", ".css": "text/css", ".woff2": "font/woff2"}
+
+
+def katex_file(path):
+    """The vendored KaTeX file for /katex/<name> or /katex/fonts/<name>,
+    or None: one fixed directory, names only, no traversal."""
+    parts = path.split("/")[2:]
+    if not 1 <= len(parts) <= 2 or (len(parts) == 2 and parts[0] != "fonts"):
+        return None
+    name = parts[-1]
+    ext = os.path.splitext(name)[1]
+    if ext not in TYPES or not name or name.startswith(".") or "\\" in name:
+        return None
+    full = os.path.join(KATEX, *parts)
+    return (full, TYPES[ext]) if os.path.isfile(full) else None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -29,17 +45,26 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _file(self, path, ctype):
+        with open(path, "rb") as f:
+            data = f.read()
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_GET(self):
         url = urlsplit(self.path)
         if url.path in ("/", "/index.html"):
-            with open(PAGE, "rb") as f:
-                data = f.read()
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(data)))
-            self.end_headers()
-            self.wfile.write(data)
-            return
+            return self._file(PAGE, "text/html; charset=utf-8")
+        if url.path.startswith("/katex/"):
+            found = katex_file(url.path)
+            if found is None:
+                return self._send(404, {"error": {
+                    "code": "unknown-route",
+                    "message": f"no file {url.path}"}})
+            return self._file(*found)
         self._send(*api.handle("GET", url.path, dict(parse_qsl(url.query))))
 
     def do_POST(self):

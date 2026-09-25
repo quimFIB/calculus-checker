@@ -153,6 +153,53 @@ class Page(unittest.TestCase):
         p.wait_for_selector("#hint")
         self.assertIn("u = t²", p.inner_text("#hint"))
 
+    def test_every_goal_renders_in_katex(self):
+        p = self.page
+        ids = p.eval_on_selector_all("#problem-select option",
+                                     "os => os.map(o => o.value)")
+        self.assertGreater(len(ids), 8)
+        for pid in ids:
+            with self.subTest(pid):
+                self.start(pid)
+                p.wait_for_selector("#goal .katex")
+                self.assertEqual(p.eval_on_selector_all(
+                    ".katex-error", "es => es.length"), 0)
+                self.assertTrue(p.query_selector("#formal-goal .katex"))
+                self.assertIn("?A", p.inner_text("#goal .plain"))
+
+    def test_palette_card_progress_probe(self):
+        p = self.page
+        self.start("parts.P1_PARTS")
+        p.wait_for_selector("#palette-moves button")
+        self.assertIn("int_subst", p.inner_text("#palette-moves"))
+        self.assertIn("0 admissions", p.inner_text("#status-line"))
+        self.type_script("int_subst x := t^2 as t from 0 to pi/2.\n")
+        p.click("#next")
+        p.wait_for_selector(".node.current[data-node='n1']")
+        p.wait_for_selector("#progress")
+        self.assertIn("rule now matches", p.inner_text("#progress"))
+        self.assertIn("12 digits agree", p.inner_text("#probe"))
+        self.assertTrue(p.inner_text("#probe").startswith("~"))
+        p.wait_for_selector("#palette-rewrites button")
+        p.click("#palette-rewrites button")
+        self.assertIn("rewrite sqrt_sq with u := t at sqrt(t^2).",
+                      p.input_value("#script"))
+        p.keyboard.press("Alt+ArrowDown")
+        p.wait_for_selector(".node.current[data-node='n2']")
+        self.assertIn("2 rules", p.inner_text("#status-line"))
+        p.click("#hint-2")
+        p.wait_for_selector("#hint")
+        self.assertIn("max rung 2", p.inner_text("#status-line"))
+
+    def test_card_marks_s1(self):
+        p = self.page
+        self.start()
+        p.wait_for_selector("#card")
+        p.click("#card summary")
+        self.assertIn("1 match", p.inner_text("#card summary"))
+        self.assertEqual(p.eval_on_selector_all(
+            "#card tr.match", "rs => rs.map(r => r.dataset.card)"), ["power"])
+
     def test_cos_sq_to_cursor(self):
         p = self.page
         self.start("trig.COS_SQ")

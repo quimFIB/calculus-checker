@@ -104,8 +104,7 @@ each spec-first and then reviewed by an independent skeptic:
   the mechanics course).
 
 **The JSON API is up** (`app/API.md`, 2026-09-25): `./calc` serves §16.3's
-routes on 127.0.0.1, over the attempt tree, with `/palette` refusing
-`not-built`. `python3 -m unittest discover -s app` replays every
+routes on 127.0.0.1, over the attempt tree. `python3 -m unittest discover -s app` replays every
 problem file through it against the loader.
 
 **The check-mode page is up** (`app/PAGE.md`, revision 2, 2026-09-25):
@@ -115,7 +114,18 @@ ring.`), step through it with Alt+↓ / Alt+↑ / Ctrl+Enter, and the goals,
 obligations and the last response show on the right. The checked region
 is shaded, and editing inside it retracts to that sentence. The attempt
 tree keeps retracted branches. The `?`, `??` and `???` buttons show hint
-rungs 1–3 (below). No palette or KaTeX yet.
+rungs 1–3 (below).
+
+**The full UI is up** (`app/UI.md`, 2026-09-25, spec reviewed by a
+skeptic first): goals drawn with vendored KaTeX 0.18.9 (the TeX printer
+round-trips through the trusted parser on every problem, every proof
+node and 3000 generated terms), the palette (moves that fit, entry
+rewrites that match up to ring as ready sentences, inserted at the
+cursor), the antiderivative card with matching rows marked, the progress
+signal after each step, the `~` speculative probe (floating-point
+Gauss–Kronrod, never evidence), and §16.4's status line (admissions, max
+rung, rules, `0 machine-checked`). Not yet: rung 4, per-step timeout,
+persistence and export, §8.7's three kinds of stuck, the factoriser.
 `app/test_page.py` drives it in a headless browser when Playwright is
 installed.
 
@@ -134,8 +144,11 @@ development set scores strict 28/30. Per revision 8, no row changes
 because of the held-out set; version 2 is scored on a fresh one.
 `python3.12 app/assist/score.py heldout` prints it.
 
-**Next,** per §17: the full UI (palette, progress, KaTeX), and recognizer
-version 2 (the `trig_norm` clause of row 1) with a fresh held-out set.
+**Next,** per §17: what remains of stage 1's lists: persistence and
+export, the per-step timeout, §8.7's stuck classification, the
+factoriser and partial-fraction solver, and recognizer version 2 (row 1's
+`trig_norm` clause) with a fresh held-out set. Then §17's gate: use it on
+readiness P1, P3 and P5 in the loop.
 
 **Python version:** the suite passes 992 of 992 on Python 3.12.
 On 3.11 five deep-term checks fail with `RecursionError` in dataclass

@@ -1,0 +1,7 @@
+KaTeX 0.18.9, vendored for app/UI.md (MIT; LICENSE beside this file).
+
+Source:  https://registry.npmjs.org/katex/-/katex-0.18.9.tgz
+sha256 of the tarball: 78174318fa53363e4321ac3c10b39d3598aaa73a92dc75362eb08b16f6705782
+Files:   dist/katex.min.js, dist/katex.min.css, dist/fonts/*.woff2 (the
+         woff and ttf fallbacks are not vendored: every browser the page
+         targets loads woff2).

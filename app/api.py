@@ -14,7 +14,9 @@ import secrets
 
 import script
 import session as S
-from assist import recognizer
+import tex
+from assist import palette as PL
+from assist import probe, progress, recognizer
 from session import K, KERNEL, Refusal, loader
 from terms import Integral, Refused, parse_goal, parse_term, show, trees
 
@@ -60,14 +62,49 @@ def _summary(n):
     return f"{n.move} {main}" if main else n.move
 
 
+def _tex(x):
+    """tex.tex(x), or None: drawing never fails a response (UI.md §1)."""
+    if x is None:
+        return None
+    try:
+        return tex.tex(x)
+    except Exception:
+        return None
+
+
+def _assist(fn, *args):
+    """An assistance call that must not fail the response: None instead."""
+    try:
+        return fn(*args)
+    except Exception:
+        return None
+
+
+def _steps_to(sess, n):
+    k = 0
+    while n.parent is not None:
+        n, k = sess.nodes[n.parent], k + 1
+    return k
+
+
 def render(sess, n):
     st = n.state
-    before = (set() if n.parent is None else
-              {ob.key for ob in sess.nodes[n.parent].state.obligations()})
+    parent = None if n.parent is None else sess.nodes[n.parent].state
+    before = (set() if parent is None else
+              {ob.key for ob in parent.obligations()})
     return {"session": sess.id, "node": n.id, "parent": n.parent,
             "move": n.move, "report": K.report(st),
             "goal": None if st.goal is None else _text(st.goal),
             "theorem": None if st.theorem is None else _text(st.theorem),
+            "goal_tex": _tex(st.goal), "theorem_tex": _tex(st.theorem),
+            "admissions": sum(ob.status == K.ADMITTED
+                              for ob in st.obligations()),
+            "steps": _steps_to(sess, n),
+            "progress": None if parent is None else _assist(
+                progress.signal, parent.goal, st.goal),
+            "probe": None if parent is None or st.goal is None
+            or parent.goal is None else _assist(
+                probe.compare, parent.goal, st.goal),
             "obligations": [_obligation(ob, before)
                             for ob in st.obligations()],
             "occurrences": st.last.occurrences,
@@ -188,6 +225,7 @@ def node(query):
 def tree(query):
     sess = _session(query)
     return {"session": sess.id, "problem": sess.problem_id,
+            "max_rung": getattr(sess, "max_rung", 0),
             "nodes": [{"node": n.id, "parent": n.parent, "move": n.move,
                        "report": K.report(n.state),
                        "retracted": n.retracted, "summary": _summary(n)}
@@ -200,7 +238,7 @@ def parse(body):
         t = parse_goal(text, sig) if "==" in text else parse_term(text, sig)
     except Refused as r:
         raise Refusal.of(r) from None
-    return {"term": _text(t), "katex": None}
+    return {"term": _text(t), "katex": _tex(t)}
 
 
 # PAGE.md: the optional arguments the kernel's _check_args accepts
@@ -233,6 +271,7 @@ def hint(query):
                       "built")
     if rung not in ("1", "2", "3"):
         raise _bad(f"rung is 1, 2, 3 or 4, not {rung!r}")
+    sess.max_rung = max(getattr(sess, "max_rung", 0), int(rung))
     goal = n.state.goal
     ints = [] if goal is None else [t for t in trees(goal)
                                     if isinstance(t, Integral)]
@@ -247,9 +286,10 @@ def hint(query):
             "text": step[int(rung)], "cost": step["cost"]}
 
 
-def not_built(query):
-    _node(_session(query), query)
-    raise Refusal("not-built", "the assistance layer is not built yet")
+def palette(query):
+    """UI.md §2: the moves that fit, the rewrites that match, the card."""
+    sess = _session(query)
+    return PL.palette(_node(sess, query).state.goal)
 
 
 ROUTES = {("GET", "/problems"): problems,
@@ -262,7 +302,7 @@ ROUTES = {("GET", "/problems"): problems,
           ("POST", "/parse"): parse,
           ("GET", "/moves"): moves,
           ("GET", "/hint"): hint,
-          ("GET", "/palette"): not_built}
+          ("GET", "/palette"): palette}
 
 
 def handle(method, path, args):

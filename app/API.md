@@ -2,8 +2,8 @@
 
 The kernel's in-process `step()` behind a local HTTP server. Written before
 the code, as every step in this repo has been. It covers what the kernel can
-already answer; the assistance calls (`/hint`, `/palette`) exist only as
-refusals until the assistance layer is built.
+already answer; the assistance calls (`/hint`, `/palette`) were first added as
+refusals, and are now answered (RECOGNIZER.md, UI.md).
 
 ## Where it sits
 
@@ -58,6 +58,11 @@ Every route that lands on a node returns this shape:
   "occurrences": int | null                  -- rewrite (E2)
   "handles": [str]                           -- fact binds usable here
   "retracted": bool
+  "goal_tex", "theorem_tex": str | null      -- UI.md §1, KaTeX input
+  "progress": {signal, detail} | null        -- UI.md §3, null at n0
+  "probe": {before, after, digits, agree} | {skipped} | null   -- UI.md §4
+  "admissions": int                          -- obligations admitted here
+  "steps": int                               -- accepted steps from n0
 }
 ```
 
@@ -77,12 +82,12 @@ POST /retract  {session, node}         -> the parent node
 GET  /node     ?session&node           -> that node
 GET  /tree     ?session                -> {session, nodes: [{node, parent, move,
                                             report, retracted, summary}]}
-POST /parse    {text, functions?}      -> {term: str, katex: null} | refusal
+POST /parse    {text, functions?}      -> {term: str, katex: str} | refusal
 GET  /moves                            -> {moves: [{name, args}]}   (PAGE.md)
 POST /tactic   {session, node, text}   -> the new node | refusal    (SCRIPT.md)
 GET  /hint     ?session&node&rung      -> {rung, integral, row, text, cost} | refusal
                                             (assist/RECOGNIZER.md)
-GET  /palette  ?session&node           -> refusal not-built
+GET  /palette  ?session&node           -> {moves, rewrites, card}   (UI.md §2)
 ```
 
 - **`/problems`** lists every `*.json` under `kernel/problems/` that
@@ -106,14 +111,17 @@ GET  /palette  ?session&node           -> refusal not-built
 - **`/tree`**'s `summary` is the move and its main argument (`ftc F := ...`,
   `rewrite ln_one`), for the attempts pane.
 - **`/parse`** is §16.3's echo. It parses a term, or a goal when the text
-  contains `==`, and returns `show` of it. **`katex` is null**: there is no
-  TeX renderer yet, and a wrong one is worse than none, so the client
-  shows the plain echo until one is written and tested.
+  contains `==`, and returns `show` of it. `katex` was null until a
+  tested printer existed (a wrong one is worse than none); it is now
+  `tex.tex`'s output, round-tripped through the trusted parser (UI.md §1).
 - **`/hint`** is the ladder (`assist/RECOGNIZER.md`): rung 1, 2 or 3 of
   the first recognizer row matching the first `Int` in the node's goal.
   Refusals `no-integral`, `no-row`, and `not-built` for rung 4.
-- **`/palette`** returns `{"refusal": {"code": "not-built"}}` so the client
-  can be written against the full route list now.
+- **`/palette`** is UI.md §2: the moves whose shape fits the goal, the
+  entry rewrites that match (each a ready tactic sentence) and the
+  antiderivative card with its matching rows marked. `/parse`'s `katex`
+  is now the term's TeX (UI.md §1), and `/tree` carries the session's
+  `max_rung`, which `/hint` records.
 
 API-local refusal codes: `unknown-handle`, `retract-root`, `not-built`,
 `no-integral`, `no-row` (RECOGNIZER.md),

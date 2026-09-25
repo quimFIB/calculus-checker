@@ -38,8 +38,8 @@ names as a letter or `\theta`-style Greek base, digits inline and
 distinct; a name that fits no pattern, like `omicron`, is
 `\mathit{…}`), `?A` as `\,?A`, `D[x] f` as
 `\frac{\mathrm{d}}{\mathrm{d}x} f`, `#` as `\neq 0`, relations as
-`= \le < \ge >`, a goal's domain after `\quad\text{for}\;` with every
-interval named (`x \in [0, 1]`), `Reg` as `e \in C^{k}(…)`, and `/\` as
+`= \le < \ge >`, a goal's domain after `\quad\text{for}\;`, each
+interval bare or named as `show` prints it (R4), `Reg` as `e \in C^{k}(…)`, and `/\` as
 `\wedge`. Parentheses follow `terms.show`'s precedence, except that
 `\frac`, `\sqrt` and `|…|` group themselves and take none inside. A bare
 application argument follows the grammar's own convention: `\sin x \cdot y`

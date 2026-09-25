@@ -133,7 +133,8 @@ class Routes(Api):
 
     def test_parse(self):
         r = self.call("POST", "/parse", {"text": "sin x^2"})
-        self.assertEqual(r, {"term": "sin(x^2)", "katex": None})
+        self.assertEqual(r, {"term": "sin(x^2)",
+                             "katex": r"\sin\left(x^{2}\right)"})
         r = self.call("POST", "/parse", {"text": "Int[x = 0 .. 1] x == ?A"})
         self.assertEqual(r["term"], "Int[x = 0 .. 1] x == ?A")
         self.refused(self.call("POST", "/parse", {"text": "e"}),
@@ -144,10 +145,42 @@ class Routes(Api):
         self.assertIn("refusal", self.call("POST", "/parse",
                                            {"text": "g(x)"}))
 
-    def test_palette_not_built(self):
+    def test_palette(self):
         n = self.s1()
-        q = {"session": n["session"], "node": "n0"}
-        self.refused(self.call("GET", "/palette", q), "not-built")
+        pl = self.call("GET", "/palette", {"session": n["session"],
+                                           "node": "n0"})
+        self.assertIn("ftc", [m["move"] for m in pl["moves"]])
+        self.assertEqual([c["id"] for c in pl["card"] if c["matches"]],
+                         ["power"])
+        n = self.call("POST", "/session", {"problem": "improper.P5"})
+        pl = self.call("GET", "/palette", {"session": n["session"],
+                                           "node": "n0"})
+        moves = [m["move"] for m in pl["moves"]]
+        self.assertIn("int_improper", moves)
+        self.assertNotIn("ftc", moves)
+
+    def test_progress_probe_tex_on_nodes(self):
+        n = self.call("POST", "/session", {"problem": "parts.P1_PARTS"})
+        self.assertIsNone(n["progress"])
+        self.assertIsNone(n["probe"])
+        self.assertTrue(n["goal_tex"].startswith(r"\int_{0}"))
+        self.assertEqual((n["admissions"], n["steps"]), (0, 0))
+        m = self.call("POST", "/tactic", {
+            "session": n["session"], "node": "n0",
+            "text": "int_subst x := t^2 as t from 0 to pi/2."})
+        self.assertEqual(m["progress"]["signal"], "rule now matches")
+        self.assertIn("sqrt_sq", m["progress"]["detail"])
+        self.assertTrue(m["probe"]["agree"])
+        self.assertEqual(m["probe"]["digits"], 12)
+        self.assertEqual(m["steps"], 1)
+
+    def test_max_rung(self):
+        n = self.s1()
+        q = {"session": n["session"]}
+        self.assertEqual(self.call("GET", "/tree", q)["max_rung"], 0)
+        self.call("GET", "/hint", {**q, "node": "n0", "rung": "2"})
+        self.call("GET", "/hint", {**q, "node": "n0", "rung": "1"})
+        self.assertEqual(self.call("GET", "/tree", q)["max_rung"], 2)
 
     def test_hint_rungs(self):
         n = self.call("POST", "/session", {"problem": "parts.P1_PARTS"})
