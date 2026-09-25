@@ -1081,6 +1081,15 @@ TRIG_MAX = 64  # the most instances a proposal may hold
 
 
 def _trig_instances(lhs, rhs, facts):
+    """E94: _trig_fence, total. Any RecursionError or Refused in it abandons
+    the fallback."""
+    try:
+        return _trig_fence(lhs, rhs, facts)
+    except (RecursionError, Refused):
+        return None
+
+
+def _trig_fence(lhs, rhs, facts):
     """E88: trig_norm's proposal as (entry name, inst, conclusion) triples,
     or None. The tactic is untrusted, so anything it returns that is not a
     list of at most TRIG_MAX (name, inst) pairs naming an ENTRIES equation

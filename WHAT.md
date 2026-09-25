@@ -82,7 +82,7 @@ tool's falsifier.
 readiness P1 from the sheet's own goal, stage 0's S1–S3, three substitution
 files, ∫₀¹ √(1 − x²) = π/4, readiness P1(1) by parts, readiness P5 and P2
 (improper integrals over infinite ranges), and ∫₀^{π/2} cos²t = π/4.
-`python3.12 kernel/proof_of_life.py` passes 990 checks (`PROOF_OF_LIFE.md`).
+`python3.12 kernel/proof_of_life.py` passes 992 checks (`PROOF_OF_LIFE.md`).
 Discharge, `int_subst`, `int_flip` and regularity are built, and so are
 §18 Q23's formers: integrals and derivatives owe their own definedness.
 
@@ -112,7 +112,7 @@ problem file through it against the loader.
 usable tool before the assistance layer exists. Then the recognizer table,
 scored on a held-out set (revision 8), then the full UI.
 
-**Python version:** the suite passes 990 of 990 on Python 3.12.
+**Python version:** the suite passes 992 of 992 on Python 3.12.
 On 3.11 five deep-term checks fail with `RecursionError` in dataclass
 `__eq__`, so 3.12 is the floor in practice.
 

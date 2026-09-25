@@ -15341,7 +15341,7 @@ INT_IMPROPER_REVIEW_CASES = [
 DECISIONS_REVIEW_TRIG = {
     "E94": "The fence (E88) is total: a RecursionError or Refused anywhere "
            "in it (the inst checks, fv, subst), not only in propose, "
-           "abandons the fallback and the original refusal stands. 878c957 "
+           "abandons the fallback and the original refusal stands. d438ad4 "
            "let a RecursionError out of step() on an F nested 600 deep "
            "(E21).",
     "E95": "trig_norm proposes nothing when the reduction would be large: "

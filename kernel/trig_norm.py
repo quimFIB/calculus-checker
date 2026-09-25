@@ -30,21 +30,40 @@ TRIG = ("sin", "cos", "tan")
 MAX_MULTIPLE = 12  # the largest n tried; beyond it, nothing is proposed
 
 
-def _atoms(t, out):
+TRIG_COST = 24  # E95: the largest reduction proposed
+
+
+def _atoms(t, out, power=1):
     """The sin, cos and tan applications reachable from t through ring and
-    field operations: field reduces only these (an atom's argument is keyed,
-    not reduced)."""
+    field operations, each with the exponent of the powers enclosing it:
+    field reduces only these (an atom's argument is keyed, not reduced)."""
     if type(t) is App:
         if t.fn in TRIG:
-            out.append(t)
+            out.append((t, power))
         return
     if type(t) in (Add, Mul, Div):
-        _atoms(t.a, out)
-        _atoms(t.b, out)
+        _atoms(t.a, out, power)
+        _atoms(t.b, out, power)
     elif type(t) is Neg:
-        _atoms(t.a, out)
+        _atoms(t.a, out, power)
     elif type(t) is Pow:
-        _atoms(t.base, out)
+        _atoms(t.base, out, power * abs(t.n))
+
+
+def _cost(t, n_of):
+    """E95: an atom costs its multiple times its enclosing power; a sum
+    costs its largest summand, a product the sum of its factors."""
+    if type(t) is App:
+        return n_of.get(t, 0)
+    if type(t) is Add:
+        return max(_cost(t.a, n_of), _cost(t.b, n_of))
+    if type(t) in (Mul, Div):
+        return _cost(t.a, n_of) + _cost(t.b, n_of)
+    if type(t) is Neg:
+        return _cost(t.a, n_of)
+    if type(t) is Pow:
+        return abs(t.n) * _cost(t.base, n_of)
+    return 0
 
 
 def _direction(p):
@@ -60,11 +79,12 @@ def _times(n, u):
 
 
 def propose(lhs, rhs, facts=()):
-    found = []
-    _atoms(lhs, found)
-    _atoms(rhs, found)
-    if not found:
+    pairs = []
+    _atoms(lhs, pairs)
+    _atoms(rhs, pairs)
+    if not pairs:
         return []
+    found = [a for a, _ in pairs]
     polys, _ = FD.ring_polys([a.arg for a in found])
     families = {}  # key -> [(atom, multiple)]
     for a, p in zip(found, polys):
@@ -72,6 +92,15 @@ def propose(lhs, rhs, facts=()):
             continue  # sin 0, cos 0, tan 0: exact values, not ours
         key, c = _direction(p)
         families.setdefault(key, []).append((a, c))
+    n_of = {}  # atom -> |multiple of its family's base angle|
+    for members in families.values():
+        cs = {c for _, c in members}
+        g = Fraction(gcd(*(c.numerator for c in cs)),
+                     lcm(*(c.denominator for c in cs)))
+        for a, c in members:
+            n_of[a] = abs(int(c / g))
+    if max(_cost(lhs, n_of), _cost(rhs, n_of)) > TRIG_COST:
+        return []
     out = []
     for members in families.values():
         cs = {c for _, c in members}

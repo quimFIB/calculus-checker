@@ -5768,6 +5768,21 @@ def qc1_w1_accepted_problems():
     return [] if tags and "pyth_cos" in tags[0][1] else [f"ftc_D tags {tags}"]
 
 
+def trig_review_problems(c):
+    """E94 and E95: the original refusal, nothing raised, and within the
+    case's seconds where it gives them."""
+    import time
+    t0 = time.monotonic()
+    try:
+        out = trig_bad_move_problems(c)
+    except Exception as e:  # E21
+        return [f"raised {type(e).__name__}"]
+    took = time.monotonic() - t0
+    if "seconds" in c and took > c["seconds"]:
+        out.append(f"took {took:.1f} s, over {c['seconds']} s")
+    return out
+
+
 def trig_checks(suite):
     for name, c in X.TRIG_NORM_PROOFS.items():
         suite.check("T", f"TRIG_NORM_PROOFS {name}: {c['goal']} -> "
@@ -5790,6 +5805,9 @@ def trig_checks(suite):
                          if EN.ENTRIES.get(n) is None
                          or EN.ENTRIES[n].statement != T.parse_judgement(e["statement"], SIG)
                          or tuple(EN.ENTRIES[n].schema) != e["schema"]])
+    for c in X.TRIG_NORM_REVIEW_CASES:
+        suite.check("T", f"TRIG_NORM_REVIEW_CASES {c['id']} -> {c['refusal']}"
+                    f" ({c['why']})", lambda c=c: trig_review_problems(c))
     suite.check("T", "problems/trig/COS_SQ.json replays to 'Proved.'",
                 lambda: improper_file_problems("COS_SQ", "trig"))
     if S0 is not None:
