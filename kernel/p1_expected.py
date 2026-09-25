@@ -14701,3 +14701,11 @@ INT_PARTS_SWITCH = (
     "stated). Every earlier table is unchanged: ftc without an occurrence "
     "behaves exactly as before.",
 )
+
+# E57_PRINCIPLE gains int_parts (INT_PARTS_SWITCH): every move is named there.
+E57_PRINCIPLE["int_parts"] = (
+    "complies: it replaces one Int by a boundary term and another Int under "
+    "its premises. An Int or D in u or v is refused by deriv (E12, E26 (b)); "
+    "one in a limit by SECOND_REVIEW_RULE; one inside the integrand can only "
+    "be cancelled by the check's ring as an atom whose own former (Q23) was "
+    "owed where it entered, which is ftc's case since regularity")

@@ -48,9 +48,10 @@ ARG_TYPES = {"at": str, "F": str, "value": str, "inst": dict, "facts": list,
              "entry": str, "bind": str, "check": str, "occurrence": int,
              # int_subst's (p1_expected INT_SUBST_ARGS, _REVERSE, _OPTIONAL)
              "var": str, "new_var": str, "sub": str, "lo": str, "hi": str,
-             "f": str, "mode": str}
+             "f": str, "mode": str,
+             "u": str, "v": str}  # int_parts' (p1_expected section 19)
 # The args that are GRAMMAR.md strings for terms, parsed with the file's sig.
-TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f")
+TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f", "u", "v")
 
 
 @dataclass(frozen=True)

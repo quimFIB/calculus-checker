@@ -1,0 +1,36 @@
+{
+  "format": "calc-problem/0",
+  "id": "parts.P1_PARTS",
+  "title": "readiness P1(1) by the course's route: substitution, then parts",
+  "source": "mechanics-to-relativity readiness P1(1), rung 2: 'Remove the root with a substitution', then 'a polynomial times a sine, which is a job for parts'; p1_expected section 19",
+  "statement": "Evaluate the integral of sin(sqrt x) from 0 to pi^2/4.",
+  "goal": "Int[x = 0 .. pi^2/4] sin(sqrt x) == ?A",
+  "answer_schema": "closed",
+  "declarations": {
+    "functions": {}
+  },
+  "reference_proof": [
+    {"id": "s1", "move": "int_subst",
+     "args": {"var": "x", "sub": "t^2", "new_var": "t", "lo": "0", "hi": "pi/2", "check": "ring", "facts": []}},
+    {"id": "s2", "move": "rewrite",
+     "args": {"entry": "sqrt_sq", "inst": {"u": "t"}, "at": "sqrt(t^2)"}},
+    {"id": "s3", "move": "int_parts",
+     "args": {"var": "t", "u": "2*t", "v": "-cos t", "check": "ring", "facts": []}},
+    {"id": "s4", "move": "ftc",
+     "args": {"F": "-2*sin t", "check": "ring", "facts": [], "occurrence": 0}},
+    {"id": "s5", "move": "rewrite",
+     "args": {"entry": "cos_pi_half", "inst": {}, "at": "cos(pi/2)"}},
+    {"id": "s6", "move": "rewrite",
+     "args": {"entry": "cos_zero", "inst": {}, "at": "cos 0"}},
+    {"id": "s7", "move": "rewrite",
+     "args": {"entry": "sin_pi_half", "inst": {}, "at": "sin(pi/2)"}},
+    {"id": "s8", "move": "rewrite",
+     "args": {"entry": "sin_zero", "inst": {}, "at": "sin 0"}},
+    {"id": "s9", "move": "close",
+     "args": {"value": "2", "check": "ring", "facts": []}}
+  ],
+  "notes": [
+    "The route the course's own hints take, where P1.1-sheet (section 12) reaches the same answer by ftc with a guessed antiderivative.",
+    "int_parts owes 2*t and -cos t in C^1 on [0, pi/2], both discharged by regularity; ftc at occurrence 0 finishes the integral int_parts leaves inside the expression (E73)."
+  ]
+}

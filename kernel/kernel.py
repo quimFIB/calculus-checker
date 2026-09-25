@@ -136,7 +136,8 @@ REASON_EMPTY = "domain inconsistent"  # §5.3's pre-check found the domain
 # infeasible and nothing else closed the key: vacuously true, admitted
 DECIDED_FALSE = "obligation-decided-false"  # E33
 VERDICT = "Proved modulo {n} admissions"
-MOVES = ("rewrite", "fact", "ftc", "close", "int_subst", "int_flip")
+MOVES = ("rewrite", "fact", "ftc", "close", "int_subst", "int_flip",
+         "int_parts")
 
 # The documented public API. No name here returns a ProofState from a str,
 # bytes or dict (FORGERIES json_roundtrip_state, no_loader).
@@ -481,8 +482,8 @@ def derivative_domain(closed):
 _ARGS = {"rewrite": ("entry", "inst", "at"), "fact": ("entry", "inst", "bind"),
          "ftc": ("F", "check", "facts"), "close": ("value", "check", "facts"),
          "int_subst": ("var", "sub", "new_var", "lo", "hi", "check", "facts"),
-         "int_flip": ()}
-_TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f")
+         "int_flip": (), "int_parts": ("var", "u", "v", "check", "facts")}
+_TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f", "u", "v")
 
 
 def _names_variable(v):
@@ -502,7 +503,8 @@ def _check_args(move, args, goal):
     int_subst term holds no oo either (close's rule). With the goal, the
     terms must pass check_names as one statement."""
     need = set(_ARGS[move])
-    optional = {"occurrence"} if move in ("rewrite", "int_flip") else set()
+    optional = ({"occurrence"} if move in ("rewrite", "int_flip", "ftc",
+                                           "int_parts") else set())
     if move == "int_subst":  # INT_SUBST_RULE step 1 (E36, E45, E48)
         optional = {"mode", "occurrence"}
         if type(args) is dict and args.get("mode") == "reverse":
@@ -513,13 +515,15 @@ def _check_args(move, args, goal):
     ok = ok and all(type(args[k]) is str
                     for k in ("entry", "bind") if k in args)
     ok = ok and type(args.get("occurrence", 0)) is int
-    if ok and move in ("ftc", "close", "int_subst"):
+    if ok and move in ("ftc", "close", "int_subst", "int_parts"):
         facts = args["facts"]
         ok = (type(args["check"]) is str and args["check"] in ("ring", "field")
               and type(facts) in (list, tuple)
               and not (args["check"] == "ring" and facts))
-    if ok and move == "int_flip":  # INT_FLIP_RULE step 1 (E51)
+    if ok and move in ("int_flip", "ftc"):  # E51 step 1, E73
         ok = args.get("occurrence", 0) >= 0
+    if ok and move == "int_parts":  # INT_PARTS_RULE step 1
+        ok = args.get("occurrence", 0) >= 0 and _names_variable(args["var"])
     if ok and move == "int_subst":
         ok = (type(args.get("mode", "forward")) is str
               and args.get("mode", "forward") in ("forward", "reverse")
@@ -539,7 +543,7 @@ def _check_args(move, args, goal):
                 raise
             raise Refused("bad-args", f"not a term without ?A: "
                           f"{_shown(t)}") from None
-        if move == "int_subst" and _holds_infinity(t):
+        if move in ("int_subst", "int_parts") and _holds_infinity(t):
             raise Refused("bad-args", f"{show(t)} mentions oo")
     check_names(goal, *given)  # no x(y) into a goal whose x is a variable
 
@@ -1247,17 +1251,25 @@ def _ftc(state, args, minted, buf):
     the four premises together."""
     g = state.goal[0]
     G, it, F, check = g.dom, g.lhs, args["F"], args["check"]
-    if not isinstance(it, Integral):
+    nested = "occurrence" in args  # E73
+    if nested:
+        side, path, it, P, anc = _ftc_select(g, args["occurrence"])
+    elif not isinstance(it, Integral):
         raise Refused("ftc-no-integral", "ftc needs an Int as the goal's lhs")
+    else:
+        P = G
     if any(isinstance(e, (PosInf, NegInf)) for e in (it.lo, it.hi)):
         raise Refused("ftc-infinite-endpoint", "F(oo) is not a term (§5.1); "
                       "an infinite range needs int_improper")
     _no_trees_in_limits(it.lo, it.hi)  # SECOND_REVIEW_RULE
+    if nested:
+        _subst_under_D(anc, it, (F,))  # E73, E48
+        P = _decided(buf, P, anc, G)
     x, f = it.var, it.body
-    closed, orient = _range(it, G)
-    on_ab = G + (closed,)  # [a, b]
-    on_open = G + (Interval(x, closed.lo, False, closed.hi, False),)  # C¹'s
-    on_deriv = G + (derivative_domain(closed),)  # (a, b), through the seam
+    closed, orient = _range(it, P)
+    on_ab = P + (closed,)  # [a, b]
+    on_open = P + (Interval(x, closed.lo, False, closed.hi, False),)  # C¹'s
+    on_deriv = P + (derivative_domain(closed),)  # (a, b), through the seam
     if orient is not None:
         _emit(buf, orient, "orient", G)
     _ftc_F_formers(buf, F, on_ab, G)
@@ -1282,11 +1294,27 @@ def _ftc(state, args, minted, buf):
     for ob in later.values():
         buf[ob.key] = _merged(buf.get(ob.key), ob)
     lhs = Add(subst(F, {x: it.hi}), Neg(subst(F, {x: it.lo})))  # F(b) - F(a)
+    if nested:  # E73: in place, the new term's formers at its position
+        sides = list(_sides(g))
+        sides[side] = _put(sides[side], path, lhs)
+        _charge_formers(buf, lhs, P, G, anc=anc)
+        goal = (replace(g, lhs=sides[0],
+                        rhs=sides[1] if len(sides) > 1 else g.rhs),)
+        check_goal(goal)
+        return goal, None, {"trace": d.trace, "output": d.output}
     goal = (replace(g, lhs=lhs),)
     for side in _sides(goal[0]):
         _charge_formers(buf, side, G, G)
     check_goal(goal)
     return goal, None, {"trace": d.trace, "output": d.output}
+
+
+def _ftc_select(g, k):
+    """E73: int_flip's selector at occurrence k, with ftc's code."""
+    try:
+        return _flip_select(g, k)
+    except Refused as r:
+        raise Refused("ftc-no-integral", r.message) from None
 
 
 def _ftc_F_formers(buf, F, on_ab, G):
@@ -1622,5 +1650,101 @@ def _int_flip(state, args, minted, buf):
     return goal, None, {}
 
 
+# ---------------------------------------------------------------- int_parts
+#
+# p1_expected's INT_PARTS_RULE (section 19, E71-E75): §6.4's rule, for u, v
+# in C^1 on the closed range, Int[x = a .. b] u*v' == (u(b)*v(b) -
+# u(a)*v(a)) - Int[x = a .. b] u'*v, which holds for either order of a and
+# b. Its selector, scope, under-D and orientation steps are int_subst's.
+
+S_PARTS_INT = "int_parts_integrand"
+S_PARTS_U, S_PARTS_V = "int_parts_u_C1", "int_parts_v_C1"
+
+
+def _parts_select(g, var, k):
+    """Step 2 (E75): int_subst's selector, with int_parts' codes."""
+    try:
+        return _select(g, var, k)
+    except Refused as r:
+        if not r.code.startswith("int-subst-"):
+            raise
+        raise Refused("int-parts-" + r.code[len("int-subst-"):],
+                      r.message) from None
+
+
+def _parts_scope(g, anc, var, u, v):
+    """Step 4 (E75): u and v in scope at the position, plus var."""
+    try:
+        _subst_scope(g, anc, [("u", u, {var}), ("v", v, {var})])
+    except Refused as r:
+        if r.code != "int-subst-scope":
+            raise
+        raise Refused("int-parts-scope", r.message) from None
+
+
+def _parts_check(check, body, u, v, dv, minted, D, G, buf):
+    """Step 9 (E71): body == u*v' at D by `check`, recorded discharged
+    ('deriv+' + check, the facts' entries)."""
+    rhs = Mul(u, dv)
+    try:
+        _check(check, body, rhs, minted, D, G, buf, "int-parts-check-failed")
+    except Refused as r:
+        if r.code != "int-parts-check-failed":
+            raise
+        raise Refused(r.code, f"the integrand is not u*v' for u := "
+                      f"{_brief(u)}, v := {_brief(v)}", r.residual) from None
+    cites = tuple(dict.fromkeys(rec.entry for rec in minted))
+    _emit(buf, with_domain(Rel("==", body, rhs), D), S_PARTS_INT, G,
+          ("deriv+" + check, cites))
+
+
+def _parts_term(x, a, b, u, v, du):
+    """Step 11: (u(b)*v(b) - u(a)*v(a)) - Int[x = a .. b] u'*v."""
+    at = lambda t, e: subst(t, {x: e})  # noqa: E731
+    boundary = Add(Mul(at(u, b), at(v, b)), Neg(Mul(at(u, a), at(v, a))))
+    return Add(boundary, Neg(Integral(x, a, b, Mul(du, v))))
+
+
+def _int_parts(state, args, minted, buf):
+    """INT_PARTS_RULE steps 2-11. Returns (new goal, None, no extras).
+    Everything that can refuse runs in the rule's order, and every
+    emission goes through _emit."""
+    g = state.goal[0]
+    G, var, u, v, check = (g.dom, args["var"], args["u"], args["v"],
+                           args["check"])
+    side, path, it, P, anc = _parts_select(g, var, args.get("occurrence"))
+    for end in (it.lo, it.hi):  # step 3
+        if isinstance(end, (PosInf, NegInf)):
+            raise Refused("int-parts-infinite-endpoint", "int_parts needs "
+                          "finite limits, and "
+                          f"{'oo' if isinstance(end, PosInf) else '-oo'} is "
+                          "not (int_improper is the route)")
+    _no_trees_in_limits(it.lo, it.hi)  # SECOND_REVIEW_RULE
+    _parts_scope(g, anc, var, u, v)  # step 4
+    _subst_under_D(anc, it, (u, v))  # step 5
+    P = _decided(buf, P, anc, G)  # step 6
+    old = _old_range(buf, it, P, G)
+    D = P + (old,)
+    _charge_formers(buf, u, D, G, anc=anc)  # step 7
+    _charge_formers(buf, v, D, G, anc=anc)
+    du = DV.deriv(u, var, D)  # step 8, on the closed range
+    for key, source in du.emissions:
+        _emit(buf, key, source, G)
+    dv = DV.deriv(v, var, D)
+    for key, source in dv.emissions:
+        _emit(buf, key, source, G)
+    _parts_check(check, it.body, u, v, dv.output, minted, D, G, buf)  # 9
+    _emit(buf, with_domain(Reg(u, 1), D), S_PARTS_U, G)  # step 10
+    _emit(buf, with_domain(Reg(v, 1), D), S_PARTS_V, G)
+    new = _parts_term(var, it.lo, it.hi, u, v, du.output)  # step 11
+    sides = list(_sides(g))
+    sides[side] = _put(sides[side], path, new)
+    _charge_formers(buf, new, P, G, anc=anc)
+    goal = (replace(g, lhs=sides[0], rhs=sides[1] if len(sides) > 1 else g.rhs),)
+    check_goal(goal)
+    return goal, None, {}
+
+
 _MOVE = {"rewrite": _rewrite, "fact": _fact, "ftc": _ftc, "close": _close,
-         "int_subst": _int_subst, "int_flip": _int_flip}
+         "int_subst": _int_subst, "int_flip": _int_flip,
+         "int_parts": _int_parts}

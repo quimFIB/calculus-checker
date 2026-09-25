@@ -195,6 +195,7 @@ ITEMS = {
          "orientation, E54's entries",
     "R": "regularity (p1_expected section 17): the Int and D formers, the atom "
          "algebra, the refusals",
+    "P": "int_parts and ftc at an occurrence (p1_expected section 19)",
 }
 UNIT, UNIT_TEXT = "unit", ("unit tests: test_field.py, test_grammar.py, "
                            "test_discharge.py")  # beside 1-6
@@ -5377,6 +5378,91 @@ def regularity_checks(suite):
                     lambda c=c: subst_accept_problems(c, table="REG_BAD_MOVES_CHANGED"))
 
 
+def _parts_feed(st, move, args, handles):
+    """One section-19 step through the loader's own path (terms parsed,
+    handles resolved), as a problem file's step is fed."""
+    import loader
+    return loader.feed(st, {"move": move, "args": args}, handles, {})
+
+
+def _parts_steps(name):
+    """INT_PARTS_PROOFS' steps; the three that reuse PARTS1's swap its
+    close value for their own theorem's rhs."""
+    c = X.INT_PARTS_PROOFS[name]
+    if isinstance(c["steps"], list):
+        return c["steps"]
+    value = c["theorem"].rsplit("== ", 1)[1]
+    base = X.INT_PARTS_PROOFS["PARTS1"]["steps"]
+    return base[:-1] + [("close", {"value": value, "check": "ring",
+                                   "facts": []})]
+
+
+def parts_proof_problems(name):
+    """INT_PARTS_PROOFS: every step accepted, then the report and theorem."""
+    c, out = X.INT_PARTS_PROOFS[name], []
+    st, handles = K.install(goal(c["goal"])), {}
+    for n, (move, args) in enumerate(_parts_steps(name)):
+        st = _parts_feed(st, move, args, handles)
+        if isinstance(st, K.Refusal):
+            return [f"step {n} ({move}) refused {st.code}: {st.message}"]
+    if K.report(st) != c["report"]:
+        out.append(f"report {K.report(st)!r}, expected {c['report']!r}")
+    if st.theorem != goal(c["theorem"]):
+        out.append(f"theorem {T.show(st.theorem)}, expected {c['theorem']}")
+    return out
+
+
+def parts_bad_move_problems(b):
+    """INT_PARTS_BAD_MOVES: refused with the code, the state unchanged,
+    and a non-zero residual where the case says so. FACT is a handle
+    minted by 'fact pi_pos' on the same state."""
+    st, handles, args = K.install(goal(b["goal"])), {}, dict(b["args"])
+    if args.get("facts") == ["FACT"]:
+        st = _parts_feed(st, "fact", {"entry": "pi_pos", "inst": {},
+                                      "bind": "h"}, handles)
+        args["facts"] = [["handle", "h"]]
+    before = (st.goal, st.obligations())
+    try:
+        r = _parts_feed(st, b["move"], args, handles)
+    except Exception as e:  # noqa: BLE001 -- a crash is a finding
+        return ["crash: " + crash_text(e)]
+    if not isinstance(r, K.Refusal):
+        return [f"accepted: {K.report(r)}"]
+    out = [] if r.code == b["refusal"] else [f"refused {r.code}: {r.message}"]
+    if b.get("residual") and (r.residual is None
+                              or FD.ring_is_zero(r.residual)):
+        out.append(f"residual {r.residual!r}, expected a non-zero term")
+    if (st.goal, st.obligations()) != before:
+        out.append("the state changed")
+    return out
+
+
+def parts_file_problems():
+    import loader
+    here = os.path.dirname(os.path.abspath(__file__))
+    p = loader.load(os.path.join(here, "problems", "parts", "P1_PARTS.json"))
+    results, _ = loader.replay(p)
+    st = results[-1][1]
+    if isinstance(st, K.Refusal):
+        return [f"{results[-1][0]} refused {st.code}: {st.message}"]
+    return [] if K.report(st) == "Proved." else [K.report(st)]
+
+
+def parts_checks(suite):
+    for name, c in X.INT_PARTS_PROOFS.items():
+        suite.check("P", f"INT_PARTS_PROOFS {name}: {c['goal']} -> "
+                    f"{c['report']!r}", lambda n=name: parts_proof_problems(n))
+    for b in X.INT_PARTS_BAD_MOVES:
+        suite.check("P", f"INT_PARTS_BAD_MOVES {b['id']} -> {b['refusal']}",
+                    lambda b=b: parts_bad_move_problems(b))
+    suite.check("P", "problems/parts/P1_PARTS.json replays to 'Proved.' "
+                "(readiness P1(1) by substitution, then parts)",
+                parts_file_problems)
+    suite.check("P", "int_parts' sources and codes are the spec's",
+                lambda: [s for s in X.SOURCES_INT_PARTS
+                         if s not in (K.S_PARTS_INT, K.S_PARTS_U, K.S_PARTS_V)])
+
+
 def e57_principle_problems():
     """E57_PRINCIPLE checks every move: each of MOVES is named there."""
     return [f"{m} is not checked against E57's principle" for m in K.MOVES
@@ -5428,7 +5514,8 @@ def consolidation_checks(suite):
     suite.check("C", "E27 (a) counts pyth at (sin b)^2 + (cos b)^2 and never "
                 "pyth_cos; none of the six is an exact value", e27_pyth_problems)
     suite.check("C", f"int_flip is a move: MOVES is {len(K.MOVES)} long and names it",
-                lambda: [] if K.MOVES[-1] == X.INT_FLIP_MOVE and len(K.MOVES) == 6
+                lambda: [] if K.MOVES[5] == X.INT_FLIP_MOVE and K.MOVES[6:] ==
+                (X.INT_PARTS_MOVE,)  # section 19 appends int_parts after it
                 else [f"MOVES is {K.MOVES}"])
     print("\nint_flip (E51): accepted moves")
     for c in FLIP_ACCEPTS:
@@ -6252,6 +6339,10 @@ def main():
     print("\nRegularity (item R; p1_expected section 17)")
     if K is not None and REGULARITY:
         regularity_checks(suite)
+
+    print("\nint_parts and ftc at an occurrence (item P; p1_expected section 19)")
+    if K is not None:
+        parts_checks(suite)
 
     print("\nPlanted bugs (each in a child process)")
     suite.check(3, "control: the child, unpatched, finds nothing", control_problems)
