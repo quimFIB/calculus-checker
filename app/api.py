@@ -62,7 +62,11 @@ def _summary(n):
             "int_subst": a.get("sub") and
             f"{a.get('var', '')} := {a['sub']}".strip(),
             "int_parts": a.get("u") and f"u := {a['u']}, v := {a.get('v')}",
-            "int_improper": a.get("F") and f"F := {a['F']}"}.get(n.move)
+            "int_improper": a.get("F") and f"F := {a['F']}",
+            "taylor_lagrange": a.get("f") and
+            f"{a.get('bind')} := {a.get('side')} of {a['f']} at {a.get('at')}",
+            "bound": a.get("facts") and ", ".join(
+                f[1] for f in a["facts"])}.get(n.move)
     return f"{n.move} {main}" if main else n.move
 
 
@@ -135,7 +139,7 @@ def _trial(sess, at, sentences):
         r = K.step(state, move, loader.step_args(args, handles, sess.sig))
         if isinstance(r, K.Refusal):
             return False
-        if move == "fact":
+        if move in ("fact", "taylor_lagrange"):  # both bind a handle
             handles[args["bind"]] = r.last.handle
         state = r
     return True

@@ -8,7 +8,8 @@ here: the trusted parser reads them when the step is fed.
 import re
 
 KEYWORDS = ("by", "using", "with", "at", "occurrence", "as", "from", "to",
-            "reverse", "in")
+            "reverse", "in", "derivs", "increasing", "decreasing")
+SENSES = ("increasing", "decreasing")  # taylor_lagrange's flag clauses
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_']*\Z")
 
 # move -> (clauses allowed, clauses required)
@@ -23,6 +24,9 @@ FORMS = {
     "int_flip": ({"occurrence"}, set()),
     "int_parts": ({"in", "with", "occurrence", "by", "using"},
                   {"in", "with"}),
+    "taylor_lagrange": ({"in", "from", "to", "at", "derivs", *SENSES, "by",
+                         "using"}, {"in", "from", "to", "at", "derivs"}),
+    "bound": ({"by", "using"}, {"using"}),
 }
 USAGE = {
     "ftc": "ftc T [occurrence N] [by ring|field] [using h, ...]",
@@ -36,6 +40,10 @@ USAGE = {
     "int_flip": "int_flip [occurrence N]",
     "int_parts": "int_parts in x with u := T; v := T [occurrence N] "
                  "[by ring|field] [using h, ...]",
+    "taylor_lagrange": "taylor_lagrange h := lower|upper of T in u from T "
+                       "to T at T derivs T; T; ... increasing|decreasing "
+                       "[by ring|field] [using h, ...]",
+    "bound": "bound [by ring|field] using h, ...",
 }
 
 
@@ -195,6 +203,12 @@ def _build(move, head, cl):
         if head:
             raise TacticError(f"unexpected {head!r}")
         return occ
+    if move == "taylor_lagrange":
+        return _taylor(head, cl)
+    if move == "bound":
+        if head:
+            raise TacticError(f"unexpected {head!r}")
+        return _checked({}, cl)
     # int_parts
     if head:
         raise TacticError(f"unexpected {head!r}")
@@ -203,6 +217,26 @@ def _build(move, head, cl):
         raise TacticError("with: name exactly u and v")
     return _checked({"var": _name(cl["in"], "in"), "u": inst["u"],
                      "v": inst["v"], **occ}, cl)
+
+
+def _taylor(head, cl):
+    """'h := lower of T' plus the clauses; exactly one sense flag, which
+    takes no text."""
+    h, rest = _assign(head, "taylor_lagrange")
+    side, _, f = rest.partition(" ")
+    f = f.strip()
+    if side not in ("lower", "upper") or not f.startswith("of "):
+        raise TacticError("expected 'h := lower of T' or 'h := upper of T'")
+    senses = [s for s in SENSES if s in cl]
+    if len(senses) != 1 or cl[senses[0]]:
+        raise TacticError("say increasing or decreasing, once, alone")
+    derivs = [_term(d.strip(), "derivs") for d in _split_top(cl["derivs"], ";")
+              if d.strip()]
+    return _checked({"bind": h, "f": _term(f[3:].strip(), "of"),
+                     "var": _name(cl["in"], "in"),
+                     "lo": _term(cl["from"], "from"),
+                     "hi": _term(cl["to"], "to"), "at": _term(cl["at"], "at"),
+                     "derivs": derivs, "side": side, "sense": senses[0]}, cl)
 
 
 # ---------------------------------------------------------------- printing
@@ -242,6 +276,13 @@ def show(move, args):
     elif move == "int_parts":
         s = (f"int_parts in {args['var']} with u := {args['u']}; "
              f"v := {args['v']}{occ}{_tail(args)}")
+    elif move == "taylor_lagrange":
+        s = (f"taylor_lagrange {args['bind']} := {args['side']} of "
+             f"{args['f']} in {args['var']} from {args['lo']} to "
+             f"{args['hi']} at {args['at']} derivs "
+             f"{'; '.join(args['derivs'])} {args['sense']}{_tail(args)}")
+    elif move == "bound":
+        s = f"bound{_tail(args)}"
     else:
         raise ValueError(f"no tactic form for {move!r}")
     return s + "."

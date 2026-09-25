@@ -92,6 +92,9 @@ class Page(unittest.TestCase):
         p.wait_for_selector(".node.current[data-node='n1']")
         p.keyboard.press("Alt+ArrowDown")
         p.wait_for_selector(".node.current[data-node='n2']")
+        p.wait_for_function(  # the status pane redraws after the tree
+            "() => document.getElementById('status-report')"
+            ".innerText === 'Proved.'")
         self.assertEqual(self.report(), "Proved.")
         self.assertEqual(p.inner_text("#report"), "Proved.")
         self.assertIn("0 machine-checked", p.inner_text("#status-line"))
@@ -234,7 +237,8 @@ class Page(unittest.TestCase):
                 self.assertEqual(p.eval_on_selector_all(
                     ".katex-error", "es => es.length"), 0)
                 self.assertTrue(p.query_selector("#formal-goal .katex"))
-                self.assertIn("?A", p.inner_text("#goal .plain"))
+                if not pid.startswith("taylor."):  # order goals (E96)
+                    self.assertIn("?A", p.inner_text("#goal .plain"))
 
     def test_palette_card_progress_probe(self):
         p = self.page
@@ -284,6 +288,26 @@ class Page(unittest.TestCase):
         p.wait_for_selector(".node.current[data-node='n4']")
         self.assertEqual(self.report(), "Proved.")
         self.assertIn("pi/4", p.inner_text("#theorem"))
+
+    def test_p3_lower_bound_to_cursor(self):
+        """Readiness P3 part 1, the lower bound, typed as the problem file's
+        reference proof and checked to the cursor."""
+        import loader
+        import script
+        here = os.path.dirname(os.path.abspath(__file__))
+        prob = loader.load(os.path.join(here, "..", "kernel", "problems",
+                                        "taylor", "P3_LOWER.json"))
+        text = "\n".join(script.show(st["move"], st["args"])
+                         for st in prob.proofs["reference"]) + "\n"
+        p = self.page
+        self.start("taylor.P3_LOWER")
+        self.type_script(text)
+        p.click("#script")
+        p.keyboard.press("Control+End")
+        p.click("#to-cursor")
+        p.wait_for_selector(".node.current[data-node='n4']", timeout=120000)
+        self.assertEqual(self.report(), "Proved.")
+        self.assertIn("(5/16)*b^6 <=", p.inner_text("#theorem"))
 
 
 if __name__ == "__main__":

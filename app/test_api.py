@@ -96,8 +96,8 @@ class Routes(Api):
 
     def test_install_refusal_makes_no_session(self):
         before = len(api.SESSIONS)
-        r = self.call("POST", "/session", {"goal": "x > 0"})
-        self.refused(r, "goal-shape")
+        r = self.call("POST", "/session", {"goal": "x # 0"})
+        self.refused(r, "goal-shape")  # an order goal installs (E96)
         r = self.call("POST", "/session", {"goal": "sinx == ?A"})
         self.assertIn("refusal", r)
         self.assertEqual(len(api.SESSIONS), before)
@@ -323,7 +323,7 @@ class ProblemFiles(Api):
     every step."""
 
     def test_every_proof_matches_the_loader(self):
-        self.assertEqual(sum(len(p.proofs) for p in _files().values()), 12)
+        self.assertEqual(sum(len(p.proofs) for p in _files().values()), 14)  # + P3 part 1
         for pid, p in _files().items():
             for name, steps in p.proofs.items():
                 with self.subTest(problem=pid, proof=name):

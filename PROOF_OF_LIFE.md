@@ -489,7 +489,9 @@ closed formers always were.
 **Stage 1's kernel is complete.** The suite was at 882 of 882 then. The
 API followed, and then (2026-09-25) items P, I and T: `int_parts`,
 `int_improper` with `limits.py` and the sign node, and `trig_norm`
-(p1_expected sections 19-23). The suite is at 992 of 992 on Python 3.12.
+(p1_expected sections 19-23). The suite was at 992 of 992 then. Item L
+followed (section 25): order goals, `taylor_lagrange`, `bound` and C^k,
+for readiness P3 part 1. The suite is at 1027 of 1027 on Python 3.12.
 
 ## What is in `kernel/`
 

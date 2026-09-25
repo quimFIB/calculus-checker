@@ -98,7 +98,7 @@ class Session:
         if isinstance(r, K.Refusal):
             raise Refusal.of(r)
         handles = dict(at.handles)
-        if move == "fact":
+        if move in ("fact", "taylor_lagrange"):  # both bind a handle
             handles[args["bind"]] = r.last.handle
         return self._add(at.id, r, move, dict(args), handles)
 

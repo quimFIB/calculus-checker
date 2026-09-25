@@ -31,7 +31,16 @@ fact h := E [with x := T; ...].
 int_subst x := T as y from T to T [reverse T] [occurrence N] [by C] [using h, ...].
 int_flip [occurrence N].
 int_parts in x with u := T; v := T [occurrence N] [by C] [using h, ...].
+taylor_lagrange h := lower|upper of T in u from T to T at T derivs T; T; ... increasing|decreasing [by C] [using h, ...].
+bound [by C] using h, ....
 ```
+
+- `taylor_lagrange` (p1_expected E97) mints the handle `h` for the lower or
+  upper bound of the Taylor remainder of `of T` in the new variable `u`,
+  expanded at `from`, on [from, to), read at the point `at`; `derivs` lists
+  the derivatives D_1 .. D_m, `;`-separated, and exactly one of
+  `increasing` or `decreasing` says the sign of the last. `bound` (E99)
+  closes an order goal from the one order fact among `using`.
 
 - `by C` is `by ring` or `by field`. Omitted, it is `by ring`.
 - `using h, ...` lists fact names bound earlier on the path; omitted, none.
@@ -40,7 +49,7 @@ int_parts in x with u := T; v := T [occurrence N] [by C] [using h, ...].
 - int_subst's `reverse T` is reverse mode with `f := T`; without it the
   mode is left out (forward).
 - The words `by`, `using`, `with`, `at`, `occurrence`, `as`, `from`, `to`,
-  `reverse` and `in` are split on only at bracket depth 0 and only where
+  `reverse`, `in`, `derivs`, `increasing` and `decreasing` are split on only at bracket depth 0 and only where
   the tactic's form has that clause, so `sin(at)` stays a term; a variable
   named like a clause word cannot follow that clause's position unbracketed.
 

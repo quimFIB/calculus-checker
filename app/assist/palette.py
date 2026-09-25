@@ -162,6 +162,15 @@ def moves(goal):
                         for t in subterms(g.lhs))):
         out.append({"move": "close", "sentence": "close _.",
                     "why": "no integral or derivative left: name the value"})
+    if g is not None and getattr(g, "op", "==") != "==":  # p1_expected E96
+        out += [
+            {"move": "taylor_lagrange",
+             "sentence": "taylor_lagrange _ := lower of _ in u from _ to _ "
+                         "at _ derivs _; _ increasing by field.",
+             "why": "an inequality: bound a Taylor remainder by its "
+                    "monotone last derivative"},
+            {"move": "bound", "sentence": "bound by field using _.",
+             "why": "an inequality: close it from a bound you hold"}]
     out.append({"move": "fact", "sentence": "fact _ := _.",
                 "why": "bind an entry as a fact for by field"})
     return out

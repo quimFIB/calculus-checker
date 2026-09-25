@@ -81,8 +81,9 @@ tool's falsifier.
 **Every proof reads a plain `Proved.`**, with nothing admitted. That covers
 readiness P1 from the sheet's own goal, stage 0's S1–S3, three substitution
 files, ∫₀¹ √(1 − x²) = π/4, readiness P1(1) by parts, readiness P5 and P2
-(improper integrals over infinite ranges), and ∫₀^{π/2} cos²t = π/4.
-`python3.12 kernel/proof_of_life.py` passes 992 checks (`PROOF_OF_LIFE.md`).
+(improper integrals over infinite ranges), ∫₀^{π/2} cos²t = π/4, and
+readiness P3 part 1 (both sides of the Lagrange remainder's bound).
+`python3.12 kernel/proof_of_life.py` passes 1027 checks (`PROOF_OF_LIFE.md`).
 Discharge, `int_subst`, `int_flip` and regularity are built, and so are
 §18 Q23's formers: integrals and derivatives owe their own definedness.
 
@@ -93,7 +94,13 @@ each spec-first and then reviewed by an independent skeptic:
   (`kernel/limits.py`) and discharge's `sign node` method for quotients,
   sums and powers;
 - `trig_norm` (§8.9) as ftc's fallback after `field` fails, with `field`'s
-  facts reduced in order (E86) and seven trig entries (E87).
+  facts reduced in order (E86) and seven trig entries (E87);
+- (section 25, readiness P3, `P3.md`) goals that are order judgements,
+  `taylor_lagrange` in its monotone form (§6.7's "explicit ξ-bound": the
+  remainder bounded by the monotone (n+1)-th derivative at the two ends),
+  `bound` to close an order goal from one order fact, C^k regularity up to
+  k = 16, and the entry `exp_pos`. P3 parts 2 (the decimal check) and 3
+  (ln cos x with O(x⁶)) need stage 2's certified numbers and `big_O`.
 
 **Deliberately not built yet:**
 - the `diverges` judgement, and integrands singular at a FINITE end (unit
@@ -175,11 +182,15 @@ every `field` divisor was decided nonzero. Readiness P1.2's 1/(1 + x³) and
 P5's 1/(1 + x⁴) (over ℝ, with √2) decompose; the palette offers them on a
 rational integrand. The quadratic drag (parameters) is out of scope.
 
+**Readiness P3 part 1 is on the page** (2026-09-25): `taylor_lagrange` and
+`bound` are tactics (`app/SCRIPT.md`), the palette offers them on an order
+goal, and `taylor.P3_LOWER` / `taylor.P3_UPPER` are problems.
+
 **Next,** per §17: what remains of stage 1's lists: recognizer version 2 (row 1's
 `trig_norm` clause) with a fresh held-out set. Then §17's gate: use it on
 readiness P1, P3 and P5 in the loop.
 
-**Python version:** the suite passes 992 of 992 on Python 3.12.
+**Python version:** the suite passes 1027 of 1027 on Python 3.12.
 On 3.11 five deep-term checks fail with `RecursionError` in dataclass
 `__eq__`, so 3.12 is the floor in practice.
 
