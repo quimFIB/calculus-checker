@@ -15331,3 +15331,34 @@ INT_IMPROPER_REVIEW_CASES = [
                                "facts": []}),
      "refusal": "int-improper-scope", "why": "E92"},
 ]
+
+# ---------------------------------------------------------------------------
+# 24. The trig_norm review (trig_norm review 2026-09-25)
+#
+# A skeptic of d438ad4 found no false 'Proved.' (about 8,000 fuzzed field
+# equalities under ordered facts, 2,200 fuzzed ftc moves) but one crash and
+# one slowdown, both new with the fallback.
+DECISIONS_REVIEW_TRIG = {
+    "E94": "The fence (E88) is total: a RecursionError or Refused anywhere "
+           "in it (the inst checks, fv, subst), not only in propose, "
+           "abandons the fallback and the original refusal stands. 878c957 "
+           "let a RecursionError out of step() on an F nested 600 deep "
+           "(E21).",
+    "E95": "trig_norm proposes nothing when the reduction would be large: "
+           "for each atom, its multiple of the base angle times the "
+           "exponent of the powers enclosing it, summed over a product, "
+           "must stay at most TRIG_COST (24). An F of (sin(12*x))^40 took "
+           "52 s to refuse; every TRIG_NORM_PROOFS case costs at most 8. "
+           "Untrusted, so a wrong estimate costs a refusal or time, never "
+           "a verdict.",
+}
+TRIG_NORM_REVIEW_CASES = [
+    {"id": "trig_deep_F", "goal": "Int[x = 0 .. 1] cos x == ?A",
+     "move": ("ftc", {"F": "sin(x" + "+1" * 600 + ")", "check": "field",
+                      "facts": []}),
+     "refusal": "ftc-check-failed", "why": "E94"},
+    {"id": "trig_costly_F", "goal": "Int[x = 0 .. 1] cos x == ?A",
+     "move": ("ftc", {"F": "(sin(12*x))^40 + (cos(11*x))^40",
+                      "check": "field", "facts": []}),
+     "refusal": "ftc-check-failed", "seconds": 3, "why": "E95"},
+]
