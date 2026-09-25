@@ -15097,3 +15097,196 @@ E57_PRINCIPLE["ftc"] = (
     E57_PRINCIPLE["ftc"] + "; since E73 it may select any Int by occurrence, "
     "replacing that Int in place, and E83 charges the former of any Int the "
     "replacement makes statable")
+
+# ---------------------------------------------------------------------------
+# 22. trig_norm (trig_norm spec 2026-09-25)
+#
+# DESIGN.md §8.9: an untrusted normaliser that brings the sin, cos and tan
+# atoms of ftc's check to one base angle, as a fallback after field fails.
+# Today Int[x = 0 .. pi/2] (cos x)^2 is refused on F = x/2 + sin(2x)/4,
+# field leaving (1/2)*cos(2*x) - (cos x)^2 + 1/2: to field cos(2*x) and
+# cos x are unrelated atoms. The mechanics course's energy averages, work
+# integrals and Fourier coefficients all meet it.
+DECISIONS_TRIG = {
+    "E86": "field's facts reduce in the order given. A fact's right side "
+           "may mention the atom of a LATER fact, never its own atom or an "
+           "earlier fact's ('field-fact-shape'). Each reduction replaces "
+           "a^k by P/Q in n, multiplying n by Q^J with Q # 0 owed as today, "
+           "so a zero after any sequence of reductions is a zero of n: the "
+           "order changes what field decides, never whether its zero is "
+           "sound. Every fact list accepted before (no right side mentions "
+           "any fact atom) is accepted now and reduces to the same "
+           "polynomial.",
+    "E87": "Seven §6.8 entries, appended after atan_zero in this order: "
+           "sin_add, cos_add, sin_odd, cos_even, tan_def (the addition "
+           "formulas, parity and tan_def that §8.9 names), and sin_pi, "
+           "cos_pi, exact values the closes at pi need. ENTRIES goes from "
+           "24 to 31; EXACT_VALUE_ENTRIES gains sin_pi and cos_pi.",
+    "E88": "trig_norm.propose(lhs, rhs, facts), untrusted, returns (entry, "
+           "inst) pairs; the kernel runs it only in ftc's check (both "
+           "paths, E73), only when check is 'field', and only after field "
+           "has failed. The kernel refuses the proposal unless it is a list "
+           "of 1 to 64 pairs, each naming an ENTRIES equation and binding "
+           "exactly its schema to terms with no MVar, infinity, Int or D "
+           "node and no variable outside lhs and rhs; it builds each "
+           "instance from ENTRIES itself and re-runs field with the "
+           "learner's facts first, then the instances. Any refusal of the "
+           "proposal, any exception from propose, and any failure of the "
+           "second field is the ORIGINAL refusal, code and residual "
+           "unchanged. On success each instance charges its inst values' "
+           "formers and emits its hypotheses at the check's domain with "
+           "source 'trig_norm' (tan_def's cos u # 0), and its entries join "
+           "the ftc_D tag's cites after the learner's.",
+    "E89": "E27 (a) readings: sin_add, cos_add and tan_def never count "
+           "(they expand an atom and evaluate nothing, as pyth_cos); sin_odd "
+           "and cos_even count as atan_odd does, at sin b or cos b whose "
+           "ring normal form is nonzero with every coefficient negative.",
+    "E90": "Out of this step, recorded: int_improper, int_parts, int_subst "
+           "and close get no fallback (int_improper's trig integrands, "
+           "e^-x sin x, need a squeeze law limits.py lacks); hyperbolic "
+           "atoms (deriv has no sinh, cosh or tanh rule, and pyth_h and the "
+           "hyperbolic addition formulas wait for it); incommensurate "
+           "angles and trig atoms inside other atoms' arguments or in "
+           "denominators, which trig_norm leaves alone; a cos_pos_on entry "
+           "that would discharge TRIG_TAN's cos x # 0.",
+}
+
+TRIG_NORM_ENTRIES = {
+    "sin_add": {"statement": "sin(u + v) == sin u * cos v + cos u * sin v",
+                "schema": ("u", "v"), "hyps": ()},
+    "cos_add": {"statement": "cos(u + v) == cos u * cos v - sin u * sin v",
+                "schema": ("u", "v"), "hyps": ()},
+    "sin_odd": {"statement": "sin(-u) == -sin u", "schema": ("u",),
+                "hyps": ()},
+    "cos_even": {"statement": "cos(-u) == cos u", "schema": ("u",),
+                 "hyps": ()},
+    "tan_def": {"statement": "tan u == sin u / cos u @ cos u # 0",
+                "schema": ("u",), "hyps": ("cos u # 0",)},
+    "sin_pi": {"statement": "sin pi == 0", "schema": (), "hyps": ()},
+    "cos_pi": {"statement": "cos pi == -1", "schema": (), "hyps": ()},
+}
+
+_TRIG_R = lambda e, at: ("rewrite", {"entry": e, "inst": {}, "at": at})  # noqa: E731
+_TRIG_C = lambda v: ("close", {"value": v, "check": "ring", "facts": []})  # noqa: E731
+_TRIG_F = lambda F: ("ftc", {"F": F, "check": "field", "facts": []})  # noqa: E731
+
+TRIG_NORM_PROOFS = {
+    "TRIG_COS_SQ": {
+        "goal": "Int[x = 0 .. pi/2] (cos x)^2 == ?A",
+        "steps": [_TRIG_F("x/2 + sin(2*x)/4"),
+                  _TRIG_R("sin_pi", "sin(2*(pi/2))"),
+                  _TRIG_R("sin_zero", "sin(2*0)"), _TRIG_C("pi/4")],
+        "report": "Proved.", "trig": ("cos_add", "sin_add", "pyth_cos"),
+        "theorem": "Int[x = 0 .. pi/2] (cos x)^2 == pi/4"},
+    "TRIG_SIN_SQ": {
+        "goal": "Int[x = 0 .. pi/2] (sin x)^2 == ?A",
+        "steps": [_TRIG_F("x/2 - sin(2*x)/4"),
+                  _TRIG_R("sin_pi", "sin(2*(pi/2))"),
+                  _TRIG_R("sin_zero", "sin(2*0)"), _TRIG_C("pi/4")],
+        "report": "Proved.", "trig": ("cos_add", "sin_add", "pyth_cos"),
+        "theorem": "Int[x = 0 .. pi/2] (sin x)^2 == pi/4"},
+    "TRIG_SIN_COS": {
+        "goal": "Int[x = 0 .. pi/2] sin x * cos x == ?A",
+        "steps": [_TRIG_F("-cos(2*x)/4"),
+                  _TRIG_R("cos_pi", "cos(2*(pi/2))"),
+                  _TRIG_R("cos_zero", "cos(2*0)"), _TRIG_C("1/2")],
+        "report": "Proved.", "trig": ("cos_add", "sin_add", "pyth_cos"),
+        "theorem": "Int[x = 0 .. pi/2] sin x * cos x == 1/2"},
+    # the base angle x/2 is no argument of the goal: cos x is cos(2u)
+    "TRIG_HALF": {
+        "goal": "Int[x = 0 .. pi] (cos(x/2))^2 == ?A",
+        "steps": [_TRIG_F("x/2 + sin x/2"), _TRIG_R("sin_pi", "sin pi"),
+                  _TRIG_R("sin_zero", "sin 0"), _TRIG_C("pi/2")],
+        "report": "Proved.", "trig": ("cos_add", "sin_add", "pyth_cos"),
+        "theorem": "Int[x = 0 .. pi] (cos(x/2))^2 == pi/2"},
+    # multiples up to 4: sin(4x) through sin(3x) and sin(2x) (E86's order)
+    "TRIG_S2C2": {
+        "goal": "Int[x = 0 .. pi/4] (sin x)^2*(cos x)^2 == ?A",
+        "steps": [_TRIG_F("x/8 - sin(4*x)/32"),
+                  _TRIG_R("sin_pi", "sin(4*(pi/4))"),
+                  _TRIG_R("sin_zero", "sin(4*0)"), _TRIG_C("pi/32")],
+        "report": "Proved.", "trig": ("cos_add", "sin_add", "pyth_cos"),
+        "theorem": "Int[x = 0 .. pi/4] (sin x)^2*(cos x)^2 == pi/32"},
+    # tan_def owes cos x # 0 on (0, pi/4), source trig_norm beside field's
+    # own field_div; no method proves cos x > 0 there yet (E90)
+    "TRIG_TAN": {
+        "goal": "Int[x = 0 .. pi/4] tan x == ?A",
+        "steps": [_TRIG_F("-ln(cos x)"), _TRIG_R("cos_zero", "cos 0"),
+                  _TRIG_R("ln_one", "ln 1"), _TRIG_C("-ln(cos(pi/4))")],
+        "report": "Proved modulo 8 admissions",
+        "trig": ("tan_def", "pyth_cos"),
+        "trig_obligation": "cos x # 0 @ (0, pi/4)",
+        "theorem": "Int[x = 0 .. pi/4] tan x == -ln(cos(pi/4))"},
+}
+
+TRIG_NORM_BAD_MOVES = [
+    {"id": "trig_wrong_F", "goal": "Int[x = 0 .. pi/2] (cos x)^2 == ?A",
+     "move": _TRIG_F("x/2 + sin(2*x)/2"), "refusal": "ftc-check-failed",
+     "residual": "cos(2*x) - (cos x)^2 + 1/2",
+     "why": "E88: the fallback fails, so the refusal is field's own, with "
+            "field's residual before normalisation"},
+    {"id": "trig_ring_check", "goal": "Int[x = 0 .. pi/2] (cos x)^2 == ?A",
+     "move": ("ftc", {"F": "x/2 + sin(2*x)/4", "check": "ring",
+                      "facts": []}),
+     "refusal": "ftc-check-failed",
+     "residual": "(1/2)*cos(2*x) - (cos x)^2 + 1/2",
+     "why": "E88: only a 'field' check falls back (§8.9: tan_def changes "
+            "the obligations, which a learner asking for ring did not ask "
+            "for)"},
+]
+
+# E88's fence, each case run with trig_norm.propose replaced by the given
+# function on trig_wrong_F's move: the refusal must be that move's own, and
+# nothing raised.
+TRIG_NORM_FORGERIES = [
+    ("raises", "an exception"),
+    ("not_list", "a tuple, not a list"),
+    ("empty", "an empty list"),
+    ("too_many", "65 copies of a genuine pair"),
+    ("unknown_entry", "an entry not in ENTRIES"),
+    ("not_equation", "pi_pos, an ordering"),
+    ("wrong_schema", "sin_add binding only u"),
+    ("mvar_inst", "an inst value holding ?A"),
+    ("oo_inst", "an inst value holding oo"),
+    ("int_inst", "an inst value holding an Int"),
+    ("foreign_var", "an inst value naming a variable outside the check"),
+    ("non_term", "an inst value that is a string"),
+    ("false_pair", "a genuine instance list that does not close the gap"),
+]
+
+# E86 at field directly: (facts as (lhs, rhs) strings, lhs, rhs, outcome),
+# outcome 'equal', 'not-equal' or a refusal code.
+FIELD_ORDER_CASES = [
+    ([("sin(2*x)", "2*sin x*cos x"), ("(cos x)^2", "1 - (sin x)^2")],
+     "sin(2*x)*cos x", "2*sin x - 2*(sin x)^3", "equal"),
+    ([("(cos x)^2", "1 - (sin x)^2"), ("sin(2*x)", "2*sin x*cos x")],
+     "sin(2*x)*cos x", "2*sin x - 2*(sin x)^3", "field-fact-shape"),
+    ([("(cos x)^2", "1 - cos x")], "cos x", "cos x", "field-fact-shape"),
+    ([("sin(2*x)", "2*sin x*cos x")],
+     "sin(2*x)*cos x", "2*sin x - 2*(sin x)^3", "not-equal"),
+]
+
+# The switch at the build (as DISCHARGE_E27_CHANGES was): tables that read
+# ENTRIES or field's fact rule, applied by the suite.
+TRIG_NORM_SWITCH = {
+    "ENTRIES_append": tuple(TRIG_NORM_ENTRIES),  # after atan_zero: 31
+    "EXACT_VALUE_ENTRIES_add": ("sin_pi", "cos_pi"),
+    # stage0/expected.py's QC1-W1 (QC1's ftc without pyth_cos) is accepted:
+    # trig_norm supplies pyth_cos at theta, §8.9's 'first documented
+    # escape'. It leaves CONSOLIDATION_WRONG_ANSWERS, and its move is
+    # asserted accepted with pyth_cos among the ftc_D cites.
+    "CONSOLIDATION_WRONG_ANSWERS_remove": ("QC1-W1",),
+    "MOVES": "unchanged: trig_norm is no move",
+}
+
+E27_TRIG_CASES = [
+    # (value, offending entry or None)
+    ("sin(x + 1)", None),
+    ("cos(2*x)", None),
+    ("tan x", None),
+    ("sin(-x)", "sin_odd"),
+    ("cos(-2*x)", "cos_even"),
+    ("sin(1 - x)", None),
+    ("sin pi", "sin_pi"),
+    ("cos pi", "cos_pi"),
+]
