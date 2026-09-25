@@ -6,6 +6,7 @@ encodes the answer.
 
 import argparse
 import json
+import os
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qsl, urlsplit
@@ -13,6 +14,8 @@ from urllib.parse import parse_qsl, urlsplit
 import api
 
 MAX_BODY = 1 << 20  # a move is a few hundred bytes
+PAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "page",
+                    "index.html")  # PAGE.md: the one static file
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -28,6 +31,15 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         url = urlsplit(self.path)
+        if url.path in ("/", "/index.html"):
+            with open(PAGE, "rb") as f:
+                data = f.read()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
         self._send(*api.handle("GET", url.path, dict(parse_qsl(url.query))))
 
     def do_POST(self):
@@ -57,7 +69,8 @@ def serve(port=8765, verbose=False):
     written for concurrent steps, and there is one learner."""
     srv = HTTPServer(("127.0.0.1", port), Handler)
     srv.verbose = verbose
-    print(f"calc: http://127.0.0.1:{srv.server_address[1]}/", flush=True)
+    print(f"calc: http://127.0.0.1:{srv.server_address[1]}/ (the check-mode "
+          "page; PAGE.md)", flush=True)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

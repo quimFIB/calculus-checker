@@ -57,6 +57,17 @@ class Api(unittest.TestCase):
 
 
 class Routes(Api):
+    def test_moves_lists_every_kernel_move_typed(self):
+        r = self.call("GET", "/moves")
+        self.assertEqual([m["name"] for m in r["moves"]], list(K.MOVES))
+        for m in r["moves"]:
+            required = [a["name"] for a in m["args"] if not a["optional"]]
+            self.assertEqual(required, list(K._ARGS[m["name"]]), m)
+            for a in m["args"]:
+                self.assertEqual(a["type"],
+                                 loader.ARG_TYPES[a["name"]].__name__)
+                self.assertEqual(a["term"], a["name"] in loader.TERM_ARGS)
+
     def test_problems_lists_every_file_without_proofs(self):
         r = self.call("GET", "/problems")
         ids = {p["id"] for p in r["problems"]}
@@ -340,6 +351,12 @@ class Http(unittest.TestCase):
         self.assertEqual((s, n["report"]), (200, "Proved."))
         s, t = self.req("GET", f"/tree?session={sid}")
         self.assertEqual(len(t["nodes"]), 3)
+
+    def test_page_at_root(self):
+        with urllib.request.urlopen(self.base + "/") as r:
+            self.assertEqual(r.status, 200)
+            self.assertTrue(r.headers["Content-Type"].startswith("text/html"))
+            self.assertIn(b"<title>Calculus checker</title>", r.read())
 
     def test_bad_json(self):
         s, r = self.req("POST", "/step", raw=b"{nope")

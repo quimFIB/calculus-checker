@@ -108,9 +108,15 @@ routes on 127.0.0.1, over the attempt tree, with `/hint` and `/palette`
 refusing `not-built`. `python3 -m unittest discover -s app` replays every
 problem file through it against the loader.
 
-**Next,** per §17: a thin check-mode page over the API, which gives a
-usable tool before the assistance layer exists. Then the recognizer table,
-scored on a held-out set (revision 8), then the full UI.
+**The check-mode page is up** (`app/PAGE.md`, 2026-09-25): `./calc` serves
+it at `http://127.0.0.1:8765/`. Pick a problem or type a goal, choose each
+move and its arguments, and the kernel checks it; the attempt tree keeps
+retracted branches. No hints, palette or KaTeX yet.
+`app/test_page.py` drives it in a headless browser when Playwright is
+installed.
+
+**Next,** per §17: the recognizer table, scored on a held-out set
+(revision 8), then the full UI.
 
 **Python version:** the suite passes 992 of 992 on Python 3.12.
 On 3.11 five deep-term checks fail with `RecursionError` in dataclass

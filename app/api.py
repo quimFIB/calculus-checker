@@ -52,7 +52,9 @@ def _summary(n):
             "ftc": a.get("F") and f"F := {a['F']}",
             "close": a.get("value") and f"?A := {a['value']}",
             "int_subst": a.get("sub") and
-            f"{a.get('var', '')} := {a['sub']}".strip()}.get(n.move)
+            f"{a.get('var', '')} := {a['sub']}".strip(),
+            "int_parts": a.get("u") and f"u := {a['u']}, v := {a.get('v')}",
+            "int_improper": a.get("F") and f"F := {a['F']}"}.get(n.move)
     return f"{n.move} {main}" if main else n.move
 
 
@@ -188,6 +190,25 @@ def parse(body):
     return {"term": _text(t), "katex": None}
 
 
+# PAGE.md: the optional arguments the kernel's _check_args accepts
+_OPTIONAL = {"rewrite": ("occurrence",), "int_flip": ("occurrence",),
+             "ftc": ("occurrence",), "int_parts": ("occurrence",),
+             "int_improper": ("occurrence",),
+             "int_subst": ("mode", "occurrence", "f")}
+
+
+def moves(_):
+    """Every kernel move in MOVES order, with its arguments typed as the
+    loader reads them (PAGE.md), so the page builds its form from this."""
+    def arg(name, optional):
+        return {"name": name, "type": loader.ARG_TYPES[name].__name__,
+                "term": name in loader.TERM_ARGS, "optional": optional}
+    return {"moves": [
+        {"name": m, "args": [arg(a, False) for a in K._ARGS[m]]
+         + [arg(a, True) for a in _OPTIONAL.get(m, ())]}
+        for m in K.MOVES]}
+
+
 def not_built(query):
     _node(_session(query), query)
     raise Refusal("not-built", "the assistance layer is not built yet")
@@ -200,6 +221,7 @@ ROUTES = {("GET", "/problems"): problems,
           ("GET", "/node"): node,
           ("GET", "/tree"): tree,
           ("POST", "/parse"): parse,
+          ("GET", "/moves"): moves,
           ("GET", "/hint"): not_built,
           ("GET", "/palette"): not_built}
 
