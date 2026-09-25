@@ -15017,6 +15017,28 @@ E57_PRINCIPLE["int_improper"] = (
     "the step's own conclusion (E76). An Int or D in F is refused by deriv "
     "and by limits.py; one in a finite limit by SECOND_REVIEW_RULE")
 
+# IMPROPER_SWITCH's atan_zero (E80) changes three tables that read ENTRIES,
+# as DISCHARGE_E27_CHANGES did for cos_zero: applied by the suite at the
+# build, the cases above left as they stood when written.
+IMPROPER_E27_CHANGES = {
+    "EVALUATED_ACCEPTS_remove": ("e27_atan_zero",),
+    "BAD_MOVES_add": [
+        {"id": "e27_atan_zero_entry", "added": True,
+         "goal": "atan 0 == ?A", "setup": [],
+         "move": ("close", {"value": "atan 0", "check": "ring",
+                            "facts": []}),
+         "refusal": "close-not-evaluated",
+         "e27": {"clause": "a", "at": "atan 0", "entry": "atan_zero",
+                 "message": "atan 0 can still be evaluated (atan_zero)"},
+         "evaluated": "0",
+         "why": "the limitation e27_atan_zero, accepted while no atan_zero "
+                "was in force; (a1) now counts atan_zero at atan 0"},
+    ],
+    # appended last in ENTRIES, after CONSOLIDATION_ENTRIES: 23 -> 24
+    "ENTRIES_append": ("atan_zero",),
+    "EXACT_VALUE_ENTRIES_add": ("atan_zero",),
+}
+
 # ---------------------------------------------------------------------------
 # 21. The int_parts review (int_parts review 2026-09-25)
 #

@@ -1,0 +1,81 @@
+{
+  "format": "calc-problem/0",
+  "id": "improper.P5",
+  "title": "readiness P5: the integral of 1/(1 + x^4) over [0, oo)",
+  "source": "mechanics-to-relativity readiness P5 ('factoring a quartic over the reals, partial fractions, improper limits'); p1_expected section 20",
+  "statement": "Evaluate the integral of 1/(1 + x^4) from 0 to infinity exactly.",
+  "goal": "Int[x = 0 .. oo] 1/(1 + x^4) == ?A",
+  "answer_schema": "closed",
+  "declarations": {
+    "functions": {}
+  },
+  "reference_proof": [
+    {
+      "id": "s1",
+      "move": "fact",
+      "args": {
+        "entry": "sqrt_sq_val",
+        "inst": {
+          "a": "2"
+        },
+        "bind": "h2"
+      }
+    },
+    {
+      "id": "s2",
+      "move": "int_improper",
+      "args": {
+        "F": "sqrt 2/8 * ln(((sqrt 2 * x + 1)^2 + 1)/((sqrt 2 * x - 1)^2 + 1)) + sqrt 2/4 * (atan(sqrt 2 * x + 1) + atan(sqrt 2 * x - 1))",
+        "check": "field",
+        "facts": [
+          [
+            "handle",
+            "h2"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "s3",
+      "move": "rewrite",
+      "args": {
+        "entry": "ln_one",
+        "inst": {},
+        "at": "ln 1"
+      }
+    },
+    {
+      "id": "s4",
+      "move": "rewrite",
+      "args": {
+        "entry": "ln_one",
+        "inst": {},
+        "at": "ln(((sqrt 2 * 0 + 1)^2 + 1)/((sqrt 2 * 0 - 1)^2 + 1))"
+      }
+    },
+    {
+      "id": "s5",
+      "move": "rewrite",
+      "args": {
+        "entry": "atan_odd",
+        "inst": {
+          "u": "1"
+        },
+        "at": "atan(sqrt 2 * 0 - 1)"
+      }
+    },
+    {
+      "id": "s6",
+      "move": "close",
+      "args": {
+        "value": "pi*sqrt 2/4",
+        "check": "ring",
+        "facts": []
+      }
+    }
+  ],
+  "notes": [
+    "The partial-fraction antiderivative, with each quadratic x^2 +- sqrt 2 x + 1 written as ((sqrt 2 x +- 1)^2 + 1)/2 so that its positivity is a sum of a square and 1 (E82's sign node) and its value at 0 is literally 1.",
+    "The limit at oo is computed by limits.py: the ln argument's leading coefficients cancel to 1, and each atan tends to pi/2. pi*sqrt 2/4 is pi/(2 sqrt 2)."
+  ]
+}

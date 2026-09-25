@@ -1,0 +1,53 @@
+{
+  "format": "calc-problem/0",
+  "id": "improper.P2",
+  "title": "readiness P2: the orbit-period integral over (-oo, oo)",
+  "source": "mechanics-to-relativity readiness P2: I(a) = Int_{-oo}^{oo} 2 dt/((a+e)+(a-e)t^2); p1_expected section 20",
+  "statement": "For a > e > 0, evaluate the integral over the whole line of 2/((a + e) + (a - e) t^2).",
+  "goal": "Int[t = -oo .. oo] 2/((a + e1) + (a - e1)*t^2) == ?A @ a > e1, e1 > 0",
+  "answer_schema": "closed",
+  "declarations": {
+    "functions": {}
+  },
+  "reference_proof": [
+    {
+      "id": "s1",
+      "move": "fact",
+      "args": {
+        "entry": "sqrt_sq_val",
+        "inst": {
+          "a": "(a - e1)/(a + e1)"
+        },
+        "bind": "hk"
+      }
+    },
+    {
+      "id": "s2",
+      "move": "int_improper",
+      "args": {
+        "F": "2/((a + e1)*sqrt((a - e1)/(a + e1))) * atan(sqrt((a - e1)/(a + e1)) * t)",
+        "check": "field",
+        "facts": [
+          [
+            "handle",
+            "hk"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "s3",
+      "move": "close",
+      "args": {
+        "value": "2*pi/((a + e1)*sqrt((a - e1)/(a + e1)))",
+        "check": "field",
+        "facts": []
+      }
+    }
+  ],
+  "notes": [
+    "e is written e1: bare e is refused (GRAMMAR.md D3).",
+    "The answer is 2 pi/sqrt(a^2 - e^2) in the course's form; here k = sqrt((a - e)/(a + e)) stays as written, since (a + e) k = sqrt((a + e)(a - e)) needs a sqrt-product entry the table does not have.",
+    "Both limits are computed by limits.py: atan(k t) -> +-pi/2, its sign condition k > 0 discharged by sqrt_pos and E82's quotient."
+  ]
+}

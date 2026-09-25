@@ -813,12 +813,14 @@ def entries_problems():
     # cos_zero was appended last (DISCHARGE_NEW_ENTRIES), sqrt_nonneg after
     # it (SQRT_NONNEG_ENTRY, E49), and CONSOLIDATION_ENTRIES after that, in
     # their order (E54): ENTRIES goes from 16 to 17 to 23
-    tail = ["cos_zero", "sqrt_nonneg", *X.CONSOLIDATION_ENTRIES]
+    # and atan_zero after them (IMPROPER_E27_CHANGES, E80): 24
+    tail = ["cos_zero", "sqrt_nonneg", *X.CONSOLIDATION_ENTRIES,
+            *X.IMPROPER_E27_CHANGES["ENTRIES_append"]]
     if names[-len(tail):] != tail:
         out.append(f"cos_zero, sqrt_nonneg and CONSOLIDATION_ENTRIES are not "
                    f"last, in that order: {names}")
-    if len(names) != 23:
-        out.append(f"ENTRIES has {len(names)} entries, expected 23")
+    if len(names) != 24:
+        out.append(f"ENTRIES has {len(names)} entries, expected 24")
     for name, e in {**X.SQRT_NONNEG_ENTRY, **X.CONSOLIDATION_ENTRIES}.items():
         got = ENTRIES.get(name)
         if got is None or got.statement != judgement(e["statement"]) \
@@ -826,9 +828,11 @@ def entries_problems():
                 or tuple(got.hyps) != tuple(judgement(h) for h in e["hyps"]):
             out.append(f"{name}: {got and T.show(got.statement)}")
     exact = {n for n, _ in DC._exact_entries()}
-    if exact != set(X.EXACT_VALUE_ENTRIES):
+    want = set(X.EXACT_VALUE_ENTRIES) | set(
+        X.IMPROPER_E27_CHANGES["EXACT_VALUE_ENTRIES_add"])
+    if exact != want:
         out.append(f"exact values {sorted(exact)}, expected "
-                   f"{sorted(X.EXACT_VALUE_ENTRIES)}")
+                   f"{sorted(want)}")
     return out
 
 
@@ -990,8 +994,8 @@ def judge_at(k, env):
 SEED = 20260924
 PER_CERT = 20      # points sampled per accepted certificate
 MIN_ACCEPTED, MIN_POINTS, MIN_REFUTED = 50, 1000, 50
-CHECKERS = ("reg", "farkas", "hyp", "sign", "sign product", "cite", "norm_num",
-            "dispatcher")
+CHECKERS = ("reg", "farkas", "hyp", "sign", "sign product", "sign node", "cite",
+            "norm_num", "dispatcher")
 XV, YV = T.Var("x"), T.Var("y")
 
 
@@ -1253,6 +1257,29 @@ def mutate(rng, cert):
                 return None
             fs[i] = (f, rel, child)
         c["factors"] = tuple(fs)
+    elif m == "sign node":
+        ps = list(c["parts"])
+        r = rng.random()
+        if not ps or r < 0.15:
+            ps = [(rng.choice(tuple(DC.SIGN_SETS)), {"method": "norm_num"})]
+        elif r < 0.6:
+            i = rng.randrange(len(ps))
+            rl, cc = ps[i]
+            # the sign flipped, or the strictness toggled
+            flip = ({">": "<", "<": ">", ">=": "<=", "<=": ">=", "# 0": "# 0"}
+                    if rng.random() < 0.6 else
+                    {">": ">=", ">=": ">", "<": "<=", "<=": "<", "# 0": ">"})
+            ps[i] = (flip[rl], cc)
+        elif r < 0.75:
+            ps.pop(rng.randrange(len(ps)))
+        else:
+            i = rng.randrange(len(ps))
+            rl, cc = ps[i]
+            child = mutate(rng, cc)
+            if child is None:
+                return None
+            ps[i] = (rl, child)
+        c["parts"] = tuple(ps)
     elif m == "cite":
         r = rng.random()
         if r < 0.3 and c["inst"]:
@@ -1486,6 +1513,73 @@ def _product_key(rng):
     return _key(prop, dom), (cert,)
 
 
+def _node_key(rng):
+    """A key g r 0 over one of E82's node shapes, built from linear factors
+    whose roots lie outside the Interval or at an end: a quotient f1/f2
+    (f2's root never a closed end), a negated quotient, a sum of two like-
+    signed factors, a square plus a constant, or an even power alone (no
+    parts). Each part's relation is its factor's sign at the Interval's
+    middle, non-strict where it is 0 at a closed end, with its certificate
+    from the search. One key in four states the wrong sign, which only a
+    checker that skips E82's parity accepts."""
+    lo, hi = _q(rng), _q(rng)
+    while lo == hi:
+        hi = _q(rng)
+    lo, hi = min(lo, hi), max(lo, hi)
+    lc, hc = rng.random() < 0.5, rng.random() < 0.5
+    dom, mid = (T.Interval("x", T.lit(lo), lc, T.lit(hi), hc),), (lo + hi) / 2
+
+    def factor(may_vanish=True):
+        a = Fraction(rng.choice((1, -1, 2)))
+        ends = (lo, hi) if may_vanish else ()
+        r = rng.choice(ends + (lo - rng.randint(1, 3), hi + rng.randint(1, 3)))
+        f = T.Add(T.Mul(T.lit(a), XV), T.lit(-a * r))
+        zero = (r == lo and lc) or (r == hi and hc)
+        return f, (1 if a * (mid - r) > 0 else -1), zero
+
+    def rel(s, zero):
+        return (">" if s > 0 else "<") + ("=" if zero else "")
+
+    shape = rng.choice(("div", "neg", "add", "sq", "pow"))
+    if shape in ("div", "neg"):
+        (f1, s1, z1), (f2, s2, _) = factor(), factor(may_vanish=False)
+        g, kids = T.Div(f1, f2), [(f1, rel(s1, z1)), (f2, rel(s2, False))]
+        sign, zero = s1 * s2, z1
+        if shape == "neg":
+            g, kids, sign = T.Neg(g), [(g, rel(sign, zero))], -sign
+    elif shape == "add":
+        (f1, s1, z1), (f2, s2, z2) = factor(), factor()
+        if s1 != s2:
+            f2, s2 = T.Neg(f2), s1
+        g, kids = T.Add(f1, f2), [(f1, rel(s1, z1)), (f2, rel(s2, z2))]
+        sign, zero = s1, z1 and z2
+    elif shape == "sq":
+        (f1, s1, z1), c = factor(), Fraction(rng.choice((1, 2, Fraction(1, 3))))
+        sq = T.Pow(f1, 2)
+        g, kids = T.Add(sq, T.lit(c)), [(sq, ">="), (T.lit(c), ">")]
+        sign, zero = 1, False
+    else:
+        f1, _, _ = factor()
+        g, kids, sign, zero = T.Pow(f1, 2), [], 1, True
+    if rng.random() < 0.25:
+        sign = -sign  # the wrong sign: the parts still hold
+    r = rng.random()
+    if r < 0.2 and not zero:
+        prop = T.NonZero(g)
+    else:
+        strict = not zero if rng.random() < 0.75 else zero
+        prop = T.Rel((">" if sign > 0 else "<") + ("" if strict else "="),
+                     g, T.Num(0))
+    parts = []
+    for f, rl in kids:
+        cc = SR.propose(_key(T.Rel(rl, f, T.Num(0)), dom))
+        if cc is None:
+            cc = {"method": "norm_num"}
+        parts.append((rl, cc))
+    cert = {"method": "sign node", "parts": tuple(parts)}
+    return _key(prop, dom), (cert,)
+
+
 def _cite_key(rng):
     """sqrt(p) # 0, > 0 or >= 0 for a linear p, cited by sqrt_pos with its
     hypothesis p > 0 by the search; or a sign fact's own constant. The
@@ -1712,6 +1806,11 @@ def property_results(seed=SEED, families=None):
             k, certs = _product_key(rng)
             trial(rng, "sign product", k, certs)
 
+    def node(rng):
+        for _ in range(150):
+            k, certs = _node_key(rng)
+            trial(rng, "sign node", k, certs)
+
     def cite(rng):
         for _ in range(150):
             k, certs, targets = _cite_key(rng)
@@ -1763,7 +1862,7 @@ def property_results(seed=SEED, families=None):
                     break
 
     runs = {"reg": reg, "farkas": farkas, "hyp": hyp, "sign": sign,
-            "sign product": product, "cite": cite, "norm_num": leaf,
+            "sign product": product, "sign node": node, "cite": cite, "norm_num": leaf,
             "dispatcher": dispatcher}
     for name, run in runs.items():
         if families is None or name in families:

@@ -196,6 +196,7 @@ ITEMS = {
     "R": "regularity (p1_expected section 17): the Int and D formers, the atom "
          "algebra, the refusals",
     "P": "int_parts and ftc at an occurrence (p1_expected section 19)",
+    "I": "int_improper, limits.py and the sign node (p1_expected section 20)",
 }
 UNIT, UNIT_TEXT = "unit", ("unit tests: test_field.py, test_grammar.py, "
                            "test_discharge.py")  # beside 1-6
@@ -213,9 +214,11 @@ def _e27_switched():
     ch = X.DISCHARGE_E27_CHANGES
     moves = [dict(b, e27=ch["BAD_MOVES_replace"][b["id"]]["e27"])
              if b["id"] in ch["BAD_MOVES_replace"] else b for b in X.BAD_MOVES]
-    accepts = [c for c in X.EVALUATED_ACCEPTS
-               if c["id"] not in ch["EVALUATED_ACCEPTS_remove"]]
-    return moves + list(ch["BAD_MOVES_add"]), accepts
+    imp = X.IMPROPER_E27_CHANGES  # atan_zero (E80), the same way
+    gone = ch["EVALUATED_ACCEPTS_remove"] + imp["EVALUATED_ACCEPTS_remove"]
+    accepts = [c for c in X.EVALUATED_ACCEPTS if c["id"] not in gone]
+    return (moves + list(ch["BAD_MOVES_add"]) + list(imp["BAD_MOVES_add"]),
+            accepts)
 
 
 BAD_MOVES, EVALUATED_ACCEPTS = _e27_switched()
@@ -4574,7 +4577,7 @@ def discharge_checks(suite):
         return
     suite.check("D", "DISCHARGE_NEW_ENTRIES pinned (sqrt_zero immediately before "
                 "sqrt_sq, cos_zero after exp_one, sqrt_nonneg after it, "
-                "CONSOLIDATION_ENTRIES last: 23), and EXACT_VALUE_ENTRIES is "
+                "CONSOLIDATION_ENTRIES then atan_zero last: 24), and EXACT_VALUE_ENTRIES is "
                 "ENTRIES' exact values", TD.entries_problems)
     for row in TD.expected_certificates():
         where, _, tag, spec = row
@@ -5448,6 +5451,42 @@ def parts_file_problems():
     return [] if K.report(st) == "Proved." else [K.report(st)]
 
 
+def parts_review_problems(c):
+    """INT_PARTS_REVIEW_CASES (E83): every step accepted, and the report is
+    not the case's not_report."""
+    st, handles = K.install(goal(c["goal"])), {}
+    for n, (move, args) in enumerate(c["steps"]):
+        st = _parts_feed(st, move, args, handles)
+        if isinstance(st, K.Refusal):
+            return [f"step {n} ({move}) refused {st.code}: {st.message}"]
+    return [f"reports {c['not_report']!r}"] if K.report(st) == c["not_report"] \
+        else []
+
+
+def ftc_scope_problems():
+    """E84: F at an occurrence naming a fresh variable is 'ftc-scope'."""
+    st = K.install(goal("(Int[x = 0 .. 1] x) + (Int[x = 0 .. 1] x) == ?A"))
+    r = _parts_feed(st, "ftc", {"F": "x^2/2 + q", "check": "ring",
+                                "facts": [], "occurrence": 1}, {})
+    return [] if isinstance(r, K.Refusal) and r.code == "ftc-scope" \
+        else [f"got {describe(r)}"]
+
+
+def deep_term_problems():
+    """E85: a term past check_goal's recursion, built by hand, is refused
+    'bad-args', not raised."""
+    t = T.Var("x")
+    for _ in range(3000):
+        t = T.Add(t, T.Num(1))
+    st = K.install(goal("x == ?A"))
+    try:
+        r = K.step(st, "close", {"value": t, "check": "ring", "facts": ()})
+    except Exception as e:  # E21: an exception out of step() is a crash
+        return [f"raised {type(e).__name__}"]
+    return [] if isinstance(r, K.Refusal) and r.code == "bad-args" \
+        else [f"got {describe(r)}"]
+
+
 def parts_checks(suite):
     for name, c in X.INT_PARTS_PROOFS.items():
         suite.check("P", f"INT_PARTS_PROOFS {name}: {c['goal']} -> "
@@ -5458,9 +5497,122 @@ def parts_checks(suite):
     suite.check("P", "problems/parts/P1_PARTS.json replays to 'Proved.' "
                 "(readiness P1(1) by substitution, then parts)",
                 parts_file_problems)
+    for c in X.INT_PARTS_REVIEW_CASES:
+        suite.check("P", f"INT_PARTS_REVIEW_CASES {c['id']}: not "
+                    f"{c['not_report']!r} (E83)",
+                    lambda c=c: parts_review_problems(c))
+    suite.check("P", "ftc at an occurrence refuses a fresh name in F "
+                "(E84, ftc-scope)", ftc_scope_problems)
+    suite.check("P", "a hand-built term too deep to check is refused "
+                "bad-args, not raised (E85)", deep_term_problems)
     suite.check("P", "int_parts' sources and codes are the spec's",
                 lambda: [s for s in X.SOURCES_INT_PARTS
                          if s not in (K.S_PARTS_INT, K.S_PARTS_U, K.S_PARTS_V)])
+
+
+def improper_proof_problems(name):
+    c, out = X.INT_IMPROPER_PROOFS[name], []
+    st, handles = K.install(goal(c["goal"])), {}
+    for n, (move, args) in enumerate(c["steps"]):
+        st = _parts_feed(st, move, args, handles)
+        if isinstance(st, K.Refusal):
+            return [f"step {n} ({move}) refused {st.code}: {st.message}"]
+    if K.report(st) != c["report"]:
+        out.append(f"report {K.report(st)!r}, expected {c['report']!r}")
+    if st.theorem != goal(c["theorem"]):
+        out.append(f"theorem {T.show(st.theorem)}, expected {c['theorem']}")
+    return out
+
+
+def limit_case_problems(t, s, want):
+    """LIMIT_CASES through limits.lim, with the kernel's own sign guess
+    (kernel._settles at the empty domain) and every side condition then
+    emitted and required discharged, as int_improper emits them."""
+    import limits as LM
+    from terms import Num, Rel, with_domain
+
+    def sign(c):
+        for g, op in ((1, ">"), (-1, "<")):
+            if K._settles(with_domain(Rel(op, c, Num(0)), ())):
+                return g
+        return None
+    try:
+        value, sides = LM.lim(term(t), "x", s, sign)
+    except LM.NoLimit as e:
+        return [] if want is None else [f"no limit ({e}), expected {want}"]
+    if want is None:
+        return [f"a limit {value}, expected none"]
+    for side in sides:
+        buf = {}
+        try:
+            K._emit(buf, with_domain(side, ()), "int_improper_limit", ())
+        except T.Refused as r:
+            return [f"side {T.show(side)} refused {r.code}"]
+        if list(buf.values())[0].status != K.DISCHARGED:
+            return [f"side {T.show(side)} not discharged"]
+    if want in ("oo", "-oo"):
+        return [] if value == {"oo": LM.POS, "-oo": LM.NEG}[want] else [
+            f"{value}, expected {want}"]
+    if value in (LM.POS, LM.NEG) or not FD.ring_equal(value, term(want)):
+        return [f"{value if value in (LM.POS, LM.NEG) else T.show(value)}, "
+                f"expected {want}"]
+    return []
+
+
+def sign_case_problems(g, want):
+    """E81, E82: the key emitted alone is discharged exactly when `want`;
+    a refused key counts as not discharged."""
+    key, buf = T.parse_judgement(g), {}
+    try:
+        K._emit(buf, key, "former", key.dom)
+    except T.Refused:
+        return [] if not want else ["refused, expected discharged"]
+    got = list(buf.values())[0].status == K.DISCHARGED
+    return [] if got == want else [f"discharged is {got}, expected {want}"]
+
+
+def sign_reject_problems(g, c):
+    import discharge as DC
+    import search as SE
+    sub = lambda s: SE.propose(T.parse_judgement(s))  # noqa: E731
+    parts = (c["num"], c["den"])
+    cert = {"method": "sign node",
+            "parts": tuple((r, sub(k)) for r, k in parts)}
+    tag, why = DC.verdict(T.parse_judgement(g), cert)
+    return [] if tag is None else [f"accepted: {tag}"]
+
+
+def improper_file_problems(name):
+    import loader
+    here = os.path.dirname(os.path.abspath(__file__))
+    p = loader.load(os.path.join(here, "problems", "improper", name + ".json"))
+    results, _ = loader.replay(p)
+    st = results[-1][1]
+    if isinstance(st, K.Refusal):
+        return [f"{results[-1][0]} refused {st.code}: {st.message}"]
+    return [] if K.report(st) == "Proved." else [K.report(st)]
+
+
+def improper_checks(suite):
+    for name, c in X.INT_IMPROPER_PROOFS.items():
+        suite.check("I", f"INT_IMPROPER_PROOFS {name}: {c['goal']} -> "
+                    f"{c['report']!r}", lambda n=name: improper_proof_problems(n))
+    for b in X.INT_IMPROPER_BAD_MOVES:
+        suite.check("I", f"INT_IMPROPER_BAD_MOVES {b['id']} -> {b['refusal']}",
+                    lambda b=b: parts_bad_move_problems(b))
+    for t, s, want in X.LIMIT_CASES:
+        suite.check("I", f"LIMIT_CASES {t} as x -> {'oo' if s > 0 else '-oo'}: "
+                    f"{want}", lambda t=t, s=s, w=want: limit_case_problems(t, s, w))
+    for g, want in X.QUOTIENT_CASES + X.SIGN_NODE_CASES:
+        suite.check("I", f"sign node (E81, E82): {g} -> "
+                    f"{'discharged' if want else 'not discharged'}",
+                    lambda g=g, w=want: sign_case_problems(g, w))
+    for g, c, why in X.QUOTIENT_MUST_REJECT:
+        suite.check("I", f"sign node must reject: {g} ({why})",
+                    lambda g=g, c=c: sign_reject_problems(g, c))
+    for name in ("P5", "P2"):
+        suite.check("I", f"problems/improper/{name}.json replays to 'Proved.'",
+                    lambda n=name: improper_file_problems(n))
 
 
 def e57_principle_problems():
@@ -5491,7 +5643,9 @@ def consolidation_entries_problems():
     """CONSOLIDATION_ENTRIES pinned in entries.py as stated, appended after
     sqrt_nonneg in their order (E54): statement, schema and hypotheses."""
     out, names = [], list(EN.ENTRIES)
-    want = list(X.CONSOLIDATION_ENTRIES)
+    # IMPROPER_E27_CHANGES appends atan_zero after them (E80)
+    want = list(X.CONSOLIDATION_ENTRIES) + list(
+        X.IMPROPER_E27_CHANGES["ENTRIES_append"])
     if "sqrt_nonneg" not in names or \
             names[names.index("sqrt_nonneg") + 1:] != want:
         out.append(f"not appended after sqrt_nonneg in order: {names}")
@@ -5515,7 +5669,7 @@ def consolidation_checks(suite):
                 "pyth_cos; none of the six is an exact value", e27_pyth_problems)
     suite.check("C", f"int_flip is a move: MOVES is {len(K.MOVES)} long and names it",
                 lambda: [] if K.MOVES[5] == X.INT_FLIP_MOVE and K.MOVES[6:] ==
-                (X.INT_PARTS_MOVE,)  # section 19 appends int_parts after it
+                (X.INT_PARTS_MOVE, X.INT_IMPROPER_MOVE)  # sections 19, 20
                 else [f"MOVES is {K.MOVES}"])
     print("\nint_flip (E51): accepted moves")
     for c in FLIP_ACCEPTS:
@@ -6343,6 +6497,10 @@ def main():
     print("\nint_parts and ftc at an occurrence (item P; p1_expected section 19)")
     if K is not None:
         parts_checks(suite)
+
+    print("\nint_improper, limits and the sign node (item I; p1_expected section 20)")
+    if K is not None:
+        improper_checks(suite)
 
     print("\nPlanted bugs (each in a child process)")
     suite.check(3, "control: the child, unpatched, finds nothing", control_problems)

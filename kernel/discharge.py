@@ -15,6 +15,7 @@ A certificate is plain data, a dict whose 'method' picks the checker:
   {'method': 'sign', 'sense': s, 'const': c0, 'squares': ((c, t, k), ...)}
   {'method': 'sign product', 'sense': s, 'content': c,
    'factors': ((f, r, cert), ...)}
+  {'method': 'sign node', 'parts': ((r, cert), ...)}           method 5b
   {'method': 'cite', 'entry': name, 'inst': {v: t}, 'hyps': ((h, cert), ...)}
   {'method': 'norm_num'}                                         a leaf
 
@@ -516,6 +517,80 @@ def _product(key, cert):
     return "sign product", _factors_hold(key.dom, factors)
 
 
+# ---------------------------------------------------------------- sign node (method 5b)
+#
+# E81, E82: the sign of a syntactic node from its children's certified
+# signs, as sets of signs. Sound where the key's terms are defined, which is
+# all any certificate claims: there a divisor is non-zero.
+
+SIGN_SETS = {">": frozenset({1}), ">=": frozenset({1, 0}),
+             "<": frozenset({-1}), "<=": frozenset({-1, 0}),
+             "# 0": frozenset({1, -1})}
+
+
+def _node_target(key):
+    """(g, allowed signs): the key read as g # 0, or an ordering read as g
+    against 0 on either side (E81, E82)."""
+    if type(key) is NonZero:
+        return key.e, SIGN_SETS["# 0"]
+    (x, y), strict = _reading(_prop(key))
+    if y == ZERO:
+        return x, SIGN_SETS[">" if strict else ">="]
+    if x == ZERO:
+        return y, SIGN_SETS["<" if strict else "<="]
+    raise _Reject("not-a-node")
+
+
+def _node_children(g):
+    if type(g) in (Div, Mul, Add):
+        return (g.a, g.b)
+    if type(g) in (Pow, Neg):
+        return (g.base,) if type(g) is Pow else (g.a,)
+    raise _Reject("not-a-node")
+
+
+def _node_signs(g, sets):
+    """The exact set of signs g can take where it is defined, from its
+    children's sets (E82)."""
+    t = type(g)
+    if t is Neg:
+        return frozenset(-s for s in sets[0])
+    if t in (Mul, Div):
+        a, b = sets
+        if t is Div:
+            b = b - {0}
+        return frozenset(x * y for x in a for y in b)
+    if t is Pow:
+        if not sets:  # an even power with no sub-certificate
+            _need(g.n % 2 == 0 and g.n != 0, "odd-power")
+            return frozenset({1, 0})
+        b = sets[0] - {0} if g.n < 0 else sets[0]
+        return frozenset(1 if g.n == 0 else x ** abs(g.n) for x in b)
+    a, b = sets  # Add
+    for sign in (1, -1):
+        if a <= {sign, 0} and b <= {sign, 0}:
+            strict = a == {sign} or b == {sign}
+            return frozenset({sign}) if strict else frozenset({sign, 0})
+    raise _Reject("mixed-sum")
+
+
+def _node(key, cert):
+    """E82: one sub-certificate per child, each at the key's own domain."""
+    _fields(cert, "parts")
+    g, allowed = _node_target(key)
+    kids, parts = _node_children(g), cert["parts"]
+    _need(type(parts) is tuple, "malformed")
+    _need(len(parts) == len(kids) or (type(g) is Pow and parts == ()),
+          "malformed")
+    for part in parts:
+        _need(type(part) is tuple and len(part) == 2 and part[0] in SIGN_SETS,
+              "bad-relation")
+    signs = _node_signs(g, [SIGN_SETS[r] for r, _ in parts])
+    _need(signs <= allowed, "parity")
+    return "sign node", _factors_hold(key.dom, tuple(
+        (k, r, c) for k, (r, c) in zip(kids, parts)))
+
+
 # ---------------------------------------------------------------- cite (method 6)
 
 def _implies(conclusion, prop):
@@ -582,7 +657,8 @@ def _norm_num(key, cert):
 
 
 _CHECKERS = {"farkas": _farkas, "hyp": _hyp, "sign": _sign,
-             "sign product": _product, "cite": _cite, "norm_num": _norm_num}
+             "sign product": _product, "sign node": _node,
+             "cite": _cite, "norm_num": _norm_num}
 
 
 # ---------------------------------------------------------------- regularity (E60-E62)

@@ -102,6 +102,7 @@ from dataclasses import dataclass, replace
 from types import MappingProxyType
 
 import deriv as DV
+import limits as LM
 import domains
 import field as FD
 import discharge
@@ -137,7 +138,7 @@ REASON_EMPTY = "domain inconsistent"  # §5.3's pre-check found the domain
 DECIDED_FALSE = "obligation-decided-false"  # E33
 VERDICT = "Proved modulo {n} admissions"
 MOVES = ("rewrite", "fact", "ftc", "close", "int_subst", "int_flip",
-         "int_parts")
+         "int_parts", "int_improper")
 
 # The documented public API. No name here returns a ProofState from a str,
 # bytes or dict (FORGERIES json_roundtrip_state, no_loader).
@@ -432,6 +433,8 @@ def step(state, move, args):
         minted = [_resolve_fact(state, f) for f in args.get("facts", ())]
         buf = {}
         goal, theorem, extra = _MOVE[move](state, args, minted, buf)
+        if goal is not None:
+            _statable_again(buf, state.goal[0], goal[0])  # E83
     except Refused as r:
         return Refusal(r.code, r.message, r.residual)
     tracker = state._tracker.copy()
@@ -482,7 +485,8 @@ def derivative_domain(closed):
 _ARGS = {"rewrite": ("entry", "inst", "at"), "fact": ("entry", "inst", "bind"),
          "ftc": ("F", "check", "facts"), "close": ("value", "check", "facts"),
          "int_subst": ("var", "sub", "new_var", "lo", "hi", "check", "facts"),
-         "int_flip": (), "int_parts": ("var", "u", "v", "check", "facts")}
+         "int_flip": (), "int_parts": ("var", "u", "v", "check", "facts"),
+         "int_improper": ("F", "check", "facts")}
 _TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f", "u", "v")
 
 
@@ -492,6 +496,35 @@ def _names_variable(v):
         return type(v) is str and parse_term(v) == Var(v)
     except Refused:
         return False
+
+
+def _node_at(t, path):
+    """The subterm of t at `path` (_positions' slots), or None."""
+    for slot in path:
+        kids = dict(children(t)) if isinstance(t, Term) else {}
+        if slot not in kids:
+            return None
+        t = kids[slot]
+    return t
+
+
+def _statable_again(buf, old, new):
+    """E83: at each path where `new` holds a statable Int and `old` an
+    unstatable one, that Int's E64 former, as _tree_formers charges it.
+    Only an edit inside a limit makes an Int statable, and no other rule
+    owes the former then."""
+    G = new.dom
+    old_sides = _sides(old)
+    for i, side in enumerate(_sides(new)):
+        walk = list(_positions(side, G))
+        body = {p: (d, a) for p, _, d, a in walk}
+        for p, t, _, _ in walk:
+            if not (isinstance(t, Integral) and statable(t)):
+                continue
+            was = _node_at(old_sides[i], p) if i < len(old_sides) else None
+            if isinstance(was, Integral) and not statable(was):
+                bd, ba = body[p + ("body",)]
+                _int_former(buf, t, bd, ba, G)
 
 
 def _check_args(move, args, goal):
@@ -504,7 +537,8 @@ def _check_args(move, args, goal):
     terms must pass check_names as one statement."""
     need = set(_ARGS[move])
     optional = ({"occurrence"} if move in ("rewrite", "int_flip", "ftc",
-                                           "int_parts") else set())
+                                           "int_parts", "int_improper")
+                else set())
     if move == "int_subst":  # INT_SUBST_RULE step 1 (E36, E45, E48)
         optional = {"mode", "occurrence"}
         if type(args) is dict and args.get("mode") == "reverse":
@@ -515,12 +549,13 @@ def _check_args(move, args, goal):
     ok = ok and all(type(args[k]) is str
                     for k in ("entry", "bind") if k in args)
     ok = ok and type(args.get("occurrence", 0)) is int
-    if ok and move in ("ftc", "close", "int_subst", "int_parts"):
+    if ok and move in ("ftc", "close", "int_subst", "int_parts",
+                       "int_improper"):
         facts = args["facts"]
         ok = (type(args["check"]) is str and args["check"] in ("ring", "field")
               and type(facts) in (list, tuple)
               and not (args["check"] == "ring" and facts))
-    if ok and move in ("int_flip", "ftc"):  # E51 step 1, E73
+    if ok and move in ("int_flip", "ftc", "int_improper"):  # E51, E73
         ok = args.get("occurrence", 0) >= 0
     if ok and move == "int_parts":  # INT_PARTS_RULE step 1
         ok = args.get("occurrence", 0) >= 0 and _names_variable(args["var"])
@@ -538,12 +573,15 @@ def _check_args(move, args, goal):
             raise Refused("bad-args", f"not a term without ?A: {_shown(t)}")
         try:
             check_goal((Rel("==", t, t),))
+        except RecursionError:  # E85: deeper than the checker's stack
+            raise Refused("bad-args", "a term too deep to check") from None
         except Refused as r:
             if r.code != "mvar-misplaced":
                 raise
             raise Refused("bad-args", f"not a term without ?A: "
                           f"{_shown(t)}") from None
-        if move in ("int_subst", "int_parts") and _holds_infinity(t):
+        if (move in ("int_subst", "int_parts", "int_improper")
+                and _holds_infinity(t)):
             raise Refused("bad-args", f"{show(t)} mentions oo")
     check_names(goal, *given)  # no x(y) into a goal whose x is a variable
 
@@ -1263,6 +1301,7 @@ def _ftc(state, args, minted, buf):
                       "an infinite range needs int_improper")
     _no_trees_in_limits(it.lo, it.hi)  # SECOND_REVIEW_RULE
     if nested:
+        _ftc_scope(g, anc, it.var, F)  # E84
         _subst_under_D(anc, it, (F,))  # E73, E48
         P = _decided(buf, P, anc, G)
     x, f = it.var, it.body
@@ -1307,6 +1346,16 @@ def _ftc(state, args, minted, buf):
         _charge_formers(buf, side, G, G)
     check_goal(goal)
     return goal, None, {"trace": d.trace, "output": d.output}
+
+
+def _ftc_scope(g, anc, x, F):
+    """E84: F in scope at the selected Int's position, plus its variable."""
+    try:
+        _subst_scope(g, anc, [("F", F, {x})])
+    except Refused as r:
+        if r.code != "int-subst-scope":
+            raise
+        raise Refused("ftc-scope", r.message) from None
 
 
 def _ftc_select(g, k):
@@ -1745,6 +1794,109 @@ def _int_parts(state, args, minted, buf):
     return goal, None, {}
 
 
+# ---------------------------------------------------------------- int_improper
+#
+# p1_expected's section 20 (E76-E80): ftc's premises on a range with an
+# infinite end, and at each infinite end the limit of F, computed by the
+# trusted limits.py, finite. Convergence is the step's conclusion.
+
+S_IMP_f, S_IMP_F0, S_IMP_F1 = ("int_improper_f_C0", "int_improper_F_C0",
+                               "int_improper_F_C1")
+S_IMP_D, S_IMP_LIM = "int_improper_D", "int_improper_limit"
+
+
+def _imp_select(g, k):
+    """E76: the goal's lhs Int, or ftc's selector at occurrence k."""
+    if k is None:
+        if not isinstance(g.lhs, Integral):
+            raise Refused("int-improper-no-integral",
+                          "int_improper needs an Int as the goal's lhs")
+        return None, None, g.lhs, g.dom, ()
+    try:
+        return _flip_select(g, k)
+    except Refused as r:
+        raise Refused("int-improper-no-integral", r.message) from None
+
+
+def _imp_limit(F, x, end, P, G, buf):
+    """E77, E78: the finite limit of F as x -> end (oo or -oo), its side
+    conditions emitted at P. An infinite limit refuses
+    'int-improper-diverges'; none, 'int-improper-limit-unknown'."""
+    s = 1 if isinstance(end, PosInf) else -1
+
+    def sign(c):  # a guess that only picks a branch; the side is emitted
+        for g, op in ((1, ">"), (-1, "<")):
+            try:
+                if _settles(with_domain(Rel(op, c, Num(0)), P)):
+                    return g
+            except Refused:
+                pass
+        return None
+    try:
+        value, sides = LM.lim(F, x, s, sign)
+    except LM.NoLimit as e:
+        raise Refused("int-improper-limit-unknown", f"no limit law gives the "
+                      f"limit of {_brief(F)} as {x} -> {'oo' if s > 0 else '-oo'}"
+                      f" ({e})") from None
+    if value in (LM.POS, LM.NEG):
+        raise Refused("int-improper-diverges", f"{_brief(F)} -> {value} as "
+                      f"{x} -> {'oo' if s > 0 else '-oo'}, so the integral "
+                      "diverges")
+    for side in sides:
+        _emit(buf, with_domain(side, P), S_IMP_LIM, G,
+              divisor=not isinstance(side, NonZero))
+    return value
+
+
+def _int_improper(state, args, minted, buf):
+    """E76: ftc's premises on the range, then the limits. Returns (new
+    goal, None, deriv's trace and output)."""
+    g = state.goal[0]
+    G, F, check = g.dom, args["F"], args["check"]
+    side, path, it, P, anc = _imp_select(g, args.get("occurrence"))
+    ends = (it.lo, it.hi)
+    if not any(isinstance(e, (PosInf, NegInf)) for e in ends):
+        raise Refused("int-improper-finite", "both limits are finite; ftc "
+                      "is the move")
+    _no_trees_in_limits(*(e for e in ends if isinstance(e, Term)))
+    if anc:
+        _subst_under_D(anc, it, (F,))  # E48, as ftc at an occurrence
+    P = _decided(buf, P, anc, G)
+    x, f = it.var, it.body
+    rng, orient = _range(it, P)
+    if orient is not None:
+        _emit(buf, orient, "orient", G)
+    on_rng = P + (rng,)
+    on_open = P + (Interval(x, rng.lo, False, rng.hi, False),)
+    _charge_formers(buf, F, on_rng, G)
+    _emit(buf, with_domain(Reg(F, 0), on_rng), S_IMP_F0, G)
+    d = DV.deriv(F, x, on_open)
+    for key, source in d.emissions:
+        _emit(buf, key, source, G)
+    _check(check, d.output, f, minted, on_open, G, buf,
+           "int-improper-check-failed")
+    cites = tuple(dict.fromkeys(rec.entry for rec in minted))
+    _emit(buf, with_domain(Reg(F, 1), on_open), S_IMP_F1, G)
+    _emit(buf, with_domain(Rel("==", Deriv(x, F), f), on_open), S_IMP_D, G,
+          ("deriv+" + check, cites))
+    _emit(buf, with_domain(Reg(f, 0), on_rng), S_IMP_f, G)
+    va, vb = (_imp_limit(F, x, e, P, G, buf) if isinstance(e, (PosInf, NegInf))
+              else subst(F, {x: e}) for e in ends)
+    new = Add(vb, Neg(va))  # V(b) - V(a)
+    if path is None:
+        goal = (replace(g, lhs=new),)
+        for sd in _sides(goal[0]):
+            _charge_formers(buf, sd, G, G)
+    else:
+        sides = list(_sides(g))
+        sides[side] = _put(sides[side], path, new)
+        _charge_formers(buf, new, P, G, anc=anc)
+        goal = (replace(g, lhs=sides[0],
+                        rhs=sides[1] if len(sides) > 1 else g.rhs),)
+    check_goal(goal)
+    return goal, None, {"trace": d.trace, "output": d.output}
+
+
 _MOVE = {"rewrite": _rewrite, "fact": _fact, "ftc": _ftc, "close": _close,
          "int_subst": _int_subst, "int_flip": _int_flip,
-         "int_parts": _int_parts}
+         "int_parts": _int_parts, "int_improper": _int_improper}

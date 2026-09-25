@@ -100,8 +100,11 @@ def domain_empty(key):
         return False
 
 
+_IN_NODE = False  # E82's node method: at the top of a search, or under itself
+
+
 def _search(key, split, depth=0):
-    memo = (key, split, depth)
+    memo = (key, split, depth, _IN_NODE)
     if _MEMO is not None and memo in _MEMO:
         return _MEMO[memo]
     cert = _search_uncached(key, split, depth)
@@ -123,6 +126,8 @@ def _search_uncached(key, split, depth):
     prop, dom = replace(key, dom=()), key.dom
     methods = (lambda: _hyp(prop, dom), lambda: _farkas(key),
                lambda: _sign(prop), lambda: _product(key, split, depth),
+               lambda: (_node(key, depth) if depth == 0 or _IN_NODE
+                        else None),
                lambda: _cite(prop, dom, depth))
     for method in methods:
         try:
@@ -443,6 +448,61 @@ def _product(key, split, depth=0):
                     "content": Fraction(flip) * c,
                     "factors": tuple((f, r, cert)
                                      for f, (r, cert) in zip(factors, choice))}
+    return None
+
+
+# ---------------------------------------------------------------- sign node
+
+def _node(key, depth=0):
+    """E82's method 5b: for the key's own node, a few certified relations
+    per child, strict first and non-strict only when no strict one is
+    found (for a sum, only the relations that can reach the target), tried
+    in combination until the node's set of signs is inside the target's.
+    The checker decides."""
+    if depth >= TG.FACTOR_DEPTH:
+        return None
+    try:
+        g, allowed = DC._node_target(key)
+        kids = DC._node_children(g)
+    except DC._Reject:
+        return None
+    dom = key.dom
+
+    def cert(t, r):
+        prop = NonZero(t) if r == "# 0" else Rel(r, t, ZERO)
+        return _search(with_domain(prop, dom), split=True, depth=depth + 1)
+
+    def first(t, tiers):
+        """The certified relations of the first tier with any."""
+        for tier in tiers:
+            got = [(r, c) for r in tier for c in (cert(t, r),) if c is not None]
+            if got:
+                return got
+        return []
+    if type(g) is Add:
+        signs = [sgn for sgn in (1, -1) if sgn in allowed]
+        tiers = lambda sgn: (((">",), (">=",)) if sgn > 0  # noqa: E731
+                             else (("<",), ("<=",)))
+    else:
+        signs = [None]
+        tiers = lambda _: ((">", "<"), ("# 0",), (">=", "<="))  # noqa: E731
+    global _IN_NODE
+    outer, _IN_NODE = _IN_NODE, True
+    try:
+        for sgn in signs:
+            options = [first(k, tiers(sgn)) for k in kids]
+            for parts in itertools.product(*options):
+                try:
+                    got = DC._node_signs(g, [DC.SIGN_SETS[r] for r, _ in parts])
+                except DC._Reject:
+                    continue
+                if got <= allowed:
+                    return {"method": "sign node", "parts": tuple(parts)}
+    finally:
+        _IN_NODE = outer
+    if (type(g) is Pow and g.n % 2 == 0 and g.n != 0
+            and frozenset({1, 0}) <= allowed):  # an even power, no child
+        return {"method": "sign node", "parts": ()}
     return None
 
 

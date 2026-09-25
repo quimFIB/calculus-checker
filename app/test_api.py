@@ -244,7 +244,7 @@ class ProblemFiles(Api):
     every step."""
 
     def test_every_proof_matches_the_loader(self):
-        self.assertEqual(sum(len(p.proofs) for p in _files().values()), 9)
+        self.assertEqual(sum(len(p.proofs) for p in _files().values()), 11)
         for pid, p in _files().items():
             for name, steps in p.proofs.items():
                 with self.subTest(problem=pid, proof=name):

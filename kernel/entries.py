@@ -79,6 +79,7 @@ STATEMENTS = {
     "cos_nonneg_on": ("cos u >= 0 @ u >= 0, u <= pi/2", ("u",)),
     "cos_le_one": ("cos u <= 1", ("u",)),
     "cos_ge_neg_one": ("cos u >= -1", ("u",)),
+    "atan_zero": ("atan 0 == 0", ()),  # p1_expected E80
 }
 
 
