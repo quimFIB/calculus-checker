@@ -14709,3 +14709,235 @@ E57_PRINCIPLE["int_parts"] = (
     "one in a limit by SECOND_REVIEW_RULE; one inside the integrand can only "
     "be cancelled by the check's ring as an atom whose own former (Q23) was "
     "owed where it entered, which is ftc's case since regularity")
+
+# ---------------------------------------------------------------------------
+# 20. int_improper at an infinite limit (improper spec 2026-09-25)
+#
+# The owner, 2026-09-25: the items the course needs come first. Readiness
+# P2 integrates over (-oo, oo) and P5 over [0, oo) ("improper limits" is a
+# skill P5 names). E65 deferred convergence because convergence is not
+# continuity. This step builds §6.4's int_improper for an INFINITE limit,
+# as a limit of ftc, with convergence proved in the step as part of its
+# conclusion, so no conv obligation and no new judgement form is needed.
+# Specified before any code; SymPy-checked (IMPROPER_VERIFIED).
+
+INT_IMPROPER_MOVE = "int_improper"
+INT_IMPROPER_ARGS = ("F", "check", "facts")
+INT_IMPROPER_OPTIONAL = ("occurrence",)
+
+DECISIONS_IMPROPER = {
+    "E76": "The rule. For an Int[x = a .. b] f with at least one of a, b "
+           "infinite, and F with: f in C^0 on the range (closed at a finite "
+           "end, open at an infinite one), F in C^0 on the same range, F in "
+           "C^1 on its interior, D[x] F == f on its interior (deriv and "
+           "`check`, as ftc), and at each infinite end e the limit of F as "
+           "x -> e FINITE and equal to L_e, the integral converges and "
+           "equals V(b) - V(a), where V(e) is L_e at an infinite end and "
+           "F[x := e] at a finite one. True for either order of a and b "
+           "(both sides change sign). Convergence is the step's conclusion: "
+           "the defining limit of the partial integrals is F(t) - F(a) -> "
+           "L - F(a) by ftc on each [a, t]. The selected Int is replaced "
+           "by that value in place (ftc's selection, E73: the lhs Int, or "
+           "the occurrence).",
+    "E77": "Limits are computed by a new TRUSTED module, limits.py, never "
+           "supplied by the learner: lim(t, x, s) for s = +1 (x -> oo) or "
+           "-1 (x -> -oo) returns a finite Term L, +oo, -oo, or fails. Its "
+           "rules are the textbook limit laws, each with its side condition "
+           "returned for the kernel to emit (LIMIT_RULES). A failure refuses "
+           "'int-improper-limit-unknown'; an infinite limit refuses "
+           "'int-improper-diverges', which is a true statement (an "
+           "antiderivative with an infinite limit at an infinite end means "
+           "the integral diverges) and the refutation §5.2 wanted, stated "
+           "as a refusal because the diverges judgement is not built.",
+    "E78": "Side conditions. The evaluator assumes only x-free facts: a "
+           "constant is > 0, < 0 or # 0 (a leading coefficient, a finite "
+           "limit that ln, a division or a sign rule needs). Each is "
+           "emitted at the goal's domain G with source "
+           "'int_improper_limit' and discharged, refuted or admitted like "
+           "any obligation, so a false one refuses the step and an "
+           "undecided one is an admission, never silent. The evaluator's "
+           "correctness also uses that F is defined on the whole range, "
+           "which the step owes (F's formers and F in C^0).",
+    "E79": "Out of this step, recorded: an integrand singular at a FINITE "
+           "end (unit 00 P7's turning points, Int[x = 0 .. 1] x^(-1/2)), "
+           "whose Int is refused at install by its C^0 former today; the "
+           "diverges judgement and its rules (div_compare, div_power, "
+           "div_pole); int_compare; oo - oo and oo/oo beyond rational "
+           "functions (the learner writes ln(x/(x + 1)), not ln x - "
+           "ln(x + 1)); and int_parts or int_subst over an infinite range.",
+    "E80": "A new §6.8 entry, atan_zero: atan 0 == 0, trusted like "
+           "sin_zero, for the value F(0) that atan antiderivatives leave.",
+}
+
+LIMIT_RULES = (
+    "x-free t: t (continuity of a constant).",
+    "Rational in x (x, x-free constants, +, -, *, /, integer powers): the "
+    "leading form c*x^k, built bottom-up: x is 1*x^1; a constant c is "
+    "c*x^0; products and quotients multiply and divide c and add and "
+    "subtract k; t^n gives c^n*x^(k*n); a sum keeps the higher k, and at "
+    "equal k gives (c1 + c2)*x^k owing c1 + c2 # 0. Every leading "
+    "coefficient c of a divisor or of the result owes c # 0. Then k = 0 "
+    "gives c, k < 0 gives 0, and k > 0 gives the infinity whose sign is "
+    "sign(c) times s^k, owing c > 0 or c < 0 (whichever the evaluator "
+    "asks, the first it can decide).",
+    "Otherwise by the algebra of limits: sums (finite + finite; an "
+    "infinity plus a finite; two like infinities; unlike infinities "
+    "fail), negation, products (finite * finite; an infinity times a "
+    "finite L owing L > 0 or L < 0; two infinities), quotients (finite / "
+    "finite owing the denominator's L # 0; finite / infinity is 0; an "
+    "infinity / finite owing its sign; infinity / infinity fails), and "
+    "integer powers.",
+    "Continuous functions of a finite limit L: sin L, cos L, atan L, "
+    "exp L; ln L owing L > 0; sqrt L owing L >= 0.",
+    "At infinity: exp(+oo) = +oo, exp(-oo) = 0; ln(+oo) = +oo; sqrt(+oo) = "
+    "+oo; atan(+oo) = pi/2, atan(-oo) = -pi/2; sin and cos of an infinity "
+    "fail.",
+    "Anything else (an Int, a D, RPow with x, a declared function, tan, "
+    "asin, acos, acosh, atanh) fails.",
+)
+
+REFUSAL_CODES_IMPROPER = {
+    "int-improper-no-integral": "E76: no Int at the lhs or the occurrence",
+    "int-improper-finite": "E76: both limits finite; ftc is the move",
+    "int-improper-check-failed": "E76: D[x] F is not f. Carries the "
+                                 "residual (ftc-check-failed's twin)",
+    "int-improper-limit-unknown": "E77: the evaluator cannot compute a "
+                                  "limit of F at an infinite end",
+    "int-improper-diverges": "E77: the limit of F at an infinite end is "
+                             "infinite, so the integral diverges",
+}
+SOURCES_IMPROPER = {
+    "int_improper_f_C0": "premise: f in C^0 on the range (E76)",
+    "int_improper_F_C0": "premise: F in C^0 on the range (E76)",
+    "int_improper_F_C1": "premise: F in C^1 on the interior (E76)",
+    "int_improper_D": "premise: D[x] F == f on the interior, decided in "
+                      "step (E76)",
+    "int_improper_limit": "a limit law's x-free side condition (E78)",
+}
+
+INT_IMPROPER_PROOFS = {
+    "IMP_POWER": {"goal": "Int[x = 1 .. oo] 1/x^2 == ?A",
+                  "steps": [("int_improper", {"F": "-1/x", "check": "field",
+                                              "facts": []}),
+                            ("close", {"value": "1", "check": "field",
+                                       "facts": []})],
+                  "report": "Proved.",
+                  "theorem": "Int[x = 1 .. oo] 1/x^2 == 1"},
+    "IMP_REVERSED": {"goal": "Int[x = oo .. 1] 1/x^2 == ?A",
+                     "steps": [("int_improper", {"F": "-1/x",
+                                                 "check": "field",
+                                                 "facts": []}),
+                               ("close", {"value": "-1", "check": "field",
+                                          "facts": []})],
+                     "report": "Proved.",
+                     "theorem": "Int[x = oo .. 1] 1/x^2 == -1"},
+    "IMP_ATAN": {"goal": "Int[x = 0 .. oo] 1/(1 + x^2) == ?A",
+                 "steps": [("int_improper", {"F": "atan x", "check": "field",
+                                             "facts": []}),
+                           ("rewrite", {"entry": "atan_zero", "inst": {},
+                                        "at": "atan 0"}),
+                           ("close", {"value": "pi/2", "check": "ring",
+                                      "facts": []})],
+                 "report": "Proved.",
+                 "theorem": "Int[x = 0 .. oo] 1/(1 + x^2) == pi/2"},
+    "IMP_BOTH": {"goal": "Int[x = -oo .. oo] 1/(1 + x^2) == ?A",
+                 "steps": [("int_improper", {"F": "atan x", "check": "field",
+                                             "facts": []}),
+                           ("close", {"value": "pi", "check": "ring",
+                                      "facts": []})],
+                 "report": "Proved.",
+                 "theorem": "Int[x = -oo .. oo] 1/(1 + x^2) == pi"},
+    "IMP_EXP": {"goal": "Int[x = 0 .. oo] exp(-x) == ?A",
+                "steps": [("int_improper", {"F": "-exp(-x)", "check": "ring",
+                                            "facts": []}),
+                          ("rewrite", {"entry": "exp_zero", "inst": {},
+                                       "at": "exp(-0)"}),
+                          ("close", {"value": "1", "check": "ring",
+                                     "facts": []})],
+                "report": "Proved.",
+                "theorem": "Int[x = 0 .. oo] exp(-x) == 1"},
+    "IMP_NESTED": {"goal": "2*(Int[x = 1 .. oo] 1/x^2) == ?A",
+                   "steps": [("int_improper", {"F": "-1/x", "check": "field",
+                                               "facts": [],
+                                               "occurrence": 0}),
+                             ("close", {"value": "2", "check": "field",
+                                        "facts": []})],
+                   "report": "Proved.",
+                   "theorem": "2*(Int[x = 1 .. oo] 1/x^2) == 2"},
+}
+
+INT_IMPROPER_BAD_MOVES = [
+    {"id": "imp_diverges", "goal": "Int[x = 1 .. oo] 1/x == ?A",
+     "move": "int_improper", "args": {"F": "ln x", "check": "ring",
+                                      "facts": []},
+     "refusal": "int-improper-diverges",
+     "why": "E77: lim ln x = oo; E65's own example, now refused for the "
+            "right reason"},
+    {"id": "imp_limit_unknown", "goal": "Int[x = 0 .. oo] cos x == ?A",
+     "move": "int_improper", "args": {"F": "sin x", "check": "ring",
+                                      "facts": []},
+     "refusal": "int-improper-limit-unknown"},
+    {"id": "imp_finite", "goal": "Int[x = 0 .. 1] x == ?A",
+     "move": "int_improper", "args": {"F": "x^2/2", "check": "ring",
+                                      "facts": []},
+     "refusal": "int-improper-finite"},
+    {"id": "imp_check_failed", "goal": "Int[x = 1 .. oo] 1/x^2 == ?A",
+     "move": "int_improper", "args": {"F": "1/x", "check": "field",
+                                      "facts": []},
+     "refusal": "int-improper-check-failed", "residual": True},
+    {"id": "imp_F_pole", "goal": "Int[x = 0 .. oo] 1/(1 + x^2) == ?A",
+     "move": "int_improper", "args": {"F": "atan x + 1/(x - 1) - 1/(x - 1)",
+                                      "check": "field", "facts": []},
+     "refusal": "obligation-decided-false",
+     "why": "E76, soundness: F's former x - 1 # 0 fails at 1 in [0, oo)"},
+    {"id": "imp_oo_minus_oo", "goal": "Int[x = 1 .. oo] 1/(x*(x + 1)) == ?A",
+     "move": "int_improper", "args": {"F": "ln x - ln(x + 1)",
+                                      "check": "field", "facts": []},
+     "refusal": "int-improper-limit-unknown",
+     "why": "E79: oo - oo fails; ln(x/(x + 1)) is the form that works"},
+    {"id": "ftc_still_refuses_oo", "goal": "Int[x = 1 .. oo] 1/x^2 == ?A",
+     "move": "ftc", "args": {"F": "-1/x", "check": "field", "facts": []},
+     "refusal": "ftc-infinite-endpoint"},
+    {"id": "imp_ring_still_refuses", "goal": "Int[x = 1 .. oo] 1/x^2 == ?A",
+     "move": "close", "args": {"value": "1", "check": "ring", "facts": []},
+     "refusal": "Int-or-D-not-normalisable",
+     "why": "E65 stands for an Int no step has evaluated"},
+]
+
+# The evaluator called directly: (term, direction, expected) where
+# expected is a GRAMMAR string for a finite limit (compared by ring after
+# the side conditions), 'oo', '-oo' or None for a failure.
+LIMIT_CASES = [
+    ("-1/x", +1, "0"),
+    ("atan x", +1, "pi/2"),
+    ("atan x", -1, "-pi/2"),
+    ("(x^2 + sqrt 2 * x + 1)/(x^2 - sqrt 2 * x + 1)", +1, "1"),
+    ("(2*x^3 - x)/(x^3 + 5)", -1, "2"),
+    ("(x^2 + 1)/x", +1, "oo"),
+    ("(x^2 + 1)/x", -1, "-oo"),
+    ("x^3", -1, "-oo"),
+    ("x^2 - x^2 + x", +1, None),  # equal-degree cancellation: 1 - 1 # 0 is false
+    ("exp(-x)", +1, "0"),
+    ("exp x", -1, "0"),
+    ("ln(x/(x + 1))", +1, "ln 1"),
+    ("ln x", +1, "oo"),
+    ("ln x - ln(x + 1)", +1, None),
+    ("sin x", +1, None),
+    ("sqrt(x^2 + 1)", +1, "oo"),
+    ("atan(sqrt 2 * x + 1)", +1, "pi/2"),
+    ("x*exp(-x)", +1, None),  # oo * 0: fails, incomplete never unsound
+    ("1/x + atan x", +1, "pi/2"),
+]
+
+IMPROPER_VERIFIED = (
+    "SymPy 1.14, 2026-09-25: Int(1/x^2, 1, oo) = 1; Int(1/(1+x^2), 0, oo) "
+    "= pi/2; over (-oo, oo) = pi; Int(exp(-x), 0, oo) = 1; Int(1/x, 1, oo) "
+    "= oo; every LIMIT_CASES finite value and infinity.",
+)
+IMPROPER_SWITCH = (
+    "At the build: MOVES gains 'int_improper' after 'int_parts'; entries "
+    "gain atan_zero (E80); E57_PRINCIPLE gains int_improper; "
+    "proof_of_life item 'I' drives INT_IMPROPER_PROOFS, "
+    "INT_IMPROPER_BAD_MOVES and LIMIT_CASES; readiness P5 as a problem "
+    "file if its admissions can be discharged, else recorded with them.",
+)
