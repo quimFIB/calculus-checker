@@ -14450,3 +14450,254 @@ REG_REVIEW_SWITCH = (
     "REG_REVIEW_DEEP_CASES by their outcome, and REG_REVIEW_PLANTED_BUGS in "
     "a child process.",
 )
+
+# ---------------------------------------------------------------------------
+# 19. int_parts, and ftc at an occurrence (int_parts spec 2026-09-25)
+#
+# The owner, 2026-09-25: the items the course needs come before the API's
+# client. The course integrates by parts from the readiness sheet on
+# (P1(1)'s rung 2, "a polynomial times a sine, which is a job for parts")
+# and "heavily in 09, 11, 19". E67 deferred int_parts from the regularity
+# step; this step builds it. Written from DESIGN.md §6.4 ("Around ftc:
+# int_parts"), §8's by-parts row ("u and v: computes u', checks v',
+# assembles both halves"), and int_subst's rule (section 12), whose
+# selector, scope, under-D and orientation steps it reuses unchanged.
+# Specified before any code. The mathematics of every accepted case was
+# checked with SymPy 1.14 in a scratch venv (INT_PARTS_VERIFIED).
+
+INT_PARTS_MOVE = "int_parts"
+INT_PARTS_ARGS = ("var", "u", "v", "check", "facts")
+INT_PARTS_OPTIONAL = ("occurrence",)
+FTC_OPTIONAL = ("occurrence",)  # E73
+
+DECISIONS_INT_PARTS = {
+    "E71": "int_parts is §6.4's rule read left to right: for u, v in C^1 on "
+           "the closed range [a, b], Int[x = a .. b] u*v' == (u(b)*v(b) - "
+           "u(a)*v(a)) - Int[x = a .. b] u'*v. The learner supplies u and v "
+           "(§8's row); the kernel computes u' and v' by deriv on the closed "
+           "range, never takes them as arguments, and checks the selected "
+           "integrand == u*v' by `check` (ring or field, with facts, as "
+           "ftc's check). A failed check refuses 'int-parts-check-failed' "
+           "with the residual body - u*v'. The identity holds for either "
+           "order of a and b (both sides change sign), so the limits are "
+           "kept as written and the premises sit on the range E56 builds.",
+    "E72": "What it owes, on the closed range D = P + (the old range): u's "
+           "and v's formers; deriv's side conditions for u' and for v' "
+           "(closed, as int_subst's step 10: u' stands in the new "
+           "integrand, which must be defined at the ends); the discharged "
+           "integrand equation (source 'int_parts_integrand', tag "
+           "('deriv+' + check, the facts' entries)); u in C^1 and v in C^1 "
+           "on D (sources 'int_parts_u_C1', 'int_parts_v_C1'), decided by "
+           "regularity; and the new term's formers at P, which include the "
+           "new integral's own C^0 former. A u or v undefined or not C^1 "
+           "somewhere on the closed range is therefore refused by "
+           "discharge ('obligation-decided-false') wherever a point shows "
+           "it, and never admitted as a plain Proved.",
+    "E73": "ftc gains an optional 'occurrence', int_flip's selector (E51 "
+           "step 2): the k-th Integral node of the non-?A side in "
+           "REWRITE_RULE's pre-order. Without it ftc is unchanged, the "
+           "goal's lhs must be an Int, and 'ftc-no-integral' otherwise. With "
+           "it, the selected Int is replaced in place by F(b) - F(a), its "
+           "premises stated at its position domain P (decided by E56 as "
+           "int_subst's are), and E48's under-D test applied to it and F, "
+           "reusing 'rewrite-under-D-needs-open-domain'. An occurrence past "
+           "the last Int is 'ftc-no-integral'. This is what lets the "
+           "integral int_parts leaves inside an expression be finished: "
+           "ftc as built could only act on a bare Int lhs.",
+    "E74": "Out of this step, recorded: the cycle case (I = Int[x = 0 .. pi] "
+           "exp x * sin x by parts twice) needs the goal to keep I while "
+           "its expansion is formed, i.e. an equation move ('have' or "
+           "'solve for I'); after two int_parts steps the remaining Int's "
+           "body is -(sin x)*exp x, a different atom to ring than exp x * "
+           "sin x. The owner's course needs it (unit 06, unit 19); it is "
+           "the next step's, not this one's. Also out: parts over an "
+           "infinite range (int_improper's) and symbolic-n recurrences "
+           "(unit 10 P3), which need an integer-parameter judgement.",
+    "E75": "The selector, scope and under-D steps are int_subst's with the "
+           "code prefix 'int-parts-': 'int-parts-no-integral', "
+           "'int-parts-wrong-variable', 'int-parts-ambiguous', "
+           "'int-parts-infinite-endpoint', 'int-parts-scope' (u and v may "
+           "mention the goal's free names, the enclosing Ints' binders and "
+           "var). No fresh variable is introduced, so there is no "
+           "not-fresh check.",
+}
+
+INT_PARTS_RULE = (
+    "Step 1, args: exactly INT_PARTS_ARGS plus optionally 'occurrence' (an "
+    "int >= 0); var names a variable; u and v are terms without ?A or oo; "
+    "check is ring or field and ring takes no facts. Else 'bad-args'.",
+    "Step 2, select: int_subst's step 2 on var (E48), codes per E75.",
+    "Step 3: a limit of the selected Int that is oo or -oo is "
+    "'int-parts-infinite-endpoint'; an Int or D in a limit is refused by "
+    "SECOND_REVIEW_RULE as in every step.",
+    "Step 4, scope: fv(u) and fv(v) are within the position's scope plus "
+    "{var}, else 'int-parts-scope' naming the part ('u' or 'v').",
+    "Step 5, under D: E48's test on the selected Int and u, v.",
+    "Step 6, orientation: P decided (E56_AMENDMENTS), then the old range by "
+    "_range at P, owing its order when its ends are not two literals; "
+    "neither order proved is 'orientation-undecided'. D = P + (range,).",
+    "Step 7, formers: u's, then v's, on D.",
+    "Step 8, derivatives: deriv(u, var, D), then deriv(v, var, D), each "
+    "emission owed.",
+    "Step 9, check: body == u * v' at D by `check`; failure is "
+    "'int-parts-check-failed' with the residual; success emits the "
+    "equation discharged (E72).",
+    "Step 10, premises: u in C^1 on D, then v in C^1 on D (E72).",
+    "Step 11, new term: (u[var := b]*v[var := b] - u[var := a]*v[var := a]) "
+    "- Int[var = a .. b] u' * v, limits as written, u' as deriv gave it; put "
+    "at the selected path; its formers charged at P; check_goal.",
+)
+
+REFUSAL_CODES_INT_PARTS = {
+    "int-parts-no-integral": "E75: no Int, or none at the occurrence",
+    "int-parts-wrong-variable": "E75: the selected Int does not bind var",
+    "int-parts-ambiguous": "E75: no occurrence and two Ints bind var",
+    "int-parts-infinite-endpoint": "E75: a limit is oo or -oo",
+    "int-parts-scope": "E75: u or v mentions a name not in scope",
+    "int-parts-check-failed": "E71: body is not u*v'. Carries the residual",
+}
+INT_PARTS_MESSAGES = {
+    "int-parts-check-failed": "the integrand is not u*v' for u := {u}, "
+                              "v := {v}",
+    "int-parts-infinite-endpoint": "int_parts needs finite limits, and "
+                                   "{limit} is not (int_improper is the "
+                                   "route)",
+    "int-parts-scope": "{part} {term} mentions {name}, which is not in scope",
+}
+SOURCES_INT_PARTS = {
+    "int_parts_integrand": "int_parts: the selected integrand == u*v', "
+                           "decided in-step (E71)",
+    "int_parts_u_C1": "int_parts premise: u in C^1 on the closed range (E72)",
+    "int_parts_v_C1": "int_parts premise: v in C^1 on the closed range (E72)",
+}
+
+# Accepted proofs: each step's goal as show() prints it is not fixed here
+# (the build prints deriv's output as it gives it); what is fixed is that
+# every step is accepted, the final report, and the theorem.
+INT_PARTS_PROOFS = {
+    "PARTS1": {
+        "goal": "Int[t = 0 .. pi/2] t*sin t == ?A",
+        "why": "readiness P1(1)'s parts route: t*sin t, u := t, v := -cos t",
+        "steps": [
+            ("int_parts", {"var": "t", "u": "t", "v": "-cos t",
+                           "check": "ring", "facts": []}),
+            ("ftc", {"F": "-sin t", "check": "ring", "facts": [],
+                     "occurrence": 0}),
+            ("rewrite", {"entry": "cos_pi_half", "inst": {},
+                         "at": "cos(pi/2)"}),
+            ("rewrite", {"entry": "cos_zero", "inst": {}, "at": "cos 0"}),
+            ("rewrite", {"entry": "sin_pi_half", "inst": {},
+                         "at": "sin(pi/2)"}),
+            ("rewrite", {"entry": "sin_zero", "inst": {}, "at": "sin 0"}),
+            ("close", {"value": "1", "check": "ring", "facts": []}),
+        ],
+        "report": "Proved.",
+        "theorem": "Int[t = 0 .. pi/2] t*sin t == 1",
+    },
+    "PARTS_REVERSED": {
+        "goal": "Int[t = pi/2 .. 0] t*sin t == ?A",
+        "why": "E71: reversed literal limits, kept as written",
+        "steps": "PARTS1's, with close's value -1",
+        "report": "Proved.",
+        "theorem": "Int[t = pi/2 .. 0] t*sin t == -1",
+    },
+    "PARTS_NESTED": {
+        "goal": "2*(Int[t = 0 .. pi/2] t*sin t) == ?A",
+        "why": "int_parts on an Int inside an expression, then ftc at "
+               "occurrence 0 (E73)",
+        "steps": "PARTS1's, with close's value 2",
+        "report": "Proved.",
+        "theorem": "2*(Int[t = 0 .. pi/2] t*sin t) == 2",
+    },
+    "PARTS_LN": {
+        "goal": "Int[x = 1 .. e_const] ln x == ?A",
+        "why": "u := ln x, v := x; its former x > 0 discharged on [1, e]; "
+               "ftc's check needs field, 1 == (1/x)*x at x # 0",
+        "steps": [
+            ("int_parts", {"var": "x", "u": "ln x", "v": "x",
+                           "check": "ring", "facts": []}),
+            ("ftc", {"F": "x", "check": "field", "facts": [],
+                     "occurrence": 0}),
+            ("rewrite", {"entry": "ln_e", "inst": {}, "at": "ln e_const"}),
+            ("rewrite", {"entry": "ln_one", "inst": {}, "at": "ln 1"}),
+            ("close", {"value": "1", "check": "ring", "facts": []}),
+        ],
+        "report": "Proved.",
+        "theorem": "Int[x = 1 .. e_const] ln x == 1",
+    },
+}
+
+# Refused moves: (goal, move, args, code). A residual is asserted non-zero
+# where the code carries one.
+INT_PARTS_BAD_MOVES = [
+    {"id": "parts_sign_lost", "goal": "Int[t = 0 .. pi/2] t*sin t == ?A",
+     "move": "int_parts", "args": {"var": "t", "u": "t", "v": "cos t",
+                                   "check": "ring", "facts": []},
+     "refusal": "int-parts-check-failed", "residual": True,
+     "why": "v' = -sin t: the sign the learner loses"},
+    {"id": "parts_no_integral", "goal": "1 + 1 == ?A",
+     "move": "int_parts", "args": {"var": "x", "u": "x", "v": "x",
+                                   "check": "ring", "facts": []},
+     "refusal": "int-parts-no-integral"},
+    {"id": "parts_wrong_variable", "goal": "Int[t = 0 .. 1] t == ?A",
+     "move": "int_parts", "args": {"var": "x", "u": "x", "v": "x",
+                                   "check": "ring", "facts": []},
+     "refusal": "int-parts-wrong-variable"},
+    {"id": "parts_infinite", "goal": "Int[x = 1 .. oo] x == ?A",
+     "move": "int_parts", "args": {"var": "x", "u": "x", "v": "x",
+                                   "check": "ring", "facts": []},
+     "refusal": "int-parts-infinite-endpoint"},
+    {"id": "parts_scope", "goal": "Int[x = 0 .. 1] x == ?A",
+     "move": "int_parts", "args": {"var": "x", "u": "y", "v": "x",
+                                   "check": "ring", "facts": []},
+     "refusal": "int-parts-scope"},
+    {"id": "parts_u_pole", "goal": "Int[x = -1 .. 1] x == ?A",
+     "move": "int_parts", "args": {"var": "x", "u": "1/x", "v": "x^3/3",
+                                   "check": "field", "facts": []},
+     "refusal": "obligation-decided-false",
+     "why": "E72, soundness: u*v' == x by field, but u's former x # 0 is "
+            "false at 0 inside [-1, 1]"},
+    {"id": "parts_u_not_C1_at_end", "goal": "Int[x = 0 .. 1] sqrt x == ?A",
+     "move": "int_parts", "args": {"var": "x", "u": "sqrt x", "v": "x",
+                                   "check": "ring", "facts": []},
+     "refusal": "obligation-decided-false",
+     "why": "E72: d_sqrt owes x > 0 on the closed [0, 1]; u' would make "
+            "the new integral improper at 0"},
+    {"id": "parts_ring_with_facts", "goal": "Int[t = 0 .. 1] t == ?A",
+     "move": "int_parts", "args": {"var": "t", "u": "t", "v": "t",
+                                   "check": "ring",
+                                   "facts": ["FACT"]},
+     "refusal": "bad-args", "why": "step 1; FACT is any minted handle"},
+    {"id": "parts_under_D", "goal": "D[y] (Int[x = 0 .. 1] x*y) == ?A",
+     "move": "int_parts", "args": {"var": "x", "u": "x*y", "v": "x",
+                                   "check": "ring", "facts": []},
+     "refusal": "rewrite-under-D-needs-open-domain", "why": "E48, step 5"},
+    {"id": "ftc_occurrence_none", "goal": "Int[t = 0 .. 1] t == ?A",
+     "move": "ftc", "args": {"F": "t^2/2", "check": "ring", "facts": [],
+                             "occurrence": 1},
+     "refusal": "ftc-no-integral", "why": "E73"},
+    {"id": "ftc_occurrence_under_D", "goal": "D[y] (Int[x = 0 .. 1] x*y) "
+                                             "== ?A",
+     "move": "ftc", "args": {"F": "x^2*y/2", "check": "ring", "facts": [],
+                             "occurrence": 0},
+     "refusal": "rewrite-under-D-needs-open-domain", "why": "E73, E48"},
+    {"id": "ftc_no_occurrence_unchanged", "goal": "2*(Int[t = 0 .. 1] t) "
+                                                  "== ?A",
+     "move": "ftc", "args": {"F": "t^2/2", "check": "ring", "facts": []},
+     "refusal": "ftc-no-integral", "why": "E73: without an occurrence, "
+                                          "ftc is unchanged"},
+]
+
+INT_PARTS_VERIFIED = (
+    "SymPy 1.14, 2026-09-25: Int(t*sin t, 0, pi/2) = 1, reversed = -1, "
+    "twice = 2; Int(ln x, 1, E) = 1; (t*(-cos t))|_0^{pi/2} - Int(-cos t, "
+    "0, pi/2) = 1.",
+)
+INT_PARTS_SWITCH = (
+    "At the build: MOVES gains 'int_parts'; the refusal codes and sources "
+    "merge into the suite's coverage; proof_of_life gains item 'P', which "
+    "drives INT_PARTS_PROOFS (each step accepted, report and theorem) and "
+    "INT_PARTS_BAD_MOVES (code, state unchanged, residual non-zero where "
+    "stated). Every earlier table is unchanged: ftc without an occurrence "
+    "behaves exactly as before.",
+)
