@@ -15362,3 +15362,336 @@ TRIG_NORM_REVIEW_CASES = [
                       "check": "field", "facts": []}),
      "refusal": "ftc-check-failed", "seconds": 3, "why": "E95"},
 ]
+
+# ---------------------------------------------------------------------------
+# 25. Order goals, taylor_lagrange and bound (Taylor spec 2026-09-25)
+#
+# The owner, 2026-09-25, chose readiness P3 as the sheet has it: Taylor's
+# theorem with the Lagrange remainder, gamma(b) = (1 - b^2)^(-1/2) =
+# 1 + b^2/2 + 3 b^4/8 + R(b) with (5/16) b^6 <= R(b) <= (5/16)(1 - b^2)^(-7/2)
+# b^6 on 0 <= b < 1 (part 1; P3.md's gap list). DESIGN.md §6.7 names
+# `taylor_lagrange` "remainder with an explicit xi-bound" and places it in
+# stage 2; this section builds the part of it P3 needs, and the three
+# things it rests on (P3.md G1-G4): a goal that is an order judgement, a
+# move that closes one, and C^k for k > 1. Part 2 (the decimal check at
+# b = 0.1, certified numbers) and part 3 (ln cos x with big_O) stay out
+# (E101). Specified before any code; SymPy-checked (TAYLOR_VERIFIED).
+
+TAYLOR_MOVE = "taylor_lagrange"
+TAYLOR_ARGS = ("bind", "f", "var", "lo", "hi", "at", "derivs", "side",
+               "sense", "check", "facts")
+BOUND_MOVE = "bound"
+BOUND_ARGS = ("check", "facts")
+TAYLOR_MAX_DERIVS = 16  # len(derivs) <= this; so C^k is asked for k <= 16
+
+DECISIONS_TAYLOR = {
+    "E96": "Order goals. install accepts a goal that is one order "
+           "judgement l REL r @ D, REL one of <=, <, >=, > (GRAMMAR §6), "
+           "besides the equation it accepted before; ?A stays an "
+           "equation's rhs only (D15), so an order goal has none. Its "
+           "hypotheses and both sides owe their formers exactly as an "
+           "equation's do (E6, E26, E64). On an order goal the moves are "
+           "rewrite (it replaces a subterm by one proved equal, which "
+           "preserves any relation; the Rel's op is kept), fact, "
+           "taylor_lagrange and bound. ftc, close, int_subst, int_flip, "
+           "int_parts and int_improper refuse 'goal-shape' there: each is "
+           "specified for an equation, and nothing in P3 needs them. bound "
+           "on an equation refuses 'goal-shape' too. A closed order goal's "
+           "theorem is the goal itself (the original, as installed: rewrite "
+           "only ever replaced equals by equals).",
+    "E97": "The rule taylor_lagrange (monotone form). Given a variable u "
+           "not free or bound in the goal, a function f of u, ends a (lo) "
+           "and c (hi) and a point p (at), all free of u, and terms D_1 .. "
+           "D_m (derivs, m >= 2) with n = m - 2, write D_0 = f and I = [a, "
+           "c). If, at every point of the goal's domain G: a <= p and p < "
+           "c; f in C^(n+2) on I; each D_k in C^0 on I (k = 1 .. n+1); "
+           "D[u] D_k == D_(k+1) on (a, c) (k = 0 .. n+1, by deriv and "
+           "`check`, as ftc's premise); and D_(n+2) >= 0 on (a, c) (sense "
+           "increasing) or <= 0 (sense decreasing); then with T = sum_(k = "
+           "0 .. n) D_k[u := a] (p - a)^k / k! and W = (p - a)^(n+1) / "
+           "(n+1)!: increasing gives D_(n+1)[u := a] W <= f[u := p] - T <= "
+           "D_(n+1)[u := p] W, and decreasing the same with a and p "
+           "swapped in the two bounds. side 'lower' mints the left "
+           "inequality, 'upper' the right, as a handle bound to `bind`, "
+           "like fact: its conclusion is that Rel with domain G. The goal "
+           "does not change. Soundness (§14 (A)): fix a point of G. On (a, "
+           "c) D_k = f^(k) for k <= n+2 by induction (the derivative of "
+           "f^(k) is D_(k+1) there); both are continuous on I (f is "
+           "C^(n+2) there, D_k by its C^0 premise), so they agree at a as "
+           "well. If p = a both sides of each inequality are 0. If p > a, "
+           "Taylor's theorem with the Lagrange remainder on [a, p] (f is "
+           "C^(n+1) on it and n+2 times differentiable inside) gives f(p) "
+           "- T = f^(n+1)(xi) W for some xi in (a, p); f^(n+2) >= 0 on (a, "
+           "c) makes f^(n+1) nondecreasing on [a, c) (mean value theorem, "
+           "continuity at a), so f^(n+1)(a) <= f^(n+1)(xi) <= f^(n+1)(p), "
+           "and W >= 0 because p >= a. Decreasing is the mirror image. "
+           "The rule takes an explicit monotone derivative rather than a "
+           "free xi: §6.7's 'explicit xi-bound' with the bound read off "
+           "the monotone (n+1)-th derivative at the two ends, which is "
+           "the course's own argument (P3's rung 2). A constant-bound form "
+           "(m <= D_(n+1) <= M on I) is recorded, not built (E101).",
+    "E98": "taylor_lagrange's emissions, in this order, each at the "
+           "domain named, with its source (SOURCES_TAYLOR): a <= p @ G "
+           "and p < c @ G; the formers of f and every D_k on G + (u in "
+           "I); Reg(f, n+2) on G + (u in I); Reg(D_k, 0) on G + (u in I), "
+           "k = 1 .. n+1; for k = 0 .. n+1, deriv's emissions for D[u] "
+           "D_k on G + (u in (a, c)), the check's divisors and its facts' "
+           "hypotheses there, and the premise D[u] D_k == D_(k+1) on that "
+           "domain, discharged by ('deriv+' + check, cites) as ftc's is; "
+           "D_(n+2) >= 0 (or <= 0) on G + (u in (a, c)); last the formers "
+           "of the conclusion's two sides at G (the values D_k[u := a], "
+           "D_(n+1)[u := p] and f[u := p] enter the proof there). Every "
+           "key goes through DISCHARGE_RULE, so a false premise refuses "
+           "the step and an undecided one is an admission, never silent. "
+           "The minted handle carries inst () and entry 'taylor_lagrange' "
+           "for tags; whoever uses it inherits G as its hypotheses, "
+           "discharged at the goal's domain by hyp.",
+    "E99": "The move bound closes an order goal from one order fact. Its "
+           "facts are handles; exactly one has an order conclusion c OP d "
+           "@ H ('bound-fact-shape' otherwise), and the others are "
+           "equations, passed to field as close passes them. Write the "
+           "goal as lo < hi or lo <= hi (> and >= read right to left) and "
+           "the fact as c' < d' or c' <= d' likewise. A strict goal needs "
+           "a strict fact ('bound-strictness'). The check proves hi - lo "
+           "== d' - c' at G by ring or field with the equation facts "
+           "(close's _check: its divisors at G, the facts' inst formers "
+           "and hypotheses at G), else 'bound-check-failed' with the "
+           "residual; H's items are emitted at G (source 'fact_hyp'). "
+           "Then the goal is closed and the theorem is the original goal. "
+           "Sound: where the divisors are nonzero hi - lo = d' - c' >= 0 "
+           "(> 0 for a strict fact), and the fact holds at every point of "
+           "G because its hypotheses do.",
+    "E100": "C^k for every k from 0 to TAYLOR_MAX_DERIVS (§6.9). A Reg's "
+            "class may be any such k; for k >= 1 every node's sides are "
+            "C^1's (REG_RULES: the interior of the natural-domain row, and "
+            "abs's u # 0). Sound (REG_SOUNDNESS extended): each builtin is "
+            "C^infinity, indeed analytic, on the interior of its natural "
+            "domain (abs away from 0), and sums, products, quotients with "
+            "a nonzero divisor, real powers with a positive base and "
+            "composition preserve C^k (the chain rule and Leibniz's rule "
+            "by induction on k). C^omega stays unbuilt: nothing asks for "
+            "it. search, tagger and the refuter read the class the same "
+            "way; E63's decided-false still reads the C^0 sides only.",
+    "E101": "Out of this step, recorded: the constant-bound form of "
+            "taylor_lagrange (m <= D_(n+1) <= M on I), which needs no "
+            "monotone derivative; expansion points to the right of p (p < "
+            "a); P3 part 2, whose decimal check needs certified numbers "
+            "(stage 2), and part 3, ln cos x = -x^2/2 - x^4/12 + O(x^6), "
+            "which needs big_O and composition of expansions (§6.7, stage "
+            "2); a bound with slack (hi - lo - (d' - c') >= 0 as an "
+            "obligation), chains of order facts, and the other moves on "
+            "order goals. P3's statement in b uses the rule at p = b^2: "
+            "the course's 'expand in u = b^2' (rung 1) is the `at` "
+            "argument, and I = [0, 1) keeps every premise free of b.",
+}
+
+REFUSAL_CODES_TAYLOR = {
+    "goal-shape": "E96: install on neither an equation nor an order "
+                  "judgement; a move not allowed on an order goal; bound "
+                  "on an equation",
+    "taylor-scope": "E97: u free or bound in the goal; f or a D_k "
+                    "mentioning a variable outside the goal's and u; lo, "
+                    "hi or at mentioning u or a variable outside the goal",
+    "taylor-check-failed": "E97: D[u] D_k is not D_(k+1). Carries the "
+                           "residual (ftc-check-failed's twin)",
+    "bound-fact-shape": "E99: not exactly one order fact among the facts",
+    "bound-strictness": "E99: a strict goal from a non-strict fact",
+    "bound-check-failed": "E99: hi - lo is not d' - c'. Carries the "
+                          "residual",
+}
+SOURCES_TAYLOR = {
+    "taylor_order": "a <= p and p < c at G (E98)",
+    "taylor_f_C": "premise: f in C^(n+2) on I (E98)",
+    "taylor_D_C0": "premise: D_k in C^0 on I (E98)",
+    "taylor_D": "premise: D[u] D_k == D_(k+1) on (a, c), decided in step",
+    "taylor_monotone": "premise: D_(n+2) >= 0 or <= 0 on (a, c) (E98)",
+}
+
+# The derivative forms P3's proofs use, rung 3's, with sqrt for the half
+# powers (P3.md G6: the grammar's ^ takes integers; a real power is RPow).
+_P3_F = "1/sqrt(1 - u)"
+_P3_DERIVS = ["1/(2*(1 - u)*sqrt(1 - u))", "3/(4*(1 - u)^2*sqrt(1 - u))",
+              "15/(8*(1 - u)^3*sqrt(1 - u))",
+              "105/(16*(1 - u)^4*sqrt(1 - u))"]
+_P3_TAYLOR = {"f": _P3_F, "var": "u", "lo": "0", "hi": "1", "at": "b^2",
+              "derivs": _P3_DERIVS, "sense": "increasing", "check": "field",
+              "facts": []}
+
+TAYLOR_PROOFS = {
+    "P3_LOWER": {
+        "goal": "5/16*b^6 <= 1/sqrt(1 - b^2) - (1 + b^2/2 + 3/8*b^4) "
+                "@ b in [0, 1)",
+        "steps": [("fact", {"entry": "sqrt_sq", "inst": {"u": "1"},
+                            "bind": "h1"}),
+                  ("taylor_lagrange", {**_P3_TAYLOR, "side": "lower",
+                                       "bind": "hl"}),
+                  ("bound", {"check": "field", "facts": [("handle", "hl"),
+                                                         ("handle", "h1")]})],
+        "report": "Proved."},
+    "P3_UPPER": {
+        "goal": "1/sqrt(1 - b^2) - (1 + b^2/2 + 3/8*b^4) <= "
+                "5/16*b^6/((1 - b^2)^3*sqrt(1 - b^2)) @ b in [0, 1)",
+        "steps": [("fact", {"entry": "sqrt_sq", "inst": {"u": "1"},
+                            "bind": "h1"}),
+                  ("taylor_lagrange", {**_P3_TAYLOR, "side": "upper",
+                                       "bind": "hu"}),
+                  ("bound", {"check": "field", "facts": [("handle", "hu"),
+                                                         ("handle", "h1")]})],
+        "report": "Proved."},
+    "EXP_ORDER_3": {  # STAGE0 S27
+        "goal": "x^4/24 <= exp x - (1 + x + x^2/2 + x^3/6) @ x in [0, 1]",
+        "steps": [("fact", {"entry": "exp_zero", "inst": {}, "bind": "h0"}),
+                  ("taylor_lagrange", {"f": "exp u", "var": "u", "lo": "0",
+                                       "hi": "2", "at": "x",
+                                       "derivs": ["exp u"] * 5,
+                                       "side": "lower",
+                                       "sense": "increasing", "check": "ring",
+                                       "facts": [], "bind": "h"}),
+                  ("bound", {"check": "field", "facts": [("handle", "h"),
+                                                         ("handle", "h0")]})],
+        "report": "Proved."},
+    "COS_DECREASING": {
+        "goal": "cos x - (1 - x^2/2) <= x^4/24 @ x in [0, 1]",
+        "steps": [("fact", {"entry": "cos_zero", "inst": {}, "bind": "h0"}),
+                  ("taylor_lagrange", {"f": "cos u", "var": "u", "lo": "0",
+                                       "hi": "2", "at": "x",
+                                       "derivs": ["-sin u", "-cos u",
+                                                  "sin u", "cos u",
+                                                  "-sin u"],
+                                       "side": "upper",
+                                       "sense": "decreasing", "check": "ring",
+                                       "facts": [], "bind": "h"}),
+                  ("bound", {"check": "field", "facts": [("handle", "h"),
+                                                         ("handle", "h0")]})],
+        "report": "Proved.",
+        "why": "decreasing: -sin u <= 0 on (0, 2) needs sin u >= 0 there "
+               "(sin_nonneg_on, 2 <= pi); upper reads D_4 at a = 0"},
+    "GE_GOAL": {  # the same bound written with >=
+        "goal": "exp x - (1 + x + x^2/2 + x^3/6) >= x^4/24 @ x in [0, 1]",
+        "steps": [("fact", {"entry": "exp_zero", "inst": {}, "bind": "h0"}),
+                  ("taylor_lagrange", {"f": "exp u", "var": "u", "lo": "0",
+                                       "hi": "2", "at": "x",
+                                       "derivs": ["exp u"] * 5,
+                                       "side": "lower",
+                                       "sense": "increasing", "check": "ring",
+                                       "facts": [], "bind": "h"}),
+                  ("bound", {"check": "field", "facts": [("handle", "h"),
+                                                         ("handle", "h0")]})],
+        "report": "Proved."},
+}
+
+_EXP5 = {"f": "exp u", "var": "u", "lo": "0", "hi": "2", "at": "x",
+         "derivs": ["exp u"] * 5, "side": "lower", "sense": "increasing",
+         "check": "ring", "facts": [], "bind": "h"}
+_EXP_GOAL = "x^4/24 <= exp x - (1 + x + x^2/2 + x^3/6) @ x in [0, 1]"
+
+TAYLOR_BAD_MOVES = [
+    {"id": "taylor_wrong_derivative", "goal": _EXP_GOAL,
+     "move": ("taylor_lagrange", {**_EXP5,
+                                  "derivs": ["exp u"] * 4 + ["2*exp u"]}),
+     "refusal": "taylor-check-failed", "residual": True},
+    {"id": "taylor_wrong_sense", "goal": _EXP_GOAL,
+     "move": ("taylor_lagrange", {**_EXP5, "sense": "decreasing"}),
+     "refusal": "obligation-decided-false",
+     "why": "E98: exp u <= 0 on (0, 2) is false"},
+    {"id": "taylor_point_outside", "goal": _EXP_GOAL,
+     "move": ("taylor_lagrange", {**_EXP5, "hi": "1/2"}),
+     "refusal": "obligation-decided-false",
+     "why": "E98: x < 1/2 fails at x = 1 in [0, 1]"},
+    {"id": "taylor_left_of_centre", "goal": _EXP_GOAL,
+     "move": ("taylor_lagrange", {**_EXP5, "lo": "1/2"}),
+     "refusal": "obligation-decided-false",
+     "why": "E98, E101: 1/2 <= x fails at x = 0; p < a is not built"},
+    {"id": "taylor_one_deriv", "goal": _EXP_GOAL,
+     "move": ("taylor_lagrange", {**_EXP5, "derivs": ["exp u"]}),
+     "refusal": "bad-args", "why": "E97: m >= 2"},
+    {"id": "taylor_var_in_goal", "goal": _EXP_GOAL,
+     "move": ("taylor_lagrange", {**_EXP5, "var": "x", "f": "exp x",
+                                  "derivs": ["exp x"] * 5}),
+     "refusal": "taylor-scope"},
+    {"id": "taylor_at_mentions_u", "goal": _EXP_GOAL,
+     "move": ("taylor_lagrange", {**_EXP5, "at": "u"}),
+     "refusal": "taylor-scope"},
+    {"id": "taylor_bad_side", "goal": _EXP_GOAL,
+     "move": ("taylor_lagrange", {**_EXP5, "side": "both"}),
+     "refusal": "bad-args"},
+    {"id": "taylor_pole_inside", "goal": "0 <= 1/(1 - x) - 1 @ x in [0, 1/2]",
+     "move": ("taylor_lagrange", {"f": "1/(1 - u)", "var": "u", "lo": "0",
+                                  "hi": "2", "at": "x",
+                                  "derivs": ["1/(1 - u)^2", "2/(1 - u)^3"],
+                                  "side": "lower", "sense": "increasing",
+                                  "check": "field", "facts": [],
+                                  "bind": "h"}),
+     "refusal": "obligation-decided-false",
+     "why": "E98, soundness: 1 - u # 0 fails at u = 1 in [0, 2)"},
+    {"id": "bound_on_equation", "goal": "1 + 1 == ?A",
+     "move": ("bound", {"check": "ring", "facts": []}),
+     "refusal": "goal-shape"},
+    {"id": "bound_no_order_fact", "goal": _EXP_GOAL,
+     "move": ("bound", {"check": "ring", "facts": []}),
+     "refusal": "bound-fact-shape"},
+    {"id": "ftc_on_order_goal", "goal": "Int[x = 0 .. 1] x <= 1",
+     "move": ("ftc", {"F": "x^2/2", "check": "ring", "facts": []}),
+     "refusal": "goal-shape"},
+    {"id": "close_on_order_goal", "goal": _EXP_GOAL,
+     "move": ("close", {"value": "1", "check": "ring", "facts": []}),
+     "refusal": "close-no-mvar"},
+    {"id": "install_equation_still", "goal": "x == 1 @ x > 0",
+     "install": True, "refusal": None,
+     "why": "E96: an equation with no ?A installs as before"},
+]
+
+# (setup steps after install, then the bound move) whose bound is refused
+TAYLOR_BOUND_CASES = [
+    {"id": "bound_strict_from_weak",
+     "goal": "x^4/24 < exp x - (1 + x + x^2/2 + x^3/6) @ x in [0, 1]",
+     "steps": [("fact", {"entry": "exp_zero", "inst": {}, "bind": "h0"}),
+               ("taylor_lagrange", {**_EXP5, "bind": "h"})],
+     "move": ("bound", {"check": "field", "facts": [("handle", "h"),
+                                                    ("handle", "h0")]}),
+     "refusal": "bound-strictness"},
+    {"id": "bound_wrong_goal",
+     "goal": "x^4/12 <= exp x - (1 + x + x^2/2 + x^3/6) @ x in [0, 1]",
+     "steps": [("fact", {"entry": "exp_zero", "inst": {}, "bind": "h0"}),
+               ("taylor_lagrange", {**_EXP5, "bind": "h"})],
+     "move": ("bound", {"check": "field", "facts": [("handle", "h"),
+                                                    ("handle", "h0")]}),
+     "refusal": "bound-check-failed", "residual": True},
+    {"id": "bound_two_order_facts", "goal": _EXP_GOAL,
+     "steps": [("taylor_lagrange", {**_EXP5, "bind": "h"}),
+               ("taylor_lagrange", {**_EXP5, "bind": "g"})],
+     "move": ("bound", {"check": "ring", "facts": [("handle", "h"),
+                                                   ("handle", "g")]}),
+     "refusal": "bound-fact-shape"},
+]
+
+# C^k beyond 1 through the regularity checker directly: (key, expected
+# status) with the key a GRAMMAR judgement.
+REG_CK_CASES = [
+    ("1/sqrt(1 - u) in C^4(u in [0, 1))", "discharged"),
+    ("exp u in C^16(u in [0, 2))", "discharged"),
+    ("abs u in C^2(u in (0, 1))", "discharged"),
+    ("sqrt u in C^3(u in [0, 1))", "admitted"),  # sqrt is C^1 only where u > 0
+    ("u in C^17(u in [0, 1])", "admitted"),  # beyond TAYLOR_MAX_DERIVS
+]
+
+TAYLOR_VERIFIED = (
+    "SymPy 1.14, 2026-09-25: the k-th derivative of (1 - u)^(-1/2) is "
+    "_P3_DERIVS[k-1] for k = 1 .. 4 (simplify of the difference is 0); at "
+    "b = 1/10, R = 3.15259e-7 lies between (5/16) 10^-6 = 3.12500e-7 and "
+    "(5/16) 10^-6 / 0.99^(7/2) = 3.23688e-7, the sheet's part 2; series("
+    "ln cos x) = -x^2/2 - x^4/12 + O(x^6), the sheet's part 3, which this "
+    "section does not build.",
+)
+TAYLOR_SWITCH = (
+    "At the build: MOVES gains 'taylor_lagrange' and 'bound' after "
+    "'int_improper'; install accepts order goals (E96); the regularity "
+    "checker, search and tagger accept k up to TAYLOR_MAX_DERIVS (E100); "
+    "the loader reads derivs (a list of term strings), side and sense, "
+    "accepts answer_schema 'none' for an order goal, and records a "
+    "taylor_lagrange step's handle as it records fact's; proof_of_life "
+    "item 'T' drives TAYLOR_PROOFS, TAYLOR_BAD_MOVES, TAYLOR_BOUND_CASES "
+    "and REG_CK_CASES; readiness P3 part 1 becomes two problem files, "
+    "problems/taylor/P3_LOWER.json and P3_UPPER.json, replaying to "
+    "'Proved.'. The app's script gains the two moves (app/SCRIPT.md).",
+)
