@@ -108,7 +108,11 @@ def main(argv=None):
     p = argparse.ArgumentParser(description="the calculus checker's API")
     p.add_argument("--port", type=int, default=8765)
     p.add_argument("-v", "--verbose", action="store_true")
+    p.add_argument("--work", default="calc-work",
+                   help="where work files are saved (PERSIST.md); "
+                        "relative to the current directory")
     a = p.parse_args(argv)
+    api.WORK_DIR = os.path.abspath(a.work)
     serve(a.port, a.verbose)
 
 

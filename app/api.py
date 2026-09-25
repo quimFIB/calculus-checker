@@ -15,12 +15,15 @@ import secrets
 import script
 import session as S
 import tex
+import work
 from assist import palette as PL
 from assist import probe, progress, recognizer, stuck
 from session import K, KERNEL, Refusal, loader
 from terms import Integral, Refused, parse_goal, parse_term, show, trees
 
 PROBLEMS = os.path.join(KERNEL, "problems")
+WORK_DIR = None  # PERSIST.md: server.py sets it; None saves nothing
+OWNER = {}  # PERSIST.md: key -> the id of the one session that may save it
 
 
 class ApiError(Exception):
@@ -213,20 +216,133 @@ def problems(_):
                          for p, title, st in _problem_files().values()]}
 
 
-def new_session(body):
+def _goal_of(body):
+    """(goal, sig, problem id) for a /session body: a problem's from its
+    own file, else the body's goal and functions."""
     if "problem" in body:
         pid = _field(body, "problem", str)
         files = _problem_files()
         if pid not in files:
             raise ApiError(400, "unknown-problem", f"no problem {pid!r}")
         p = files[pid][0]
+        return p.goal_text, p.sig, pid
+    return _field(body, "goal", str), _sig(body), None
+
+
+def new_session(body):
+    goal, sig, pid = _goal_of(body)
+    resume = _field(body, "resume", bool, optional=True) or False
+    k = work.key(pid, goal, sig)
+    sid = secrets.token_hex(8)
+    resumed, old, unreadable = None, None, False
+    if WORK_DIR:
+        try:
+            old = work.read(WORK_DIR, k)
+        except work.BadDocument as e:
+            _aside(k, "bad", move=True)
+            resumed = {"error": str(e)}
+        except OSError as e:
+            resumed = {"error": f"{type(e).__name__}: {e}"}
+            unreadable = True
+    if resume and old is not None:
+        sess, resumed = work.replay(old, sid, goal, sig, pid)
+    else:
+        sess = S.Session(sid, goal, sig, pid)
+        if old is not None:  # Start fresh: keep the old file, and its rung
+            _aside(k, "prev")
+            sess.max_rung = max(0, old.get("max_rung", 0))
+        if not resume:
+            resumed = None
+    if unreadable:  # never save over a file that could not be read
+        sess.key, SESSIONS[sess.id], OWNER[k] = k, sess, None
+        sess.saved = {"error": resumed["error"]}
+    else:
+        _own(sess, k)
+    return dict(render(sess, sess.root()), resumed=resumed, problem=pid,
+                key=k)
+
+
+def _own(sess, k):
+    """Register the session, make it the key's one writer (PERSIST.md,
+    ownership), and save at once, so a fresh start sticks."""
+    sess.key = k
+    SESSIONS[sess.id] = sess
+    OWNER[k] = sess.id
+    _save(sess)
+
+
+def _aside(k, suffix, move=False):
+    """PERSIST.md: keep the file about to be replaced (or unreadable)."""
+    if not WORK_DIR:
+        return
+    try:
+        if work.set_aside(WORK_DIR, k, suffix) and move:
+            os.unlink(work.path_of(WORK_DIR, k))
+    except OSError:
+        pass
+
+
+def _save(sess):
+    """Write the session's work file. Never fails the request: the outcome
+    is kept for /tree's `saved`."""
+    if not WORK_DIR:
+        return False
+    if OWNER.get(sess.key) != sess.id:
+        if OWNER.get(sess.key) is not None:
+            sess.saved = {"error": "superseded: this goal was opened "
+                                   "again, and the newer one is saved"}
+        return False
+    try:
+        f = work.write(WORK_DIR, sess.key, work.document(sess))
+        sess.saved = {"file": f, "at": work.document(sess)["saved"]}
+        return True
+    except (OSError, TypeError, ValueError) as e:
+        sess.saved = {"error": f"{type(e).__name__}: {e}"}
+        return False
+
+
+def save_script(body):
+    """PERSIST.md: the page's script and checked path, then a save."""
+    sess = _session(body)
+    text = _field(body, "script", str)
+    path = _field(body, "path", list)
+    if not path or path[0] != "n0" or not all(
+            isinstance(p, str) and p in sess.nodes for p in path):
+        raise _bad("path is a list of this session's node ids from n0")
+    sess.script, sess.path = text, list(path)
+    return {"saved": _save(sess)}
+
+
+def export(query):
+    return work.document(_session(query))
+
+
+def import_(body):
+    doc = _field(body, "document", dict)
+    try:
+        work.check(doc)
+    except work.BadDocument as e:
+        raise ApiError(400, "bad-document", str(e)) from None
+    pid = doc.get("problem")
+    if pid is not None:
+        files = _problem_files()
+        if pid not in files:
+            raise ApiError(400, "bad-document", f"no problem {pid!r}")
+        p = files[pid][0]
         goal, sig = p.goal_text, p.sig
     else:
-        goal, sig, pid = _field(body, "goal", str), _sig(body), None
-    sid = secrets.token_hex(8)
-    sess = S.Session(sid, goal, sig, pid)
-    SESSIONS[sid] = sess
-    return render(sess, sess.root())
+        fns = doc.get("functions", {})
+        if not all(isinstance(k, str) and type(v) is int and v > 0
+                   for k, v in fns.items()):
+            raise ApiError(400, "bad-document",
+                           "functions maps names to positive arities")
+        goal, sig = doc["goal"], fns
+    sess, resumed = work.replay(doc, secrets.token_hex(8), goal, sig, pid)
+    k = work.key(pid, goal, sig)
+    _aside(k, "prev")
+    _own(sess, k)
+    return dict(render(sess, sess.root()), resumed=resumed, problem=pid,
+                key=k)
 
 
 def step(body):
@@ -234,7 +350,9 @@ def step(body):
     at = _node(sess, body)
     move = _field(body, "move", str)
     args = _field(body, "args", dict)
-    return render(sess, _stepped(sess, at, move, args))
+    n = _stepped(sess, at, move, args)
+    _save(sess)
+    return render(sess, n)
 
 
 def tactic(body):
@@ -247,12 +365,16 @@ def tactic(body):
         r = Refusal("bad-tactic", str(e))
         _explain(r, sess, at, None, None)
         raise r from None
-    return render(sess, _stepped(sess, at, move, args))
+    n = _stepped(sess, at, move, args)
+    _save(sess)
+    return render(sess, n)
 
 
 def retract(body):
     sess = _session(body)
-    return render(sess, sess.retract(_node(sess, body).id))
+    n = sess.retract(_node(sess, body).id)
+    _save(sess)
+    return render(sess, n)
 
 
 def node(query):
@@ -264,6 +386,7 @@ def tree(query):
     sess = _session(query)
     return {"session": sess.id, "problem": sess.problem_id,
             "max_rung": getattr(sess, "max_rung", 0),
+            "saved": getattr(sess, "saved", None),
             "nodes": [{"node": n.id, "parent": n.parent, "move": n.move,
                        "report": K.report(n.state),
                        "retracted": n.retracted, "summary": _summary(n)}
@@ -310,6 +433,7 @@ def hint(query):
     if rung not in ("1", "2", "3"):
         raise _bad(f"rung is 1, 2, 3 or 4, not {rung!r}")
     sess.max_rung = max(getattr(sess, "max_rung", 0), int(rung))
+    _save(sess)
     goal = n.state.goal
     ints = [] if goal is None else [t for t in trees(goal)
                                     if isinstance(t, Integral)]
@@ -340,7 +464,10 @@ ROUTES = {("GET", "/problems"): problems,
           ("POST", "/parse"): parse,
           ("GET", "/moves"): moves,
           ("GET", "/hint"): hint,
-          ("GET", "/palette"): palette}
+          ("GET", "/palette"): palette,
+          ("POST", "/script"): save_script,
+          ("GET", "/export"): export,
+          ("POST", "/import"): import_}
 
 
 def handle(method, path, args):

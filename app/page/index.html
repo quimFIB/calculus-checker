@@ -101,6 +101,7 @@ td.key { font-family: var(--mono); word-break: break-word; }
 .msg.hint { border-style: dashed; }
 .msg.hint .cost { color: var(--muted); font-size: 12px; margin-top: 4px; }
 .msg .code { color: var(--bad); font-family: var(--mono); font-weight: 600; }
+#saved.unsaved, .unsaved { color: var(--bad); }
 .msg .residual { font-family: var(--mono); margin-top: 4px; word-break: break-word; }
 .stuck { margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--line); }
 .stuck .kind { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
@@ -139,6 +140,12 @@ details.card tr.match td { background: var(--sel); font-weight: 600; }
     <div class="row">
       <select id="problem-select" aria-label="Problem"></select>
       <button id="start-problem" class="primary">Start</button>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <button id="export" title="Download the whole attempt tree and script" disabled>Export</button>
+      <button id="import" title="Open an exported file; every step is re-checked">Import</button>
+      <button id="start-fresh" title="Start this goal again; the saved work is kept as .prev" disabled>Start fresh</button>
+      <input id="import-file" type="file" accept=".json,application/json" hidden>
     </div>
     <details>
       <summary>Your own goal</summary>
@@ -262,7 +269,9 @@ async function api(method, path, body) {
 
 // ---------------------------------------------------------------- sentences
 // SCRIPT.md: a sentence ends at a '.' followed by whitespace or the end,
-// outside comments, and never inside '..'.
+// outside comments, and never inside '..'. Whitespace is ASCII only, as in
+// script.next_sentence (PERSIST.md).
+const SPACE = /[ \t\n\r\f\v]/;
 function nextSentence(text, from) {
   let i = from, start = -1, depth = 0;
   while (i < text.length) {
@@ -272,9 +281,9 @@ function nextSentence(text, from) {
       i = j + 2; continue;
     }
     const c = text[i];
-    if (start < 0 && !/\s/.test(c)) start = i;
+    if (start < 0 && !SPACE.test(c)) start = i;
     if (c === "." && text[i - 1] !== "." && text[i + 1] !== "." &&
-        (i + 1 === text.length || /\s/.test(text[i + 1]))) {
+        (i + 1 === text.length || SPACE.test(text[i + 1]))) {
       return start < 0 ? null : { start, end: i + 1 };
     }
     i++;
@@ -331,6 +340,7 @@ async function stepNext() {
     }
     S.path.push(r.node); S.done.push(s); S.nodes[r.node] = r;
     paint(); showResponse(null, true, r);
+    await postScript();
     return true;
   } catch (e) {
     S.pending = null; paint(); showError(e); return false;
@@ -345,6 +355,7 @@ async function retractTo(k) {
   paint();
   try { await api("POST", "/retract", { session: S.session, node: victim }); }
   catch (e) { showError(e); }
+  await postScript();
 }
 
 async function run(job) {
@@ -519,7 +530,9 @@ function paintStatus() {
     el("b", { id: "status-report" }, n.report),
     ` · ${n.admissions} admission${n.admissions === 1 ? "" : "s"} · assisted · ` +
     `max rung ${S.maxRung ?? 0} · ${n.steps} rule${n.steps === 1 ? "" : "s"} · `,
-    el("b", {}, "0 machine-checked"));
+    el("b", {}, "0 machine-checked"),
+    S.saved ? el("span", { id: "saved", class: S.saved.error ? "unsaved" : "" },
+      S.saved.error ? ` · not saved: ${S.saved.error}` : " · saved") : "");
 }
 
 // ---------------------------------------------------------------- palette
@@ -554,7 +567,8 @@ async function showPalette(id) {
 // ---------------------------------------------------------------- attempts
 async function refreshTree() {
   if (!S.session) return;
-  const { nodes } = await api("GET", "/tree", { session: S.session });
+  const { nodes, saved } = await api("GET", "/tree", { session: S.session });
+  S.saved = saved; paintStatus();
   const kids = {};
   for (const n of nodes) (kids[n.parent] ??= []).push(n);
   const mark = (n) => n.retracted ? ["✗", "retracted"]
@@ -576,31 +590,91 @@ async function refreshTree() {
 }
 
 // ---------------------------------------------------------------- problems
-function storageKey() { return "calc-script:" + (S.problemId ?? "own:" + $("own-goal").value); }
+// PERSIST.md: the server keeps one work file per goal. The script and the
+// checked path are posted after each step and retraction, and 500 ms after
+// an edit; the tree itself is saved by the server on every change.
+let scriptTimer = null;
 function saveScript() {
-  try { localStorage.setItem(storageKey(), $("script").value); } catch (e) { /* private mode */ }
+  clearTimeout(scriptTimer);
+  scriptTimer = setTimeout(postScript, 500);
 }
-function loadScript() {
-  try { return localStorage.getItem(storageKey()) ?? ""; } catch (e) { return ""; }
+async function postScript() {
+  clearTimeout(scriptTimer);
+  if (!S.session) return;
+  try {
+    await api("POST", "/script", { session: S.session, script: $("script").value, path: S.path });
+  } catch (e) { /* the status line reports the last save */ }
 }
 
-async function start(body, title, statement, problemId) {
+// Mark the first `checked` sentences of the script done (resumed work).
+function restore(n) {
+  const r = n.resumed;
+  $("script").value = r.script;
+  for (const [start, end] of r.spans) S.done.push({ start, end });
+  S.path = r.path.slice(0, r.checked + 1);
+  S.maxRung = r.max_rung;
+  if (r.dropped.length)
+    return el("div", { class: "msg bad", id: "dropped" },
+      `${r.dropped.length} saved step${r.dropped.length === 1 ? "" : "s"} no longer check${r.dropped.length === 1 ? "s" : ""}:`,
+      el("ul", {}, ...r.dropped.map((d) => el("li", {}, `${d.node} ${d.move ?? ""}: `,
+        el("span", { class: "code" }, d.code), " " + d.message))));
+  return null;
+}
+
+async function start(body, title, statement, problemId, route = "/session") {
   try {
-    const n = await api("POST", "/session", body);
+    const n = await api("POST", route, body);
     if (n.refusal) return showResponse(n.refusal, false);
     Object.assign(S, { session: n.session, problemId, title, path: [n.node], done: [],
-                       error: null, pending: null, nodes: { [n.node]: n }, maxRung: 0 });
+                       error: null, pending: null, nodes: { [n.node]: n }, maxRung: 0,
+                       saved: null, again: { body, title, statement, problemId } });
     $("problem-info").replaceChildren(el("h3", {}, title),
       statement ? el("p", {}, statement) : "",
       el("label", {}, "Formal goal"), math(n.goal_tex, n.goal, "formal-goal"));
-    $("script").value = loadScript();
+    $("script").value = "";
+    let note = null;
+    if (n.resumed && n.resumed.error)
+      note = el("div", { class: "msg bad", id: "dropped" },
+        "The saved work could not be read and was set aside: " + n.resumed.error);
+    else if (n.resumed) note = restore(n);
     paint(); showResponse(null);
+    if (note) $("response").replaceChildren(note);
     setBusy(false);
+    $("export").disabled = $("start-fresh").disabled = false;
     await refreshTree();
-    await showNode(n.node);
+    await showNode(current());
     $("script").focus();
   } catch (e) { showError(e); }
 }
+
+$("export").onclick = async () => {
+  if (!S.session) return;
+  await postScript();
+  const doc = await api("GET", "/export", { session: S.session });
+  const name = (doc.problem ?? "own-goal").replace(/[^A-Za-z0-9._-]/g, "_") + ".calc.json";
+  const a = el("a", { href: URL.createObjectURL(new Blob([JSON.stringify(doc, null, 1)],
+    { type: "application/json" })), download: name });
+  document.body.append(a); a.click(); a.remove();
+};
+$("import").onclick = () => $("import-file").click();
+$("import-file").onchange = async () => {
+  const f = $("import-file").files[0];
+  $("import-file").value = "";
+  if (!f) return;
+  try {
+    const document_ = JSON.parse(await f.text());
+    const p = S.problems.find((q) => q.id === document_.problem);
+    await start({ document: document_ }, p ? p.title : "Imported goal",
+      p ? p.statement : null, p ? p.id : null, "/import");
+    if (S.session) S.again = { body: p ? { problem: p.id } : { goal: document_.goal,
+      functions: document_.functions ?? {} }, title: S.title, statement: p ? p.statement : null,
+      problemId: S.problemId };
+  } catch (e) { showError(e); }
+};
+$("start-fresh").onclick = () => {
+  const g = S.again;
+  if (g) start({ ...g.body, resume: false }, g.title, g.statement, g.problemId);
+};
 
 async function loadProblems() {
   const { problems } = await api("GET", "/problems");
@@ -609,7 +683,7 @@ async function loadProblems() {
 }
 $("start-problem").onclick = () => {
   const p = S.problems.find((q) => q.id === $("problem-select").value);
-  if (p) start({ problem: p.id }, p.title, p.statement, p.id);
+  if (p) start({ problem: p.id, resume: true }, p.title, p.statement, p.id);
 };
 $("start-own").onclick = () => {
   const functions = {};
@@ -617,7 +691,7 @@ $("start-own").onclick = () => {
     const [name, arity] = part.split("/");
     functions[name.trim()] = parseInt(arity, 10);
   }
-  start({ goal: $("own-goal").value, functions }, "Your own goal", null, null);
+  start({ goal: $("own-goal").value, functions, resume: true }, "Your own goal", null, null);
 };
 
 let echoTimer = null;

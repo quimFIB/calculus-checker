@@ -133,6 +133,8 @@ class Routes(Api):
 
     def test_node_route(self):
         n = self.s1()
+        for k in ("resumed", "problem", "key"):  # /session's own (PERSIST.md)
+            n.pop(k)
         self.assertEqual(self.call("GET", "/node", {"session": n["session"],
                                                     "node": "n0"}), n)
 

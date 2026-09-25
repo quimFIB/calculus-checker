@@ -9,6 +9,7 @@ COS_SQ with To cursor.
 
 import os
 import sys
+import tempfile
 import threading
 import unittest
 
@@ -46,6 +47,7 @@ class Page(unittest.TestCase):
         cls.srv.server_close()
 
     def setUp(self):
+        server.api.WORK_DIR = tempfile.mkdtemp()  # PERSIST.md: per test
         self.page = self.browser.new_page()
         self.errors = []
         self.page.on("pageerror", lambda e: self.errors.append(str(e)))
@@ -122,6 +124,39 @@ class Page(unittest.TestCase):
         self.assertNotIn("ftc 2*x^3", p.input_value("#script"))
         p.click("#next")
         p.wait_for_selector(".node.current[data-node='n1']")
+
+    def test_work_survives_a_reload_and_round_trips(self):
+        """PERSIST.md: step S1 halfway, reload, start S1 again: the script
+        and checked region come back and the next step closes it. Export
+        then Import gives the same tree."""
+        p = self.page
+        self.start()
+        self.type_script("ftc x^3 + x^2 by ring.\nclose 2.\n")
+        p.click("#next")
+        p.wait_for_selector(".node.current[data-node='n1']")
+        p.wait_for_selector("#saved")
+        p.reload()
+        p.wait_for_selector("#problem-select option[value='stage0.S1']",
+                            state="attached")
+        p.select_option("#problem-select", "stage0.S1")
+        p.click("#start-problem")
+        p.wait_for_selector(".node.current[data-node='n1']")
+        self.assertEqual(p.input_value("#script"),
+                         "ftc x^3 + x^2 by ring.\nclose 2.\n")
+        self.assertEqual(p.inner_text("#backdrop mark.checked"),
+                         "ftc x^3 + x^2 by ring.")
+        with p.expect_download() as dl:
+            p.click("#export")
+        path = dl.value.path()
+        self.assertEqual(dl.value.suggested_filename, "stage0.S1.calc.json")
+        p.click("#next")
+        p.wait_for_selector(".node.current[data-node='n2']")
+        self.assertEqual(self.report(), "Proved.")
+        p.set_input_files("#import-file", path)
+        p.wait_for_selector(".node.current[data-node='n1']")
+        self.assertEqual(self.nodes(), 2)
+        self.assertEqual(p.inner_text("#backdrop mark.checked"),
+                         "ftc x^3 + x^2 by ring.")
 
     def test_undo_keeps_the_node(self):
         p = self.page

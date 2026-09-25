@@ -8,3 +8,4 @@ __pycache__/
 # name the LINK and carry no trailing slash: `/dev-docs/` matches directories
 # only, a symlink is not one, and the rule silently stops matching.
 /dev-docs
+calc-work/

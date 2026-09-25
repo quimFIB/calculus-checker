@@ -62,6 +62,10 @@ similar to rocq-mode". The first cut's move form is replaced by a script
   the last refusal (code, message, residual, and STUCK.md's kind of
   stuck with a "Use this" button when there is a suggestion, which puts
   it in place of the refused sentence) or the last success.
+- **Saved work** (PERSIST.md). Starting a goal resumes its work file:
+  the script, the checked sentences and the tree come back, re-checked.
+  Export, Import and Start fresh sit under the problem picker; the status
+  line says `saved` or why not.
 - **Status line.** The report, `check mode`, and `0 machine-checked`.
 
 Stepping, as Proof General's keys:

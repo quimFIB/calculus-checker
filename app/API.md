@@ -93,6 +93,9 @@ POST /tactic   {session, node, text}   -> the new node | refusal    (SCRIPT.md)
 GET  /hint     ?session&node&rung      -> {rung, integral, row, text, cost} | refusal
                                             (assist/RECOGNIZER.md)
 GET  /palette  ?session&node           -> {moves, rewrites, card}   (UI.md §2)
+POST /script   {session, script, path} -> {saved: bool}             (PERSIST.md)
+GET  /export   ?session                -> the session's work file   (PERSIST.md)
+POST /import   {document}              -> node n0 with resumed      (PERSIST.md)
 ```
 
 - **`/problems`** lists every `*.json` under `kernel/problems/` that
@@ -127,12 +130,19 @@ GET  /palette  ?session&node           -> {moves, rewrites, card}   (UI.md §2)
   antiderivative card with its matching rows marked. `/parse`'s `katex`
   is now the term's TeX (UI.md §1), and `/tree` carries the session's
   `max_rung`, which `/hint` records.
+- **Persistence** is PERSIST.md: with `./calc --work DIR` (default
+  `calc-work`), every change to a session is saved as a work file of moves,
+  never of verdicts. `/session` takes `resume: true` to replay the saved
+  file (the response gains `resumed`); `/script` records the page's script
+  and checked path; `/export` and `/import` move a work file in and out,
+  re-checked on import. `/tree` gains `saved`.
 
 API-local refusal codes: `unknown-handle`, `retract-root`, `not-built`,
 `no-integral`, `no-row` (RECOGNIZER.md),
 `bad-tactic` (SCRIPT.md).
 Error codes: `bad-json`, `bad-request`, `unknown-route`, `unknown-session`,
-`unknown-node`, `unknown-problem`, `kernel-error`.
+`unknown-node`, `unknown-problem`, `bad-document` (PERSIST.md),
+`kernel-error`.
 
 ## Deliberately not in this cut
 
@@ -141,7 +151,6 @@ Error codes: `bad-json`, `bad-request`, `unknown-route`, `unknown-session`,
   The kernel's own bounds (`power-too-large`, ARCHITECTURE.md §6) are what
   stops a runaway step today.
 - **Progress and probe** on `/step` (§8.5, §8.6): they need the recognizer.
-- **Persistence and export** of trees (§16.4).
 - **KaTeX**, above.
 - **Remote access.** The server binds `127.0.0.1` only.
 

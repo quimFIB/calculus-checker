@@ -124,8 +124,7 @@ rewrites that match up to ring as ready sentences, inserted at the
 cursor), the antiderivative card with matching rows marked, the progress
 signal after each step, the `~` speculative probe (floating-point
 Gauss–Kronrod, never evidence), and §16.4's status line (admissions, max
-rung, rules, `0 machine-checked`). Not yet: rung 4, per-step timeout,
-persistence and export, the factoriser.
+rung, rules, `0 machine-checked`). Not yet: rung 4, per-step timeout, the factoriser.
 `app/test_page.py` drives it in a headless browser when Playwright is
 installed.
 
@@ -154,8 +153,15 @@ two diverge). Every suggestion is run through the kernel from the same
 node before it is shown, and the page's "Use this" puts it in place of
 the refused sentence. A step that admits an obligation says so.
 
-**Next,** per §17: what remains of stage 1's lists: persistence and
-export, the per-step timeout, the
+**Work is saved** (`app/PERSIST.md`, §16.4, 2026-09-25, spec reviewed
+by a skeptic first): every change is written to `calc-work/<problem>.json`
+(`./calc --work DIR` to move it) as moves and the script, never verdicts,
+and starting the goal again replays it through the kernel. Steps that no
+longer check are dropped and listed. Export and Import move the whole
+tree, dead ends included.
+
+**Next,** per §17: what remains of stage 1's lists: the per-step
+timeout, the
 factoriser and partial-fraction solver, and recognizer version 2 (row 1's
 `trig_norm` clause) with a fresh held-out set. Then §17's gate: use it on
 readiness P1, P3 and P5 in the loop.

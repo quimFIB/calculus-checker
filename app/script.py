@@ -245,3 +245,50 @@ def show(move, args):
     else:
         raise ValueError(f"no tactic form for {move!r}")
     return s + "."
+
+
+# ---------------------------------------------------------------- splitting
+
+# the whitespace both splitters use: ASCII only, so that Python's isspace
+# and JavaScript's \s cannot disagree (PERSIST.md)
+SPACE = " \t\n\r\f\v"
+
+
+def next_sentence(text, start_at=0):
+    """The page's nextSentence, ported (PERSIST.md): (start, end) of the
+    first sentence at or after start_at, or None. A sentence ends at a '.'
+    followed by whitespace or the end, outside (* *) comments, never inside
+    '..'; start is its first character outside a comment."""
+    i, start = start_at, -1
+    while i < len(text):
+        if text.startswith("(*", i):
+            j = text.find("*)", i + 2)
+            if j < 0:
+                return None
+            i = j + 2
+            continue
+        c = text[i]
+        if start < 0 and c not in SPACE:
+            start = i
+        if (c == "." and (i == 0 or text[i - 1] != ".")
+                and text[i + 1:i + 2] != "."
+                and (i + 1 == len(text) or text[i + 1] in SPACE)):
+            return None if start < 0 else (start, i + 1)
+        i += 1
+    return None
+
+
+def spans(text):
+    """(start, end) of every complete sentence of a script, in order."""
+    out, at = [], 0
+    while True:
+        s = next_sentence(text, at)
+        if s is None:
+            return out
+        out.append(s)
+        at = s[1]
+
+
+def sentences(text):
+    """Every complete sentence of a script, as its text, in order."""
+    return [text[a:b] for a, b in spans(text)]

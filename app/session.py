@@ -59,6 +59,7 @@ class Session:
         if isinstance(st, K.Refusal):
             raise Refusal.of(st)
         self.id, self.sig, self.problem_id = id, dict(sig), problem_id
+        self.goal_text = goal_text
         self._ids = itertools.count()
         self.nodes = {}  # insertion-ordered: parents before children
         self._add(None, st, "install", {}, {})
