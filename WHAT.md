@@ -9,7 +9,7 @@ A design, two spikes, and **a complete stage-1 headless kernel** that proves
 readiness P1 from the sheet's own goal and stage 0's S1–S3 as plain
 `Proved.`, with every obligation discharged by a checked certificate
 (`kernel/`, 2026-09-23 to 2026-09-25). The tool a learner would use is not
-built yet: there is no API, UI or assistance tier.
+built yet: there is a JSON API (`app/`), but no UI or assistance tier.
 Design 2026-09-20, stage 0b first pass 2026-09-21, decoupling pass and stage 0
 first pass 2026-09-22, the stage 0c `ring`/`field` spike (`spike/ring/`) and a
 recognizer spike (`spike/recognizer/`) 2026-09-23, the proof-of-life kernel
@@ -92,11 +92,18 @@ derivatives owe their own definedness.
 - `trig_norm`;
 - Sturm sequences, for exact sign decisions on irrational poles.
 
-**Next, when the owner resumes it,** per §17: the in-process `step` becomes
-§16.3's JSON API. Then comes the recognizer table, scored on a held-out set
-(revision 8), then the UI. A thin check-mode page over the API would give a
-usable tool before the assistance layer exists. The work stops here until
-the owner picks it up.
+**The JSON API is up** (`app/API.md`, 2026-09-25): `./calc` serves §16.3's
+routes on 127.0.0.1, over the attempt tree, with `/hint` and `/palette`
+refusing `not-built`. `python3 -m unittest discover -s app` replays every
+problem file through it against the loader.
+
+**Next,** per §17: a thin check-mode page over the API, which gives a
+usable tool before the assistance layer exists. Then the recognizer table,
+scored on a held-out set (revision 8), then the full UI.
+
+**Python version:** the suite passes 882 of 882 on Python 3.12 and 3.13.
+On 3.11 five deep-term checks fail with `RecursionError` in dataclass
+`__eq__`, so 3.12 is the floor in practice.
 
 **Pushing:** commits land locally. Push to `origin`
 (`github.com/quimFIB/calculus-checker`) only with the owner's explicit
@@ -225,6 +232,14 @@ approval, each time.
     - **Review:** a skeptic found no false `Proved`. Its findings are fixed:
       a crash on deep certificates, a test gap where a soundness mutation
       survived, and a parser crash on very deep nesting.
+
+11. **§16.3's JSON API — done 2026-09-25.** Spec first (`app/API.md`), then
+    `app/`: the attempt tree (`session.py`, forks and retraction that keeps
+    what it retracts, fact handles scoped to their path), the routes
+    (`api.py`) and a localhost `http.server` (`server.py`). All untrusted:
+    no proof state crosses the API, and every verdict is `kernel.report`'s.
+    Not in this cut: the per-step timeout, progress and probe, persistence,
+    and KaTeX (`/parse` returns the plain echo).
 
 **Stage 0b is closed** (2026-09-21 and 2026-09-22; setup and notes in
 `_scratch/holpy-trial/` — outside this tool, and a dangling pointer if it is ever published; findings in §4.2). Its verdict: reimplement the core

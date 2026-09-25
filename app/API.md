@@ -35,8 +35,8 @@ Standard library only (§16.2): `json`, `http.server`, `secrets`.
   `{"refusal": {"code", "message", "residual"}}`, `residual` a term string or
   `null`. Codes are the kernel's own (ARCHITECTURE.md §6, GRAMMAR.md §1),
   plus the API's, below.
-- A malformed request (bad JSON, unknown route, missing or mistyped field,
-  unknown session or node) is a **400** with `{"error": {"code", "message"}}`.
+- An unknown route is a **404**. A malformed request (bad JSON, missing or
+  mistyped field, unknown session, node or problem) is a **400**, with `{"error": {"code", "message"}}`.
 - An exception from the kernel that is not a refusal is a kernel bug (E21):
   **500** with `{"error": {"code": "kernel-error", "message"}}`, and the
   session is left as it was.
@@ -57,6 +57,7 @@ Every route that lands on a node returns this shape:
                      "reason", "new" } ... ]
   "occurrences": int | null                  -- rewrite (E2)
   "handles": [str]                           -- fact binds usable here
+  "retracted": bool
 }
 ```
 
