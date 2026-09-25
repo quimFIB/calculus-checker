@@ -1,0 +1,251 @@
+{
+ "made": "2026-09-25",
+ "source": "mechanics-to-relativity units 11-29",
+ "rule": "held out: never used to write or tune a row; scored once per table version",
+ "entries": [
+  {
+   "id": "U11-P8a",
+   "x": "r",
+   "integrand": "c/(r*sqrt(r^2 - c^2))",
+   "technique": "trig substitution",
+   "source": "units/11-calculus-of-variations/problems.html P8, rung 3 and worked solution part 4: 'yields to r = c sec t' ... 'With r = c sec t ... sqrt(r^2-c^2) = c tan t'"
+  },
+  {
+   "id": "U11-P11a",
+   "x": "t",
+   "integrand": "t^2",
+   "technique": "standard",
+   "source": "units/11-calculus-of-variations/problems.html P11, worked solution: 'int z_n^2 = 2 int_0^{1/(2n)} t^2 dt = 1/(12n^3)'"
+  },
+  {
+   "id": "U15-P1a",
+   "x": "s",
+   "integrand": "m*(v0 - g*s)^2/2",
+   "technique": "standard",
+   "source": "units/15-hamilton-jacobi/problems.html P1, worked solution part 2: 'the terms are polynomials in s' ... 'int_0^t 1/2 m qdot^2 ds = 1/2 m(v0^2 t - v0 g t^2 + 1/3 g^2 t^3)'"
+  },
+  {
+   "id": "U15-P4a",
+   "x": "r",
+   "integrand": "sqrt(2*m*E - L^2/r^2 - m^2*omega^2*r^2)",
+   "technique": "other",
+   "also": [
+    "chain-rule substitution"
+   ],
+   "other": "substitution s = r^2 reducing to a quoted lemma",
+   "source": "units/15-hamilton-jacobi/problems.html P4, statement and rung 2: '(Substitute s = r^2.)' ... 'With s = r^2, dr = ds/2sqrt s ... Then quote the radial lemma.'"
+  },
+  {
+   "id": "U16-P1a",
+   "x": "phi",
+   "integrand": "cos(phi)*sin(phi)",
+   "technique": "identity first",
+   "source": "units/16-rigid-bodies-tensors/problems.html P1, worked solution part 1: 'int_0^{2pi} cos phi sin phi dphi = 1/2 int_0^{2pi} sin 2phi = 0'"
+  },
+  {
+   "id": "U16-P1b",
+   "x": "s",
+   "integrand": "s^3",
+   "technique": "standard",
+   "source": "units/16-rigid-bodies-tensors/problems.html P1, worked solution part 2: 'int_0^R s^3 ds' giving 'rho h pi R^4/4'"
+  },
+  {
+   "id": "U17-P6a",
+   "x": "x",
+   "integrand": "ln(cos x)",
+   "technique": "other",
+   "also": [
+    "identity first"
+   ],
+   "other": "symmetry x -> pi/2 - x and add",
+   "source": "units/17-chaos/problems.html P6, rung 1-2: 'a classical one with a two-line symmetry trick' ... 'By x -> pi/2 - x it also equals int ln sin x. Add the two expressions and use sin x cos x = 1/2 sin 2x'"
+  },
+  {
+   "id": "U17-P6b",
+   "x": "x",
+   "integrand": "ln(sin(2*x))",
+   "technique": "chain-rule substitution",
+   "also": [
+    "other"
+   ],
+   "source": "units/17-chaos/problems.html P6, rung 2-3: 'The substitution u = 2x then returns you to I itself' ... 'put u = 2x and use the symmetry of ln sin u about u = pi/2'"
+  },
+  {
+   "id": "U18-P8a",
+   "x": "s",
+   "integrand": "sqrt s",
+   "technique": "standard",
+   "source": "units/18-wave-equation/problems.html P8, worked solution: '-int sqrt s ds = +-int dx  =>  -2/3 s^{3/2} = +-x + C'"
+  },
+  {
+   "id": "U19-P1a",
+   "x": "x",
+   "integrand": "x*sin(n*pi*x/L)",
+   "technique": "parts",
+   "source": "units/19-fourier-sturm-liouville/problems.html P1, rung 3: 'integrated by parts with u = x and dv = sin(n pi x/L) dx'"
+  },
+  {
+   "id": "U19-P1b",
+   "x": "x",
+   "integrand": "x*cos(k*x)",
+   "technique": "parts",
+   "source": "units/19-fourier-sturm-liouville/problems.html P1, worked solution part 1 (Cosine): 'a_n = 2/L int_0^L x cos k_n x dx = 2/L([x/k_n sin k_n x]_0^L - 1/k_n int_0^L sin k_n x dx)'"
+  },
+  {
+   "id": "U19-P1c",
+   "x": "x",
+   "integrand": "cos(n*pi*x/L)",
+   "technique": "standard",
+   "source": "units/19-fourier-sturm-liouville/problems.html P1, rung 3: 'the surviving term is the boundary one, because int_0^L cos(n pi x/L) dx = 0'"
+  },
+  {
+   "id": "U19-P3a",
+   "x": "x",
+   "integrand": "(L - x)*sin(k*x)",
+   "technique": "parts",
+   "also": [
+    "chain-rule substitution"
+   ],
+   "source": "units/19-fourier-sturm-liouville/problems.html P3, worked solution: 'one integration by parts separates the two' ... 'On the second, substituting s = L - x ... int_a^L (L-x) sin k_n x dx = ...'"
+  },
+  {
+   "id": "U19-P8a",
+   "x": "r",
+   "integrand": "1/r",
+   "technique": "log",
+   "source": "units/19-fourier-sturm-liouville/problems.html P8, worked solution part 1: 'exp int(B/A) dr = exp int dr/r = r = p'"
+  },
+  {
+   "id": "U19-P11a",
+   "x": "x",
+   "integrand": "(1 + x)*sin(pi*x)*sin(2*pi*x)",
+   "technique": "identity first",
+   "also": [
+    "parts"
+   ],
+   "source": "units/19-fourier-sturm-liouville/problems.html P11, rung 3: 'The cross integral: sin pi x sin 2pi x = 1/2[cos pi x - cos 3pi x]'"
+  },
+  {
+   "id": "U19-P11b",
+   "x": "x",
+   "integrand": "cos(pi*x)*cos(2*pi*x)",
+   "technique": "identity first",
+   "also": [
+    "orthogonality"
+   ],
+   "source": "units/19-fourier-sturm-liouville/problems.html P11, worked solution part 2: 'int_0^1 cos pi x cos 2pi x = 1/2 int_0^1[cos pi x + cos 3pi x] = 0'; rung 4: 'the cross term vanishing by orthogonality of the cosines'"
+  },
+  {
+   "id": "U19-P12a",
+   "x": "x",
+   "integrand": "sin(x)*sin(2*n*x)",
+   "technique": "identity first",
+   "source": "units/19-fourier-sturm-liouville/problems.html P12, rung 2: 'sin A sin B = 1/2[cos(A-B) - cos(A+B)], and int_0^pi cos(mx) dx = sin(m pi)/m'"
+  },
+  {
+   "id": "U19-P12b",
+   "x": "x",
+   "integrand": "sin(2*m*x)*sin(2*n*x)",
+   "technique": "identity first",
+   "also": [
+    "orthogonality"
+   ],
+   "source": "units/19-fourier-sturm-liouville/problems.html P12, worked solution part 1: 'int_0^pi sin 2mx sin 2nx dx = 1/2 int_0^pi [cos 2(m-n)x - cos 2(m+n)x] dx'"
+  },
+  {
+   "id": "U20-P1a",
+   "x": "t",
+   "integrand": "exp(-c*t)",
+   "technique": "standard",
+   "source": "units/20-fourier-transform-complex/problems.html P1, rung 2: 'Split f_1's integral at 0 and use int_0^inf e^{-ct} dt = 1/c'"
+  },
+  {
+   "id": "U20-P1b",
+   "x": "omega",
+   "integrand": "2*a/(a^2 + omega^2)",
+   "technique": "standard",
+   "source": "units/20-fourier-transform-complex/problems.html P1, worked solution part 2: '1/2pi int 2a domega/(a^2+omega^2) = a/pi * 1/a [arctan omega/a]'"
+  },
+  {
+   "id": "U20-P1c",
+   "x": "x",
+   "integrand": "(sin x)^2/x^2",
+   "technique": "identity first",
+   "also": [
+    "parts"
+   ],
+   "source": "units/20-fourier-transform-complex/problems.html P1, 'Another way': 'int sin^2x/x^2 = int (1 - cos 2x)/(2x^2); integrate by parts once to get int sin 2x/x dx = pi'"
+  },
+  {
+   "id": "U20-P2a",
+   "x": "t",
+   "integrand": "t*exp(-gamma*t)*(sin(omega*t))^2",
+   "technique": "identity first",
+   "source": "units/20-fourier-transform-complex/problems.html P2, worked solution 'Derivation of Delta t^2': 'Write G^2 = e^{-gamma t}/(2 omega_d^2)(1 - cos 2 omega_d t) and use int t^n e^{-gamma t} dt = n!/gamma^{n+1}' (moments m_n = int t^n G^2, G = e^{-gamma t/2} sin(omega_d t)/omega_d)"
+  },
+  {
+   "id": "U20-P6a",
+   "x": "u",
+   "integrand": "cos(u)/(2*sqrt u)",
+   "technique": "parts",
+   "source": "units/20-fourier-transform-complex/problems.html P6, worked solution part 1: 'With u = x^2, int cos(x^2) dx = int cos u/(2 sqrt u) du = [sin u/(2 sqrt u)] + int sin u/(4u^{3/2}) du'"
+  },
+  {
+   "id": "U20-P8a",
+   "x": "x",
+   "integrand": "1/(sqrt(x)*(1 + x))",
+   "technique": "root substitution",
+   "source": "units/20-fourier-transform-complex/problems.html P8, worked solution 'Check a = 1/2': 'x = u^2: int_0^inf u^{-1} 2u du/(1+u^2) = 2 pi/2 = pi'"
+  },
+  {
+   "id": "U20-P8b",
+   "x": "u",
+   "integrand": "2/(1 + u^2)",
+   "technique": "standard",
+   "source": "units/20-fourier-transform-complex/problems.html P8, worked solution 'Check a = 1/2': 'int_0^inf u^{-1} 2u du/(1+u^2) = 2 * pi/2 = pi'"
+  },
+  {
+   "id": "U21-P6a",
+   "x": "u",
+   "integrand": "exp(-1/u)/u",
+   "technique": "other",
+   "other": "substitution 1/u = 1/x + t (to a Stieltjes integral)",
+   "source": "units/21-asymptotics/problems.html P6, rung 2: 'To recognise int_0^x e^{-1/u} u^{-1} du, substitute 1/u = 1/x + t'"
+  },
+  {
+   "id": "U21-P11a",
+   "x": "s",
+   "integrand": "lambda*(1 + s)",
+   "technique": "standard",
+   "source": "units/21-asymptotics/problems.html P11, rung 3: 'Phi(x) = lambda int_0^x (1+s) ds = lambda(x + 1/2 x^2)'"
+  },
+  {
+   "id": "U23-P2a",
+   "x": "rho",
+   "integrand": "rho/(rho^2 + d^2)^(3/2)",
+   "technique": "chain-rule substitution",
+   "source": "units/23-static-fields/problems.html P2, worked solution part 2: '-qd int_0^inf rho drho/(rho^2+d^2)^{3/2} = -qd[-1/sqrt(rho^2+d^2)]_0^inf'"
+  },
+  {
+   "id": "U23-P5a",
+   "x": "x",
+   "integrand": "(5*x^3 - 3*x)/2",
+   "technique": "standard",
+   "source": "units/23-static-fields/problems.html P5, rung 3: 'V_3 = 7V_0 int_0^1 1/2(5x^3 - 3x) dx = 7V_0(5/8 - 3/4)'"
+  },
+  {
+   "id": "U26-P11a",
+   "x": "beta",
+   "integrand": "sqrt(1 - beta^2)",
+   "technique": "trig substitution",
+   "source": "units/26-minkowski/problems.html P11, rung 1: 'one needs a trigonometric substitution'; worked solution: '(The antiderivative by beta = sin s: int cos^2 s ds = 1/2(s + sin s cos s).)'"
+  },
+  {
+   "id": "U26-P11b",
+   "x": "t",
+   "integrand": "l/sqrt(l^2 + c^2*t^2)",
+   "technique": "hyperbolic substitution",
+   "source": "units/26-minkowski/problems.html P11, rung 1: 'one a hyperbolic one'; worked solution part 3: 'by ct = l sinh s, c dt = l cosh s ds, sqrt(l^2 + c^2t^2) = l cosh s'"
+  }
+ ]
+}
