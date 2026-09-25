@@ -14978,3 +14978,34 @@ QUOTIENT_MUST_REJECT = [
       "den": (">", "x^2 + 1 > 0 @ x >= 0")},
      "parity: the signs multiply to -1"),
 ]
+
+# Section 20, second amendment before its build: P2's admissions are signs
+# of syntactic sums and products under parametric hypotheses (a + e1 +
+# (a - e1)*t^2 # 0, (a + e1)*sqrt((a - e1)/(a + e1)) # 0) and P5's last is a
+# square, ((x - sqrt 2/2)^2 + 1/2)^2 # 0. E81's quotient generalises.
+DECISIONS_IMPROPER["E82"] = (
+    "E81's method becomes 'sign node' (the name 'sign quotient' is "
+    "retired before any build used it): a key whose g (as E81 reads it: "
+    "the node itself for # 0, n/d > 0 style readings for orderings, now "
+    "any node) is a Div, Mul, Pow or Add is accepted from one sub-"
+    "certificate per child, at the key's own domain, each child with a "
+    "relation in {>, >=, <, <=, # 0}. Each relation is the set of signs "
+    "it allows ('>' {+}, '>=' {+, 0}, '<' {-}, '<=' {-, 0}, '# 0' {+, -}); "
+    "the node's set is computed exactly: a product or quotient multiplies "
+    "the sets (a divisor's 0 removed, since it is non-zero where the key's "
+    "terms are defined), b^n is b's set to the n (0 removed from b's set "
+    "for n < 0; for even n a Pow may take NO sub-certificate, its set "
+    "then {+, 0}), and a sum of two sets is {+} for {+} with {+} or {+, "
+    "0}, {+, 0} for two {+, 0}, the same for minus, and otherwise not "
+    "accepted. The key is accepted when the node's set is inside the "
+    "target's ({+} for a strict positive target, {+, 0} for a non-strict "
+    "one, likewise negative, {+, -} for # 0). Sound where the key's terms "
+    "are defined, which is all a certificate ever claims.")
+SIGN_NODE_CASES = X_SIGN_NODE_CASES = [
+    ("a + e1 + (a - e1)*t^2 # 0 @ a > e1, e1 > 0", True),
+    ("(a + e1)*sqrt((a - e1)/(a + e1)) # 0 @ a > e1, e1 > 0", True),
+    ("((x - 1)^2 + 1/2)^2 # 0", True),
+    ("x^2 + y^2 >= 0", True),
+    ("x^2 + y^2 > 0", False),  # (0, 0): the strict sum needs one strict part
+    ("(x - 1)*(x + 1) > 0 @ x > 1", True),
+]
