@@ -78,6 +78,7 @@ GET  /node     ?session&node           -> that node
 GET  /tree     ?session                -> {session, nodes: [{node, parent, move,
                                             report, retracted, summary}]}
 POST /parse    {text, functions?}      -> {term: str, katex: null} | refusal
+GET  /moves                            -> {moves: [{name, args}]}   (PAGE.md)
 GET  /hint     ?session&node&rung      -> refusal not-built
 GET  /palette  ?session&node           -> refusal not-built
 ```
