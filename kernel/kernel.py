@@ -111,6 +111,7 @@ import residual
 import schema
 import search
 import tagger
+import trig_norm
 from entries import ENTRIES
 from terms import (NEG_INF, POS_INF, Add, App, Deriv, Div, Integral, Mul,
                    Interval, MVar, Neg, NegInf, NonZero, Num, PosInf, Pow,
@@ -1075,7 +1076,50 @@ def _d_former(buf, dx, dom, anc, goal_dom):
     _emit_at(buf, Reg(dx.body, 1), dom, anc, "former", goal_dom)
 
 
-def _check(check, lhs, rhs, minted, dom, goal_dom, buf, code):
+S_TRIG = "trig_norm"  # E88: a trig_norm instance's hypotheses
+TRIG_MAX = 64  # the most instances a proposal may hold
+
+
+def _trig_instances(lhs, rhs, facts):
+    """E88: trig_norm's proposal as (entry name, inst, conclusion) triples,
+    or None. The tactic is untrusted, so anything it returns that is not a
+    list of at most TRIG_MAX (name, inst) pairs naming an ENTRIES equation
+    and binding exactly its schema to terms with no MVar, no infinity, no
+    Int or D node and no variable outside lhs and rhs, abandons the
+    fallback, as does any exception it raises."""
+    try:
+        got = trig_norm.propose(lhs, rhs, tuple(facts))
+    except Exception:  # noqa: BLE001 (untrusted: E88)
+        return None
+    if type(got) is not list or not got or len(got) > TRIG_MAX:
+        return None
+    names = fv(lhs) | fv(rhs)
+    out = []
+    for item in got:
+        if type(item) is not tuple or len(item) != 2:
+            return None
+        name, inst = item
+        e = ENTRIES.get(name) if type(name) is str else None
+        if e is None or not (isinstance(e.statement, Rel)
+                             and e.statement.op == "=="):
+            return None
+        if type(inst) is not dict or set(inst) != set(e.schema):
+            return None
+        for v in inst.values():
+            if not isinstance(v, Term) or _unfit(v) or not fv(v) <= names:
+                return None
+        out.append((name, dict(inst), subst(e.statement, inst)))
+    return out
+
+
+def _unfit(t):
+    """A term no instance may hold: an MVar, an infinity, an Int or a D."""
+    if isinstance(t, (MVar, PosInf, NegInf, Integral, Deriv)):
+        return True
+    return any(_unfit(k) for _, k in children(t) if isinstance(k, Term))
+
+
+def _check(check, lhs, rhs, minted, dom, goal_dom, buf, code, trig=False):
     """Run `ring` or `field` on lhs == rhs with the facts of the resolved
     `minted` records. Emit each returned divisor as NonZero at dom (source
     'field_div'), and for each fact the formers of its inst values (source
@@ -1091,13 +1135,26 @@ def _check(check, lhs, rhs, minted, dom, goal_dom, buf, code):
         if not (isinstance(c, Rel) and c.op == "=="):
             raise Refused("field-fact-shape", f"{show(c)} is not an equation")
         facts.append((c.lhs, c.rhs))
+    extra = ()
     try:
         done = FD.ring(lhs, rhs) if check == "ring" else FD.field(lhs, rhs,
                                                                   facts)
     except FD.NotEqual as e:
         res = residual.residual_term(e.residual)
-        raise Refused(code, f"{check} leaves lhs - rhs = {_brief(res)}",
-                      res) from None
+        refusal = Refused(code, f"{check} leaves lhs - rhs = {_brief(res)}",
+                          res)
+        # E88: trig_norm, a fallback after field fails and never before;
+        # any failure of it is the original refusal
+        inst = _trig_instances(lhs, rhs, facts) if trig and check == "field" \
+            else None
+        if inst is None:
+            raise refusal from None
+        try:
+            done = FD.field(lhs, rhs, facts + [(c.lhs, c.rhs)
+                                               for _, _, c in inst])
+        except (FD.NotEqual, Refused, RecursionError):
+            raise refusal from None
+        extra = inst
     for d in done.divisors:
         _emit(buf, with_domain(NonZero(d), dom), "field_div", goal_dom)
     for rec in minted:
@@ -1105,6 +1162,12 @@ def _check(check, lhs, rhs, minted, dom, goal_dom, buf, code):
             _charge_formers(buf, v, dom, goal_dom)
         for h in rec.conclusion.dom:
             _emit(buf, with_domain(h, dom), "fact_hyp", goal_dom)
+    for _, inst, c in extra:
+        for v in inst.values():
+            _charge_formers(buf, v, dom, goal_dom)
+        for h in c.dom:
+            _emit(buf, with_domain(h, dom), S_TRIG, goal_dom)
+    return tuple(dict.fromkeys(name for name, _, _ in extra))
 
 
 # ---------------------------------------------------------------- moves
@@ -1322,8 +1385,10 @@ def _ftc(state, args, minted, buf):
     d = DV.deriv(F, x, on_deriv)
     for key, source in d.emissions:
         _emit(later, key, source, G)
-    _check(check, d.output, f, minted, on_deriv, G, later, "ftc-check-failed")
-    cites = tuple(dict.fromkeys(rec.entry for rec in minted))
+    trig = _check(check, d.output, f, minted, on_deriv, G, later,
+                  "ftc-check-failed", trig=True)
+    cites = tuple(dict.fromkeys(
+        (*(rec.entry for rec in minted), *trig)))
     for ob in pre.values():
         buf[ob.key] = _merged(buf.get(ob.key), ob)
     _emit(buf, with_domain(Reg(F, 1), on_open), "ftc_F_C1", G)

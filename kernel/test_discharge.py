@@ -815,12 +815,13 @@ def entries_problems():
     # their order (E54): ENTRIES goes from 16 to 17 to 23
     # and atan_zero after them (IMPROPER_E27_CHANGES, E80): 24
     tail = ["cos_zero", "sqrt_nonneg", *X.CONSOLIDATION_ENTRIES,
-            *X.IMPROPER_E27_CHANGES["ENTRIES_append"]]
+            *X.IMPROPER_E27_CHANGES["ENTRIES_append"],
+            *X.TRIG_NORM_SWITCH["ENTRIES_append"]]  # E87: 31
     if names[-len(tail):] != tail:
         out.append(f"cos_zero, sqrt_nonneg and CONSOLIDATION_ENTRIES are not "
                    f"last, in that order: {names}")
-    if len(names) != 24:
-        out.append(f"ENTRIES has {len(names)} entries, expected 24")
+    if len(names) != 31:
+        out.append(f"ENTRIES has {len(names)} entries, expected 31")
     for name, e in {**X.SQRT_NONNEG_ENTRY, **X.CONSOLIDATION_ENTRIES}.items():
         got = ENTRIES.get(name)
         if got is None or got.statement != judgement(e["statement"]) \
@@ -829,7 +830,8 @@ def entries_problems():
             out.append(f"{name}: {got and T.show(got.statement)}")
     exact = {n for n, _ in DC._exact_entries()}
     want = set(X.EXACT_VALUE_ENTRIES) | set(
-        X.IMPROPER_E27_CHANGES["EXACT_VALUE_ENTRIES_add"])
+        X.IMPROPER_E27_CHANGES["EXACT_VALUE_ENTRIES_add"]) | set(
+        X.TRIG_NORM_SWITCH["EXACT_VALUE_ENTRIES_add"])
     if exact != want:
         out.append(f"exact values {sorted(exact)}, expected "
                    f"{sorted(want)}")

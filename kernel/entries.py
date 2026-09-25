@@ -80,6 +80,15 @@ STATEMENTS = {
     "cos_le_one": ("cos u <= 1", ("u",)),
     "cos_ge_neg_one": ("cos u >= -1", ("u",)),
     "atan_zero": ("atan 0 == 0", ()),  # p1_expected E80
+    # trig_norm's (p1_expected E87): the addition formulas, parity, tan_def
+    # (DESIGN.md §6.8, §8.9), and the two values at pi its closes need
+    "sin_add": ("sin(u + v) == sin u * cos v + cos u * sin v", ("u", "v")),
+    "cos_add": ("cos(u + v) == cos u * cos v - sin u * sin v", ("u", "v")),
+    "sin_odd": ("sin(-u) == -sin u", ("u",)),
+    "cos_even": ("cos(-u) == cos u", ("u",)),
+    "tan_def": ("tan u == sin u / cos u @ cos u # 0", ("u",)),
+    "sin_pi": ("sin pi == 0", ()),
+    "cos_pi": ("cos pi == -1", ()),
 }
 
 

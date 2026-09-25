@@ -339,14 +339,21 @@ class _Normaliser:
         fact_atoms = {i for i, *_ in parsed}
         if len(fact_atoms) != len(parsed):
             raise Refused("field-fact-shape", "two facts about the same atom")
-        reducers = []
+        # E86: reduced in the order given, so a right side may mention the
+        # atom of a LATER fact (which then reduces it) but never its own or
+        # an earlier one's, which would come back unreduced. Each reduction
+        # multiplies n by a nonzero Q^J and replaces equals by equals, so the
+        # order changes what is decided, never whether a zero is sound.
+        reducers, done = [], set()
         for i, k, fr, lhs, rhs in parsed:
+            done.add(i)
             q = self.expand(fr.den)
             for p in (fr.num, q):
-                if any(j in fact_atoms for m in p for j, _ in m):
+                if any(j in done for m in p for j, _ in m):
                     raise Refused("field-fact-shape",
                                   f"fact {show(lhs)} == {show(rhs)}: the "
-                                  "right side mentions a fact atom")
+                                  "right side mentions its own atom or an "
+                                  "earlier fact's")
             reducers.append((i, k, fr.num, q))
         return reducers
 
@@ -406,8 +413,9 @@ def field(lhs, rhs, facts=()):
     """Decide lhs ≐ rhs in the fraction field, modulo `facts`.
 
     `facts` is a sequence of (a_k, r) Term pairs. Each must normalise to a
-    power of one atom on the left, with a right side mentioning no fact's
-    atom (§6.2 facts), and no two facts may be about the same atom.
+    power of one atom on the left, with a right side mentioning neither its
+    own atom nor an earlier fact's (§6.2 facts, E86: they reduce in the
+    order given), and no two facts may be about the same atom.
     Otherwise it raises Refused 'field-fact-shape'. Each divisor is tested as
     it is met, before the zero test. A numerator of zero in its field normal
     form raises Refused 'divisor-normalises-to-zero' (E25), so `x/x - 1` is

@@ -197,6 +197,8 @@ ITEMS = {
          "algebra, the refusals",
     "P": "int_parts and ftc at an occurrence (p1_expected section 19)",
     "I": "int_improper, limits.py and the sign node (p1_expected section 20)",
+    "T": "trig_norm, field's ordered facts and the trig entries (p1_expected "
+         "section 22)",
 }
 UNIT, UNIT_TEXT = "unit", ("unit tests: test_field.py, test_grammar.py, "
                            "test_discharge.py")  # beside 1-6
@@ -222,6 +224,12 @@ def _e27_switched():
 
 
 BAD_MOVES, EVALUATED_ACCEPTS = _e27_switched()
+
+# TRIG_NORM_SWITCH: QC1-W1 leaves the consolidation's wrong answers (E88);
+# trig_checks asserts its move accepted.
+CONSOLIDATION_WRONG_ANSWERS = [] if S0 is None else [
+    w for w in S0.CONSOLIDATION_WRONG_ANSWERS
+    if w["id"] not in X.TRIG_NORM_SWITCH["CONSOLIDATION_WRONG_ANSWERS_remove"]]
 
 # DISCHARGE_SWITCH (2): the one constant. With discharge wired into
 # kernel._emit, the suite asserts p1_expected's and stage 0's post-discharge
@@ -1669,7 +1677,7 @@ def refusal_coverage_problems():
     if S0 is not None:
         named |= {c["refusal"] for c in S0.INT_SUBST_WRONG_ANSWERS
                   + S0.INT_SUBST_S0_REFUSALS
-                  + (S0.CONSOLIDATION_WRONG_ANSWERS if CONSOLIDATED else [])}
+                  + (CONSOLIDATION_WRONG_ANSWERS if CONSOLIDATED else [])}
     named |= {a.split(":", 1)[1] for f in X.FORGERIES for a in f["accept"]
               if a.startswith("refusal:")}
     named |= set(DIRECT_CODES) | {"syntax"}  # HOSTILE_TREES
@@ -3963,7 +3971,7 @@ class Book:
         self.WRONG_ANSWERS = {
             "stage0": lambda: S0.WRONG_ANSWERS,
             "stage1": lambda: S0.INT_SUBST_WRONG_ANSWERS + S0.INT_SUBST_S0_REFUSALS,
-            "consolidation": lambda: S0.CONSOLIDATION_WRONG_ANSWERS}[kind]()
+            "consolidation": lambda: CONSOLIDATION_WRONG_ANSWERS}[kind]()
 
     def table(self, name):
         if REGULARITY:  # stage0/expected.py section 14, every problem file
@@ -4577,7 +4585,7 @@ def discharge_checks(suite):
         return
     suite.check("D", "DISCHARGE_NEW_ENTRIES pinned (sqrt_zero immediately before "
                 "sqrt_sq, cos_zero after exp_one, sqrt_nonneg after it, "
-                "CONSOLIDATION_ENTRIES then atan_zero last: 24), and EXACT_VALUE_ENTRIES is "
+                "CONSOLIDATION_ENTRIES, atan_zero, then trig_norm's seven last: 31), and EXACT_VALUE_ENTRIES is "
                 "ENTRIES' exact values", TD.entries_problems)
     for row in TD.expected_certificates():
         where, _, tag, spec = row
@@ -5582,10 +5590,10 @@ def sign_reject_problems(g, c):
     return [] if tag is None else [f"accepted: {tag}"]
 
 
-def improper_file_problems(name):
+def improper_file_problems(name, folder="improper"):
     import loader
     here = os.path.dirname(os.path.abspath(__file__))
-    p = loader.load(os.path.join(here, "problems", "improper", name + ".json"))
+    p = loader.load(os.path.join(here, "problems", folder, name + ".json"))
     results, _ = loader.replay(p)
     st = results[-1][1]
     if isinstance(st, K.Refusal):
@@ -5613,6 +5621,176 @@ def improper_checks(suite):
     for name in ("P5", "P2"):
         suite.check("I", f"problems/improper/{name}.json replays to 'Proved.'",
                     lambda n=name: improper_file_problems(n))
+
+
+def _trig_run(goal_text, steps):
+    """Install and feed steps through the loader's argument path; the last
+    state, or the first Refusal with its step index."""
+    st = K.install(goal(goal_text))
+    for n, (move, args) in enumerate(steps):
+        r = _parts_feed(st, move, args, {})
+        if isinstance(r, K.Refusal):
+            return r, n
+        st = r
+    return st, None
+
+
+def trig_proof_problems(name):
+    """TRIG_NORM_PROOFS: accepted, the report and theorem, trig_norm's
+    entries among the ftc_D cites (E88), and TRIG_TAN's obligation."""
+    c = X.TRIG_NORM_PROOFS[name]
+    st, n = _trig_run(c["goal"], c["steps"])
+    if n is not None:
+        return [f"step {n} refused {st.code}: {st.message}"]
+    out = []
+    if K.report(st) != c["report"]:
+        out.append(f"report {K.report(st)!r}, expected {c['report']!r}")
+    if st.theorem != goal(c["theorem"]):
+        out.append(f"theorem {T.show(st.theorem)}, expected {c['theorem']}")
+    tags = [o.tag for o in st.obligations() if "ftc_D" in o.sources]
+    if not tags or set(tags[0][1]) != set(c["trig"]):
+        out.append(f"ftc_D tags {tags}, expected cites {c['trig']}")
+    if "trig_obligation" in c:
+        got = [T.show(o.key) for o in st.obligations()
+               if "trig_norm" in o.sources]
+        if got != [c["trig_obligation"]]:
+            out.append(f"trig_norm obligations {got}, expected "
+                       f"[{c['trig_obligation']!r}]")
+    return out
+
+
+def trig_bad_move_problems(b):
+    st = K.install(goal(b["goal"]))
+    move, args = b["move"]
+    r = _parts_feed(st, move, args, {})
+    out = refusal_problems_of(r, b)
+    if isinstance(r, K.Refusal) and r.residual is not None \
+            and not equal_by("ring", r.residual, term(b["residual"]))[0]:
+        out.append(f"residual {T.show(r.residual)}, expected {b['residual']}")
+    return out
+
+
+def _trig_forgery(kind):
+    """A replacement for trig_norm.propose, per TRIG_NORM_FORGERIES."""
+    import trig_norm as TN
+    real = TN.propose
+    x = T.Var("x")
+
+    def forged(lhs, rhs, facts=()):
+        good = real(lhs, rhs, facts)
+        if kind == "raises":
+            raise ZeroDivisionError("planted")
+        if kind == "not_list":
+            return tuple(good)
+        if kind == "empty":
+            return []
+        if kind == "too_many":
+            return [good[0]] * 65
+        if kind == "unknown_entry":
+            return [("sin_triple", {"u": x})] + good
+        if kind == "not_equation":
+            return [("pi_pos", {})] + good
+        if kind == "wrong_schema":
+            return [("sin_add", {"u": x})] + good
+        bad = {"mvar_inst": T.MVar("A"), "oo_inst": T.POS_INF,
+               "int_inst": term("Int[t = 0 .. 1] t"), "foreign_var": T.Var("q"),
+               "non_term": "x"}
+        if kind in bad:
+            return [("pyth_cos", {"u": bad[kind]})] + good[:-1]
+        if kind == "false_pair":
+            return good[:-1]  # without pyth_cos
+        raise AssertionError(kind)
+    return forged
+
+
+def trig_forgery_problems(kind):
+    """E88's fence: trig_wrong_F's own refusal whatever propose returns, and
+    on the genuine move (TRIG_COS_SQ's ftc) the same fence refuses too, so
+    a forged proposal never lends its instances to a true check."""
+    import trig_norm as TN
+    real = TN.propose
+    TN.propose = _trig_forgery(kind)
+    try:
+        b = next(b for b in X.TRIG_NORM_BAD_MOVES if b["id"] == "trig_wrong_F")
+        try:
+            out = trig_bad_move_problems(b)
+        except Exception as e:  # E21: nothing may raise out of step()
+            return [f"raised {type(e).__name__}: {e}"]
+        c = X.TRIG_NORM_PROOFS["TRIG_COS_SQ"]
+        try:
+            r, n = _trig_run(c["goal"], c["steps"][:1])
+        except Exception as e:
+            return out + [f"the genuine move raised {type(e).__name__}"]
+        if n is None and kind != "not_list" and kind != "too_many":
+            out.append("the genuine ftc was accepted on a forged proposal")
+        return out
+    finally:
+        TN.propose = real
+
+
+def field_order_problems(facts, lhs, rhs, want):
+    import field as FD
+    fs = [(term(a), term(b)) for a, b in facts]
+    try:
+        FD.field(term(lhs), term(rhs), fs)
+        got = "equal"
+    except FD.NotEqual:
+        got = "not-equal"
+    except T.Refused as r:
+        got = r.code
+    return [] if got == want else [f"got {got}"]
+
+
+def e27_trig_problems(value, want):
+    import schema as SC
+    got = SC.evaluated_offence(term(value))
+    name = got[2] if got is not None and got[0] == "a" else None
+    return [] if name == want else [f"offence {got}, expected entry {want}"]
+
+
+def qc1_w1_accepted_problems():
+    """TRIG_NORM_SWITCH: QC1-W1's move accepted, pyth_cos among the ftc_D
+    cites (supplied by trig_norm, E88)."""
+    B = book(kind="consolidation")
+    w = next(w for w in S0.CONSOLIDATION_WRONG_ANSWERS if w["id"] == "QC1-W1")
+    problem, name = s0_file(w["state"][0], B)
+    results, handles = LD.replay(problem, name, through=w["state"][1])
+    st = results[-1][1]
+    move, args = w["move"]
+    r = LD.feed(st, {"move": move, "args": args}, handles, problem.sig)
+    if not isinstance(r, K.ProofState):
+        return [f"refused: {describe(r)}"]
+    tags = [o.tag for o in r.obligations() if "ftc_D" in o.sources]
+    return [] if tags and "pyth_cos" in tags[0][1] else [f"ftc_D tags {tags}"]
+
+
+def trig_checks(suite):
+    for name, c in X.TRIG_NORM_PROOFS.items():
+        suite.check("T", f"TRIG_NORM_PROOFS {name}: {c['goal']} -> "
+                    f"{c['report']!r}", lambda n=name: trig_proof_problems(n))
+    for b in X.TRIG_NORM_BAD_MOVES:
+        suite.check("T", f"TRIG_NORM_BAD_MOVES {b['id']} -> {b['refusal']}, "
+                    "field's own residual", lambda b=b: trig_bad_move_problems(b))
+    for kind, what in X.TRIG_NORM_FORGERIES:
+        suite.check("T", f"TRIG_NORM_FORGERIES {kind} ({what}): the original "
+                    "refusal, nothing raised", lambda k=kind: trig_forgery_problems(k))
+    for facts, lhs, rhs, want in X.FIELD_ORDER_CASES:
+        suite.check("T", f"FIELD_ORDER_CASES (E86) {lhs} == {rhs} with "
+                    f"{len(facts)} facts -> {want}",
+                    lambda f=facts, a=lhs, b=rhs, w=want: field_order_problems(f, a, b, w))
+    for value, want in X.E27_TRIG_CASES:
+        suite.check("T", f"E27_TRIG_CASES (E89) {value}: counts {want}",
+                    lambda v=value, w=want: e27_trig_problems(v, w))
+    suite.check("T", "TRIG_NORM_ENTRIES pinned in entries.py (E87)",
+                lambda: [n for n, e in X.TRIG_NORM_ENTRIES.items()
+                         if EN.ENTRIES.get(n) is None
+                         or EN.ENTRIES[n].statement != T.parse_judgement(e["statement"], SIG)
+                         or tuple(EN.ENTRIES[n].schema) != e["schema"]])
+    suite.check("T", "problems/trig/COS_SQ.json replays to 'Proved.'",
+                lambda: improper_file_problems("COS_SQ", "trig"))
+    if S0 is not None:
+        suite.check("T", "TRIG_NORM_SWITCH: QC1-W1's ftc without pyth_cos is "
+                    "accepted, pyth_cos cited", qc1_w1_accepted_problems)
 
 
 def e57_principle_problems():
@@ -5645,7 +5823,8 @@ def consolidation_entries_problems():
     out, names = [], list(EN.ENTRIES)
     # IMPROPER_E27_CHANGES appends atan_zero after them (E80)
     want = list(X.CONSOLIDATION_ENTRIES) + list(
-        X.IMPROPER_E27_CHANGES["ENTRIES_append"])
+        X.IMPROPER_E27_CHANGES["ENTRIES_append"]) + list(
+        X.TRIG_NORM_SWITCH["ENTRIES_append"])  # and trig_norm's (E87)
     if "sqrt_nonneg" not in names or \
             names[names.index("sqrt_nonneg") + 1:] != want:
         out.append(f"not appended after sqrt_nonneg in order: {names}")
@@ -6501,6 +6680,10 @@ def main():
     print("\nint_improper, limits and the sign node (item I; p1_expected section 20)")
     if K is not None:
         improper_checks(suite)
+
+    print("\ntrig_norm (item T; p1_expected section 22)")
+    if K is not None:
+        trig_checks(suite)
 
     print("\nPlanted bugs (each in a child process)")
     suite.check(3, "control: the child, unpatched, finds nothing", control_problems)

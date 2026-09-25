@@ -183,14 +183,20 @@ def _sqrt_sq(s):
         fv(atoms[i]) for m in c for i, _ in m)
 
 
-def _atan_odd(s):
-    """atan(-u) == -atan u counts at atan b when ring_nf(b) is nonzero and
-    every rational coefficient of it is negative (u := -b, whose result
-    cannot be rewritten again)."""
-    if type(s) is not App or s.fn != "atan":
-        return False
-    (p,), _ = _ring(s.arg)
-    return bool(p) and all(c < 0 for c in p.values())
+def _odd_reading(fn):
+    def reading(s):
+        """atan(-u) == -atan u counts at atan b when ring_nf(b) is nonzero
+        and every rational coefficient of it is negative (u := -b, whose
+        result cannot be rewritten again). sin_odd and cos_even are read
+        the same way at sin b and cos b (E89)."""
+        if type(s) is not App or s.fn != fn:
+            return False
+        (p,), _ = _ring(s.arg)
+        return bool(p) and all(c < 0 for c in p.values())
+    return reading
+
+
+_atan_odd = _odd_reading("atan")
 
 
 def _sqrt_sq_val(s):
@@ -212,8 +218,14 @@ def _never(s):
 # entry added later is read structurally (_counts) until it states one;
 # pyth is read so, at a subterm tree-equal to (sin b)^2 + (cos b)^2, which
 # is 1 unevaluated (E54).
+#
+# E89: the addition formulas and tan_def expand an atom and evaluate
+# nothing, so they never count, as pyth_cos never does; sin_odd and
+# cos_even count as atan_odd does.
 _READINGS = {"sqrt_sq": _sqrt_sq, "atan_odd": _atan_odd,
-             "sqrt_sq_val": _sqrt_sq_val, "pyth_cos": _never}
+             "sqrt_sq_val": _sqrt_sq_val, "pyth_cos": _never,
+             "sin_add": _never, "cos_add": _never, "tan_def": _never,
+             "sin_odd": _odd_reading("sin"), "cos_even": _odd_reading("cos")}
 
 
 def _rat_sqrt(q):

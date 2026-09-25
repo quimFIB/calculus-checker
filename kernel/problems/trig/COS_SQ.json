@@ -1,0 +1,50 @@
+{
+  "format": "calc-problem/0",
+  "id": "trig.COS_SQ",
+  "title": "the mean of cos^2 over a quarter period",
+  "source": "DESIGN.md \u00a78.9's first example (Int_0^{pi/2} cos^2 x dx); the time average of kinetic energy in simple harmonic motion; p1_expected section 22",
+  "statement": "Evaluate the integral of (cos t)^2 from 0 to pi/2.",
+  "goal": "Int[t = 0 .. pi/2] (cos t)^2 == ?A",
+  "answer_schema": "closed",
+  "declarations": {
+    "functions": {}
+  },
+  "reference_proof": [
+    {
+      "id": "s1",
+      "move": "ftc",
+      "args": {
+        "F": "t/2 + sin(2*t)/4",
+        "check": "field",
+        "facts": []
+      }
+    },
+    {
+      "id": "s2",
+      "move": "rewrite",
+      "args": {
+        "entry": "sin_pi",
+        "inst": {},
+        "at": "sin(2*(pi/2))"
+      }
+    },
+    {
+      "id": "s3",
+      "move": "rewrite",
+      "args": {
+        "entry": "sin_zero",
+        "inst": {},
+        "at": "sin(2*0)"
+      }
+    },
+    {
+      "id": "s4",
+      "move": "close",
+      "args": {
+        "value": "pi/4",
+        "check": "ring",
+        "facts": []
+      }
+    }
+  ]
+}
