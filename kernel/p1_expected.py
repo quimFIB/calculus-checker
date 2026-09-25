@@ -15290,3 +15290,44 @@ E27_TRIG_CASES = [
     ("sin pi", "sin_pi"),
     ("cos pi", "cos_pi"),
 ]
+
+# ---------------------------------------------------------------------------
+# 23. The int_improper review (int_improper review 2026-09-25)
+#
+# A skeptic of 878c957 found no false 'Proved.' (about 640k fuzzed limits
+# against evaluation, every divergent and singular case refused). Two
+# fixes, both short of unsound:
+DECISIONS_REVIEW_IMPROPER = {
+    "E91": "limits.py's side conditions c # 0 are divisors (a leading "
+           "coefficient divided by, or one whose vanishing breaks the "
+           "leading form), so E25 tests them: one that ring-normalises to "
+           "zero refuses 'divisor-normalises-to-zero'. 878c957 emitted them "
+           "with E25 off, which turned such a step into an admission of a "
+           "false c # 0 (a 'Proved modulo' of a false theorem, shown as "
+           "such).",
+    "E92": "int_improper checks F's scope as ftc at an occurrence does "
+           "(E84): F may mention the goal's free names, the enclosing Ints' "
+           "binders and the selected Int's variable; anything else is "
+           "'int-improper-scope'. Not unsound without it (a fresh name must "
+           "cancel for the check and the close to pass); stated for "
+           "symmetry.",
+    "E93": "Recorded, not changed: the sign node reads n/d where it is "
+           "defined, so 1/(pi - pi) # 0 discharges; every emitter today "
+           "also owes d # 0 beside it (limits.py's Div, negative powers), "
+           "and any new emitter of a quotient's sign must too. A false "
+           "x-free side nothing decides (e_const - exp 1 # 0) is admitted "
+           "per E78, shown in the report.",
+}
+INT_IMPROPER_REVIEW_CASES = [
+    {"id": "imp_zero_coefficient",
+     "goal": "Int[x = 1 .. oo] -(pi - pi)/((pi - pi)*x + 1)^2 == ?A",
+     "move": ("int_improper", {"F": "1/((pi - pi)*x + 1)", "check": "field",
+                               "facts": []}),
+     "refusal": "divisor-normalises-to-zero",
+     "why": "E91: the leading coefficient pi - pi is zero in ring"},
+    {"id": "imp_fresh_name",
+     "goal": "Int[x = 0 .. oo] 1/(1 + x^2) == ?A",
+     "move": ("int_improper", {"F": "atan x + z", "check": "field",
+                               "facts": []}),
+     "refusal": "int-improper-scope", "why": "E92"},
+]
