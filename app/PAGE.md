@@ -66,6 +66,9 @@ similar to rocq-mode". The first cut's move form is replaced by a script
   the script, the checked sentences and the tree come back, re-checked.
   Export, Import and Start fresh sit under the problem picker; the status
   line says `saved` or why not.
+- **Cancel** (TIMEOUT.md) is enabled while a request runs, and Escape
+  presses it. A step stopped by the timeout or by Cancel is marked amber
+  and dashed, not red, and the response box says it was not refused.
 - **Status line.** The report, `check mode`, and `0 machine-checked`.
 
 Stepping, as Proof General's keys:

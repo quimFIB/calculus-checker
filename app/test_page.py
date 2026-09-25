@@ -27,9 +27,11 @@ CHROMIUM = "/opt/pw-browsers/chromium"  # when the pinned build is absent
 
 @unittest.skipIf(sync_playwright is None, "Playwright is not installed")
 class Page(unittest.TestCase):
+    SERVER = server.HTTPServer
+
     @classmethod
     def setUpClass(cls):
-        cls.srv = server.HTTPServer(("127.0.0.1", 0), server.Handler)
+        cls.srv = cls.SERVER(("127.0.0.1", 0), server.Handler)
         cls.srv.verbose = False
         cls.base = f"http://127.0.0.1:{cls.srv.server_address[1]}/"
         threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
@@ -271,3 +273,80 @@ class Page(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipIf(sync_playwright is None, "Playwright is not installed")
+class Timeout(Page):
+    """TIMEOUT.md Done-when 2: the page over a worker with a 3 s timeout,
+    served on threads as ./calc serves it, so /cancel is heard."""
+    SERVER = server.ThreadingHTTPServer
+    SLOW = ("close pi*sqrt 3/9 + (x + y + z + w + 1)^24 "
+            "- (x + y + z + w + 1)^24.")
+    GOOD = "close pi/(3*sqrt 3) by field using h."
+
+    @classmethod
+    def setUpClass(cls):
+        import backend
+        cls.saved_backend = server.BACKEND
+        server.BACKEND = backend.Worker(3.0, tempfile.mkdtemp())
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        server.BACKEND.close()
+        server.BACKEND = cls.saved_backend
+
+    def start_slow(self):
+        p = self.page
+        p.click("summary")
+        p.fill("#own-goal", "pi*sqrt 3/9 == ?A")
+        # one work file per test: the key hashes the functions too
+        p.fill("#own-functions", "f_" + self._testMethodName[5:9] + "/1")
+        p.click("#start-own")
+        p.wait_for_selector(".node.current[data-node='n0']")
+        text = "fact h := sqrt_sq_val with a := 3.\n" + self.SLOW + "\n"
+        p.fill("#script", text)
+        p.click("#next")
+        p.wait_for_selector(".node.current[data-node='n1']")
+        self.wait_idle()
+        return text
+
+    def replace_slow_with_good(self, text):
+        p = self.page
+        a = text.index(self.SLOW)
+        p.evaluate(f"() => {{ const t = document.getElementById('script'); "
+                   f"t.focus(); t.setSelectionRange({a}, "
+                   f"{a + len(self.SLOW)}); }}")
+        p.keyboard.insert_text(self.GOOD)
+        p.click("#next")
+        p.wait_for_selector(".node.current[data-node='n2']")
+        self.assertEqual(self.report(), "Proved.")
+
+    def test_a_slow_step_times_out(self):
+        p = self.page
+        text = self.start_slow()
+        p.click("#next")
+        p.wait_for_selector("#timeout", timeout=15000)
+        self.assertIn("ran out of time after 3", p.inner_text("#timeout"))
+        self.assertEqual(len(p.query_selector_all("#backdrop mark.timeout")), 1)
+        self.assertEqual(p.query_selector_all("#refusal"), [])
+        self.replace_slow_with_good(text)
+
+    def test_cancel_stops_a_slow_step(self):
+        p = self.page
+        text = self.start_slow()
+        p.click("#next")
+        p.wait_for_function("() => !document.getElementById('cancel').disabled")
+        p.wait_for_timeout(300)
+        p.click("#cancel")
+        p.wait_for_selector("#timeout", timeout=2500)
+        self.assertEqual(p.inner_text("#timeout"),
+                         "Cancelled. Nothing changed.")
+        self.wait_idle()
+        self.replace_slow_with_good(text)
+
+    # the in-process tests are not repeated over the worker
+    for _name in [n for n in dir(Page) if n.startswith("test_")]:
+        locals()[_name] = None
+    del _name

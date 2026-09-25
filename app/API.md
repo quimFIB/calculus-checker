@@ -96,6 +96,7 @@ GET  /palette  ?session&node           -> {moves, rewrites, card}   (UI.md §2)
 POST /script   {session, script, path} -> {saved: bool}             (PERSIST.md)
 GET  /export   ?session                -> the session's work file   (PERSIST.md)
 POST /import   {document}              -> node n0 with resumed      (PERSIST.md)
+POST /cancel                           -> {cancelled: bool}         (TIMEOUT.md)
 ```
 
 - **`/problems`** lists every `*.json` under `kernel/problems/` that
@@ -136,6 +137,10 @@ POST /import   {document}              -> node n0 with resumed      (PERSIST.md)
   file (the response gains `resumed`); `/script` records the page's script
   and checked path; `/export` and `/import` move a work file in and out,
   re-checked on import. `/tree` gains `saved`.
+- **The timeout** is TIMEOUT.md: `./calc` runs the kernel in a worker
+  process, and any request that runs past `--step-timeout` (10 s) or is
+  cancelled answers a 200 `{"timeout": {seconds, cancelled, message}}`.
+  It changed nothing; the worker is replaced and sessions come back.
 
 API-local refusal codes: `unknown-handle`, `retract-root`, `not-built`,
 `no-integral`, `no-row` (RECOGNIZER.md),
@@ -146,10 +151,6 @@ Error codes: `bad-json`, `bad-request`, `unknown-route`, `unknown-session`,
 
 ## Deliberately not in this cut
 
-- **The per-step timeout** (§16.4). Python cannot cancel a running step in
-  a thread, and a child process per step costs the latency §16.3 is about.
-  The kernel's own bounds (`power-too-large`, ARCHITECTURE.md §6) are what
-  stops a runaway step today.
 - **Progress and probe** on `/step` (§8.5, §8.6): they need the recognizer.
 - **KaTeX**, above.
 - **Remote access.** The server binds `127.0.0.1` only.

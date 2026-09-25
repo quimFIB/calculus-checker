@@ -301,6 +301,41 @@ def _save(sess):
         return False
 
 
+def restore(docs, owner=None, saved=None):
+    """TIMEOUT.md: rebuild sessions from their work documents under their
+    own ids after a worker restart. Path, script, max rung and save state
+    come back exactly, and every node keeps its id or the session fails;
+    OWNER is set from `owner`, as it was; nothing is written. Returns
+    (restored ids, {id: why} for the ones that failed)."""
+    if owner is not None:
+        OWNER.clear()
+        OWNER.update(owner)
+    done, failed = [], {}
+    for sid, doc in docs.items():
+        try:
+            work.check(doc)
+            pid = doc.get("problem")
+            if pid is not None:
+                p = _problem_files()[pid][0]
+                goal, sig = p.goal_text, p.sig
+            else:
+                goal, sig = doc["goal"], doc.get("functions", {})
+            sess, got = work.replay(doc, sid, goal, sig, pid)
+            if got["dropped"] or any(k != v for k, v in got["ids"].items()):
+                raise ValueError(f"{len(got['dropped'])} node(s) did not "
+                                 "replay under their own ids")
+            sess.path = [got["ids"][p] for p in doc.get("path", ["n0"])]
+            sess.script = doc.get("script", "")
+            sess.max_rung = doc.get("max_rung", 0)
+            sess.key = work.key(pid, goal, sig)
+            sess.saved = (saved or {}).get(sid)
+            SESSIONS[sid] = sess
+            done.append(sid)
+        except Exception as e:
+            failed[sid] = f"{type(e).__name__}: {e}"
+    return done, failed
+
+
 def save_script(body):
     """PERSIST.md: the page's script and checked path, then a save."""
     sess = _session(body)

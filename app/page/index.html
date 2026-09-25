@@ -74,6 +74,8 @@ ul.tree { padding-left: 0; }
 #backdrop mark { color: transparent; border-radius: 2px; }
 #backdrop mark.checked { background: var(--checked); }
 #backdrop mark.pending { background: var(--pending); }
+#backdrop mark.timeout { background: var(--pending); text-decoration: underline dashed var(--muted);
+                         text-decoration-skip-ink: none; }
 #backdrop mark.error { background: var(--error-bg); text-decoration: underline wavy var(--bad);
                        text-decoration-skip-ink: none; }
 #script { background: transparent; color: var(--ink); resize: none; outline: none; overflow: auto;
@@ -99,6 +101,7 @@ td.key { font-family: var(--mono); word-break: break-word; }
 .msg.bad { border-color: var(--bad); }
 .msg.ok { border-color: var(--ok); }
 .msg.hint { border-style: dashed; }
+.msg.timeout { border-color: var(--muted); border-style: dashed; }
 .msg.hint .cost { color: var(--muted); font-size: 12px; margin-top: 4px; }
 .msg .code { color: var(--bad); font-family: var(--mono); font-weight: 600; }
 #saved.unsaved, .unsaved { color: var(--bad); }
@@ -168,6 +171,7 @@ details.card tr.match td { background: var(--sel); font-weight: 600; }
       <button id="undo" title="Alt+Up" disabled>↑ Undo</button>
       <button id="next" class="primary" title="Alt+Down" disabled>↓ Next</button>
       <button id="to-cursor" title="Ctrl+Enter" disabled>⇥ To cursor</button>
+      <button id="cancel" title="Stop the running step (Escape)" disabled>■ Cancel</button>
       <button id="help-toggle">Tactics</button>
       <button id="hint-1" class="hint" title="Hint: what kind of move" disabled>?</button>
       <button id="hint-2" class="hint" title="Hint: which technique" disabled>??</button>
@@ -256,15 +260,32 @@ function insertSentence(text) {
   paint(); saveScript();
 }
 
+// TIMEOUT.md: a request that ran out of time, or was cancelled, answers
+// {timeout}. /tactic's is shown as its own outcome; any other is thrown.
+let inflight = 0;
 async function api(method, path, body) {
   const opts = { method, headers: {} };
   let url = path;
   if (method === "GET" && body) url += "?" + new URLSearchParams(body);
   else if (body) { opts.body = JSON.stringify(body); opts.headers["Content-Type"] = "application/json"; }
-  const r = await fetch(url, opts);
-  const data = await r.json();
-  if (data.error) throw new Error(`${data.error.code}: ${data.error.message}`);
-  return data;
+  inflight++; $("cancel").disabled = false;
+  try {
+    const r = await fetch(url, opts);
+    const data = await r.json();
+    if (data.error) throw new Error(`${data.error.code}: ${data.error.message}`);
+    if (data.timeout && path !== "/tactic") throw new Error(timeoutText(data.timeout));
+    return data;
+  } finally {
+    if (--inflight === 0) $("cancel").disabled = true;
+  }
+}
+function timeoutText(t) {
+  return t.cancelled ? "Cancelled. Nothing changed."
+    : t.seconds ? `Stopped: the step ran out of time after ${t.seconds} s. Nothing changed; it was not refused.`
+    : `Stopped: ${t.message}.`;
+}
+async function cancel() {
+  try { await fetch("/cancel", { method: "POST" }); } catch (e) { /* nothing to stop */ }
 }
 
 // ---------------------------------------------------------------- sentences
@@ -301,7 +322,7 @@ function paint() {
   const end = checkedEnd();
   if (end > 0) marks.push([0, end, "checked"]);
   if (S.pending) marks.push([S.pending.start, S.pending.end, "pending"]);
-  if (S.error) marks.push([S.error.start, S.error.end, "error"]);
+  if (S.error) marks.push([S.error.start, S.error.end, S.error.timeout ? "timeout" : "error"]);
   marks.sort((a, b) => a[0] - b[0]);
   const parts = [];
   let at = 0;
@@ -336,6 +357,13 @@ async function stepNext() {
     S.pending = null;
     if (r.refusal) {
       S.error = s; paint(); showResponse(r.refusal, false);
+      return false;
+    }
+    if (r.timeout) {
+      S.error = { ...s, timeout: true }; paint();
+      $("response").className = "";
+      $("response").replaceChildren(el("div", { class: "msg timeout", role: "status", id: "timeout" },
+        timeoutText(r.timeout)));
       return false;
     }
     S.path.push(r.node); S.done.push(s); S.nodes[r.node] = r;
@@ -387,6 +415,8 @@ const toCursor = () => run(async () => {
 $("next").onclick = next;
 $("undo").onclick = undo;
 $("to-cursor").onclick = toCursor;
+$("cancel").onclick = cancel;
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && inflight) cancel(); });
 $("help-toggle").onclick = () => { $("help").hidden = !$("help").hidden; };
 
 // ---------------------------------------------------------------- hints

@@ -124,7 +124,7 @@ rewrites that match up to ring as ready sentences, inserted at the
 cursor), the antiderivative card with matching rows marked, the progress
 signal after each step, the `~` speculative probe (floating-point
 Gauss–Kronrod, never evidence), and §16.4's status line (admissions, max
-rung, rules, `0 machine-checked`). Not yet: rung 4, per-step timeout, the factoriser.
+rung, rules, `0 machine-checked`). Not yet: rung 4, the factoriser.
 `app/test_page.py` drives it in a headless browser when Playwright is
 installed.
 
@@ -160,8 +160,14 @@ and starting the goal again replays it through the kernel. Steps that no
 longer check are dropped and listed. Export and Import move the whole
 tree, dead ends included.
 
-**Next,** per §17: what remains of stage 1's lists: the per-step
-timeout, the
+**A slow step can be stopped** (`app/TIMEOUT.md`, §16.4, 2026-09-25,
+spec reviewed by a skeptic first): `./calc` runs the kernel in a worker
+process; a request past `--step-timeout` (10 s by default) or cancelled
+(the page's Cancel, or Escape) is answered as a timeout, never a refusal,
+the worker is replaced, and each session comes back from its moves on
+first use.
+
+**Next,** per §17: what remains of stage 1's lists: the
 factoriser and partial-fraction solver, and recognizer version 2 (row 1's
 `trig_norm` clause) with a fresh held-out set. Then §17's gate: use it on
 readiness P1, P3 and P5 in the loop.

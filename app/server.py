@@ -8,10 +8,16 @@ import argparse
 import json
 import os
 import sys
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import (BaseHTTPRequestHandler, HTTPServer,
+                         ThreadingHTTPServer)
 from urllib.parse import parse_qsl, urlsplit
 
 import api
+import backend
+
+# TIMEOUT.md: where API requests run. In-process unless serve() (or a test)
+# installs a backend.Worker.
+BACKEND = backend.Backend()
 
 MAX_BODY = 1 << 20  # a move is a few hundred bytes
 PAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "page",
@@ -65,10 +71,13 @@ class Handler(BaseHTTPRequestHandler):
                     "code": "unknown-route",
                     "message": f"no file {url.path}"}})
             return self._file(*found)
-        self._send(*api.handle("GET", url.path, dict(parse_qsl(url.query))))
+        self._send(*BACKEND.handle("GET", url.path,
+                                   dict(parse_qsl(url.query))))
 
     def do_POST(self):
         url = urlsplit(self.path)
+        if url.path == "/cancel":  # TIMEOUT.md: never waits for the step
+            return self._send(200, BACKEND.cancel())
         try:
             n = int(self.headers.get("Content-Length") or 0)
         except ValueError:
@@ -81,18 +90,22 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, UnicodeDecodeError) as e:
             return self._send(400, {"error": {"code": "bad-json",
                                               "message": str(e)}})
-        self._send(*api.handle("POST", url.path, body))
+        self._send(*BACKEND.handle("POST", url.path, body))
 
     def log_message(self, fmt, *args):
         if self.server.verbose:
             super().log_message(fmt, *args)
 
 
-def serve(port=8765, verbose=False):
-    """Serve until interrupted. One request at a time, on purpose: the
-    kernel's module-level tables (handles, lineages, memo caches) were not
-    written for concurrent steps, and there is one learner."""
-    srv = HTTPServer(("127.0.0.1", port), Handler)
+def serve(port=8765, verbose=False, step_timeout=10.0, work_dir=None):
+    """Serve until interrupted. Requests are taken on threads, so that
+    /cancel is heard while a step runs, but reach the kernel one at a
+    time, on purpose: the kernel's module-level tables (handles, lineages,
+    memo caches) were not written for concurrent steps, and there is one
+    learner. The kernel runs in a worker process (TIMEOUT.md)."""
+    global BACKEND
+    BACKEND = backend.Worker(step_timeout, work_dir)
+    srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     srv.verbose = verbose
     print(f"calc: http://127.0.0.1:{srv.server_address[1]}/ (the check-mode "
           "page; PAGE.md)", flush=True)
@@ -102,6 +115,7 @@ def serve(port=8765, verbose=False):
         pass
     finally:
         srv.server_close()
+        BACKEND.close()
 
 
 def main(argv=None):
@@ -111,9 +125,11 @@ def main(argv=None):
     p.add_argument("--work", default="calc-work",
                    help="where work files are saved (PERSIST.md); "
                         "relative to the current directory")
+    p.add_argument("--step-timeout", type=float, default=10.0,
+                   help="seconds a request may run before it is stopped "
+                        "(TIMEOUT.md); 0 for none")
     a = p.parse_args(argv)
-    api.WORK_DIR = os.path.abspath(a.work)
-    serve(a.port, a.verbose)
+    serve(a.port, a.verbose, a.step_timeout, os.path.abspath(a.work))
 
 
 if __name__ == "__main__":
