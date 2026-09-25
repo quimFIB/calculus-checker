@@ -66,6 +66,36 @@ held-out set was scored):
   the factor x + 1 twice rather than the expanded x² + 2x + 1: "each field
   divisor kept as a factor" needs it for c/(linear)ᵏ and row 13.
 
+**Revision 2 (table version 2, 2026-09-25).** Version 1's held-out set
+was scored once (strict 18/28, lenient 20/28; WHAT.md) and is now
+development data, like the spike's sets before it; version 2 is scored
+once on a fresh set, `heldout_2026_09_25_v2.json`, built from units 27–40
+(and unused integrals of 11–26) by a separate agent from the course's text
+alone and committed unread. The changes, each a general rule rather than a
+fit to one integral:
+
+- **Row 1, the product clause** (in place of the unbuilt `trig_norm`
+  clause, which it covers for sin and cos): a numerator monomial holding
+  sin or cos factors of linear arguments, any angles, of total degree ≥ 2,
+  with no sin or cos in the denominator, whatever else multiplies it (a
+  polynomial, an exponential, a power of x). Product to sum or power
+  reduction turns each such monomial into single trig terms. The
+  orthogonality pattern (row 15's shape: exactly two factors with
+  symbolic frequencies and nothing else) is left to row 15.
+- **Row 2, square roots of a linear argument** are on the card: √(ax + b)
+  and 1/√(ax + b) are powers of a linear argument (the power rule), as
+  c/(linear)ᵏ already is.
+- **Row 9, the secant substitution**: √(x² − a²) (a quadratic with
+  positive leading coefficient and negative completed constant) with x
+  itself a further factor of the denominator is x = a sec θ, the arcsec
+  form; without that factor it stays row 10's cosh.
+
+Unchanged misses, recorded: a quadratic under a root whose leading
+coefficient is a symbol of unknown sign (U09-P1, and 2·e2 in general) is
+still read by the symbol's sign as written; a linear substitution into a
+non-card function (ln sin 2x) is silent; cos u/√u by parts is read as a
+root substitution, which also works.
+
 Families with no row: guess and verify, reduction formula, other. An entry
 labelled with one is scored "no row", apart from a wrong row.
 
