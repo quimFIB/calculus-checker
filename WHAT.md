@@ -80,17 +80,28 @@ tool's falsifier.
 
 **Every proof reads a plain `Proved.`**, with nothing admitted. That covers
 readiness P1 from the sheet's own goal, stage 0's S1–S3, three substitution
-files, and ∫₀¹ √(1 − x²) = π/4. `python3 kernel/proof_of_life.py` passes 882
-checks (`PROOF_OF_LIFE.md`). Discharge, `int_subst`, `int_flip` and
-regularity are built, and so are §18 Q23's formers: integrals and
-derivatives owe their own definedness.
+files, ∫₀¹ √(1 − x²) = π/4, readiness P1(1) by parts, readiness P5 and P2
+(improper integrals over infinite ranges), and ∫₀^{π/2} cos²t = π/4.
+`python3.12 kernel/proof_of_life.py` passes 990 checks (`PROOF_OF_LIFE.md`).
+Discharge, `int_subst`, `int_flip` and regularity are built, and so are
+§18 Q23's formers: integrals and derivatives owe their own definedness.
+
+**Built 2026-09-25 for the mechanics course** (p1_expected sections 19–23),
+each spec-first and then reviewed by an independent skeptic:
+- `int_parts`, and `ftc` at any Int by occurrence;
+- `int_improper` over an infinite end, with a trusted limit evaluator
+  (`kernel/limits.py`) and discharge's `sign node` method for quotients,
+  sums and powers;
+- `trig_norm` (§8.9) as ftc's fallback after `field` fails, with `field`'s
+  facts reduced in order (E86) and seven trig entries (E87).
 
 **Deliberately not built yet:**
-- convergence and improper integrals (`diverges`), since continuity is not
-  convergence;
-- an integration-by-parts move;
-- `trig_norm`;
-- Sturm sequences, for exact sign decisions on irrational poles.
+- the `diverges` judgement, and integrands singular at a FINITE end (unit
+  00 P7);
+- `int_improper` for trig integrands (e^-x sin x needs a squeeze law);
+- the cycle case of `int_parts` (E74), hyperbolic atoms in `trig_norm`;
+- Sturm sequences, for exact sign decisions on irrational poles (not in
+  the mechanics course).
 
 **The JSON API is up** (`app/API.md`, 2026-09-25): `./calc` serves §16.3's
 routes on 127.0.0.1, over the attempt tree, with `/hint` and `/palette`
@@ -101,7 +112,7 @@ problem file through it against the loader.
 usable tool before the assistance layer exists. Then the recognizer table,
 scored on a held-out set (revision 8), then the full UI.
 
-**Python version:** the suite passes 882 of 882 on Python 3.12 and 3.13.
+**Python version:** the suite passes 990 of 990 on Python 3.12.
 On 3.11 five deep-term checks fail with `RecursionError` in dataclass
 `__eq__`, so 3.12 is the floor in practice.
 

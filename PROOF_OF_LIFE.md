@@ -486,8 +486,10 @@ Its findings are fixed:
 A vacuously true Reg whose closed side is false is refused on purpose, as
 closed formers always were.
 
-**Stage 1's kernel is complete.** The suite is at 882 of 882. Next, when the
-owner resumes, is §16.3's API.
+**Stage 1's kernel is complete.** The suite was at 882 of 882 then. The
+API followed, and then (2026-09-25) items P, I and T: `int_parts`,
+`int_improper` with `limits.py` and the sign node, and `trig_norm`
+(p1_expected sections 19-23). The suite is at 990 of 990 on Python 3.12.
 
 ## What is in `kernel/`
 
@@ -498,12 +500,15 @@ owner resumes, is §16.3's API.
 | `ARCHITECTURE.md` | modules, trust tiers, contracts, planted-bug mechanism |
 | `terms.py` | trusted: nodes, parser, printer, goal checks |
 | `entries.py`, `poly.py`, `field.py`, `deriv.py`, `kernel.py` | trusted: the §6.8 entries, `ring`/`field` (copied from the spike), §6.3, rules/tracker/handles/`step` |
-| `discharge.py` | trusted: the certificate checkers (regularity included) and the exact-value rewrite |
+| `discharge.py` | trusted: the certificate checkers (regularity and the sign node included) and the exact-value rewrite |
+| `limits.py` | trusted: limits at an infinite end, for `int_improper` (p1_expected section 20) |
 | `domains.py` | trusted: the one natural-domain table the formers and the regularity checker share |
 | `tagger.py`, `search.py`, `refute.py`, `residual.py`, `schema.py` | untrusted: admission tags, certificate search, decided-false, residual rendering, the closed whitelist and E27 |
+| `trig_norm.py` | untrusted: the §8.9 normaliser's proposal of entry instances, fenced and re-checked by the kernel (E88) |
 | `proof_of_life.py` | the done script and regression suite (items 1–6 for P1, item 7 for the problem files) |
 | `loader.py` | untrusted: reads a §16.4 problem file and drives its reference proof through `step()` |
 | `problems/stage1/` | SUB1, S2R and SUB2, the substitution problem files |
+| `problems/parts/`, `problems/improper/`, `problems/trig/` | readiness P1(1) by parts, readiness P5 and P2, and ∫₀^{π/2} cos²t |
 | `problems/stage0/` | S1–S3 as problem files, and `expected.py`, their hand-written expected results |
 | `test_field.py`, `test_grammar.py` | unit and property tests |
 
