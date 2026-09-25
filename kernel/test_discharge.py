@@ -816,12 +816,13 @@ def entries_problems():
     # and atan_zero after them (IMPROPER_E27_CHANGES, E80): 24
     tail = ["cos_zero", "sqrt_nonneg", *X.CONSOLIDATION_ENTRIES,
             *X.IMPROPER_E27_CHANGES["ENTRIES_append"],
-            *X.TRIG_NORM_SWITCH["ENTRIES_append"]]  # E87: 31
+            *X.TRIG_NORM_SWITCH["ENTRIES_append"],  # E87: 31
+            *X.TAYLOR_ENTRIES_APPEND]  # E103: 32
     if names[-len(tail):] != tail:
         out.append(f"cos_zero, sqrt_nonneg and CONSOLIDATION_ENTRIES are not "
                    f"last, in that order: {names}")
-    if len(names) != 31:
-        out.append(f"ENTRIES has {len(names)} entries, expected 31")
+    if len(names) != 32:
+        out.append(f"ENTRIES has {len(names)} entries, expected 32")
     for name, e in {**X.SQRT_NONNEG_ENTRY, **X.CONSOLIDATION_ENTRIES}.items():
         got = ENTRIES.get(name)
         if got is None or got.statement != judgement(e["statement"]) \
@@ -953,7 +954,10 @@ def fev(t, env):
         if k is T.Pow:
             return fev(t.base, env) ** t.n
         if k is T.App:
-            return _MATH[t.fn](fev(t.arg, env))
+            r = _MATH[t.fn](fev(t.arg, env))
+            if t.fn == "exp" and r == 0.0:  # underflow: exp is never 0 (E103)
+                raise Skip
+            return r
     except (ValueError, ZeroDivisionError, KeyError, OverflowError):
         raise Skip from None
     raise Skip
@@ -961,9 +965,14 @@ def fev(t, env):
 
 def float_holds(j, env):
     """j's truth at env in floats; an equality within MARGIN of the
-    boundary reads as the boundary itself."""
+    boundary reads as the boundary itself. A strict or # 0 judgement whose
+    difference is nonzero but within MARGIN is not decided by floats (Skip):
+    exp(-24) > 0 is true, and reading it as the boundary would call it
+    false (p1_expected E103, which made exp's positivity citable)."""
     d = fev(j.e, env) if type(j) is T.NonZero else fev(j.lhs, env) - fev(j.rhs, env)
     if abs(d) <= MARGIN:
+        if d != 0 and (type(j) is T.NonZero or j.op in ("<", ">")):
+            raise Skip
         d = 0.0
     return d != 0 if type(j) is T.NonZero else _OPS[j.op](d)
 

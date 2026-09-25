@@ -15515,28 +15515,32 @@ _P3_DERIVS = ["1/(2*(1 - u)*sqrt(1 - u))", "3/(4*(1 - u)^2*sqrt(1 - u))",
               "105/(16*(1 - u)^4*sqrt(1 - u))"]
 _P3_TAYLOR = {"f": _P3_F, "var": "u", "lo": "0", "hi": "1", "at": "b^2",
               "derivs": _P3_DERIVS, "sense": "increasing", "check": "field",
-              "facts": []}
+              "facts": [["handle", "hs"]]}
+# (sqrt(1 - u))^2 == 1 - u, for field in the derivative checks; its
+# hypothesis 1 - u >= 0 is owed on (0, 1)
+_P3_SQ = ("fact", {"entry": "sqrt_sq_val", "inst": {"a": "1 - u"},
+                   "bind": "hs"})
 
 TAYLOR_PROOFS = {
     "P3_LOWER": {
         "goal": "5/16*b^6 <= 1/sqrt(1 - b^2) - (1 + b^2/2 + 3/8*b^4) "
                 "@ b in [0, 1)",
         "steps": [("fact", {"entry": "sqrt_sq", "inst": {"u": "1"},
-                            "bind": "h1"}),
+                            "bind": "h1"}), _P3_SQ,
                   ("taylor_lagrange", {**_P3_TAYLOR, "side": "lower",
                                        "bind": "hl"}),
-                  ("bound", {"check": "field", "facts": [("handle", "hl"),
-                                                         ("handle", "h1")]})],
+                  ("bound", {"check": "field", "facts": [["handle", "hl"],
+                                                         ["handle", "h1"]]})],
         "report": "Proved."},
     "P3_UPPER": {
         "goal": "1/sqrt(1 - b^2) - (1 + b^2/2 + 3/8*b^4) <= "
                 "5/16*b^6/((1 - b^2)^3*sqrt(1 - b^2)) @ b in [0, 1)",
         "steps": [("fact", {"entry": "sqrt_sq", "inst": {"u": "1"},
-                            "bind": "h1"}),
+                            "bind": "h1"}), _P3_SQ,
                   ("taylor_lagrange", {**_P3_TAYLOR, "side": "upper",
                                        "bind": "hu"}),
-                  ("bound", {"check": "field", "facts": [("handle", "hu"),
-                                                         ("handle", "h1")]})],
+                  ("bound", {"check": "field", "facts": [["handle", "hu"],
+                                                         ["handle", "h1"]]})],
         "report": "Proved."},
     "EXP_ORDER_3": {  # STAGE0 S27
         "goal": "x^4/24 <= exp x - (1 + x + x^2/2 + x^3/6) @ x in [0, 1]",
@@ -15547,25 +15551,24 @@ TAYLOR_PROOFS = {
                                        "side": "lower",
                                        "sense": "increasing", "check": "ring",
                                        "facts": [], "bind": "h"}),
-                  ("bound", {"check": "field", "facts": [("handle", "h"),
-                                                         ("handle", "h0")]})],
+                  ("bound", {"check": "field", "facts": [["handle", "h"],
+                                                         ["handle", "h0"]]})],
         "report": "Proved."},
-    "COS_DECREASING": {
-        "goal": "cos x - (1 - x^2/2) <= x^4/24 @ x in [0, 1]",
-        "steps": [("fact", {"entry": "cos_zero", "inst": {}, "bind": "h0"}),
-                  ("taylor_lagrange", {"f": "cos u", "var": "u", "lo": "0",
-                                       "hi": "2", "at": "x",
-                                       "derivs": ["-sin u", "-cos u",
-                                                  "sin u", "cos u",
-                                                  "-sin u"],
+    "DECREASING": {
+        "goal": "1/(1 + x) - (1 - x) <= x^2 @ x in [0, 1]",
+        "steps": [("taylor_lagrange", {"f": "1/(1 + u)", "var": "u",
+                                       "lo": "0", "hi": "2", "at": "x",
+                                       "derivs": ["-1/(1 + u)^2",
+                                                  "2/(1 + u)^3",
+                                                  "-6/(1 + u)^4"],
                                        "side": "upper",
-                                       "sense": "decreasing", "check": "ring",
-                                       "facts": [], "bind": "h"}),
-                  ("bound", {"check": "field", "facts": [("handle", "h"),
-                                                         ("handle", "h0")]})],
+                                       "sense": "decreasing",
+                                       "check": "field", "facts": [],
+                                       "bind": "h"}),
+                  ("bound", {"check": "field", "facts": [["handle", "h"]]})],
         "report": "Proved.",
-        "why": "decreasing: -sin u <= 0 on (0, 2) needs sin u >= 0 there "
-               "(sin_nonneg_on, 2 <= pi); upper reads D_4 at a = 0"},
+        "why": "decreasing: -6/(1 + u)^4 <= 0 on (0, 2); the upper bound "
+               "reads D_2 at a = 0: R <= 2*x^2/2"},
     "GE_GOAL": {  # the same bound written with >=
         "goal": "exp x - (1 + x + x^2/2 + x^3/6) >= x^4/24 @ x in [0, 1]",
         "steps": [("fact", {"entry": "exp_zero", "inst": {}, "bind": "h0"}),
@@ -15575,8 +15578,8 @@ TAYLOR_PROOFS = {
                                        "side": "lower",
                                        "sense": "increasing", "check": "ring",
                                        "facts": [], "bind": "h"}),
-                  ("bound", {"check": "field", "facts": [("handle", "h"),
-                                                         ("handle", "h0")]})],
+                  ("bound", {"check": "field", "facts": [["handle", "h"],
+                                                         ["handle", "h0"]]})],
         "report": "Proved."},
 }
 
@@ -15635,7 +15638,7 @@ TAYLOR_BAD_MOVES = [
      "refusal": "goal-shape"},
     {"id": "close_on_order_goal", "goal": _EXP_GOAL,
      "move": ("close", {"value": "1", "check": "ring", "facts": []}),
-     "refusal": "close-no-mvar"},
+     "refusal": "goal-shape", "why": "E96, before close's own ?A test"},
     {"id": "install_equation_still", "goal": "x == 1 @ x > 0",
      "install": True, "refusal": None,
      "why": "E96: an equation with no ?A installs as before"},
@@ -15647,21 +15650,21 @@ TAYLOR_BOUND_CASES = [
      "goal": "x^4/24 < exp x - (1 + x + x^2/2 + x^3/6) @ x in [0, 1]",
      "steps": [("fact", {"entry": "exp_zero", "inst": {}, "bind": "h0"}),
                ("taylor_lagrange", {**_EXP5, "bind": "h"})],
-     "move": ("bound", {"check": "field", "facts": [("handle", "h"),
-                                                    ("handle", "h0")]}),
+     "move": ("bound", {"check": "field", "facts": [["handle", "h"],
+                                                    ["handle", "h0"]]}),
      "refusal": "bound-strictness"},
     {"id": "bound_wrong_goal",
      "goal": "x^4/12 <= exp x - (1 + x + x^2/2 + x^3/6) @ x in [0, 1]",
      "steps": [("fact", {"entry": "exp_zero", "inst": {}, "bind": "h0"}),
                ("taylor_lagrange", {**_EXP5, "bind": "h"})],
-     "move": ("bound", {"check": "field", "facts": [("handle", "h"),
-                                                    ("handle", "h0")]}),
+     "move": ("bound", {"check": "field", "facts": [["handle", "h"],
+                                                    ["handle", "h0"]]}),
      "refusal": "bound-check-failed", "residual": True},
     {"id": "bound_two_order_facts", "goal": _EXP_GOAL,
      "steps": [("taylor_lagrange", {**_EXP5, "bind": "h"}),
                ("taylor_lagrange", {**_EXP5, "bind": "g"})],
-     "move": ("bound", {"check": "ring", "facts": [("handle", "h"),
-                                                   ("handle", "g")]}),
+     "move": ("bound", {"check": "ring", "facts": [["handle", "h"],
+                                                   ["handle", "g"]]}),
      "refusal": "bound-fact-shape"},
 ]
 
@@ -15695,3 +15698,120 @@ TAYLOR_SWITCH = (
     "problems/taylor/P3_LOWER.json and P3_UPPER.json, replaying to "
     "'Proved.'. The app's script gains the two moves (app/SCRIPT.md).",
 )
+
+# ---------------------------------------------------------------------------
+# Section 25, as built (2026-09-25): what the build found, before review.
+DECISIONS_TAYLOR_BUILD = {
+    "E102": "taylor_lagrange refuses 'bad-args' when f, a D_k, lo, hi or "
+            "at holds an Int or D node (kernel._unfit), as it does for oo: "
+            "none of them may carry a value whose definedness the step "
+            "cannot state, into the conclusion or a premise (E57's "
+            "principle).",
+    "E103": "A §6.8 entry, exp_pos: exp u > 0, trusted like pi_pos, "
+            "appended last (ENTRIES 32). EXP_ORDER_3's monotone premise "
+            "exp u >= 0 was admitted without it; cite now discharges it. "
+            "Two older checks read exp as undecided and change with it: "
+            "the F3 point-bound case (proof_of_life NINE_VARIABLES) now "
+            "sums cosh, which nothing decides positive, and the property "
+            "test's float reading no longer calls a strict judgement "
+            "false when its difference is nonzero but within its 1e-9 "
+            "margin (exp(-24) > 0), it skips the point.",
+    "E104": "P3's derivative checks need (sqrt(1 - u))^2 == 1 - u in "
+            "field: a fact sqrt_sq_val with a := 1 - u, passed in "
+            "taylor_lagrange's facts, whose hypothesis 1 - u >= 0 is owed "
+            "on G + (u in (0, 1)) by _check. fact takes inst values that "
+            "mention a variable outside the goal (it always did); such a "
+            "fact used at the goal's domain owes its hypotheses there, "
+            "and one that does not hold there is refused or admitted, "
+            "never assumed. Its value D_k[u := 0] = ... sqrt(1 - 0) is "
+            "read by bound through sqrt_sq with u := 1.",
+    "E105": "Amended from the spec: close on an order goal refuses "
+            "'goal-shape' (E96's move test runs before any move), not "
+            "'close-no-mvar'; COS_DECREASING is replaced by DECREASING, "
+            "1/(1 + x) - (1 - x) <= x^2 on [0, 1], because -sin u <= 0 on "
+            "(0, 2) is not discharged (sin_nonneg_on needs 2 <= pi, and "
+            "no sign fact bounds pi above 0).",
+    "E106": "Earlier data amended by E100: REG_MUST_REJECT class_two "
+            "(x in C^2) is accepted now; the case becomes class_seventeen "
+            "(C^17, past REG_MAX_CLASS), which reg_any_class still "
+            "catches. A goal that is an order judgement installs, so "
+            "BAD_MOVES' goal_not_equation is now x # 0.",
+}
+TAYLOR_ENTRIES_APPEND = ("exp_pos",)
+E57_PRINCIPLE["taylor_lagrange"] = (
+    "erases nothing: the goal is unchanged; f, the D_k, lo, hi and at hold "
+    "no Int or D node (E102), so the conclusion carries none")
+E57_PRINCIPLE["bound"] = (
+    "erases the goal by closing it; its Int and D nodes were owed where "
+    "they entered, and field refuses to normalise one (E26 (b)), so a "
+    "bound whose sides differ by an Int cannot close")
+for _c in REG_MUST_REJECT:
+    if _c["id"] == "class_two":
+        _c["id"] = "class_seventeen"
+        _c["key"] = ("x in C^17([0, 1])", "[0, 1]")
+for _b in REG_PLANTED_BUGS.values():
+    _b["caught_by"] = [("REG_MUST_REJECT", "class_seventeen")
+                       if c == ("REG_MUST_REJECT", "class_two") else c
+                       for c in _b["caught_by"]]
+
+# ---------------------------------------------------------------------------
+# Section 25's review (Taylor review 2026-09-25), folded in.
+#
+# An independent skeptic read 97d466c against the kernel and probed it: no
+# false 'Proved.' found; E97's soundness argument checked (p = a, the
+# transfer at a, parameters in the Reg's domain, capture, the nonempty
+# interval), E100 checked builtin by builtin, bound's normalisation and
+# rewrite on order goals checked. Three blocking findings were the spec's
+# own expected reports (P3 needs the sqrt_sq_val fact, E104; exp needed a
+# sign entry, E103; COS_DECREASING, E105), all met by the build before the
+# report arrived. The minor findings:
+DECISIONS_TAYLOR_REVIEW = {
+    "E107": "taylor_lagrange charges the formers of lo, hi and at at G "
+            "first, before a <= p (source 'former'): hi entered only "
+            "through p < c and the interval I, so hi = sqrt(x - 5) put an "
+            "undefined end on I unowed.",
+    "E108": "Arguments, pinned: var passes _names_variable; derivs is a "
+            "list of 2 to REG_MAX_CLASS terms, each through check_goal "
+            "like every term argument, else 'bad-args'; side is 'lower' or "
+            "'upper' and sense 'increasing' or 'decreasing', else "
+            "'bad-args'; oo in any term is 'bad-args' (close's rule), and "
+            "so is an Int or D node (E102). 'Free in the goal' is "
+            "fv(goal), domain items included, so u may not be a variable "
+            "of the goal's domain either; a variable bound in the goal "
+            "cannot appear in lo, hi or at, since it is not in fv(goal).",
+    "E109": "bound and the fact's hypotheses: an item of H that is an item "
+            "of the goal's domain is satisfied there and emits nothing "
+            "(a taylor handle's H is G, whose items include intervals); "
+            "any other Rel or # 0 item is emitted at G, source "
+            "'fact_hyp'; any other interval refuses 'bound-fact-shape'. "
+            "bound charges the order fact's inst formers at G, as _check "
+            "does for an equation fact.",
+    "E110": "The shapes, pinned: T = D_0[u := a] + D_1[u := a]*(p - a) + "
+            "sum over k = 2 .. n of D_k[u := a]*(p - a)^k/k!, with no power "
+            "at k = 0 (no 0^0 at p = a); W = (p - a)^(n+1)/(n+1)!, written "
+            "(p - a) when n = 0 and 1*... never. taylor_lagrange is allowed "
+            "on an equation goal too: it only mints a handle, which close's "
+            "field refuses as a fact ('field-fact-shape').",
+    "E111": "Recorded, not changed: E98 asks Reg(f, n+2) where the proof "
+            "needs less; the stronger premise is what regularity decides "
+            "anyway, and it keeps the soundness argument one paragraph.",
+}
+TAYLOR_BAD_MOVES += [
+    {"id": "taylor_too_many_derivs", "goal": _EXP_GOAL,
+     "move": ("taylor_lagrange", {**_EXP5, "derivs": ["exp u"] * 17}),
+     "refusal": "bad-args", "why": "E108: at most REG_MAX_CLASS"},
+    {"id": "taylor_bad_sense", "goal": _EXP_GOAL,
+     "move": ("taylor_lagrange", {**_EXP5, "sense": "up"}),
+     "refusal": "bad-args", "why": "E108"},
+    {"id": "taylor_int_in_f", "goal": _EXP_GOAL,
+     "move": ("taylor_lagrange", {**_EXP5, "f": "Int[t = 0 .. u] exp t"}),
+     "refusal": "bad-args", "why": "E102"},
+    {"id": "taylor_undefined_end", "goal": _EXP_GOAL,
+     "move": ("taylor_lagrange", {**_EXP5, "hi": "sqrt(x - 5)"}),
+     "refusal": "obligation-decided-false",
+     "why": "E107: x - 5 >= 0 fails on [0, 1]"},
+    {"id": "taylor_domain_variable", "goal":
+     "x^4/24 <= exp x - (1 + x + x^2/2 + x^3/6) @ x in [0, 1], u in [0, 1]",
+     "move": ("taylor_lagrange", _EXP5), "refusal": "taylor-scope",
+     "why": "E108: u is in fv(goal) through the domain"},
+]

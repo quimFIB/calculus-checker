@@ -89,6 +89,8 @@ STATEMENTS = {
     "tan_def": ("tan u == sin u / cos u @ cos u # 0", ("u",)),
     "sin_pi": ("sin pi == 0", ()),
     "cos_pi": ("cos pi == -1", ()),
+    # p1_expected E103: exp is positive, for a monotone Taylor premise
+    "exp_pos": ("exp u > 0", ("u",)),
 }
 
 

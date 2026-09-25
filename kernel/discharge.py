@@ -679,9 +679,9 @@ _REG_ARITY = {"const": 0, "var": 0, "neg": 1, "add": 2, "mul": 2, "div": 2,
 
 
 def _reg_class_ok(k):
-    """k is 0 or 1: C^2 and up and C^omega are not built. A seam
-    (ARCHITECTURE.md §7)."""
-    return type(k) is int and k in (0, 1)
+    """k is an int from 0 to domains.REG_MAX_CLASS (E100); for k >= 1 the
+    sides are C^1's. C^omega is not built. A seam (ARCHITECTURE.md §7)."""
+    return type(k) is int and 0 <= k <= domains.REG_MAX_CLASS
 
 
 def _reg_fields(x, names):
@@ -732,8 +732,8 @@ def _interior(props):
 def _reg_sides(t, rule, k):
     """The node's side propositions, rebuilt from the term and k
     (REG_RULES): div b # 0, pow_neg a # 0, rpow a > 0, a builtin's
-    natural-domain row at k = 0 and its interior plus C1_EXTRA at k = 1,
-    nothing else. A seam (ARCHITECTURE.md §7)."""
+    natural-domain row at k = 0 and its interior plus C1_EXTRA at every
+    k >= 1 (E100), nothing else. A seam (ARCHITECTURE.md §7)."""
     if rule == "div":
         return (NonZero(t.b),)
     if rule == "pow_neg":

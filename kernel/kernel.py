@@ -139,7 +139,10 @@ REASON_EMPTY = "domain inconsistent"  # §5.3's pre-check found the domain
 DECIDED_FALSE = "obligation-decided-false"  # E33
 VERDICT = "Proved modulo {n} admissions"
 MOVES = ("rewrite", "fact", "ftc", "close", "int_subst", "int_flip",
-         "int_parts", "int_improper")
+         "int_parts", "int_improper", "taylor_lagrange", "bound")
+# E96: the moves an order goal takes; `bound` takes nothing else
+ORDER_MOVES = ("rewrite", "fact", "taylor_lagrange", "bound")
+ORDERINGS = ("<", "<=", ">", ">=")
 
 # The documented public API. No name here returns a ProofState from a str,
 # bytes or dict (FORGERIES json_roundtrip_state, no_loader).
@@ -378,8 +381,9 @@ def install(goal):
             raise Refused("goal-shape", "a goal here is exactly one judgement")
         check_goal(goal)
         g = goal[0]
-        if not (isinstance(g, Rel) and g.op == "=="):
-            raise Refused("goal-shape", "the moves here prove an equation")
+        if not (isinstance(g, Rel) and (g.op == "==" or g.op in ORDERINGS)):
+            raise Refused("goal-shape", "the moves here prove an equation "
+                          "or an order judgement (E96)")
         for node in trees(g.dom):          # E26 (b): a hypothesis about an Int/D value
             FD.hypothesis_tree(node)       # presupposes it exists; refused, never admitted
         buf = {}
@@ -430,6 +434,7 @@ def step(state, move, args):
             raise Refused("proof-finished", "the goal is already closed")
         if type(move) is not str or move not in MOVES:
             raise Refused("bad-move", f"the moves are {', '.join(MOVES)}")
+        _goal_shape(state.goal[0], move)
         _check_args(move, args, state.goal)
         minted = [_resolve_fact(state, f) for f in args.get("facts", ())]
         buf = {}
@@ -443,6 +448,17 @@ def step(state, move, args):
         tracker.add(ob)
     return ProofState(_TOKEN, goal, state.original, state.lineage, tracker,
                       StepRecord(move, tuple(buf.values()), **extra), theorem)
+
+
+def _goal_shape(g, move):
+    """E96: an order goal takes ORDER_MOVES only, and bound takes an order
+    goal only."""
+    if g.op != "==" and move not in ORDER_MOVES:
+        raise Refused("goal-shape", f"{move} proves an equation; an order "
+                      "goal takes " + ", ".join(ORDER_MOVES))
+    if g.op == "==" and move == "bound":
+        raise Refused("goal-shape", "bound closes an order goal; an "
+                      "equation is closed by close")
 
 
 def report(state):
@@ -487,7 +503,10 @@ _ARGS = {"rewrite": ("entry", "inst", "at"), "fact": ("entry", "inst", "bind"),
          "ftc": ("F", "check", "facts"), "close": ("value", "check", "facts"),
          "int_subst": ("var", "sub", "new_var", "lo", "hi", "check", "facts"),
          "int_flip": (), "int_parts": ("var", "u", "v", "check", "facts"),
-         "int_improper": ("F", "check", "facts")}
+         "int_improper": ("F", "check", "facts"),
+         "taylor_lagrange": ("bind", "f", "var", "lo", "hi", "at", "derivs",
+                             "side", "sense", "check", "facts"),
+         "bound": ("check", "facts")}
 _TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f", "u", "v")
 
 
@@ -551,7 +570,7 @@ def _check_args(move, args, goal):
                     for k in ("entry", "bind") if k in args)
     ok = ok and type(args.get("occurrence", 0)) is int
     if ok and move in ("ftc", "close", "int_subst", "int_parts",
-                       "int_improper"):
+                       "int_improper", "taylor_lagrange"):
         facts = args["facts"]
         ok = (type(args["check"]) is str and args["check"] in ("ring", "field")
               and type(facts) in (list, tuple)
@@ -560,6 +579,18 @@ def _check_args(move, args, goal):
         ok = args.get("occurrence", 0) >= 0
     if ok and move == "int_parts":  # INT_PARTS_RULE step 1
         ok = args.get("occurrence", 0) >= 0 and _names_variable(args["var"])
+    if ok and move == "bound":  # E99: ring's lone fact is the order one
+        ok = (type(args["check"]) is str and args["check"] in ("ring", "field")
+              and type(args["facts"]) in (list, tuple))
+    if ok and move == "taylor_lagrange":  # E97
+        ds = args["derivs"]
+        ok = (type(ds) in (list, tuple)
+              and 2 <= len(ds) <= domains.REG_MAX_CLASS
+              and type(args["side"]) is str
+              and args["side"] in ("lower", "upper")
+              and type(args["sense"]) is str
+              and args["sense"] in ("increasing", "decreasing")
+              and _names_variable(args["var"]))
     if ok and move == "int_subst":
         ok = (type(args.get("mode", "forward")) is str
               and args.get("mode", "forward") in ("forward", "reverse")
@@ -569,6 +600,8 @@ def _check_args(move, args, goal):
         raise Refused("bad-args", f"{move} takes {', '.join(sorted(need))}"
                       if need else f"{move} takes no argument but occurrence")
     given = [args[k] for k in _TERM_ARGS if k in args] + list(inst.values())
+    if move == "taylor_lagrange":
+        given += list(args["derivs"])
     for t in given:  # check_goal first: it refuses a malformed node unread
         if not isinstance(t, Term):
             raise Refused("bad-args", f"not a term without ?A: {_shown(t)}")
@@ -581,9 +614,11 @@ def _check_args(move, args, goal):
                 raise
             raise Refused("bad-args", f"not a term without ?A: "
                           f"{_shown(t)}") from None
-        if (move in ("int_subst", "int_parts", "int_improper")
-                and _holds_infinity(t)):
+        if (move in ("int_subst", "int_parts", "int_improper",
+                     "taylor_lagrange") and _holds_infinity(t)):
             raise Refused("bad-args", f"{show(t)} mentions oo")
+        if move == "taylor_lagrange" and _unfit(t):  # E102
+            raise Refused("bad-args", f"{_brief(t)} holds an Int or D node")
     check_names(goal, *given)  # no x(y) into a goal whose x is a variable
 
 
@@ -1982,6 +2017,149 @@ def _int_improper(state, args, minted, buf):
     return goal, None, {"trace": d.trace, "output": d.output}
 
 
+# ---------------------------------------------------------------- Taylor
+#
+# p1_expected section 25: taylor_lagrange (E97, E98) and bound (E99).
+
+S_TAYLOR_ORDER, S_TAYLOR_F_C = "taylor_order", "taylor_f_C"
+S_TAYLOR_D_C0, S_TAYLOR_D = "taylor_D_C0", "taylor_D"
+S_TAYLOR_MONO = "taylor_monotone"
+
+
+def _taylor_scope(g, u, f, derivs, ends):
+    """E97: u is neither free nor bound in the goal; f and each D_k mention
+    only the goal's variables and u; lo, hi and at only the goal's."""
+    names = fv(g)
+    if u in names or u in bv(g):
+        raise Refused("taylor-scope", f"{u} is a variable of the goal; the "
+                      "expansion variable must be new")
+    for t in (f, *derivs):
+        out = fv(t) - names - {u}
+        if out:
+            raise Refused("taylor-scope", f"{show(t)} mentions "
+                          f"{', '.join(sorted(out))}, not in the goal")
+    for t in ends:
+        out = fv(t) - names
+        if out:
+            raise Refused("taylor-scope", f"{show(t)} mentions "
+                          f"{', '.join(sorted(out))}, not in the goal")
+
+
+def _taylor_poly(Ds, u, a, p, n):
+    """T = sum over k = 0 .. n of D_k[u := a] (p - a)^k / k!, and W = (p -
+    a)^(n+1) / (n+1)! (E97)."""
+    h = Add(p, Neg(a))
+
+    def term(coef, k):
+        if k == 0:
+            return coef
+        t = Mul(coef, h if k == 1 else Pow(h, k))
+        f = 1
+        for i in range(2, k + 1):
+            f *= i
+        return t if f == 1 else Div(t, Num(f))
+    T = subst(Ds[0], {u: a})
+    for k in range(1, n + 1):
+        T = Add(T, term(subst(Ds[k], {u: a}), k))
+    W = term(Num(1), n + 1)
+    return T, W
+
+
+def _taylor(state, args, minted, buf):
+    """E97, E98: taylor_lagrange's premises, in E98's order, then the
+    minted handle for the chosen side. The goal does not change."""
+    g = state.goal[0]
+    G, u, f, check = g.dom, args["var"], args["f"], args["check"]
+    a, c, p = args["lo"], args["hi"], args["at"]
+    derivs = tuple(args["derivs"])
+    _taylor_scope(g, u, f, derivs, (a, c, p))
+    Ds = (f, *derivs)
+    n = len(derivs) - 2
+    on_I = G + (Interval(u, a, True, c, False),)
+    on_O = G + (Interval(u, a, False, c, False),)
+    for t in (a, c, p):  # E107: the ends and the point enter at G first
+        _charge_formers(buf, t, G, G)
+    _emit(buf, with_domain(Rel("<=", a, p), G), S_TAYLOR_ORDER, G)
+    _emit(buf, with_domain(Rel("<", p, c), G), S_TAYLOR_ORDER, G)
+    for t in Ds:
+        _charge_formers(buf, t, on_I, G)
+    _emit(buf, with_domain(Reg(f, n + 2), on_I), S_TAYLOR_F_C, G)
+    for k in range(1, n + 2):
+        _emit(buf, with_domain(Reg(Ds[k], 0), on_I), S_TAYLOR_D_C0, G)
+    cites = tuple(dict.fromkeys(rec.entry for rec in minted))
+    for k in range(n + 2):
+        d = DV.deriv(Ds[k], u, on_O)
+        for key, source in d.emissions:
+            _emit(buf, key, source, G)
+        _check(check, d.output, Ds[k + 1], minted, on_O, G, buf,
+               "taylor-check-failed")
+        _emit(buf, with_domain(Rel("==", Deriv(u, Ds[k]), Ds[k + 1]), on_O),
+              S_TAYLOR_D, G, ("deriv+" + check, cites))
+    up = args["sense"] == "increasing"
+    _emit(buf, with_domain(Rel(">=" if up else "<=", Ds[n + 2], Num(0)),
+                           on_O), S_TAYLOR_MONO, G)
+    T, W = _taylor_poly(Ds, u, a, p, n)
+    R = Add(subst(f, {u: p}), Neg(T))
+    left, right = (a, p) if up else (p, a)
+    if args["side"] == "lower":
+        conclusion = Rel("<=", Mul(subst(Ds[n + 1], {u: left}), W), R)
+    else:
+        conclusion = Rel("<=", R, Mul(subst(Ds[n + 1], {u: right}), W))
+    for side in (conclusion.lhs, conclusion.rhs):
+        _charge_formers(buf, side, G, G)
+    check_goal((conclusion,))
+    h = Handle(next(_IDS), state.lineage)
+    _MINTED[h.id] = _Minted(h, state.lineage, with_domain(conclusion, G),
+                            "taylor_lagrange")
+    return state.goal, None, {"handle": h}
+
+
+def _as_order(j):
+    """A Rel of ORDERINGS as (lo, hi, strict): lo < hi or lo <= hi."""
+    a, b = j.lhs, j.rhs
+    return {"<": (a, b, True), "<=": (a, b, False),
+            ">": (b, a, True), ">=": (b, a, False)}[j.op]
+
+
+def _bound(state, args, minted, buf):
+    """E99: close an order goal from exactly one order fact, hi - lo ==
+    d' - c' by the check with the equation facts. The fact's hypotheses
+    that are not items of the goal's domain are emitted there; one that is
+    an interval is refused. Returns (None, the original goal, no extras)."""
+    g = state.goal[0]
+    G = g.dom
+    order = [r for r in minted if isinstance(r.conclusion, Rel)
+             and r.conclusion.op in ORDERINGS]
+    if len(order) != 1:
+        raise Refused("bound-fact-shape", "bound takes exactly one fact that "
+                      f"is an order judgement; {len(order)} given")
+    rec, = order
+    eqs = [r for r in minted if r is not rec]
+    if args["check"] == "ring" and eqs:
+        raise Refused("bad-args", "ring takes no facts but the order one")
+    lo, hi, strict = _as_order(g)
+    c, d, fstrict = _as_order(rec.conclusion)
+    if strict and not fstrict:
+        raise Refused("bound-strictness", "a strict goal needs a strict fact")
+    for h in rec.conclusion.dom:
+        if h in G:
+            continue
+        if not isinstance(h, (Rel, NonZero)):
+            raise Refused("bound-fact-shape", f"the fact's hypothesis "
+                          f"{_brief(h)} is not in the goal's domain")
+    _check(args["check"], Add(hi, Neg(lo)), Add(d, Neg(c)), eqs, G, G, buf,
+           "bound-check-failed")
+    for v in rec.inst:
+        _charge_formers(buf, v, G, G)
+    for h in rec.conclusion.dom:
+        if h not in G:
+            _emit(buf, with_domain(h, G), "fact_hyp", G)
+    theorem = state.original
+    check_goal(theorem)
+    return None, theorem, {}
+
+
 _MOVE = {"rewrite": _rewrite, "fact": _fact, "ftc": _ftc, "close": _close,
          "int_subst": _int_subst, "int_flip": _int_flip,
-         "int_parts": _int_parts, "int_improper": _int_improper}
+         "int_parts": _int_parts, "int_improper": _int_improper,
+         "taylor_lagrange": _taylor, "bound": _bound}

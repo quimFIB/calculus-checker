@@ -176,8 +176,8 @@ def reg_children(t, rule):
 
 def reg_sides(t, rule, k):
     """A node's side propositions at class k (REG_RULES, E61): the C^0
-    sides a builtin's natural-domain row, the C^1 sides its interior plus
-    C1_EXTRA."""
+    sides a builtin's natural-domain row, the C^k sides for k >= 1 its
+    interior plus C1_EXTRA (E100)."""
     if rule == "div":
         return (NonZero(t.b),)
     if rule == "pow_neg":
@@ -198,9 +198,10 @@ def reg_sides(t, rule, k):
 
 def reg_derivation(e, k):
     """The derivation of e in C^k, (rule, sides, children), children each a
-    derivation; or None when k is not 0 or 1, or some node of e has no rule
+    derivation; or None when k is not an int from 0 to
+    domains.REG_MAX_CLASS (E100), or some node of e has no rule
     (REG_NOT_COVERED). Iterative over nodes, children in order."""
-    if k not in (0, 1) or type(k) is not int:
+    if type(k) is not int or not 0 <= k <= domains.REG_MAX_CLASS:
         return None
 
     def build(t):

@@ -46,6 +46,11 @@ C1_EXTRA = MappingProxyType({
     "abs": lambda u: (NonZero(u),),
 })
 
+# p1_expected E100: the highest class C^k a Reg may ask for. For every k
+# from 1 to this the sides are C^1's: each builtin is C^infinity on the
+# interior of its row (abs away from 0), and the closure rules keep C^k.
+REG_MAX_CLASS = 16
+
 _STRICT = {">=": ">", "<=": "<"}
 
 

@@ -1,0 +1,85 @@
+{
+  "format": "calc-problem/0",
+  "id": "taylor.P3_LOWER",
+  "title": "readiness P3: the Lagrange remainder's lower bound",
+  "source": "mechanics-to-relativity readiness P3 part 1; p1_expected section 25",
+  "statement": "For 0 <= b < 1, show (5/16) b^6 <= R(b), where R(b) = (1 - b^2)^(-1/2) - (1 + b^2/2 + 3 b^4/8).",
+  "goal": "5/16*b^6 <= 1/sqrt(1 - b^2) - (1 + b^2/2 + 3/8*b^4) @ b in [0, 1)",
+  "answer_schema": "none",
+  "declarations": {
+    "functions": {}
+  },
+  "reference_proof": [
+    {
+      "id": "s1",
+      "move": "fact",
+      "args": {
+        "entry": "sqrt_sq",
+        "inst": {
+          "u": "1"
+        },
+        "bind": "h1"
+      }
+    },
+    {
+      "id": "s2",
+      "move": "fact",
+      "args": {
+        "entry": "sqrt_sq_val",
+        "inst": {
+          "a": "1 - u"
+        },
+        "bind": "hs"
+      }
+    },
+    {
+      "id": "s3",
+      "move": "taylor_lagrange",
+      "args": {
+        "f": "1/sqrt(1 - u)",
+        "var": "u",
+        "lo": "0",
+        "hi": "1",
+        "at": "b^2",
+        "derivs": [
+          "1/(2*(1 - u)*sqrt(1 - u))",
+          "3/(4*(1 - u)^2*sqrt(1 - u))",
+          "15/(8*(1 - u)^3*sqrt(1 - u))",
+          "105/(16*(1 - u)^4*sqrt(1 - u))"
+        ],
+        "sense": "increasing",
+        "check": "field",
+        "facts": [
+          [
+            "handle",
+            "hs"
+          ]
+        ],
+        "side": "lower",
+        "bind": "hl"
+      }
+    },
+    {
+      "id": "s4",
+      "move": "bound",
+      "args": {
+        "check": "field",
+        "facts": [
+          [
+            "handle",
+            "hl"
+          ],
+          [
+            "handle",
+            "h1"
+          ]
+        ]
+      }
+    }
+  ],
+  "notes": [
+    "Readiness P3 part 1: gamma(b) = (1 - b^2)^(-1/2), expanded in u = b^2 (rung 1) by taylor_lagrange at b^2, with I = [0, 1) so every premise is free of b (p1_expected E101).",
+    "The derivatives are rung 3's, written with sqrt for the half powers: the grammar's ^ takes integers.",
+    "Parts 2 (the decimal check at b = 0.1) and 3 (ln cos x with O(x^6)) need stage 2: certified numbers and big_O (P3.md)."
+  ]
+}

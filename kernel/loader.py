@@ -49,7 +49,8 @@ ARG_TYPES = {"at": str, "F": str, "value": str, "inst": dict, "facts": list,
              # int_subst's (p1_expected INT_SUBST_ARGS, _REVERSE, _OPTIONAL)
              "var": str, "new_var": str, "sub": str, "lo": str, "hi": str,
              "f": str, "mode": str,
-             "u": str, "v": str}  # int_parts' (p1_expected section 19)
+             "u": str, "v": str,  # int_parts' (p1_expected section 19)
+             "derivs": list, "side": str, "sense": str}  # section 25
 # The args that are GRAMMAR.md strings for terms, parsed with the file's sig.
 TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f", "u", "v")
 
@@ -134,7 +135,8 @@ def load(path):
 
 def _problem(raw):
     _obj(raw, KEYS, OPTIONAL, "the file")
-    if raw["format"] != FORMAT or raw["answer_schema"] != "closed":
+    # "none": an order goal has no ?A (p1_expected E96)
+    if raw["format"] != FORMAT or raw["answer_schema"] not in ("closed", "none"):
         raise ValueError(f"format {raw['format']!r}, answer schema "
                          f"{raw['answer_schema']!r}")
     for k in ("id", "title", "source", "statement", "goal"):
@@ -174,6 +176,9 @@ def step_args(args, handles, sig):
             out[k] = {var: parse_term(s, sig) for var, s in v.items()}
         elif k == "facts":
             out[k] = [_fact_ref(f, handles) for f in v]
+        elif k == "derivs" and isinstance(v, list) \
+                and all(isinstance(s, str) for s in v):  # section 25
+            out[k] = [parse_term(s, sig) for s in v]
         else:  # entry, bind, check, occurrence, and int_subst's var,
             out[k] = v  # new_var and mode, which the kernel reads as names
     return out
@@ -192,7 +197,7 @@ def feed(state, s, handles, sig):
     ProofState or a Refusal. A fact step's handle is recorded under its
     `bind`, read from the kernel's own StepRecord."""
     r = K.step(state, s["move"], step_args(s["args"], handles, sig))
-    if s["move"] == "fact" and isinstance(r, K.ProofState):
+    if s["move"] in ("fact", "taylor_lagrange") and isinstance(r, K.ProofState):
         handles[s["args"]["bind"]] = r.last.handle
     return r
 

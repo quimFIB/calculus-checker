@@ -199,6 +199,7 @@ ITEMS = {
     "I": "int_improper, limits.py and the sign node (p1_expected section 20)",
     "T": "trig_norm, field's ordered facts and the trig entries (p1_expected "
          "section 22)",
+    "L": "order goals, taylor_lagrange, bound and C^k (p1_expected section 25)",
 }
 UNIT, UNIT_TEXT = "unit", ("unit tests: test_field.py, test_grammar.py, "
                            "test_discharge.py")  # beside 1-6
@@ -1525,7 +1526,7 @@ SUITE_BAD_MOVES = [
      "move": ("install", {}), "refusal": "range-same-infinity"},  # E4: empty range
     {"id": "range_same_neg_infinity", "goal": "Int[x = -oo .. -oo] 1 == ?A",
      "setup": [], "move": ("install", {}), "refusal": "range-same-infinity"},
-    {"id": "goal_not_equation", "goal": "x > 0", "setup": [],
+    {"id": "goal_not_equation", "goal": "x # 0", "setup": [],  # E96: x > 0 installs
      "move": ("install", {}), "refusal": "goal-shape"},
     {"id": "goal_two_judgements", "goal": "1 + 1 == ?A /\\ 0 == 1", "setup": [],
      "move": ("install", {}), "refusal": "goal-shape"},  # moves act on goal[0] only; a 2nd judgement would enter the theorem unproved
@@ -4585,7 +4586,7 @@ def discharge_checks(suite):
         return
     suite.check("D", "DISCHARGE_NEW_ENTRIES pinned (sqrt_zero immediately before "
                 "sqrt_sq, cos_zero after exp_one, sqrt_nonneg after it, "
-                "CONSOLIDATION_ENTRIES, atan_zero, then trig_norm's seven last: 31), and EXACT_VALUE_ENTRIES is "
+                "CONSOLIDATION_ENTRIES, atan_zero, trig_norm's seven, then exp_pos last: 32), and EXACT_VALUE_ENTRIES is "
                 "ENTRIES' exact values", TD.entries_problems)
     for row in TD.expected_certificates():
         where, _, tag, spec = row
@@ -5674,6 +5675,86 @@ def trig_bad_move_problems(b):
     return out
 
 
+def taylor_proof_problems(c):
+    """TAYLOR_PROOFS: every step accepted through the loader's path, then
+    the report, and the theorem is the goal itself (E96)."""
+    st, handles = K.install(goal(c["goal"])), {}
+    for n, (move, args) in enumerate(c["steps"]):
+        st = _parts_feed(st, move, args, handles)
+        if isinstance(st, K.Refusal):
+            return [f"step {n} ({move}) refused {st.code}: {st.message}"]
+    out = []
+    if K.report(st) != c["report"]:
+        out.append(f"report {K.report(st)!r}, expected {c['report']!r}")
+    if st.theorem != goal(c["goal"]):
+        out.append(f"theorem {T.show(st.theorem)}, expected the goal")
+    return out
+
+
+def taylor_bound_problems(c):
+    """TAYLOR_BOUND_CASES: the setup accepted, then the bound refused."""
+    st, handles = K.install(goal(c["goal"])), {}
+    for n, (move, args) in enumerate(c["steps"]):
+        st = _parts_feed(st, move, args, handles)
+        if isinstance(st, K.Refusal):
+            return [f"setup step {n} ({move}) refused {st.code}"]
+    move, args = c["move"]
+    r = _parts_feed(st, move, args, handles)
+    out = refusal_problems_of(r, c)
+    if c.get("residual") and isinstance(r, K.Refusal) and r.residual is None:
+        out.append("no residual")
+    return out
+
+
+def taylor_install_problems(b):
+    r = K.install(goal(b["goal"]))
+    if b["refusal"] is None:
+        return [] if isinstance(r, K.ProofState) else [f"got {describe(r)}"]
+    return refusal_problems_of(r, b)
+
+
+def reg_ck_problems(key_text, want):
+    """REG_CK_CASES: the Reg emitted as a step emits it."""
+    from terms import parse_judgement
+    buf = {}
+    k = parse_judgement(key_text)
+    K._emit(buf, k, "former", k.dom)
+    got = buf[k].status
+    return [] if got == want else [f"{got}, expected {want}"]
+
+
+def taylor_file_problems(name):
+    return improper_file_problems(name, folder="taylor")
+
+
+def taylor_checks(suite):
+    for name, c in X.TAYLOR_PROOFS.items():
+        suite.check("L", f"TAYLOR_PROOFS {name}: {c['goal']} -> "
+                    f"{c['report']!r}", lambda c=c: taylor_proof_problems(c))
+    for b in X.TAYLOR_BAD_MOVES:
+        if b.get("install"):
+            suite.check("L", f"TAYLOR_BAD_MOVES {b['id']} -> installs",
+                        lambda b=b: taylor_install_problems(b))
+            continue
+        suite.check("L", f"TAYLOR_BAD_MOVES {b['id']} -> {b['refusal']}",
+                    lambda b=b: trig_bad_move_problems(
+                        {k: v for k, v in b.items() if k != "residual"}))
+    for c in X.TAYLOR_BOUND_CASES:
+        suite.check("L", f"TAYLOR_BOUND_CASES {c['id']} -> {c['refusal']}",
+                    lambda c=c: taylor_bound_problems(c))
+    for k, want in X.REG_CK_CASES:
+        suite.check("L", f"REG_CK_CASES {k} -> {want} (E100)",
+                    lambda k=k, w=want: reg_ck_problems(k, w))
+    suite.check("L", "taylor_lagrange's sources and codes are the spec's",
+                lambda: [s for s in X.SOURCES_TAYLOR
+                         if s not in (K.S_TAYLOR_ORDER, K.S_TAYLOR_F_C,
+                                      K.S_TAYLOR_D_C0, K.S_TAYLOR_D,
+                                      K.S_TAYLOR_MONO)])
+    for name in ("P3_LOWER", "P3_UPPER"):
+        suite.check("L", f"problems/taylor/{name}.json replays to 'Proved.' "
+                    "(readiness P3 part 1)", lambda n=name: taylor_file_problems(n))
+
+
 def _trig_forgery(kind):
     """A replacement for trig_norm.propose, per TRIG_NORM_FORGERIES."""
     import trig_norm as TN
@@ -5846,7 +5927,8 @@ def consolidation_entries_problems():
     # IMPROPER_E27_CHANGES appends atan_zero after them (E80)
     want = list(X.CONSOLIDATION_ENTRIES) + list(
         X.IMPROPER_E27_CHANGES["ENTRIES_append"]) + list(
-        X.TRIG_NORM_SWITCH["ENTRIES_append"])  # and trig_norm's (E87)
+        X.TRIG_NORM_SWITCH["ENTRIES_append"]) + list(  # and trig_norm's (E87)
+        X.TAYLOR_ENTRIES_APPEND)  # and exp_pos (E103)
     if "sqrt_nonneg" not in names or \
             names[names.index("sqrt_nonneg") + 1:] != want:
         out.append(f"not appended after sqrt_nonneg in order: {names}")
@@ -5870,7 +5952,8 @@ def consolidation_checks(suite):
                 "pyth_cos; none of the six is an exact value", e27_pyth_problems)
     suite.check("C", f"int_flip is a move: MOVES is {len(K.MOVES)} long and names it",
                 lambda: [] if K.MOVES[5] == X.INT_FLIP_MOVE and K.MOVES[6:] ==
-                (X.INT_PARTS_MOVE, X.INT_IMPROPER_MOVE)  # sections 19, 20
+                (X.INT_PARTS_MOVE, X.INT_IMPROPER_MOVE,  # sections 19, 20
+                 X.TAYLOR_MOVE, X.BOUND_MOVE)  # section 25
                 else [f"MOVES is {K.MOVES}"])
     print("\nint_flip (E51): accepted moves")
     for c in FLIP_ACCEPTS:
@@ -6274,7 +6357,9 @@ def reg_planted_problems(name, result):
 # exception.
 DEEP_SUM = "1/(" + " + ".join(["x"] * 500) + ") == ?A @ x in (2, 3)"
 DEEP_CLOSE = ("y - y == ?A @ y > 0", "0*(1/(" + " + ".join(["y"] * 600) + "))")
-NINE_VARIABLES = "ln(" + " + ".join(f"exp x{i}" for i in range(1, 10)) + ") == ?A"
+# 2 + sin, not exp: exp_pos (E103) now decides a sum of exps positive, and
+# nothing bounds sin, so the sum stays undecided and is never refuted
+NINE_VARIABLES = "ln(" + " + ".join(f"(2 + sin x{i})" for i in range(1, 10)) + ") == ?A"
 
 
 def _timed(thunk):
@@ -6390,7 +6475,9 @@ def point_bound_problems():
     r, secs = _timed(lambda: K.install(goal(NINE_VARIABLES)))
     if not isinstance(r, K.ProofState):
         return [f"refused or raised: {describe(r)}"]
-    out = [] if secs <= 5.0 else [f"took {secs:.1f} s, more than 5 s"]
+    # 8 s since E103: the sum is of 2 + sin, whose search per point costs
+    # more than exp's did; 3^9 unbounded points would take about 20 minutes
+    out = [] if secs <= 8.0 else [f"took {secs:.1f} s, more than 8 s"]
     admitted = [o for o in r.last.emitted if o.status == K.ADMITTED]
     if [(T.show(o.key), tag_of(o), o.reason) for o in admitted] != [
             (T.show(key(NINE_VARIABLES.split(" == ")[0][3:-1] + " > 0", "true")),
@@ -6643,7 +6730,7 @@ def main():
     suite.check(5, "inputs beyond the bounds give a Refusal, never an exception: "
                 "t^1000000000 at 3 within 2 s, a residual too long to print, and a "
                 "600-deep sub and F (terms.subst iterative)", huge_input_problems)
-    suite.check(5, "F3 walks at most 256 points: nine variables install within 5 s, "
+    suite.check(5, "F3 walks at most 256 points: nine variables install within 8 s, "
                 "ln's argument admitted", point_bound_problems)
     suite.check(5, "a certificate the tracker keeps cannot be written through "
                 "obligations()", frozen_certificate_problems)
@@ -6706,6 +6793,10 @@ def main():
     print("\ntrig_norm (item T; p1_expected section 22)")
     if K is not None:
         trig_checks(suite)
+
+    print("\nTaylor with the Lagrange remainder (item L; p1_expected section 25)")
+    if K is not None:
+        taylor_checks(suite)
 
     print("\nPlanted bugs (each in a child process)")
     suite.check(3, "control: the child, unpatched, finds nothing", control_problems)
