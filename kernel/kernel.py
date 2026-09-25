@@ -1907,10 +1907,20 @@ def _imp_limit(F, x, end, P, G, buf):
         raise Refused("int-improper-diverges", f"{_brief(F)} -> {value} as "
                       f"{x} -> {'oo' if s > 0 else '-oo'}, so the integral "
                       "diverges")
-    for side in sides:
-        _emit(buf, with_domain(side, P), S_IMP_LIM, G,
-              divisor=not isinstance(side, NonZero))
+    for side in sides:  # E91: a c # 0 side is a divisor, so E25 tests it
+        _emit(buf, with_domain(side, P), S_IMP_LIM, G)
     return value
+
+
+def _imp_scope(g, anc, x, F):
+    """E92: F in scope at the selected Int's position, plus its variable,
+    as E84 checks ftc's."""
+    try:
+        _subst_scope(g, anc, [("F", F, {x})])
+    except Refused as r:
+        if r.code != "int-subst-scope":
+            raise
+        raise Refused("int-improper-scope", r.message) from None
 
 
 def _int_improper(state, args, minted, buf):
@@ -1919,6 +1929,7 @@ def _int_improper(state, args, minted, buf):
     g = state.goal[0]
     G, F, check = g.dom, args["F"], args["check"]
     side, path, it, P, anc = _imp_select(g, args.get("occurrence"))
+    _imp_scope(g, anc, it.var, F)  # E92
     ends = (it.lo, it.hi)
     if not any(isinstance(e, (PosInf, NegInf)) for e in ends):
         raise Refused("int-improper-finite", "both limits are finite; ftc "

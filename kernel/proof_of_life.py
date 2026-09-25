@@ -5618,6 +5618,10 @@ def improper_checks(suite):
     for g, c, why in X.QUOTIENT_MUST_REJECT:
         suite.check("I", f"sign node must reject: {g} ({why})",
                     lambda g=g, c=c: sign_reject_problems(g, c))
+    for c in X.INT_IMPROPER_REVIEW_CASES:
+        suite.check("I", f"INT_IMPROPER_REVIEW_CASES {c['id']} -> "
+                    f"{c['refusal']} ({c['why'].split(':')[0]})",
+                    lambda c=c: trig_bad_move_problems(c))
     for name in ("P5", "P2"):
         suite.check("I", f"problems/improper/{name}.json replays to 'Proved.'",
                     lambda n=name: improper_file_problems(n))
@@ -5664,7 +5668,7 @@ def trig_bad_move_problems(b):
     move, args = b["move"]
     r = _parts_feed(st, move, args, {})
     out = refusal_problems_of(r, b)
-    if isinstance(r, K.Refusal) and r.residual is not None \
+    if "residual" in b and isinstance(r, K.Refusal) and r.residual is not None \
             and not equal_by("ring", r.residual, term(b["residual"]))[0]:
         out.append(f"residual {T.show(r.residual)}, expected {b['residual']}")
     return out
