@@ -14941,3 +14941,40 @@ IMPROPER_SWITCH = (
     "INT_IMPROPER_BAD_MOVES and LIMIT_CASES; readiness P5 as a problem "
     "file if its admissions can be discharged, else recorded with them.",
 )
+
+# Section 20, amended before its build (improper spec, second part): P5 and
+# P2 both stop at the sign of a QUOTIENT, which no §5.3 method decides:
+# P5's ln argument ((x + sqrt 2/2)^2 + 1/2)/((x - sqrt 2/2)^2 + 1/2) > 0,
+# and P2's limit side sqrt((a - e)/(a + e)) > 0, whose cite of sqrt_pos
+# owes (a - e)/(a + e) > 0.
+DECISIONS_IMPROPER["E81"] = (
+    "A §5.3 method 5b, 'sign quotient', trusted checker plus untrusted "
+    "search. A key g > 0, g >= 0 (or 0 < g, 0 <= g) with g = n/d "
+    "syntactically, or 0 > g, 0 >= g (g < 0, g <= 0) with g = n/d, is "
+    "accepted from two sub-certificates at the key's own domain: d > 0 or "
+    "d < 0 (always strict), and n r 0 with r strict under a strict target "
+    "and any ordering under a non-strict one; the product of their signs "
+    "must be the target's. A key n/d # 0 is accepted from n # 0, n > 0 or "
+    "n < 0 alone. Sound where the key's terms are defined: there d # 0, "
+    "and sign(n/d) = sign(n)*sign(d). The search tries it after sign "
+    "product and before cite.")
+QUOTIENT_CASES = [
+    # (key as a goal string, discharged?)
+    ("((x + 1)^2 + 1/2)/((x - 1)^2 + 1/2) > 0 @ x >= 0", True),
+    ("(x^2 + 1)/(0 - x^2 - 1) < 0", True),
+    ("x/(x^2 + 1) >= 0 @ x >= 0", True),
+    ("(a - e1)/(a + e1) > 0 @ a > e1, e1 > 0", True),
+    ("x/(x^2 + 1) > 0 @ x >= 0", False),  # x = 0: a strict target needs n > 0
+    ("(x + 1)/(x - 1) # 0 @ x > 1", True),
+]
+QUOTIENT_MUST_REJECT = [
+    # (key, certificate) that the checker must refuse
+    ("x/(x^2 + 1) > 0 @ x >= 0",
+     {"method": "sign quotient", "num": (">=", "x >= 0 @ x >= 0"),
+      "den": (">", "x^2 + 1 > 0 @ x >= 0")},
+     "a non-strict numerator under a strict target"),
+    ("(x - 2)/(x^2 + 1) > 0 @ x >= 0",
+     {"method": "sign quotient", "num": ("<", "x - 2 < 0 @ x >= 0"),
+      "den": (">", "x^2 + 1 > 0 @ x >= 0")},
+     "parity: the signs multiply to -1"),
+]
