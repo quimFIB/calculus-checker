@@ -66,7 +66,7 @@ class Rows(unittest.TestCase):
         self.assertEqual(hit[0].family, "parts")
 
 
-HELDOUT_V2 = None  # set from the one scoring run of table version 2
+HELDOUT_V2 = (22, 22, 33)  # the one scoring run of table version 2
 
 
 class Scores(unittest.TestCase):

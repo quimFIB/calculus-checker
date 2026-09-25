@@ -148,6 +148,21 @@ substitution read as hyperbolic (a symbol's sign, as U09-P1 in the
 development set), and a parts integrand read as root substitution. The
 development set scores strict 28/30. Per revision 8, no row changes
 because of the held-out set; version 2 is scored on a fresh one.
+
+**Recognizer table version 2** (RECOGNIZER.md revision 2, 2026-09-25):
+row 1's product clause (sin/cos products and powers of any linear
+angles, times anything), square roots of a linear argument on the card,
+and the secant substitution. Written on the development set, which now
+includes version 1's held-out set (18/28 → 24/28 there). **Held-out
+score, table version 2: strict 22/33 (67%), lenient 22/33** on 37 fresh
+integrals from units 27–40 (4 labelled with no-row families), built by a
+separate agent from the course's text and committed unread before
+scoring. Of the 11 misses, 7 are wrong and 4 silent. Most are
+relativity and cosmology integrands whose parameters have signs the
+table cannot know (r_s, O_m, O_L), roots of a non-quadratic in 1/r or a³
+read as root substitution where the course substitutes a trig form, and
+1/√(x² + b²) read as a cosh/sinh substitution where the course reads the
+arsinh off its table. Version 3 is scored on a fresh set again.
 `python3.12 app/assist/score.py heldout` prints it.
 
 **A refused move says which kind of stuck it is** (`app/STUCK.md`,

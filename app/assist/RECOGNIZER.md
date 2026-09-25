@@ -90,6 +90,9 @@ fit to one integral:
   itself a further factor of the denominator is x = a sec θ, the arcsec
   form; without that factor it stays row 10's cosh.
 
+**Scored once, 2026-09-25:** strict 22/33, lenient 22/33 on the version 2
+held-out set (WHAT.md has the misses). No row changes because of it.
+
 Unchanged misses, recorded: a quadratic under a root whose leading
 coefficient is a symbol of unknown sign (U09-P1, and 2·e2 in general) is
 still read by the symbol's sign as written; a linear substitution into a
