@@ -201,9 +201,10 @@ rational integrand. The quadratic drag (parameters) is out of scope.
 `bound` are tactics (`app/SCRIPT.md`), the palette offers them on an order
 goal, and `taylor.P3_LOWER` / `taylor.P3_UPPER` are problems.
 
-**Next,** per §17: what remains of stage 1's lists: recognizer version 2 (row 1's
-`trig_norm` clause) with a fresh held-out set. Then §17's gate: use it on
-readiness P1, P3 and P5 in the loop.
+**Next,** per §17: stage 1's lists are done (2026-09-25). The gate:
+work readiness P1, P3 (part 1) and P5 in the loop with `./calc`, and plot
+the maximum hint rung per problem against time. That is the owner's to
+run; nothing in it is code.
 
 **Python version:** the suite passes 1027 of 1027 on Python 3.12.
 On 3.11 five deep-term checks fail with `RecursionError` in dataclass
