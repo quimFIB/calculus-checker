@@ -59,7 +59,9 @@ similar to rocq-mode". The first cut's move form is replaced by a script
 - **Goals** (right). The node at the end of the checked region: its
   `report`, its goal, its theorem when closed, the facts bound on its
   path, and the obligation table as before. Below it a **response** box:
-  the last refusal (code, message, residual) or the last success.
+  the last refusal (code, message, residual, and STUCK.md's kind of
+  stuck with a "Use this" button when there is a suggestion, which puts
+  it in place of the refused sentence) or the last success.
 - **Status line.** The report, `check mode`, and `0 machine-checked`.
 
 Stepping, as Proof General's keys:

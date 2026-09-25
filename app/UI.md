@@ -193,7 +193,7 @@ rename (recorded in rule 3).
 
 Rung 4 (`!`, applying a row); the per-step timeout and cancellation;
 persistence and export; §8.7's classification of refusals into three kinds
-of stuck (the residual is already shown); the probe over symbolic
+of stuck (since built: STUCK.md); the probe over symbolic
 parameters; the factoriser and partial-fraction solver.
 
 ## Done when

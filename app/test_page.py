@@ -106,6 +106,23 @@ class Page(unittest.TestCase):
         self.assertEqual(p.query_selector_all("#backdrop mark.checked"), [])
         self.assertEqual(len(p.query_selector_all("#backdrop mark.error")), 1)
 
+    def test_stuck_explains_and_its_suggestion_steps(self):
+        """STUCK.md: a refusal shows its kind of stuck, and "Use this" puts
+        the kernel-accepted suggestion in place of the refused sentence."""
+        p = self.page
+        self.start()
+        self.type_script("ftc 2*x^3 + 2*x^2 by ring.\n")
+        p.click("#next")
+        p.wait_for_selector("#stuck")
+        self.assertEqual(p.get_attribute("#stuck", "data-kind"), "algebra")
+        self.assertIn("2 times the integrand", p.inner_text("#stuck"))
+        p.click("#use-suggestion")
+        self.assertIn("ftc (2*x^3 + 2*x^2)/2 by ring.",
+                      p.input_value("#script"))
+        self.assertNotIn("ftc 2*x^3", p.input_value("#script"))
+        p.click("#next")
+        p.wait_for_selector(".node.current[data-node='n1']")
+
     def test_undo_keeps_the_node(self):
         p = self.page
         self.start()

@@ -102,6 +102,11 @@ td.key { font-family: var(--mono); word-break: break-word; }
 .msg.hint .cost { color: var(--muted); font-size: 12px; margin-top: 4px; }
 .msg .code { color: var(--bad); font-family: var(--mono); font-weight: 600; }
 .msg .residual { font-family: var(--mono); margin-top: 4px; word-break: break-word; }
+.stuck { margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--line); }
+.stuck .kind { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.stuck .headline { font-weight: 600; margin: 2px 0 4px; word-break: break-word; }
+.stuck ul { margin: 0; padding-left: 18px; }
+.stuck .suggest { font-family: var(--mono); margin-top: 6px; white-space: pre-wrap; }
 .status-line { background: var(--bg); border-top: 1px solid var(--line); padding: 5px 16px;
                font-size: 12px; color: var(--muted); }
 .status-line b { color: var(--ink); font-weight: 600; }
@@ -414,17 +419,46 @@ document.addEventListener("keydown", (ev) => {
 // ---------------------------------------------------------------- goals
 function showError(e) { showResponse({ code: "error", message: String(e.message || e) }, false); }
 
+// STUCK.md: which of §8.7's three kinds of stuck, and what to try. A
+// suggestion is sentences the kernel already accepted from this node; the
+// button puts them in place of the refused sentence (nothing steps).
+const KINDS = { "no-match": "nothing matches", obligation: "a condition fails",
+                algebra: "the algebra does not close", other: "refused" };
+function stuckBox(st) {
+  if (!st) return "";
+  const kids = [el("div", { class: "kind" }, KINDS[st.kind] || st.kind),
+                el("div", { class: "headline" }, st.headline)];
+  if (st.lines.length) kids.push(el("ul", {}, ...st.lines.map((l) => el("li", {}, l))));
+  if (st.suggest) {
+    const text = st.suggest.join("\n");
+    kids.push(el("div", { class: "suggest" }, text),
+      el("button", { id: "use-suggestion", onclick: () => useSuggestion(text) }, "Use this"));
+  }
+  return el("div", { class: "stuck", id: "stuck", "data-kind": st.kind }, ...kids);
+}
+
+function useSuggestion(text) {
+  const ta = $("script");
+  if (!S.error) return insertSentence(text);
+  ta.value = ta.value.slice(0, S.error.start) + text + ta.value.slice(S.error.end);
+  S.error = null;
+  ta.focus();
+  paint(); saveScript();
+}
+
 function showResponse(refusal, ok, node) {
   const box = $("response");
   box.className = "";
   if (refusal) {
     box.replaceChildren(el("div", { class: "msg bad", role: "alert", id: "refusal" },
       el("div", {}, el("span", { class: "code" }, refusal.code), " ", refusal.message),
-      refusal.residual ? el("div", { class: "residual" }, "residual: " + refusal.residual) : ""));
+      refusal.residual ? el("div", { class: "residual" }, "residual: " + refusal.residual) : "",
+      stuckBox(refusal.stuck)));
   } else if (ok && node) {
     const newObs = node.obligations.filter((o) => o.new).length;
     box.replaceChildren(el("div", { class: "msg ok" },
-      `${node.node}: ${node.move} accepted` + (newObs ? `, ${newObs} new obligation(s)` : "")));
+      `${node.node}: ${node.move} accepted` + (newObs ? `, ${newObs} new obligation(s)` : ""),
+      stuckBox(node.stuck)));
   } else box.replaceChildren();
 }
 

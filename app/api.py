@@ -16,7 +16,7 @@ import script
 import session as S
 import tex
 from assist import palette as PL
-from assist import probe, progress, recognizer
+from assist import probe, progress, recognizer, stuck
 from session import K, KERNEL, Refusal, loader
 from terms import Integral, Refused, parse_goal, parse_term, show, trees
 
@@ -92,6 +92,7 @@ def render(sess, n):
     parent = None if n.parent is None else sess.nodes[n.parent].state
     before = (set() if parent is None else
               {ob.key for ob in parent.obligations()})
+    obs = [_obligation(ob, before) for ob in st.obligations()]
     return {"session": sess.id, "node": n.id, "parent": n.parent,
             "move": n.move, "report": K.report(st),
             "goal": None if st.goal is None else _text(st.goal),
@@ -105,8 +106,9 @@ def render(sess, n):
             "probe": None if parent is None or st.goal is None
             or parent.goal is None else _assist(
                 probe.compare, parent.goal, st.goal),
-            "obligations": [_obligation(ob, before)
-                            for ob in st.obligations()],
+            "obligations": obs,
+            "stuck": None if parent is None else _assist(
+                stuck.admitted, obs),
             "occurrences": st.last.occurrences,
             "handles": sorted(n.handles), "retracted": n.retracted}
 
@@ -114,7 +116,41 @@ def render(sess, n):
 def refusal(r):
     return {"refusal": {"code": r.code, "message": r.message,
                         "residual": None if r.residual is None
-                        else _text(r.residual)}}
+                        else _text(r.residual),
+                        "stuck": getattr(r, "stuck", None)}}
+
+
+# ---------------------------------------------------------------- stuck
+
+def _trial(sess, at, sentences):
+    """Whether the kernel accepts `sentences` in order from node `at`.
+    Nothing is recorded: kernel states are values, and no node is added."""
+    state, handles = at.state, dict(at.handles)
+    for text in sentences:
+        move, args = script.parse(text)
+        r = K.step(state, move, loader.step_args(args, handles, sess.sig))
+        if isinstance(r, K.Refusal):
+            return False
+        if move == "fact":
+            handles[args["bind"]] = r.last.handle
+        state = r
+    return True
+
+
+def _stepped(sess, at, move, args):
+    """sess.step, with a refusal's STUCK.md explanation attached."""
+    try:
+        return sess.step(at.id, move, args)
+    except Refusal as r:
+        _explain(r, sess, at, move, args)
+        raise
+
+
+def _explain(r, sess, at, move, args):
+    r.stuck = _assist(lambda: stuck.explain(
+        r.code, r.message, r.residual, at.state.goal, move, args,
+        sig=sess.sig, handles=at.handles,
+        trial=lambda ss: _trial(sess, at, ss), show_move=script.show))
 
 
 # ---------------------------------------------------------------- state
@@ -198,7 +234,7 @@ def step(body):
     at = _node(sess, body)
     move = _field(body, "move", str)
     args = _field(body, "args", dict)
-    return render(sess, sess.step(at.id, move, args))
+    return render(sess, _stepped(sess, at, move, args))
 
 
 def tactic(body):
@@ -208,8 +244,10 @@ def tactic(body):
     try:
         move, args = script.parse(_field(body, "text", str))
     except script.TacticError as e:
-        raise Refusal("bad-tactic", str(e)) from None
-    return render(sess, sess.step(at.id, move, args))
+        r = Refusal("bad-tactic", str(e))
+        _explain(r, sess, at, None, None)
+        raise r from None
+    return render(sess, _stepped(sess, at, move, args))
 
 
 def retract(body):

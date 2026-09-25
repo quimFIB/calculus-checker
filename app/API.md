@@ -32,8 +32,11 @@ Standard library only (§16.2): `json`, `http.server`, `secrets`.
 - Ids are strings: sessions are random (`secrets.token_hex(8)`), nodes are
   `n0`, `n1`, ... within a session. `n0` is the installed goal.
 - **A refusal is a 200**, because a refused move is an answer, not an error:
-  `{"refusal": {"code", "message", "residual"}}`, `residual` a term string or
-  `null`. Codes are the kernel's own (ARCHITECTURE.md §6, GRAMMAR.md §1),
+  `{"refusal": {"code", "message", "residual", "stuck"}}`, `residual` a
+  term string or `null`; `stuck` is STUCK.md's explanation on `/step` and
+  `/tactic` refusals (`{kind, headline, lines, suggest}`, `suggest` a list
+  of sentences the kernel accepted from that node, or `null`), `null`
+  elsewhere. Codes are the kernel's own (ARCHITECTURE.md §6, GRAMMAR.md §1),
   plus the API's, below.
 - An unknown route is a **404**. A malformed request (bad JSON, missing or
   mistyped field, unknown session, node or problem) is a **400**, with `{"error": {"code", "message"}}`.
@@ -62,6 +65,8 @@ Every route that lands on a node returns this shape:
   "progress": {signal, detail} | null        -- UI.md §3, null at n0
   "probe": {before, after, digits, agree} | {skipped} | null   -- UI.md §4
   "admissions": int                          -- obligations admitted here
+  "stuck": {kind, headline, lines, suggest} | null  -- STUCK.md, when this
+                                               step admitted an obligation
   "steps": int                               -- accepted steps from n0
 }
 ```

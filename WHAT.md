@@ -125,7 +125,7 @@ cursor), the antiderivative card with matching rows marked, the progress
 signal after each step, the `~` speculative probe (floating-point
 Gauss–Kronrod, never evidence), and §16.4's status line (admissions, max
 rung, rules, `0 machine-checked`). Not yet: rung 4, per-step timeout,
-persistence and export, §8.7's three kinds of stuck, the factoriser.
+persistence and export, the factoriser.
 `app/test_page.py` drives it in a headless browser when Playwright is
 installed.
 
@@ -144,8 +144,18 @@ development set scores strict 28/30. Per revision 8, no row changes
 because of the held-out set; version 2 is scored on a fresh one.
 `python3.12 app/assist/score.py heldout` prints it.
 
+**A refused move says which kind of stuck it is** (`app/STUCK.md`,
+§8.7, 2026-09-25, spec reviewed by a skeptic first): nothing matches
+(the palette's rewrites and the recognizer's rung 1), a condition fails
+(the kernel's counterexample and what it means for that move), or the
+algebra does not close (a surd or trig identity that closes the
+residual, F off by a constant factor, a constant term, else where the
+two diverge). Every suggestion is run through the kernel from the same
+node before it is shown, and the page's "Use this" puts it in place of
+the refused sentence. A step that admits an obligation says so.
+
 **Next,** per §17: what remains of stage 1's lists: persistence and
-export, the per-step timeout, §8.7's stuck classification, the
+export, the per-step timeout, the
 factoriser and partial-fraction solver, and recognizer version 2 (row 1's
 `trig_norm` clause) with a fresh held-out set. Then §17's gate: use it on
 readiness P1, P3 and P5 in the loop.

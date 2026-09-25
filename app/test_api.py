@@ -123,6 +123,11 @@ class Routes(Api):
                                     "facts": []})
         self.assertIn("refusal", r)
         self.assertIsNotNone(r["refusal"]["residual"])
+        st = r["refusal"]["stuck"]  # STUCK.md: 2 - 3 is off by -1
+        self.assertEqual((st["kind"], st["headline"]),
+                         ("algebra", "The goal's side − your value = -1"))
+        self.assertIsNone(st["suggest"])
+        self.assertIsNone(n1["stuck"])
         t = self.call("GET", "/tree", {"session": n["session"]})
         self.assertEqual([x["node"] for x in t["nodes"]], ["n0", "n1"])
 
