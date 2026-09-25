@@ -1,0 +1,269 @@
+{
+ "made": "2026-09-25",
+ "source": "mechanics-to-relativity units 27-40 (problems.html and slides.html)",
+ "rule": "held out: never used to write or tune a row; scored once per table version (version 2)",
+ "entries": [
+  {
+   "id": "U27-P9a",
+   "x": "M",
+   "integrand": "-w/(c*M)",
+   "technique": "log",
+   "source": "units/27-relativistic-dynamics/problems.html P9, worked solution part 1: 'So dtheta/dM = -w/(cM), separable, and theta = (w/c) ln(M_i/M_f)'"
+  },
+  {
+   "id": "U27-S1a",
+   "x": "tau",
+   "integrand": "c*cosh(alpha*tau/c)",
+   "technique": "standard",
+   "source": "units/27-relativistic-dynamics/slides.html 'Hyperbolic motion', full derivation: 'd(ct)/dtau = c cosh(alpha tau/c) and dx/dtau = c sinh(alpha tau/c) integrate to the slide's formulas' (ct = c^2/alpha sinh(alpha tau/c))"
+  },
+  {
+   "id": "U30-P3a",
+   "x": "X",
+   "integrand": "c/(g*X)",
+   "technique": "log",
+   "source": "units/30-equivalence-principle/problems.html P3, worked solution part 4: 'dT/dX = +-c/(gX). The outgoing sign integrates to T = (c/g) ln X + const'"
+  },
+  {
+   "id": "U30-P7a",
+   "x": "r",
+   "integrand": "-G*(M*r^3/R^3)/r*4*pi*r^2*rho",
+   "technique": "standard",
+   "source": "units/30-equivalence-principle/problems.html P7, worked solution part 2: 'U = -int_0^R G m(r)/r 4 pi r^2 rho dr with m(r) = M r^3/R^3, which integrates to U = -3GM^2/5R'"
+  },
+  {
+   "id": "U30-P11a",
+   "x": "x",
+   "integrand": "G*M*b/((b^2 + x^2)*sqrt(b^2 + x^2))",
+   "technique": "trig substitution",
+   "source": "units/30-equivalence-principle/problems.html P11, exercises line 'a trigonometric substitution'; rung 3 and worked solution part 2: 'substitute x = b tan psi, which turns (b^2+x^2)^{3/2} into b^3 sec^3 psi and dx into b sec^2 psi dpsi'"
+  },
+  {
+   "id": "U30-P11b",
+   "x": "psi",
+   "integrand": "cos psi",
+   "technique": "standard",
+   "source": "units/30-equivalence-principle/problems.html P11, worked solution part 2: '= GM/(bc^2) int_{-pi/2}^{pi/2} cos psi dpsi = 2GM/(bc^2)'"
+  },
+  {
+   "id": "U31-P7a",
+   "x": "t",
+   "integrand": "2*t*s",
+   "technique": "standard",
+   "source": "units/31-manifolds/problems.html P7, check: 'for n=1 and f(s) = s^2 at a=0, Hadamard gives h_1(s) = int_0^1 2ts dt = s'"
+  },
+  {
+   "id": "U32-P6a",
+   "x": "lambda",
+   "integrand": "2/lambda",
+   "technique": "log",
+   "source": "units/32-metric-geodesics/problems.html P6, worked solution part 2: 's' = exp int(2/lambda) = lambda^2 (constant of integration chosen 1)'"
+  },
+  {
+   "id": "U32-P7b",
+   "x": "y",
+   "integrand": "1/y",
+   "technique": "log",
+   "source": "units/32-metric-geodesics/problems.html P7, worked solution part 4: 'From (0,1) to (0,2): int_1^2 dy/y = ln 2 = 0.6931'"
+  },
+  {
+   "id": "U32-P8a",
+   "x": "u",
+   "integrand": "sqrt(1 - beta^2*(cos u)^2)",
+   "technique": "other",
+   "other": "numerical quadrature (Simpson's rule)",
+   "source": "units/32-metric-geodesics/problems.html P8, rung 3 and worked solution part 4: 'tau = T/pi int_0^pi sqrt(1 - beta^2 cos^2 u) du' ... 'Simpson with 8 intervals on 1/pi int_0^pi sqrt(1-0.36cos^2u) du gives 0.90278'; exercises line 'a numerical integral'"
+  },
+  {
+   "id": "U32-P9a",
+   "x": "theta",
+   "integrand": "R^2*sin theta",
+   "technique": "standard",
+   "source": "units/32-metric-geodesics/problems.html P9, worked solution part 2: 'Area = int_0^alpha int_0^{pi/2} R^2 sin theta dtheta dphi = alpha R^2'"
+  },
+  {
+   "id": "U33-P2a",
+   "x": "y",
+   "integrand": "a/y",
+   "technique": "log",
+   "source": "units/33-curvature/problems.html P2, worked solution part 3: 'y = 0 is at infinite distance: int_y^1 a dy'/y' = a ln(1/y) -> infinity'"
+  },
+  {
+   "id": "U34-P1a",
+   "x": "t",
+   "integrand": "(cos t)^2 + (sin t)^2",
+   "technique": "identity first",
+   "source": "units/34-differential-forms/problems.html P1, worked solution part 4: 'So gamma^*beta = (cos^2 t + sin^2 t) dt = dt and int_gamma beta = 2pi'"
+  },
+  {
+   "id": "U34-P1b",
+   "x": "t",
+   "integrand": "t*((cos t)^2 - (sin t)^2) + sin t*cos t",
+   "technique": "other",
+   "other": "integrand recognised as an exact differential d(t sin t cos t) (gradient theorem)",
+   "source": "units/34-differential-forms/problems.html P1, worked solution part 4: 'For alpha, naturality gives gamma^*alpha = d(gamma^*(xyz)) = d(t sin t cos t), so int_gamma alpha = [t sin t cos t]_0^{2pi} = 0' (pullback of yz dx + xz dy + xy dz on x = cos t, y = sin t, z = t)"
+  },
+  {
+   "id": "U36-P6a",
+   "x": "r",
+   "integrand": "1/(c*sqrt(r_s*(1/r - 1/r_0)))",
+   "technique": "trig substitution",
+   "source": "units/36-schwarzschild/problems.html P6, rung 2: 'do not integrate dtau = dr/|rdot| head-on: substitute r = r_0/2(1 + cos eta)'; worked solution part 2: 'Put r = r_0/2(1 + cos eta) = r_0 cos^2(eta/2) ... |rdot| = c sqrt(r_s/r_0)|tan(eta/2)|' (with rdot^2 = c^2 r_s(1/r - 1/r_0))"
+  },
+  {
+   "id": "U36-P6b",
+   "x": "eta",
+   "integrand": "r_0/(2*c)*sqrt(r_0/r_s)*(1 + cos eta)",
+   "technique": "standard",
+   "source": "units/36-schwarzschild/problems.html P6, worked solution part 2: 'dtau = r_0/(2c) sqrt(r_0/r_s)(1 + cos eta) deta, which integrates from eta = 0 (at r = r_0) to the stated tau(eta)'"
+  },
+  {
+   "id": "U36-P6c",
+   "x": "r",
+   "integrand": "-r_s/(c*(r - r_s))",
+   "technique": "log",
+   "source": "units/36-schwarzschild/problems.html P6, worked solution part 3: 'dt/dr ~ -r_s/c 1/(r - r_s),  t ~ -r_s/c ln(r/r_s - 1) + const'"
+  },
+  {
+   "id": "U36-P7a",
+   "x": "x",
+   "integrand": "1/sqrt(1 - 1/x)",
+   "technique": "guess and verify",
+   "source": "units/36-schwarzschild/problems.html P7, rung 2: 'Differentiate the given F rather than integrating from scratch'; worked solution part 1: 'r_s int (1 - 1/x)^{-1/2} dx. Differentiating the proposed antiderivative, F'(x) = ... = sqrt(x/(x-1))'"
+  },
+  {
+   "id": "U36-P7b",
+   "x": "x",
+   "integrand": "1 + 1/(2*x)",
+   "technique": "log",
+   "source": "units/36-schwarzschild/problems.html P7, rung 2: 'expand (1 - 1/x)^{-1/2} ~ 1 + 1/(2x) and integrate term by term'; worked solution part 3: 'l ~ (r_2 - r_1) + r_s/2 ln(r_2/r_1)'"
+  },
+  {
+   "id": "U36-P13a",
+   "x": "r",
+   "integrand": "1/sqrt(r_s/r - 1)",
+   "technique": "trig substitution",
+   "source": "units/36-schwarzschild/problems.html P13, rung 2: 'For the integral, substitute r = r_s sin^2 psi'; worked solution part 2: 'dr = 2r_s sin psi cos psi dpsi and sqrt(r_s/r - 1) = cos psi/sin psi, so the integrand becomes 2r_s sin^2 psi dpsi'"
+  },
+  {
+   "id": "U36-S1a",
+   "x": "r",
+   "integrand": "sqrt r",
+   "technique": "standard",
+   "source": "units/36-schwarzschild/slides.html, notes to the infall slide: 'The integral. dtau = -dr sqrt r/(c sqrt r_s), and int r^{1/2} dr = 2/3 r^{3/2}'"
+  },
+  {
+   "id": "U37-P4a",
+   "x": "x",
+   "integrand": "1/sqrt(x^2 + b^2)",
+   "technique": "standard",
+   "source": "units/37-classical-tests/problems.html P4, rung 3: 'the integrand's antiderivative is arsinh(x/b) = ln((x + sqrt(x^2 + b^2))/b)'; slides.html: 'int dx/sqrt(x^2 + b^2) = arsinh(x/b)'"
+  },
+  {
+   "id": "U37-P6a",
+   "x": "phi",
+   "integrand": "(1 + e1*cos phi)^2*cos phi",
+   "technique": "identity first",
+   "source": "units/37-classical-tests/problems.html P6, rung 2: 'Expand w_0^2 into constant, cos phi and cos 2phi parts'; rung 3 / worked solution: 'w_0^2 = 1 + 1/2 e^2 + 2e cos phi + 1/2 e^2 cos 2phi' ... 'int_0^{2pi} w_0^2 cos phi dphi = 2e pi' (w_0 = 1 + e cos phi; e renamed e1)"
+  },
+  {
+   "id": "U38-P7a",
+   "x": "u",
+   "integrand": "(1 - u^2)*u^2",
+   "technique": "standard",
+   "source": "units/38-gravitational-waves/problems.html P7, worked solution part 1: 'int_{-1}^1 (1 - u^2)u^2 du = ... pi(2/3 - 2/5) = 4pi/15'"
+  },
+  {
+   "id": "U38-P7b",
+   "x": "u",
+   "integrand": "(1 + u^2)^2/4 + u^2",
+   "technique": "standard",
+   "source": "units/38-gravitational-waves/problems.html P7, worked solution part 4: '2pi int_{-1}^1 [1/4(1 + u^2)^2 + u^2] du = 2pi[1/4(2 + 4/3 + 2/5) + 2/3]'"
+  },
+  {
+   "id": "U38-P8a",
+   "x": "s",
+   "integrand": "rho*A*omega^2*s",
+   "technique": "standard",
+   "source": "units/38-gravitational-waves/problems.html P8, worked solution part 1: 'T = int_0^{L/2} rho A omega^2 s ds = rho A omega^2 L^2/8'"
+  },
+  {
+   "id": "U39-P5a",
+   "x": "eta",
+   "integrand": "O_m*H0^2*eta^2/4 + sqrt(O_r)*H0*eta",
+   "technique": "standard",
+   "source": "units/39-cosmology/problems.html P5, worked solution part 4: 'a(eta) = 1/4 Omega_m H_0^2 eta^2 + sqrt(Omega_r) H_0 eta' ... 'Cosmic time is t = int a deta = Omega_m H_0^2 eta^3/12 + sqrt(Omega_r) H_0 eta^2/2' (Omega_m, Omega_r renamed O_m, O_r)"
+  },
+  {
+   "id": "U39-P6a",
+   "x": "a",
+   "integrand": "1/(a_c - a)",
+   "technique": "log",
+   "source": "units/39-cosmology/problems.html P6, worked solution part 4: 'near a double zero adot ~ (a_c - a) and int da/(a_c - a) diverges'"
+  },
+  {
+   "id": "U39-P8a",
+   "x": "eta",
+   "integrand": "A*(1 - cos(beta*eta))",
+   "technique": "standard",
+   "source": "units/39-cosmology/problems.html P8, worked solution part 1: 'a = A(1 - cos theta), theta = beta eta ... and t = int_0^eta a deta' = A/beta (theta - sin theta)'"
+  },
+  {
+   "id": "U39-P9a",
+   "x": "a",
+   "integrand": "sqrt a/sqrt(O_m + O_L*a^3)",
+   "technique": "chain-rule substitution",
+   "source": "units/39-cosmology/problems.html P9, rung 2-3: 'A substitution that makes a^3 into a square turns it into an arsinh' ... 'put u = a^{3/2}'; worked solution part 1: 'With u = a^{3/2}, du = 3/2 sqrt a da'"
+  },
+  {
+   "id": "U39-P9b",
+   "x": "u",
+   "integrand": "1/sqrt(O_m + O_L*u^2)",
+   "technique": "standard",
+   "source": "units/39-cosmology/problems.html P9, worked solution part 1: '2/(3H_0) int_0^1 du/sqrt(Omega_m + Omega_Lambda u^2) = 2/(3H_0 sqrt Omega_Lambda) arsinh sqrt(Omega_Lambda/Omega_m), using d/dx arsinh x = (1+x^2)^{-1/2}'"
+  },
+  {
+   "id": "U39-P10a",
+   "x": "a",
+   "integrand": "1/sqrt(O_m*a + O_L*a^4)",
+   "technique": "root substitution",
+   "source": "units/39-cosmology/problems.html P10, statement and rung 2: 'substitute a = u^2 in int_0^1 da/(a^2E)' ... 'With a = u^2 the integrand da/sqrt(Omega_m a + Omega_Lambda a^4) becomes smooth and bounded on [0,1]'; exercises line 'a smoothing substitution and Simpson's rule'"
+  },
+  {
+   "id": "U39-P10b",
+   "x": "u",
+   "integrand": "2/sqrt(O_m + O_L*u^6)",
+   "technique": "other",
+   "other": "numerical quadrature (Simpson's rule)",
+   "source": "units/39-cosmology/problems.html P10, worked solution part 2: 'the integrand is f(u) = 2/sqrt(0.315 + 0.685u^6) ... Simpson with h = 1/4'"
+  },
+  {
+   "id": "U39-P11a",
+   "x": "a",
+   "integrand": "1/(a^2*sqrt(O_m/a^3 + O_L))",
+   "technique": "root substitution",
+   "source": "units/39-cosmology/problems.html P11, statement: 'chi = c/H_0 int_{1/2}^1 da/(a^2 E(a)), by the substitution a = u^2 and Simpson's rule'; rung 2: 'The substitution turns the integral into int 2 du/sqrt(Omega_m + Omega_Lambda u^6)' (E(a) = sqrt(Omega_m a^-3 + Omega_Lambda))"
+  },
+  {
+   "id": "U39-S1a",
+   "x": "rho",
+   "integrand": "1/rho",
+   "technique": "log",
+   "source": "units/39-cosmology/slides.html, notes on the fluid equation: 'Solving. int drho/rho = -3(1+w) int da/a gives ln rho = -3(1+w) ln a + const'"
+  },
+  {
+   "id": "U39-S1b",
+   "x": "a",
+   "integrand": "1/sqrt a",
+   "technique": "standard",
+   "source": "units/39-cosmology/slides.html, horizons, 'two cases in closed form': 'Einstein-de Sitter: chi_p = ... = c/H_0 int_0^a a^{-1/2} da = 2c/H_0 sqrt a'"
+  },
+  {
+   "id": "U40-S1a",
+   "x": "theta",
+   "integrand": "(r_p^2 + a^2)*sin theta",
+   "technique": "standard",
+   "source": "units/40-rotating-charged-holes/slides.html, notes 'The area, computed': 'the area element is ... = (r_+^2+a^2) sin theta ... Integrating, A = 2pi * 2 * (r_+^2+a^2) = 4pi(r_+^2+a^2)' (r_+ renamed r_p)"
+  }
+ ]
+}
