@@ -51,6 +51,21 @@ square root's argument is read with any monomial denominator cleared
 (√(a + b/r − c/r²) = √(a r² + b r − c)/|r|); f′/f tries each factor of the
 denominator. Normalising here emits nothing.
 
+**Revision 1** (while building, on the development set only, before the
+held-out set was scored):
+
+- Row 13, parameter differentiation, moves to fourth place, between log
+  and chain-rule substitution, and "1/D matched by rows 2–10" becomes
+  "1/D matched by any other row". In the table's order no rational D could
+  reach row 13 (partial fractions, row 8, took it first), and R-P2.2's
+  1/D is a Weierstrass integral, which rows 2–10 excluded.
+- Row 1's second clause (`trig_norm` makes it constant or strictly
+  simpler) is not built in this version; the trig-polynomial clause is.
+- A constant integrand is on the card (row 2).
+- The normal form reads a/b as a·b⁻¹, so (x + 1)² in a denominator stays
+  the factor x + 1 twice rather than the expanded x² + 2x + 1: "each field
+  divisor kept as a factor" needs it for c/(linear)ᵏ and row 13.
+
 Families with no row: guess and verify, reduction formula, other. An entry
 labelled with one is scored "no row", apart from a wrong row.
 
