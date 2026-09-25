@@ -137,6 +137,22 @@ class Page(unittest.TestCase):
         self.assertEqual(
             p.eval_on_selector_all(".node.retracted", "es => es.length"), 2)
 
+    def test_hint_buttons(self):
+        p = self.page
+        self.start("parts.P1_PARTS")
+        p.click("#hint-1")
+        p.wait_for_selector("#hint")
+        self.assertIn("A substitution.", p.inner_text("#hint"))
+        p.click("#hint-3")
+        p.wait_for_selector("#hint >> text=inside sin")
+        self.assertIn("Costs: u ≥ 0", p.inner_text("#hint"))
+        self.type_script("ftc x by ring.\n")  # refused: the hint stays usable
+        p.click("#next")
+        p.wait_for_selector("#refusal")
+        p.click("#hint-2")
+        p.wait_for_selector("#hint")
+        self.assertIn("u = t²", p.inner_text("#hint"))
+
     def test_cos_sq_to_cursor(self):
         p = self.page
         self.start("trig.COS_SQ")

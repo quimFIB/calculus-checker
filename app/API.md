@@ -80,7 +80,8 @@ GET  /tree     ?session                -> {session, nodes: [{node, parent, move,
 POST /parse    {text, functions?}      -> {term: str, katex: null} | refusal
 GET  /moves                            -> {moves: [{name, args}]}   (PAGE.md)
 POST /tactic   {session, node, text}   -> the new node | refusal    (SCRIPT.md)
-GET  /hint     ?session&node&rung      -> refusal not-built
+GET  /hint     ?session&node&rung      -> {rung, integral, row, text, cost} | refusal
+                                            (assist/RECOGNIZER.md)
 GET  /palette  ?session&node           -> refusal not-built
 ```
 
@@ -108,10 +109,14 @@ GET  /palette  ?session&node           -> refusal not-built
   contains `==`, and returns `show` of it. **`katex` is null**: there is no
   TeX renderer yet, and a wrong one is worse than none, so the client
   shows the plain echo until one is written and tested.
-- **`/hint`** and **`/palette`** return `{"refusal": {"code": "not-built"}}`
-  so the client can be written against the full route list now.
+- **`/hint`** is the ladder (`assist/RECOGNIZER.md`): rung 1, 2 or 3 of
+  the first recognizer row matching the first `Int` in the node's goal.
+  Refusals `no-integral`, `no-row`, and `not-built` for rung 4.
+- **`/palette`** returns `{"refusal": {"code": "not-built"}}` so the client
+  can be written against the full route list now.
 
 API-local refusal codes: `unknown-handle`, `retract-root`, `not-built`,
+`no-integral`, `no-row` (RECOGNIZER.md),
 `bad-tactic` (SCRIPT.md).
 Error codes: `bad-json`, `bad-request`, `unknown-route`, `unknown-session`,
 `unknown-node`, `unknown-problem`, `kernel-error`.

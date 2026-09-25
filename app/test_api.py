@@ -144,11 +144,39 @@ class Routes(Api):
         self.assertIn("refusal", self.call("POST", "/parse",
                                            {"text": "g(x)"}))
 
-    def test_hint_and_palette_not_built(self):
+    def test_palette_not_built(self):
         n = self.s1()
-        q = {"session": n["session"], "node": "n0", "rung": "1"}
-        self.refused(self.call("GET", "/hint", q), "not-built")
+        q = {"session": n["session"], "node": "n0"}
         self.refused(self.call("GET", "/palette", q), "not-built")
+
+    def test_hint_rungs(self):
+        n = self.call("POST", "/session", {"problem": "parts.P1_PARTS"})
+        q = {"session": n["session"], "node": "n0"}
+        got = [self.call("GET", "/hint", {**q, "rung": r}) for r in "123"]
+        self.assertEqual([g["rung"] for g in got], [1, 2, 3])
+        self.assertEqual({g["row"] for g in got}, {"root substitution"})
+        self.assertEqual({g["integral"] for g in got},
+                         {"Int[x = 0 .. pi^2/4] sin(sqrt x)"})
+        self.assertEqual(got[0]["text"], "A substitution.")
+        self.assertEqual(got[2]["text"], "Put x = t² inside sin(…).")
+        self.assertEqual(got[1]["cost"], "u ≥ 0")
+
+    def test_hint_refusals(self):
+        n = self.s1()
+        q = {"session": n["session"], "node": "n0"}
+        self.refused(self.call("GET", "/hint", {**q, "rung": "4"}),
+                     "not-built")
+        self.error(self.call("GET", "/hint", {**q, "rung": "5"}, status=400),
+                   "bad-request")
+        n = self.call("POST", "/session", {"goal": "sin(2) == ?A"})
+        self.refused(self.call("GET", "/hint", {"session": n["session"],
+                                                "node": "n0", "rung": "1"}),
+                     "no-integral")
+        n = self.call("POST", "/session",
+                      {"goal": "Int[x = 0 .. 1] abs(x) == ?A"})
+        self.refused(self.call("GET", "/hint", {"session": n["session"],
+                                                "node": "n0", "rung": "2"}),
+                     "no-row")
 
 
 class Errors(Api):

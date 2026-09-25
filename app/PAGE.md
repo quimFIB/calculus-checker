@@ -79,9 +79,17 @@ The first cut's move form and `GET /moves` stay: `/moves` is still served
 (the tactic syntax covers the same moves), and the form is gone from the
 page.
 
+## Revision 3: hint buttons
+
+The recognizer (`assist/RECOGNIZER.md`) is built, so the page gains `?`,
+`??` and `???` in the script toolbar: `GET /hint` rungs 1–3 on the node
+at the end of the checked region, shown in the response box with the
+row's cost, or its refusal (`no-integral`, `no-row`). A hint is advice,
+never a step, so the status line still reads `0 machine-checked`.
+
 ## Deliberately not in this cut
 
-KaTeX (`API.md`: no renderer yet, a wrong one is worse than none); hints,
+KaTeX (`API.md`: no renderer yet, a wrong one is worse than none);
 palette, progress, probe; persistence and export; a corpus path argument to
 `./calc` (§16.1, §18 Q6); the per-step timeout.
 

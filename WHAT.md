@@ -104,8 +104,8 @@ each spec-first and then reviewed by an independent skeptic:
   the mechanics course).
 
 **The JSON API is up** (`app/API.md`, 2026-09-25): `./calc` serves §16.3's
-routes on 127.0.0.1, over the attempt tree, with `/hint` and `/palette`
-refusing `not-built`. `python3 -m unittest discover -s app` replays every
+routes on 127.0.0.1, over the attempt tree, with `/palette` refusing
+`not-built`. `python3 -m unittest discover -s app` replays every
 problem file through it against the loader.
 
 **The check-mode page is up** (`app/PAGE.md`, revision 2, 2026-09-25):
@@ -114,12 +114,28 @@ type a tactic script in the centre (`app/SCRIPT.md`, e.g. `ftc x^3 + x^2 by
 ring.`), step through it with Alt+↓ / Alt+↑ / Ctrl+Enter, and the goals,
 obligations and the last response show on the right. The checked region
 is shaded, and editing inside it retracts to that sentence. The attempt
-tree keeps retracted branches. No hints, palette or KaTeX yet.
+tree keeps retracted branches. The `?`, `??` and `???` buttons show hint
+rungs 1–3 (below). No palette or KaTeX yet.
 `app/test_page.py` drives it in a headless browser when Playwright is
 installed.
 
-**Next,** per §17: the recognizer table, scored on a held-out set
-(revision 8), then the full UI.
+**The recognizer table is built** (`app/assist/RECOGNIZER.md`, revision 1,
+2026-09-25): §8.5's fifteen rows, read on the kernel's `field` normal
+form, answer `GET /hint` rungs 1–3. **Held-out score, table version 1:
+strict 18/28 (64%), lenient 20/28 (71%)** on 31 integrals from units
+11–26 (3 labelled "other", which has no row), labelled by a separate
+agent before any row was written and committed unread. Of the 10 misses,
+6 are silent and 2 wrong: 4 silent and 2 lenient are "identity first"
+labels, where row 1's unbuilt `trig_norm` clause is the likely gap; the
+other misses are one chain-rule and one standard silent, a trig
+substitution read as hyperbolic (a symbol's sign, as U09-P1 in the
+development set), and a parts integrand read as root substitution. The
+development set scores strict 28/30. Per revision 8, no row changes
+because of the held-out set; version 2 is scored on a fresh one.
+`python3.12 app/assist/score.py heldout` prints it.
+
+**Next,** per §17: the full UI (palette, progress, KaTeX), and recognizer
+version 2 (the `trig_norm` clause of row 1) with a fresh held-out set.
 
 **Python version:** the suite passes 992 of 992 on Python 3.12.
 On 3.11 five deep-term checks fail with `RecursionError` in dataclass

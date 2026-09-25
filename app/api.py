@@ -14,8 +14,9 @@ import secrets
 
 import script
 import session as S
+from assist import recognizer
 from session import K, KERNEL, Refusal, loader
-from terms import Refused, parse_goal, parse_term, show
+from terms import Integral, Refused, parse_goal, parse_term, show, trees
 
 PROBLEMS = os.path.join(KERNEL, "problems")
 
@@ -221,6 +222,31 @@ def moves(_):
         for m in K.MOVES]}
 
 
+def hint(query):
+    """RECOGNIZER.md, the ladder: rung 1, 2 or 3 of the first row that
+    matches the first Int in the node's goal (pre-order)."""
+    sess = _session(query)
+    n = _node(sess, query)
+    rung = _field(query, "rung", str)
+    if rung == "4":
+        raise Refusal("not-built", "rung 4 would make the move; it is not "
+                      "built")
+    if rung not in ("1", "2", "3"):
+        raise _bad(f"rung is 1, 2, 3 or 4, not {rung!r}")
+    goal = n.state.goal
+    ints = [] if goal is None else [t for t in trees(goal)
+                                    if isinstance(t, Integral)]
+    if not ints:
+        raise Refusal("no-integral", "the goal holds no integral")
+    i = ints[0]
+    step = recognizer.ladder(i.body, i.var)
+    if step is None:
+        raise Refusal("no-row", f"no row of the table matches "
+                      f"{_text(i.body)} in {i.var}")
+    return {"rung": int(rung), "integral": _text(i), "row": step["row"],
+            "text": step[int(rung)], "cost": step["cost"]}
+
+
 def not_built(query):
     _node(_session(query), query)
     raise Refusal("not-built", "the assistance layer is not built yet")
@@ -235,7 +261,7 @@ ROUTES = {("GET", "/problems"): problems,
           ("GET", "/tree"): tree,
           ("POST", "/parse"): parse,
           ("GET", "/moves"): moves,
-          ("GET", "/hint"): not_built,
+          ("GET", "/hint"): hint,
           ("GET", "/palette"): not_built}
 
 
