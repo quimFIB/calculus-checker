@@ -4294,7 +4294,7 @@ the property you need. Above the line reuse is free.
 | Obligation tracker + §5.3 | **build** | An SMT solver would put 500k lines of C++ under the one component whose bug is a false `Proved`, to decide 0 ≤ x ⟹ 0 ≤ x³ |
 | Parser | **build** | A small ASCII script grammar, not LaTeX. `unified-latex` and friends parse LaTeX, whose AST is macro-level, so adopting one means a LaTeX-AST → term-AST translation that is itself new trusted code. MathQuill/MathLive are input widgets, and putting one in front of a trusted component adds a second place where what you see differs from what you proved |
 | `trig_norm` (§8.9) | **build** | Untrusted. It must emit `rewrite` steps against *this* rule table and *this* term language; a CAS simplifier returns an answer, not a sequence of §6.8 applications the kernel can check, which is the same reason §15.5 keeps SymPy out of the kernel |
-| Pretty-printer | **reuse KaTeX** | Already a dependency and already the parser mitigation. Note the pin: §16 says 0.16.9, current is 0.18.x |
+| Pretty-printer | **reuse KaTeX** | Already a dependency and already the parser mitigation. Note the pin: §16 said 0.16.9; 0.18.9 is vendored in `app/page/katex/` (UI.md, 2026-09-25) |
 | §8 integrator, shipped | **build, scoped down** | §3's measurements: every shippable JS CAS returns *wrong* antiderivatives on this course's own integrals |
 | §8 integrator, authoring oracle | **reuse SymPy 1.14, offline** | 16/16 on the course sample, median 30 ms, and its `1/(1+x**3)` output *is* §11.2's answer. Attacks the dominant cost, not the line count. Never shipped |
 | ODE solver, factoriser, partial fractions | **build** | Small, pattern-driven, each output checked by one `ring`/`field` step |

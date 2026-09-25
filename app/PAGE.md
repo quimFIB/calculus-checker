@@ -23,7 +23,8 @@ a string from a route. The page never builds a verdict. "Proved." is shown
 only as the `report` of a node.
 
 Standard library only on the server; the page loads nothing from outside
-(no CDN, no fonts), so `./calc` works offline (§16.1).
+(no CDN; KaTeX and its fonts are vendored and served by `./calc`,
+UI.md), so `./calc` works offline (§16.1).
 
 ## The new route
 
