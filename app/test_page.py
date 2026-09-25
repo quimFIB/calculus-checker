@@ -160,6 +160,21 @@ class Page(unittest.TestCase):
         self.assertEqual(p.inner_text("#backdrop mark.checked"),
                          "ftc x^3 + x^2 by ring.")
 
+    def test_partial_fractions_on_p5(self):
+        """FACTOR.md: the palette's Partial fractions on readiness P5 falls
+        back to ℝ and shows the decomposition with its check."""
+        p = self.page
+        self.start("improper.P5")
+        p.wait_for_selector("#partial-fractions")
+        p.click("#partial-fractions")
+        p.wait_for_selector("#factor-result")
+        out = p.inner_text("#factor-result")
+        self.assertIn("Partial fractions over ℝ", out)
+        self.assertIn("checked by field using sqrt_sq_val with a := 2", out)
+        self.assertEqual(p.query_selector_all("#factor-result .katex-error"),
+                         [])
+        self.assertEqual(p.input_value("#script"), "")
+
     def test_undo_keeps_the_node(self):
         p = self.page
         self.start()

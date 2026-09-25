@@ -12,6 +12,7 @@ from assist import recognizer as R
 from assist.shapes import subterms, summands
 from entries import ENTRIES
 import field as FD
+from assist import factor as FA
 from assist import probe
 from terms import (App, Deriv, Integral, MVar, NegInf, PosInf, Rel, Term,
                    Var, show, subst)
@@ -222,6 +223,22 @@ def card(goal):
             for cid, form, anti, keys in CARD]
 
 
+def rational(goal):
+    """FACTOR.md: the first Int's integrand and variable when it is a
+    rational function of that variable, for the factor tools; else None."""
+    ints = integrals(goal)
+    if not ints:
+        return None
+    i = ints[0]
+    try:
+        _, q = FA.read(i.body, i.var)
+    except Exception:
+        return None
+    if FA.deg(q) < 1:  # a polynomial: nothing to split
+        return None
+    return {"term": show(i.body), "var": i.var}
+
+
 def palette(goal):
     return {"moves": moves(goal), "rewrites": rewrites(goal),
-            "card": card(goal)}
+            "card": card(goal), "rational": rational(goal)}

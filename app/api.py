@@ -17,6 +17,7 @@ import session as S
 import tex
 import work
 from assist import palette as PL
+from assist import factor as FA
 from assist import probe, progress, recognizer, stuck
 from session import K, KERNEL, Refusal, loader
 from terms import Integral, Refused, parse_goal, parse_term, show, trees
@@ -489,6 +490,54 @@ def palette(query):
     return PL.palette(_node(sess, query).state.goal)
 
 
+def _factor_args(body):
+    """FACTOR.md: the term, its variable and the field of a /factor or
+    /apart body."""
+    fld = _field(body, "field", str)
+    if fld not in ("Q", "R"):
+        raise _bad("field is Q or R")
+    var = _field(body, "var", str)
+    try:
+        t = parse_term(_field(body, "term", str), _sig(body))
+    except Refused as r:
+        raise Refusal.of(r) from None
+    return t, var, fld
+
+
+def _factor_call(fn, *args):
+    try:
+        return fn(*args)
+    except FA.Refusal as r:
+        raise Refusal(r.code, r.message) from None
+
+
+def _with_tex(out, *keys):
+    """The answer's terms as TeX too (UI.md §1), for the page."""
+    for k in keys:
+        if out.get(k) is not None:
+            out[k + "_tex"] = _tex(parse_term(out[k], {}))
+    return out
+
+
+def factor(body):
+    """FACTOR.md: a polynomial, or a rational function's denominator,
+    factored over Q or R, checked by the kernel."""
+    return _with_tex(_factor_call(FA.factor, *_factor_args(body)),
+                     "product")
+
+
+def apart(body):
+    """FACTOR.md: partial fractions over Q or R, checked by the kernel."""
+    t, var, fld = _factor_args(body)
+    ansatz = _field(body, "ansatz", list, optional=True)
+    if ansatz is not None and not all(
+            isinstance(a, dict) and isinstance(a.get("den"), str)
+            and a.get("numerator") in ("constant", "linear") for a in ansatz):
+        raise _bad("ansatz is a list of {den: term, numerator: "
+                   "constant|linear}")
+    return _with_tex(_factor_call(FA.apart, t, var, fld, ansatz), "sum")
+
+
 ROUTES = {("GET", "/problems"): problems,
           ("POST", "/session"): new_session,
           ("POST", "/step"): step,
@@ -502,7 +551,9 @@ ROUTES = {("GET", "/problems"): problems,
           ("GET", "/palette"): palette,
           ("POST", "/script"): save_script,
           ("GET", "/export"): export,
-          ("POST", "/import"): import_}
+          ("POST", "/import"): import_,
+          ("POST", "/factor"): factor,
+          ("POST", "/apart"): apart}
 
 
 def handle(method, path, args):

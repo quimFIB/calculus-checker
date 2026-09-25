@@ -8,9 +8,7 @@ output is cheap to verify is free": both are search, and neither output is
 shown until the kernel's own `ring` or `field` has decided it equal to what
 it came from. Written before the code.
 
-The course needs two cases, and they set the scope (§8.2: "linear and
-irreducible-quadratic denominators are every partial-fraction problem in
-this course"): readiness P1.2, ∫ 1/(1 + x³), where 1 + x³ = (1 + x)(x² − x +
+The course needs two cases this cut can serve, and they set the scope: readiness P1.2, ∫ 1/(1 + x³), where 1 + x³ = (1 + x)(x² − x +
 1) over ℚ and 1/(1 + x³) = (1/3)/(1 + x) + (−x/3 + 2/3)/(x² − x + 1); and
 readiness P5, ∫ 1/(1 + x⁴), which does not factor over ℚ and over ℝ is
 (x² + √2·x + 1)(x² − √2·x + 1).
@@ -18,6 +16,13 @@ readiness P5, ∫ 1/(1 + x⁴), which does not factor over ℚ and over ℝ is
 Untrusted (tier 2). Nothing here enters a proof: it tells the learner a
 factorisation or a decomposition the kernel has already checked, and the
 learner uses it to find F.
+
+**Out of scope, said plainly.** §8.2 also names "unit 00's quadratic
+drag" among the course's partial-fraction problems: its integrand
+M/(M·g − c·w²) (U00-P4) has parameters, and splitting it over ℝ needs
+√(Mg), a radical with parameters; U00-P1a and P3 are linear with
+parameters. All three are refused `not-rational` here. §8.2's "every
+time" holds for this tool only over numeric coefficients.
 
 ## Where it sits
 
@@ -40,7 +45,11 @@ to factor over. Degree of the denominator at most 12.
 ## Arithmetic
 
 Coefficients live in ℚ(√d) for one squarefree integer d ≥ 2, or in ℚ: a
-number is a + b√d with a, b `Fraction`s. Polynomials are coefficient lists.
+number is a + b√d with a, b `Fraction`s, always printed rationalised as
+a + b·sqrt d, so √d never appears in a divisor of a coefficient. One
+radical at a time: a factor that would need a second d is left whole,
+and the note says so (x⁴ − 5x² + 6 over ℝ splits x² − 3 and leaves
+x² − 2). Polynomials are coefficient lists.
 This is the only arithmetic here, and it is checked only by what the
 kernel says of its results.
 
@@ -55,13 +64,21 @@ Of a polynomial p in x over ℚ:
    - degree 2 over ℚ: irreducible over ℚ (no rational root). Over ℝ with a
      positive discriminant D: the two real linear factors, with √D' where
      D = r²·D' and D' squarefree.
-   - degree 4 over ℚ: into two rational quadratics, by solving for monic
-     factors x² + ax + b, x² + cx + e with b·e the constant term, b among
-     the rational divisors (bounded as in 2).
+   - degree 4 over ℚ: into two rational quadratics. The monic quartic is
+     scaled to a monic integer one, L⁴·p(y/L) with L the lcm of the
+     denominators, whose monic factors have integer coefficients (Gauss),
+     and mapped back. For each integer divisor b of the constant term
+     (bounded as in 2) and e its cofactor: if b ≠ e, a and c follow
+     linearly; if b = e, a and c are the roots of z² − a₃z + (a₂ − 2b),
+     rational only for a square discriminant. So the search is complete
+     for quadratic splits (x⁴ + 4 = (x² + 2x + 2)(x² − 2x + 2) has
+     b = e = 2; 4x⁴ + 1 = 4(x² + x + 1/2)(x² − x + 1/2)).
    - degree 4, over ℝ, when not split over ℚ: the biquadratic form
-     x⁴ + px² + q with q > 0 a rational square s² and 2s − p = m·r² with m
-     squarefree, m ≥ 2: (x² + r√m·x + s)(x² − r√m·x + s) (P5: s = 1, p = 0,
-     √2). Other quartics over ℝ are left whole.
+     x⁴ + px² + q with q > 0 a rational square s², s = +√q, and
+     2s − p = m·r² with m squarefree, m ≥ 2: (x² + r√m·x + s)(x² − r√m·x +
+     s) (P5: s = 1, p = 0, √2; x⁴ − x² + 1: √3). s is taken positive: the
+     ℚ step runs first, and only s > 0 can give factors with a negative
+     discriminant. Other quartics over ℝ are left whole.
    - anything else is left whole, and the answer says so ("no further
      factor found"), never that it is irreducible unless it is degree 2
      with a negative discriminant, or a quadratic over ℚ with no rational
@@ -71,7 +88,12 @@ Of a polynomial p in x over ℚ:
 
 **The check.** The product, as a term, against p: `ring` when every
 coefficient is rational; `field` with the fact `sqrt_sq_val with a := d`
-(as the pair ((√d)², d)) when √d appears. The answer names the check. A
+(as the pair of terms ((√d)², d)) when √d appears. `field`'s equality
+holds only where its divisors are nonzero, and a divisor can be zero
+modulo the fact (field accepts 1/(1+x⁴) = 2((√2)²−2)/(((√2)²−2)(1+x⁴))),
+so every divisor `field` returns must itself be decided nonzero
+(`field(divisor, 0, facts)` answering `NotEqual`), or the check fails.
+The answer names the check. A
 factorisation the kernel does not accept is not shown; the answer is then
 `{"error": "unchecked"}` (a bug here, reported, never displayed as a
 result).
@@ -82,7 +104,10 @@ known to be.
 
 ## apart(t, x, field)
 
-1. t = N/Q in lowest terms by `field`'s normal form; if deg N ≥ deg Q,
+1. t = N/Q from `field`'s normal form, reduced to lowest terms here by a
+   polynomial gcd (the normal form computes none: (x² − 1)/(x − 1) keeps
+   x − 1), and terms whose coefficients all come out 0 are dropped; if
+   deg N ≥ deg Q,
    polynomial division gives the polynomial part S and N := remainder.
 2. Q is factored over the field as above. Every factor must be known
    irreducible (linear, or quadratic with negative discriminant, or a
@@ -122,7 +147,8 @@ that does not parse.
 ## The page
 
 The palette gains, when the first `Int`'s integrand is a rational
-function of its variable, three buttons: **Factor over ℚ**, **Factor over
+function of its variable whose denominator involves the variable (a
+polynomial integrand has nothing to split), three buttons: **Factor over ℚ**, **Factor over
 ℝ**, **Partial fractions** (over ℝ when ℚ does not split, and it says
 which). The result is drawn with KaTeX, with its check named ("checked by
 field using sqrt_sq_val with a := 2"), and the plain text beside it for
@@ -155,3 +181,15 @@ integrator's), a rung-4 hint built on this.
 3. `app/test_page.py`: on readiness P5 (improper.P5) the palette's
    Partial fractions shows the ℝ decomposition with its check.
 4. Nothing under `kernel/` changes; the kernel suite still passes.
+
+## Review (2026-09-25), folded in
+
+An independent skeptic read this spec against DESIGN.md §8.2 and §8.4 and
+the kernel (2 blocking findings, 6 minor). Folded above: a `field` check
+is vacuous when a divisor is zero modulo the fact, so every divisor is
+decided nonzero; the quadratic drag and the other parameter problems are
+out of scope, said plainly; the quartic search's b = e case and rational
+coefficients (scaling, Gauss); s = +√q; lowest terms by gcd, and zero
+terms dropped; one radical at a time; the palette hides the tools for a
+polynomial integrand. Recorded, not changed: readiness P1.2 is not a
+problem file, so its decomposition is tested in the unit tests only.

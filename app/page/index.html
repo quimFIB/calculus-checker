@@ -589,9 +589,40 @@ async function showPalette(id) {
       ...pl.moves.map((m) => btn(m.move, m.sentence, "", m.why))),
     pl.rewrites.length ? el("div", { class: "palette", id: "palette-rewrites" },
       ...pl.rewrites.map((r) => btn(`${r.entry} at ${r.at}`, r.sentence, "rw"))) : "",
+    pl.rational ? el("div", { class: "palette", id: "palette-factor" },
+      el("button", { onclick: () => factorTool("/factor", pl.rational, "Q") }, "Factor over ℚ"),
+      el("button", { onclick: () => factorTool("/factor", pl.rational, "R") }, "Factor over ℝ"),
+      el("button", { id: "partial-fractions",
+                     onclick: () => factorTool("/apart", pl.rational, "Q", true) }, "Partial fractions")) : "",
+    el("div", { id: "factor-out" }),
     el("details", { class: "card", id: "card" },
       el("summary", {}, `Antiderivative card${matched ? ` · ${matched} match` : ""}`),
       el("table", {}, el("tbody", {}, ...rows))));
+}
+
+// FACTOR.md: the kernel has checked every result shown here; none is a
+// move, so nothing is inserted into the script.
+async function factorTool(route, r, field, orReal) {
+  const out = $("factor-out");
+  try {
+    let a = await api("POST", route, { term: r.term, var: r.var, field });
+    if (a.refusal && orReal && a.refusal.code === "not-split") {
+      field = "R";
+      a = await api("POST", route, { term: r.term, var: r.var, field });
+    }
+    if (a.refusal) {
+      out.replaceChildren(el("div", { class: "msg bad", id: "factor-result" },
+        el("span", { class: "code" }, a.refusal.code), " " + a.refusal.message));
+      return;
+    }
+    const over = field === "Q" ? "over ℚ" : "over ℝ";
+    const [what, plain, tex] = route === "/apart"
+      ? [`Partial fractions ${over}`, a.sum, a.sum_tex]
+      : [`The ${a.of} ${over}`, a.product, a.product_tex];
+    out.replaceChildren(el("div", { class: "msg ok", id: "factor-result" },
+      el("div", { class: "muted" }, what), math(tex, plain, "factor-math"),
+      el("div", { class: "muted" }, `checked by ${a.check}` + (a.note ? ` · ${a.note}` : ""))));
+  } catch (e) { out.replaceChildren(el("div", { class: "msg bad" }, String(e.message))); }
 }
 
 // ---------------------------------------------------------------- attempts

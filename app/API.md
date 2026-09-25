@@ -97,6 +97,8 @@ POST /script   {session, script, path} -> {saved: bool}             (PERSIST.md)
 GET  /export   ?session                -> the session's work file   (PERSIST.md)
 POST /import   {document}              -> node n0 with resumed      (PERSIST.md)
 POST /cancel                           -> {cancelled: bool}         (TIMEOUT.md)
+POST /factor   {term, var, field}      -> {factors, product, check, note}  (assist/FACTOR.md)
+POST /apart    {term, var, field, ansatz?} -> {polynomial, terms, sum, check}
 ```
 
 - **`/problems`** lists every `*.json` under `kernel/problems/` that
@@ -141,6 +143,10 @@ POST /cancel                           -> {cancelled: bool}         (TIMEOUT.md)
   process, and any request that runs past `--step-timeout` (10 s) or is
   cancelled answers a 200 `{"timeout": {seconds, cancelled, message}}`.
   It changed nothing; the worker is replaced and sessions come back.
+- **`/factor` and `/apart`** are `assist/FACTOR.md`: a factorisation over
+  ℚ or ℝ and partial fractions, each returned only after the kernel's
+  `ring` or `field` (with `sqrt_sq_val` when a radical appears) accepted
+  it. `/palette` gains `rational`, the integrand they apply to.
 
 API-local refusal codes: `unknown-handle`, `retract-root`, `not-built`,
 `no-integral`, `no-row` (RECOGNIZER.md),

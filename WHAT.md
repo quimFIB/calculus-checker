@@ -124,7 +124,7 @@ rewrites that match up to ring as ready sentences, inserted at the
 cursor), the antiderivative card with matching rows marked, the progress
 signal after each step, the `~` speculative probe (floating-point
 Gauss–Kronrod, never evidence), and §16.4's status line (admissions, max
-rung, rules, `0 machine-checked`). Not yet: rung 4, the factoriser.
+rung, rules, `0 machine-checked`). Not yet: rung 4.
 `app/test_page.py` drives it in a headless browser when Playwright is
 installed.
 
@@ -167,8 +167,15 @@ process; a request past `--step-timeout` (10 s by default) or cancelled
 the worker is replaced, and each session comes back from its moves on
 first use.
 
-**Next,** per §17: what remains of stage 1's lists: the
-factoriser and partial-fraction solver, and recognizer version 2 (row 1's
+**The factoriser and partial-fraction solver are built**
+(`app/assist/FACTOR.md`, §8.4, 2026-09-25, spec reviewed by a skeptic
+first): over ℚ or ℝ (one radical), numeric coefficients only, every
+result shown only after the kernel's `ring` or `field` accepted it and
+every `field` divisor was decided nonzero. Readiness P1.2's 1/(1 + x³) and
+P5's 1/(1 + x⁴) (over ℝ, with √2) decompose; the palette offers them on a
+rational integrand. The quadratic drag (parameters) is out of scope.
+
+**Next,** per §17: what remains of stage 1's lists: recognizer version 2 (row 1's
 `trig_norm` clause) with a fresh held-out set. Then §17's gate: use it on
 readiness P1, P3 and P5 in the loop.
 
