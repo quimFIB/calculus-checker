@@ -15001,7 +15001,7 @@ DECISIONS_IMPROPER["E82"] = (
     "target's ({+} for a strict positive target, {+, 0} for a non-strict "
     "one, likewise negative, {+, -} for # 0). Sound where the key's terms "
     "are defined, which is all a certificate ever claims.")
-SIGN_NODE_CASES = X_SIGN_NODE_CASES = [
+SIGN_NODE_CASES = [
     ("a + e1 + (a - e1)*t^2 # 0 @ a > e1, e1 > 0", True),
     ("(a + e1)*sqrt((a - e1)/(a + e1)) # 0 @ a > e1, e1 > 0", True),
     ("((x - 1)^2 + 1/2)^2 # 0", True),
@@ -15009,3 +15009,69 @@ SIGN_NODE_CASES = X_SIGN_NODE_CASES = [
     ("x^2 + y^2 > 0", False),  # (0, 0): the strict sum needs one strict part
     ("(x - 1)*(x + 1) > 0 @ x > 1", True),
 ]
+
+# E57_PRINCIPLE gains int_improper (IMPROPER_SWITCH).
+E57_PRINCIPLE["int_improper"] = (
+    "complies: it replaces an Int with an infinite limit, which no other "
+    "step reads (ring refuses it, E65), by its value, whose convergence is "
+    "the step's own conclusion (E76). An Int or D in F is refused by deriv "
+    "and by limits.py; one in a finite limit by SECOND_REVIEW_RULE")
+
+# ---------------------------------------------------------------------------
+# 21. The int_parts review (int_parts review 2026-09-25)
+#
+# A skeptic of 132f6e0 found one false 'Proved.', older than int_parts: an
+# edit inside an Int's LIMIT can make an enclosing Int statable, and no step
+# then owes that Int's former (E64). Reached by rewrite since the
+# regularity step (e3959d6: pyth rewritten inside a limit), and now by ftc
+# at an occurrence (an Int inside another Int's limit). Specified before
+# any code.
+INT_PARTS_REVIEW_CASES = [
+    {"id": "ftc_in_limit_makes_outer_statable",
+     "goal": "(Int[x = 0 .. (Int[t = 0 .. 1] t)] Int[s = 1 .. oo] 1) - "
+             "(Int[x = 0 .. (Int[t = 0 .. 1] t)] Int[s = 1 .. oo] 1) == ?A",
+     "steps": [("ftc", {"F": "t^2/2", "check": "ring", "facts": [],
+                        "occurrence": 1}),
+               ("ftc", {"F": "t^2/2", "check": "ring", "facts": [],
+                        "occurrence": 3}),
+               ("close", {"value": "0", "check": "ring", "facts": []})],
+     "not_report": "Proved.",
+     "why": "Int_1^oo 1 diverges; the outer Int's former (its body in C^0 "
+            "on [0, 1/2]) must be owed once it is statable, and it is not "
+            "dischargeable"},
+    {"id": "rewrite_in_limit_makes_outer_statable",
+     "goal": "(Int[x = 0 .. (sin(Int[t = 0 .. 1] t))^2 + (cos(Int[t = 0 .. "
+             "1] t))^2] Int[s = 1 .. oo] 1) - (Int[x = 0 .. (sin(Int[t = 0 "
+             ".. 1] t))^2 + (cos(Int[t = 0 .. 1] t))^2] Int[s = 1 .. oo] 1) "
+             "== ?A",
+     "steps": [("rewrite", {"entry": "pyth", "inst": {"u": "Int[t = 0 .. 1] "
+                                                           "t"},
+                            "at": "(sin(Int[t = 0 .. 1] t))^2 + (cos(Int[t "
+                                  "= 0 .. 1] t))^2"}),
+               ("close", {"value": "0", "check": "ring", "facts": []})],
+     "not_report": "Proved.",
+     "why": "the same hole, reached through rewrite before int_parts"},
+]
+DECISIONS_REVIEW_PARTS = {
+    "E83": "The statable-again rule. After any move, for each path at which "
+           "the new goal holds a statable Int and the old goal held an "
+           "UNSTATABLE Int, that Int's E64 former (its body in C^0 on its "
+           "range, at its position) is charged, as it would be had the Int "
+           "entered there. Statability depends on the limits only, so this "
+           "is exactly the edit-inside-a-limit case; an Int that was "
+           "statable before owed its former already, and an Int a move "
+           "builds is charged by that move. No existing proof's emissions "
+           "change: none of them makes an Int statable.",
+    "E84": "ftc at an occurrence checks F's scope as int_parts checks u and "
+           "v (E75): F may mention the goal's free names, the enclosing "
+           "Ints' binders and the selected Int's variable; anything else "
+           "is 'ftc-scope'. (Not unsound without it, the skeptic found: "
+           "a fresh name cancels in F(b) - F(a). Stated for symmetry.)",
+    "E85": "A term too deep for check_goal's recursion, built by hand past "
+           "the parser, is refused 'bad-args' in step 1 of every move, "
+           "never raised (E21 reads an exception as a kernel bug).",
+}
+E57_PRINCIPLE["ftc"] = (
+    E57_PRINCIPLE["ftc"] + "; since E73 it may select any Int by occurrence, "
+    "replacing that Int in place, and E83 charges the former of any Int the "
+    "replacement makes statable")
