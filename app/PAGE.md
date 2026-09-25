@@ -39,33 +39,45 @@ int_subst's `mode`, `occurrence` and `f` (`f` is required once `mode` is
 `reverse`, which the kernel checks). The page builds its move form from this, so a new move needs no
 page change.
 
-## The page
+## The page (revision 2: rocq-mode)
 
-Three panes and a move strip, as §16.4 draws them:
+*Revision 2, owner's ask (2026-09-25): "a central part where the user
+inputs the tactics and then to the right some kind of status window,
+similar to rocq-mode". The first cut's move form is replaced by a script
+(`SCRIPT.md`); the three panes stay, reweighted.*
 
-- **Problem** (left). A picker listing `/problems` plus a "Your own goal"
-  field (goal text, optional functions as `name/arity` pairs). Starting one
-  calls `POST /session`. Then the problem's title and statement, and the
-  formal goal as text. A parse echo box: type a term, see `/parse`'s `show`
-  of it, or its refusal.
-- **Attempts** (middle). `/tree` as a tree: each node's summary and a mark,
-  `✓` proved, `✗` retracted (kept, struck through), `·` open. Clicking a node
-  selects it. Stepping from a node that has children forks, as the API does.
-- **State** (right). The selected node's `report` on top, its goal, its
-  theorem when closed, the handles bound on its path, and the obligation
-  table: key, status, method and cites, sources, reason; rows the step added
-  (`new`) are marked.
-- **Move strip** (bottom). A move picker from `/moves`; one input per
-  argument (term arguments as text, `inst` as `name := term` lines, `facts`
-  as a multi-select of the node's handles, `check` as ring/field). "Check"
-  sends `POST /step` from the selected node. A refusal is shown in the
-  strip with its code, message and residual, and adds nothing. "Retract"
-  sends `POST /retract` on the selected node and selects the parent.
-- **Status line.** The selected node's report, and `0 machine-checked`
-  (§16.4, §14), always.
+- **Problem** (left, narrow). The problem picker and "Your own goal" as
+  before, the statement and formal goal, the parse echo, and below them
+  the **attempts** tree from `/tree` (the attempt tree stays the state
+  model, §16.4; retracted branches kept and struck through).
+- **Script** (centre, the widest pane). A text editor holding the tactic
+  script. The **checked region**, every sentence the kernel accepted, is
+  shaded green and read as locked: an edit inside it first retracts back
+  to the sentence being edited, as Proof General does. A sentence the
+  kernel refused is underlined red until it is edited.
+- **Goals** (right). The node at the end of the checked region: its
+  `report`, its goal, its theorem when closed, the facts bound on its
+  path, and the obligation table as before. Below it a **response** box:
+  the last refusal (code, message, residual) or the last success.
+- **Status line.** The report, `check mode`, and `0 machine-checked`.
 
-Keys: `Ctrl+Enter` checks, `Alt+↑` retracts, `Alt+←`/`Alt+→` move the
-selection to the parent or the newest child.
+Stepping, as Proof General's keys:
+
+```
+Alt+Down     check the next sentence          (button: Next)
+Alt+Up       retract the last checked one      (button: Undo)
+Ctrl+Enter   check or retract to the cursor    (button: To cursor)
+```
+
+Each step sends the sentence to `POST /tactic` from the node at the end of
+the checked region; checked sentence k is node k of the path from n0.
+Undo sends `POST /retract` on the last node. Stepping after an undo forks
+the attempt tree, as the API does. Clicking a node in the attempts tree
+only shows it in the goals pane; the script is the path.
+
+The first cut's move form and `GET /moves` stay: `/moves` is still served
+(the tactic syntax covers the same moves), and the form is gone from the
+page.
 
 ## Deliberately not in this cut
 
@@ -80,8 +92,14 @@ palette, progress, probe; persistence and export; a corpus path argument to
    page as `text/html`.
 2. A headless-browser test (`app/test_page.py`, Playwright against a server
    on a free port, skipped when Playwright is not installed) proves S1
-   through the page: pick the problem, `ftc` with F := x^3 + x^2, `close`
-   with 2, and the status line reads `Proved.`; a wrong F shows
-   `ftc-check-failed` and adds no node; retracting marks the node `✗` and
-   keeps it.
+   through the page by typing `ftc x^3 + x^2 by ring. close 2 by ring.` and
+   stepping, and the status line reads `Proved.`; a wrong F shows
+   `ftc-check-failed` in the response box and checks nothing; Undo marks
+   the node `✗` in the attempts tree and keeps it; editing inside the
+   checked region retracts to that sentence; and COS_SQ proves by "To
+   cursor" from a script with a `rewrite ... at` sentence.
+4. `app/test_script.py`: every step of every problem file round-trips
+   through `SCRIPT.md`'s printer and parser, every reference proof replays
+   to its loader report through `POST /tactic`, and each malformed form is
+   `bad-tactic`.
 3. Nothing under `kernel/` changes; the kernel suite still passes.

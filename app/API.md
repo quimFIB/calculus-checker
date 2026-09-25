@@ -79,6 +79,7 @@ GET  /tree     ?session                -> {session, nodes: [{node, parent, move,
                                             report, retracted, summary}]}
 POST /parse    {text, functions?}      -> {term: str, katex: null} | refusal
 GET  /moves                            -> {moves: [{name, args}]}   (PAGE.md)
+POST /tactic   {session, node, text}   -> the new node | refusal    (SCRIPT.md)
 GET  /hint     ?session&node&rung      -> refusal not-built
 GET  /palette  ?session&node           -> refusal not-built
 ```
@@ -110,7 +111,8 @@ GET  /palette  ?session&node           -> refusal not-built
 - **`/hint`** and **`/palette`** return `{"refusal": {"code": "not-built"}}`
   so the client can be written against the full route list now.
 
-API-local refusal codes: `unknown-handle`, `retract-root`, `not-built`.
+API-local refusal codes: `unknown-handle`, `retract-root`, `not-built`,
+`bad-tactic` (SCRIPT.md).
 Error codes: `bad-json`, `bad-request`, `unknown-route`, `unknown-session`,
 `unknown-node`, `unknown-problem`, `kernel-error`.
 
