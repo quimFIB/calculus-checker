@@ -63,6 +63,43 @@ def m_identity(t, x):
     return {"angle": angles[0], "degree": degree}
 
 
+def _trig_linear(a, x):
+    return _app(a, ("sin", "cos")) and is_linear(a.arg, x)
+
+
+def m_identity_product(t, x):
+    """Revision 2's product clause: a numerator monomial with sin or cos
+    factors of linear arguments, any angles, of total degree >= 2, times
+    anything; no sin or cos in the denominator; row 15's pattern left to
+    it."""
+    s = shape(t, x)
+    if s is None:
+        return None
+    for f in s.den_x:
+        if any(_app(s.atom(i), ("sin", "cos"))
+               for m in s.factor(f) for i, _ in m):
+            return None
+    best = None
+    for m in s.num:
+        trig = [(s.atom(i), e) for i, e in m
+                if i in s.dep and _trig_linear(s.atom(i), x)]
+        degree = sum(e for _, e in trig)
+        if degree >= 2 and (best is None or degree > best[1]):
+            best = (trig, degree)
+    if best is None or m_orthogonality(t, x) is not None:
+        return None
+    return {"factors": [a for a, _ in best[0]], "degree": best[1]}
+
+
+def m_identity_any(t, x):
+    """Row 1: the one-angle trig polynomial (version 1), else the product
+    clause (revision 2)."""
+    p = m_identity(t, x)
+    if p is not None:
+        return p
+    return m_identity_product(t, x)
+
+
 # ---------------------------------------------------------------- 2 the card
 
 def _quadratic_form(q):
@@ -97,6 +134,8 @@ def card_form(u, x):
         a = s.atom(i)
         if e == 1 and _app(a, LINEAR_FNS) and is_linear(a.arg, x):
             return f"{a.fn} of a linear argument"
+        if e == 1 and _app(a, ("sqrt",)) and is_linear(a.arg, x):
+            return "√(linear): the power rule"  # revision 2
         if e == 1 and type(a) is RPow and a.base == Var(x) \
                 and not depends(a.exp, x):
             return "x^p: the power rule"
@@ -110,6 +149,8 @@ def card_form(u, x):
         return "c/(linear)^k: the power rule"
     if q is not None and q.degree == 2 and k == 1:
         return _quadratic_form(q)
+    if _app(ft, ("sqrt",)) and k == 1 and is_linear(ft.arg, x):
+        return "1/√(linear): the power rule"  # revision 2
     if _app(ft, ("sqrt",)) and k == 1:
         r = sqrt_quadratic(ft, x)
         if r is not None and not r.coeff(1) and r.sign(2) < 0 \
@@ -276,10 +317,24 @@ def _root_quadratics(t, x):
             yield r, q
 
 
+def _x_divides(t, x):
+    """x itself is a factor of t's denominator."""
+    s = shape(t, x)
+    if s is None:
+        return False
+    for f in s.den_x:
+        q = poly_in(s.factor_term(f), x)
+        if q is not None and q.degree == 1 and not q.coeff(0):
+            return True
+    return False
+
+
 def m_trig_sub(t, x):
     for r, q in _root_quadratics(t, x):
         if q.sign(2) < 0:
-            return {"root": r, "shift": bool(q.coeff(1))}
+            return {"root": r, "shift": bool(q.coeff(1)), "kind": "sin"}
+        if q.sign(2) > 0 and q.completed_sign() < 0 and _x_divides(t, x):
+            return {"root": r, "shift": bool(q.coeff(1)), "kind": "sec"}
     return None
 
 
@@ -403,11 +458,15 @@ ROWS = [
         "Rewrite it with an identity before integrating.",
         "A power or product of sin and cos of one angle: reduce it "
         "(double angle, product to sum) first.",
-        "— (rewrite: no side condition)", m_identity,
-        lambda p: f"It is degree {p['degree']} in sin and cos of "
-                  f"{show(p['angle'])}; rewrite with the double-angle "
-                  "entries until each term is linear in sin or cos of a "
-                  "multiple of it."),
+        "— (rewrite: no side condition)", m_identity_any,
+        lambda p: (f"It is degree {p['degree']} in sin and cos of "
+                   f"{show(p['angle'])}; rewrite with the double-angle "
+                   "entries until each term is linear in sin or cos of a "
+                   "multiple of it." if "angle" in p else
+                   "The product " + "·".join(show(a) for a in p["factors"])
+                   + " has degree " + str(p["degree"]) + " in sin and cos:"
+                   " product to sum (or the double angle) makes each term a"
+                   " single sin or cos, then integrate term by term.")),
     Row("card", "standard", "It is already a standard form.",
         "Read it off the antiderivative card.", "—", m_card,
         lambda p: "Standard: " + "; ".join(p["forms"]) + "."),
@@ -456,8 +515,9 @@ ROWS = [
         lambda p: f"Factor the denominator {show(p['den'])} (degree "
                   f"{p['degree']}) over the reals, then split."),
     Row("trig substitution", "trig substitution", "A substitution.",
-        "√(a² − x²) → x = a sin θ.", "closing needs pyth", m_trig_sub,
-        lambda p: _shift(p) + f"{show(p['root'])}, then x = a·sin θ."),
+        "√(a² − x²) → x = a sin θ; √(x² − a²) over x → x = a sec θ.",
+        "closing needs pyth", m_trig_sub,
+        lambda p: _shift(p) + f"{show(p['root'])}, then x = a·{p['kind']} θ."),
     Row("hyperbolic substitution", "hyperbolic substitution",
         "A substitution.",
         "√(x² + a²) → x = a sinh u; √(x² − a²) → x = a cosh u.",
