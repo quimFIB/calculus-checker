@@ -897,7 +897,10 @@ key's own atoms, and field may owe only the key's own divisors. The seams
 are `_clear_terms_ok`, `_clear_identity` and `_clear_relation`; their
 planted bugs run in the suite's own process (item Q). The search tries
 clear last, from `field.field_parts`, splitting the numerator's binomial
-factors with `poly.exact_div`.
+factors with `poly.exact_div`. After the section 29 review (E158) the
+search proposes nothing for a numerator of more than `CLEAR_TERMS` (64)
+monomials and withholds on a RecursionError, so a key another method proves
+keeps its answer; a rational content moves into d.
 
 **The trust split (E28).** `search.propose(key)` is untrusted and proposes
 one certificate, trying §5.3's methods in TAG_RULES' order and reusing the
@@ -1324,3 +1327,40 @@ REG_REVIEW_DEEP_CASES goals (a 400-term sum, 350 and 300 nested sin) install
 owing one former; on this machine all three are discharged ('reg', ()).
 The parser converts a RecursionError into ParseError 'nesting-too-deep'
 (GRAMMAR.md §1), so a 200-deep parenthesised sin is refused, not a crash.
+
+## 14. Assumptions and the ODE rules (p1_expected section 30, E147–E157)
+
+`install(goal, assumptions=())` takes Γ beside the goal: a tuple of
+`kernel.Assumption(name, var, interval, judgement)`, each "for every var in
+interval, judgement". The theorem a proof reaches is the goal under Γ.
+`_check_assumptions` refuses `assume-shape` (a name that is not an
+identifier or repeats, an interval not on var or whose ends hold an Int, D,
+Call or var, a judgement that is not a law, an order judgement or
+`Reg(f(var), k)` with k >= 1) and `assume-scope` (var free or bound in the
+goal, or a variable other than var and the goal's own). A law is an
+equation whose only D nodes are `D[var] f(var)` for declared f. Γ is kept
+per lineage in `_GAMMA`; `kernel.assumptions(state)` returns it.
+
+Nothing reads Γ but the three rules `quad_t`, `sep_autonomous` and
+`energy_integral` (E154). Each names its law (and kin), regs and `using`
+order assumptions, takes an antiderivative F in a fresh variable, and
+mints a handle, as `taylor_lagrange` does; the goal is unchanged. In
+order: `ode-scope` (var fresh, F and f free of Calls and stray variables),
+`ode-no-assumption` (a name Γ lacks, or of the wrong kind), `ode-law-shape`
+(a law that is not `c*D[s] y(s) == R`; energy's kin must be `D[s] x(s) ==
+v(s)`), `ode-law-mismatch` (quad_t's R holds a Call; sep and energy's R is
+not f at y(s) by field, whose divisors are owed at s, E156),
+`ode-no-regularity`, then the emissions: containment of [t0, t1] in every
+interval read (`ode_contain`), the range a < y(s) < b at s in [t0, t1]
+with the `using` judgements at s (`ode_range`), the law's divisors
+(`ode_law`), F's formers, `Reg(F, 1)` and the checked `D[var] F == target`
+(`ode_F_C1`, `ode_D`; `ode-check-failed` with the residual), quad_t's
+`Reg(F, 0)` (`ode_F_C0`), and the conclusion's formers at G plus the range
+and `using` items at t0 and t1. The conclusions are E151–E153's.
+
+E157 amends E5 in `terms.with_domain`: a key holding a Call keeps its
+domain, since v(0) is an unknown, not a constant. The loader reads a
+problem file's optional `assume` list (E155) and the rules' `law`, `kin`,
+`regs`, `using` and `range` args; no problem file uses `assume` while the
+gate is read. Item O runs ODE_PROOFS (unit 00 P1(a)–(c), each `Proved.`),
+ODE_BAD_MOVES and ODE_INSTALL_REFUSALS.

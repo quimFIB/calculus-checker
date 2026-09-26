@@ -498,7 +498,10 @@ unit 00's eleven goals (UNIT00.md), at 1068 of 1068. Item G followed
 (UNIT00.md G8), at 1088. Item K followed (section 28): strict Taylor
 bounds and bound's scale, for unit 00 P3(b), at 1097. Item Q followed
 (section 29): discharge method 7, clearing a denominator of certified
-sign (UNIT00.md G9). The suite is at 1111 of 1111 on Python 3.12.
+sign (UNIT00.md G9), at 1111. Item O followed (section 30): assumptions
+about declared functions and §6.5's `quad_t`, `sep_autonomous` and
+`energy_integral` (UNIT00.md G6), with the section 29 review folded in
+(E158). The suite is at 1134 of 1134 on Python 3.12.
 
 ## What is in `kernel/`
 

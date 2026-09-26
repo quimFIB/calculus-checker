@@ -207,6 +207,8 @@ ITEMS = {
     "K": "strict Taylor bounds and bound's scale (p1_expected section 28)",
     "Q": "clearing a denominator of certified sign (p1_expected section "
          "29)",
+    "O": "assumptions on declared functions and the ODE rules (p1_expected "
+         "section 30)",
 }
 UNIT, UNIT_TEXT = "unit", ("unit tests: test_field.py, test_grammar.py, "
                            "test_discharge.py")  # beside 1-6
@@ -5997,6 +5999,20 @@ def clear_planted_problems(name, bug):
     return [] if caught else [f"{name} went unnoticed"]
 
 
+def clear_review_problems(key_text, method):
+    import discharge as DC
+    import search as SR
+    key = T.parse_judgement(key_text, SIG)
+    try:
+        cert = SR.propose(key)
+    except RecursionError:
+        return ["RecursionError"]
+    if cert is None or cert.get("method") != method:
+        return [f"proposed {cert and cert.get('method')}"]
+    tag = DC.check(key, cert)
+    return [] if tag else ["rejected"]
+
+
 def clear_checks(suite):
     for cid, key, spec in X.CLEAR_ACCEPTS:
         suite.check("Q", f"CLEAR_ACCEPTS {cid}: {key} (E142)",
@@ -6011,6 +6027,129 @@ def clear_checks(suite):
     for name, c in X.CLEAR_PROOFS.items():
         suite.check("Q", f"CLEAR_PROOFS {name}: {c['goal']} -> "
                     f"{c['report']!r}", lambda c=c: unit00_proof_problems(c))
+    for k, method in X.CLEAR_REVIEW_KEYS:
+        suite.check("Q", f"CLEAR_REVIEW_KEYS {k}: the search's {method} "
+                    "certificate is accepted (E158)",
+                    lambda k=k, m=method: clear_review_problems(k, m))
+
+
+def _ode_gamma(data, sig):
+    """ODE Γ data through the loader's own path (E155)."""
+    import loader
+    items = []
+    for name, var, iv, j in data:
+        d = {"name": name, "var": var, "in": iv}
+        if j[0] == "law":
+            d["law"] = j[1]
+        else:
+            d["reg"] = {"fn": j[1], "class": j[2]}
+        items.append(d)
+    return loader.assumptions(items, sig)
+
+
+def _ode_install(c):
+    return K.install(T.parse_goal(c["goal"], c["sig"]),
+                     _ode_gamma(c["gamma"], c["sig"]))
+
+
+def _ode_feed(st, move, args, handles, sig):
+    import loader
+    return loader.feed(st, {"move": move, "args": args}, handles, sig)
+
+
+def ode_proof_problems(c):
+    """ODE_PROOFS: install under Γ, every step accepted, the report, the
+    theorem the goal itself (verify), Γ kept for the lineage (E147)."""
+    st, handles = _ode_install(c), {}
+    if isinstance(st, K.Refusal):
+        return [f"install refused {st.code}: {st.message}"]
+    gamma = _ode_gamma(c["gamma"], c["sig"])
+    for n, (move, args) in enumerate(c["steps"]):
+        st = _ode_feed(st, move, args, handles, c["sig"])
+        if isinstance(st, K.Refusal):
+            return [f"step {n} ({move}) refused {st.code}: {st.message}"]
+    out = []
+    if K.report(st) != c["report"]:
+        out.append(f"report {K.report(st)!r}, expected {c['report']!r}")
+    if st.theorem != T.parse_goal(c["goal"], c["sig"]):
+        out.append(f"theorem {T.show(st.theorem)}, expected the goal")
+    if K.assumptions(st) != gamma:
+        out.append("assumptions(state) is not the installed Γ")
+    return out
+
+
+def ode_bad_move_problems(b):
+    st = _ode_install(b)
+    if isinstance(st, K.Refusal):
+        return [f"install refused {st.code}: {st.message}"]
+    r = _ode_feed(st, *b["move"], {}, b["sig"])
+    if not isinstance(r, K.Refusal):
+        return ["accepted"]
+    return [] if r.code == b["refusal"] else [f"refused {r.code}: {r.message}"]
+
+
+def ode_install_problems(gamma, sig, goal_text, want):
+    r = K.install(T.parse_goal(goal_text, sig), _ode_gamma(gamma, sig))
+    if not isinstance(r, K.Refusal):
+        return ["installed"]
+    return [] if r.code == want else [f"refused {r.code}: {r.message}"]
+
+
+def ode_emission_problems():
+    """E150, E152, E156: P1A_SEP's step emits containment, range and the
+    law's divisor under their sources, and its handle's conclusion is
+    E152's, at G."""
+    c = X.ODE_PROOFS["P1A_SEP"]
+    st = _ode_install(c)
+    move, args = c["steps"][0]
+    handles = {}
+    st = _ode_feed(st, move, args, handles, c["sig"])
+    if isinstance(st, K.Refusal):
+        return [f"refused {st.code}"]
+    srcs = set().union(*(ob.sources for ob in st.last.emitted))
+    out = [f"no {s} emission" for s in (K.S_ODE_CONTAIN, K.S_ODE_RANGE,
+                                         K.S_ODE_LAW, K.S_ODE_D)
+           if s not in srcs]
+    G = T.parse_goal(c["goal"], c["sig"])[0].dom
+    want = T.with_domain(T.parse_judgement(
+        "t == 0 + (-(m/b)*ln(m*g/b + v(t)) - -(m/b)*ln(m*g/b + v(0)))",
+        c["sig"]), G)
+    got = st.conclusion(handles["h"])
+    if not equal_by("ring", T.Add(got.lhs, T.Neg(got.rhs)),
+                    T.Add(want.lhs, T.Neg(want.rhs)))[0] or got.dom != G:
+        out.append(f"conclusion {T.show(got)}")
+    range_keys = [ob for ob in st.last.emitted
+                  if K.S_ODE_RANGE in ob.sources]
+    if not all(any(isinstance(i, T.Interval) and i.var == "s"
+                   for i in ob.key.dom) for ob in range_keys):
+        out.append("a range key is not at s in [t0, t1]")
+    return out
+
+
+def ode_checks(suite):
+    for name, c in X.ODE_PROOFS.items():
+        suite.check("O", f"ODE_PROOFS {name}: {c['goal']} -> "
+                    f"{c['report']!r}", lambda c=c: ode_proof_problems(c))
+    for b in X.ODE_BAD_MOVES:
+        suite.check("O", f"ODE_BAD_MOVES {b['id']} -> {b['refusal']}",
+                    lambda b=b: ode_bad_move_problems(b))
+    for rid, gamma, sig, g, want in X.ODE_INSTALL_REFUSALS:
+        suite.check("O", f"ODE_INSTALL_REFUSALS {rid} -> {want} (E148)",
+                    lambda a=(gamma, sig, g, want): ode_install_problems(*a))
+    suite.check("O", "P1A_SEP's emissions and handle (E150, E152, E156)",
+                ode_emission_problems)
+    suite.check("O", "the ODE moves and their args are the spec's (E149)",
+                lambda: [] if (K._ODE_MOVES == X.ODE_MOVES and all(
+                    set(K._ARGS[m]) == set(X.ODE_ARGS[m])
+                    for m in X.ODE_MOVES)) else ["differ"])
+    suite.check("O", "a goal installed without Γ has none (E147)",
+                lambda: [] if K.assumptions(K.install(goal("x == x"))) == ()
+                else ["Γ not empty"])
+    suite.check("O", "a closed key holding a Call keeps its domain (E157)",
+                lambda: [] if T.with_domain(
+                    T.parse_judgement("v(0) >= 0", {"v": 1}),
+                    (T.parse_judgement("v(0) >= 0", {"v": 1}),)).dom
+                else ["dropped"])
 
 
 def _trig_forgery(kind):
@@ -6214,7 +6353,8 @@ def consolidation_checks(suite):
                 lambda: [] if K.MOVES[5] == X.INT_FLIP_MOVE and K.MOVES[6:] ==
                 (X.INT_PARTS_MOVE, X.INT_IMPROPER_MOVE,  # sections 19, 20
                  X.TAYLOR_MOVE, X.BOUND_MOVE,  # section 25
-                 X.VERIFY_MOVE)  # section 26
+                 X.VERIFY_MOVE,  # section 26
+                 *X.ODE_MOVES)  # section 30
                 else [f"MOVES is {K.MOVES}"])
     print("\nint_flip (E51): accepted moves")
     for c in FLIP_ACCEPTS:
@@ -7075,6 +7215,10 @@ def main():
     print("\nclearing a denominator (item Q; p1_expected section 29)")
     if K is not None:
         clear_checks(suite)
+
+    print("\nassumptions and the ODE rules (item O; p1_expected section 30)")
+    if K is not None:
+        ode_checks(suite)
 
     print("\nPlanted bugs (each in a child process)")
     suite.check(3, "control: the child, unpatched, finds nothing", control_problems)

@@ -16,6 +16,7 @@ A file is JSON with the keys kernel/problems/stage0/expected.py's PF2 lists:
   declarations    {"functions": {name: arity}}
   reference_proof [step, ...]
   alternative_proofs (optional) {name: {"why": prose, "steps": [step, ...]}}
+  assume          (optional) Γ, p1_expected E155: [{name, var, in, law | reg}]
 
 Every object's key set is closed, at every level (a step is exactly {id,
 move, args}, declarations exactly {functions}, an alternative exactly {why,
@@ -31,13 +32,13 @@ import json
 from dataclasses import dataclass
 
 import kernel as K
-from terms import parse_goal, parse_term
+from terms import Call, Reg, Var, parse_goal, parse_judgement, parse_term
 
 FORMAT = "calc-problem/0"
 KEYS = frozenset(("format", "id", "title", "source", "statement", "goal",
                   "answer_schema", "declarations", "reference_proof",
-                  "alternative_proofs", "notes"))
-OPTIONAL = frozenset(("alternative_proofs", "notes"))
+                  "alternative_proofs", "notes", "assume"))
+OPTIONAL = frozenset(("alternative_proofs", "notes", "assume"))
 STEP_KEYS = frozenset(("id", "move", "args"))
 ALT_KEYS = frozenset(("why", "steps"))
 DECL_KEYS = frozenset(("functions",))
@@ -51,7 +52,10 @@ ARG_TYPES = {"at": str, "F": str, "value": str, "inst": dict, "facts": list,
              "f": str, "mode": str,
              "u": str, "v": str,  # int_parts' (p1_expected section 19)
              "derivs": list, "side": str, "sense": str,  # section 25
-             "scale": str}  # section 28 (E139)
+             "scale": str,  # section 28 (E139)
+             # section 30's ODE rules (E149)
+             "law": str, "kin": str, "regs": list, "using": list,
+             "range": str}
 # The args that are GRAMMAR.md strings for terms, parsed with the file's sig.
 TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f", "u", "v", "scale")
 
@@ -62,9 +66,14 @@ class Problem:
     goal_text: str
     sig: dict  # declarations.functions, the parser's sig
     proofs: dict  # REFERENCE or an alternative's name -> tuple of step dicts
+    assume: tuple = ()  # the file's 'assume' items, as written (E155)
 
     def goal(self):
         return parse_goal(self.goal_text, self.sig)
+
+    def assumptions(self):
+        """Γ as kernel.Assumption values (E155)."""
+        return assumptions(list(self.assume), self.sig)
 
 
 def _no_duplicates(pairs):
@@ -162,7 +171,10 @@ def _problem(raw):
         if not _is(alt["why"], str):
             raise ValueError(f"alternative {name}: why is not a string")
         proofs[name] = _steps(alt["steps"], f"alternative {name}")
-    return Problem(raw["id"], raw["goal"], dict(fns), proofs)
+    assume = raw.get("assume", [])
+    if not isinstance(assume, list):
+        raise ValueError("assume is not a list")
+    return Problem(raw["id"], raw["goal"], dict(fns), proofs, tuple(assume))
 
 
 def step_args(args, handles, sig):
@@ -180,9 +192,57 @@ def step_args(args, handles, sig):
         elif k == "derivs" and isinstance(v, list) \
                 and all(isinstance(s, str) for s in v):  # section 25
             out[k] = [parse_term(s, sig) for s in v]
+        elif k == "range" and isinstance(v, str) \
+                and isinstance(args.get("var"), str):  # section 30
+            out[k] = interval(args["var"], v, sig)
         else:  # entry, bind, check, occurrence, and int_subst's var,
             out[k] = v  # new_var and mode, which the kernel reads as names
     return out
+
+
+def interval(var, text, sig):
+    """An interval as a domain item writes it ('[0, oo)'), on var: parsed
+    as the one item of `var == var @ var in TEXT`."""
+    g = parse_goal(f"{var} == {var} @ {var} in {text}", sig)
+    if len(g[0].dom) != 1:
+        raise ValueError(f"{text!r} is not one interval")
+    return g[0].dom[0]
+
+
+ASSUME_KEYS = frozenset(("name", "var", "in", "law", "reg"))
+REG_KEYS = frozenset(("fn", "class"))
+
+
+def assumptions(items, sig):
+    """A file's 'assume' list (p1_expected E155) as kernel.Assumption
+    values: each {name, var, in, and law or reg}, `in` an interval as a
+    domain item writes it, `law` a judgement, `reg` {fn, class}. Shapes are
+    checked here; what the items say, the kernel checks at install
+    (E148)."""
+    if not isinstance(items, list):
+        raise ValueError("assume is not a list")
+    out = []
+    for n, a in enumerate(items):
+        if not isinstance(a, dict) or set(a) - ASSUME_KEYS \
+                or not {"name", "var", "in"} <= set(a) \
+                or ("law" in a) == ("reg" in a):
+            raise ValueError(f"assume {n}: {{name, var, in, and law or "
+                             "reg}}")
+        if not all(_is(a[k], str) for k in ("name", "var", "in")):
+            raise ValueError(f"assume {n}: name, var and in are strings")
+        i = interval(a["var"], a["in"], sig)
+        if "law" in a:
+            if not _is(a["law"], str):
+                raise ValueError(f"assume {n}: law is a string")
+            j = parse_judgement(a["law"], sig)
+        else:
+            r = a["reg"]
+            if not (isinstance(r, dict) and set(r) == REG_KEYS
+                    and _is(r["fn"], str) and _is(r["class"], int)):
+                raise ValueError(f"assume {n}: reg is {{fn, class}}")
+            j = Reg(Call(r["fn"], (Var(a["var"]),)), r["class"])
+        out.append(K.Assumption(a["name"], a["var"], i, j))
+    return tuple(out)
 
 
 def _fact_ref(ref, handles):
@@ -198,7 +258,8 @@ def feed(state, s, handles, sig):
     ProofState or a Refusal. A fact step's handle is recorded under its
     `bind`, read from the kernel's own StepRecord."""
     r = K.step(state, s["move"], step_args(s["args"], handles, sig))
-    if s["move"] in ("fact", "taylor_lagrange") and isinstance(r, K.ProofState):
+    if s["move"] in ("fact", "taylor_lagrange", "quad_t", "sep_autonomous",
+                     "energy_integral") and isinstance(r, K.ProofState):
         handles[s["args"]["bind"]] = r.last.handle
     return r
 
@@ -213,7 +274,7 @@ def replay(problem, proof=REFERENCE, through=None):
     steps = problem.proofs[proof]
     if through is not None and through not in [s["id"] for s in steps]:
         raise ValueError(f"{problem.id} {proof} has no step {through!r}")
-    st = K.install(problem.goal())
+    st = K.install(problem.goal(), problem.assumptions())
     results, handles = [("goal", st)], {}
     for s in steps:
         if not isinstance(st, K.ProofState) or results[-1][0] == through:

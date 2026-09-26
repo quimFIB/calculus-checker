@@ -16539,7 +16539,25 @@ DECISIONS_CLEAR_BUILT = {
             "and den_sign_wrong had the sign backwards; each now fails for "
             "the one reason it names, and foreign_atom and den_with_div "
             "pass every other rule, so clear_terms_unchecked is caught.",
+    "E158": "The section 29 review (2026-09-26) found nothing unsound, and "
+            "one regression in the untrusted search: clear, tried last, "
+            "expanded a numerator of ~1700 monomials into one Add, and the "
+            "RecursionError it raised withheld a key the sign node proved "
+            "before. The search's clear now proposes nothing for a "
+            "numerator of more than CLEAR_TERMS (64) monomials, and "
+            "withholds on a RecursionError inside itself, so the methods "
+            "before it keep their answers. It also moves a rational "
+            "content into d (d := q*d, n := q*n, q > 0), since the checker "
+            "takes no Div in n: u/(2*w) < 1 now clears. The checker is "
+            "unchanged. CLEAR_REVIEW_KEYS pins both.",
 }
+
+# (key, the method the search's certificate must carry, checked) (E158)
+CLEAR_REVIEW_KEYS = [
+    ("(a + b + c + g + m + f + h + k)^6/w + exp(a) > 0 @ w > 0",
+     "sign node"),
+    ("u/(2*w) < 1 @ w > 0, u in [0, w)", "clear"),
+]
 
 
 # ---------------------------------------------------------------------------
@@ -16658,6 +16676,27 @@ DECISIONS_ODE = {
             "{fn, class}. The loader builds the Assumptions. No problem "
             "file uses it while the gate is read (E134's rule): the proofs "
             "below are table only.",
+    "E156": "Amends E149, E152, E153 at the build. The law's rhs is "
+            "compared with field, not ring: R == f[w := y(s)] by field, and "
+            "each divisor field returns is emitted nonzero (source "
+            "'ode_law') at G + (s in [t0, t1]) + the using judgements at s, "
+            "where the match is read. So f may be written in the form whose "
+            "sign discharge sees: P1A_SEP's f is -b*(m*g/b + w), whose "
+            "target m/f owes -b*(m*g/b + w) # 0 (a sign node) where -(m*g) "
+            "- b*w # 0 is out of reach of the linear methods. Sound: where "
+            "the divisors are nonzero and f(y(s)) is defined (y(s) is in "
+            "the range, where f's formers were charged), R = f(y(s)). And "
+            "P1A_SEP's goal states v(0) >= 0, v(t) >= 0: its ln arguments "
+            "owe m*g/b + v > 0 at install, and only the rules read Γ "
+            "(E154). Under Γ (up on [0, oo), t >= 0) both hold, so the "
+            "theorem is the same.",
+    "E157": "Amends E5 at the build. A key holding a Call is not closed: "
+            "a declared function is an unknown, so with_domain keeps the "
+            "domain of v(0) >= 0 as it does of x >= 0. Before this, the "
+            "fact hypothesis v(0) >= 0 of P1A_SEP's handle was keyed with "
+            "domain true and admitted, though the goal's domain says it. "
+            "Keeping a domain only adds hypotheses that hold wherever the "
+            "key is read, so no key proved before becomes false.",
 }
 
 # Γ as data: (name, var, interval text, ('law', judgement) or ('reg', fn,
@@ -16682,7 +16721,7 @@ _P1C_GAMMA = (
 )
 _P1A_SEP = ("sep_autonomous", {
     "bind": "h", "law": "eom", "regs": ["regv"], "lo": "0", "hi": "t",
-    "var": "w", "f": "-(m*g) - b*w", "F": "-(m/b)*ln(m*g/b + w)",
+    "var": "w", "f": "-b*(m*g/b + w)", "F": "-(m/b)*ln(m*g/b + w)",
     "range": "(-(m*g)/b, oo)", "using": ["up"], "check": "field",
     "facts": []})
 _P1B_ENERGY = ("energy_integral", {
@@ -16700,7 +16739,7 @@ ODE_PROOFS = {
     "P1A_SEP": {
         "gamma": _P1A_GAMMA, "sig": _ODE_V,
         "goal": "t == m/b*(ln(m*g/b + v(0)) - ln(m*g/b + v(t))) @ m > 0, "
-                "b > 0, g > 0, t >= 0",
+                "b > 0, g > 0, t >= 0, v(0) >= 0, v(t) >= 0",
         "steps": [_P1A_SEP,
                   ("verify", {"check": "field",
                               "facts": [["handle", "h"]]})],
@@ -16729,6 +16768,12 @@ ODE_PROOFS = {
         "report": "Proved.",
         "why": "E151: unit 00 P1(c), F(t): integrate once"},
 }
+
+for _m in ODE_MOVES:
+    E57_PRINCIPLE[_m] = (
+        "erases nothing: the goal is unchanged; its terms hold no Int or D "
+        "node (E149's bad-args), and the law's one D is read in Γ, never "
+        "written into a key, so the conclusion carries none")
 
 # (id, Γ, sig, goal, steps before, the move, refusal)
 ODE_BAD_MOVES = [

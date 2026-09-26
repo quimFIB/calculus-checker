@@ -113,7 +113,7 @@ import search
 import tagger
 import trig_norm
 from entries import ENTRIES
-from terms import (NEG_INF, POS_INF, Add, App, Deriv, Div, Integral, Mul,
+from terms import (NEG_INF, POS_INF, Add, App, Call, Deriv, Div, Integral, Mul,
                    Interval, MVar, Neg, NegInf, NonZero, Num, PosInf, Pow,
                    Refused, Reg, Rel, RPow, Term, Var, _shown, bv, check_goal,
                    check_names, children, fv, instantiate, parse_term,
@@ -139,9 +139,12 @@ REASON_EMPTY = "domain inconsistent"  # §5.3's pre-check found the domain
 DECIDED_FALSE = "obligation-decided-false"  # E33
 VERDICT = "Proved modulo {n} admissions"
 MOVES = ("rewrite", "fact", "ftc", "close", "int_subst", "int_flip",
-         "int_parts", "int_improper", "taylor_lagrange", "bound", "verify")
-# E96: the moves an order goal takes; `bound` takes nothing else
-ORDER_MOVES = ("rewrite", "fact", "taylor_lagrange", "bound")
+         "int_parts", "int_improper", "taylor_lagrange", "bound", "verify",
+         "quad_t", "sep_autonomous", "energy_integral")
+# E96: the moves an order goal takes; `bound` takes nothing else. The ODE
+# rules (E149) mint a handle and leave any goal as it is.
+ORDER_MOVES = ("rewrite", "fact", "taylor_lagrange", "bound", "quad_t",
+               "sep_autonomous", "energy_integral")
 ORDERINGS = ("<", "<=", ">", ">=")
 
 # The documented public API. No name here returns a ProofState from a str,
@@ -150,7 +153,7 @@ __all__ = ("HANDLES_IN_FORCE", "DISCHARGED", "ADMITTED", "OPEN",
            "REASON_REG", "REASON_NONE", "REASON_REJECTED", "REASON_EMPTY",
            "DECIDED_FALSE", "VERDICT", "MOVES", "Refusal", "Obligation",
            "StepRecord", "Handle", "ProofState", "install", "step", "report",
-           "derivative_domain")
+           "derivative_domain", "Assumption", "assumptions")
 
 
 # ---------------------------------------------------------------- records
@@ -222,6 +225,17 @@ class _Minted:
 
 
 _MINTED = {}  # handle id -> _Minted
+_GAMMA = {}  # lineage -> its tuple of Assumption, fixed at install (E147)
+
+
+@dataclass(frozen=True, slots=True)
+class Assumption:
+    """E147: for every `var` in `interval`, `judgement` (whose dom is ()).
+    One item of Γ, which install takes beside the goal and checks (E148)."""
+    name: str
+    var: str
+    interval: object  # an Interval on var
+    judgement: object  # a law, an order judgement or Reg(f(var), k)
 _IDS = itertools.count(1)  # handle ids, unique across the kernel
 _LINEAGES = itertools.count(1)  # one per install
 _STATES = weakref.WeakSet()  # every ProofState the kernel has made
@@ -356,8 +370,11 @@ def _kernel_state(state):
 
 # ---------------------------------------------------------------- API
 
-def install(goal):
-    """Start a proof of `goal`, a Goal tree (usually from parse_goal).
+def install(goal, assumptions=()):
+    """Start a proof of `goal`, a Goal tree (usually from parse_goal), under
+    Γ = `assumptions`, a tuple of Assumption (E147), checked by E148 after
+    the goal ('assume-shape', 'assume-scope'). Γ is kept for the lineage
+    and read only by the ODE rules (E154).
 
     It refuses a goal that is not exactly one judgement, an equation
     ('goal-shape'), and anything check_goal refuses (its GRAMMAR code). A
@@ -395,13 +412,97 @@ def install(goal):
                     _charge_formers(buf, t, g.dom[:i], g.dom)
         for side in _sides(g):
             _charge_formers(buf, side, g.dom, g.dom)
+        gamma = _check_assumptions(goal, assumptions)
     except Refused as r:
         return Refusal(r.code, r.message, r.residual)
     tracker = _Tracker()
     for ob in buf.values():
         tracker.add(ob)
-    return ProofState(_TOKEN, goal, goal, next(_LINEAGES), tracker,
+    lineage = next(_LINEAGES)
+    _GAMMA[lineage] = gamma
+    return ProofState(_TOKEN, goal, goal, lineage, tracker,
                       StepRecord("install", tuple(buf.values())))
+
+
+def assumptions(state):
+    """Γ, the tuple of Assumption the state's lineage was installed under
+    (E147): the theorem a proof reaches is its goal under Γ. () for a
+    state that is not the kernel's."""
+    if not _kernel_state(state):
+        return ()
+    return _GAMMA.get(state.lineage, ())
+
+
+def _has_call(x):
+    """x (a term, judgement or interval) holds a Call."""
+    if isinstance(x, Call):
+        return True
+    return any(_has_call(k) for _, k in children(x)
+               if isinstance(k, (Term, Interval, Rel, NonZero, Reg)))
+
+
+def _assume_kind(j, var):
+    """E148: 'law', 'order' or 'reg' for a judgement of that shape on var,
+    else None."""
+    if type(j) is Reg:
+        ok = (type(j.e) is Call and j.e.args == (Var(var),) and j.dom == ()
+              and (j.k == "omega" or (type(j.k) is int and j.k >= 1)))
+        return "reg" if ok else None
+    if type(j) not in (Rel, NonZero) or j.dom != ():
+        return None
+    nodes = list(trees(j))
+    if type(j) is Rel and j.op == "==":
+        if all(type(n) is Deriv and n.var == var and type(n.body) is Call
+               and n.body.args == (Var(var),) for n in nodes):
+            return "law"
+        return None
+    if (type(j) is NonZero or j.op in ORDERINGS) and not nodes:
+        return "order"
+    return None
+
+
+def _check_assumptions(goal, gamma):
+    """E148. Returns Γ as a tuple, or raises 'assume-shape' or
+    'assume-scope'."""
+    if type(gamma) not in (tuple, list):
+        raise Refused("assume-shape", "assumptions are a tuple of Assumption")
+    gamma = tuple(gamma)
+    names, free, bound = set(), fv(goal), bv(goal)
+    for a in gamma:
+        if type(a) is not Assumption:
+            raise Refused("assume-shape", f"{a!r} is not an Assumption")
+        if not (type(a.name) is str and a.name.isascii()
+                and a.name.isidentifier() and a.name not in names):
+            raise Refused("assume-shape", f"{a.name!r} is not a fresh "
+                          "variable-like name")
+        names.add(a.name)
+        v, i = a.var, a.interval
+        if not _names_variable(v) or type(i) is not Interval or i.var != v:
+            raise Refused("assume-shape", f"{a.name}: its interval is not "
+                          f"on its variable {v!r}")
+        ends = [e for e in (i.lo, i.hi) if isinstance(e, Term)]
+        if any(_unfit(e) or _has_call(e) or v in fv(e) for e in ends):
+            raise Refused("assume-shape", f"{a.name}: an end of its interval "
+                          "holds an Int, D or Call, or its variable")
+        try:
+            check_goal((replace(a.judgement, dom=(i,)),))
+        except (Refused, TypeError, AttributeError) as r:
+            raise Refused("assume-shape", f"{a.name}: "
+                          f"{getattr(r, 'message', 'not a judgement')}") from None
+        if _assume_kind(a.judgement, v) is None:
+            raise Refused("assume-shape", f"{a.name}: {_brief(a.judgement)} "
+                          "is not a law, an order judgement or a reg on "
+                          f"{v}")
+        if v in free or v in bound:
+            raise Refused("assume-scope", f"{a.name}: {v} is a variable of "
+                          "the goal")
+        out = (fv(a.judgement) | fv(i)) - {v} - free
+        if out:
+            raise Refused("assume-scope", f"{a.name} mentions "
+                          f"{', '.join(sorted(out))}, not in the goal")
+    check_names(goal, *(replace(a.judgement, dom=(a.interval,))
+                        for a in gamma))
+    return gamma
 
 
 def step(state, move, args):
@@ -506,7 +607,14 @@ _ARGS = {"rewrite": ("entry", "inst", "at"), "fact": ("entry", "inst", "bind"),
          "int_improper": ("F", "check", "facts"),
          "taylor_lagrange": ("bind", "f", "var", "lo", "hi", "at", "derivs",
                              "side", "sense", "check", "facts"),
-         "bound": ("check", "facts"), "verify": ("check", "facts")}
+         "bound": ("check", "facts"), "verify": ("check", "facts"),
+         # p1_expected ODE_ARGS (E149)
+         "quad_t": ("bind", "law", "regs", "lo", "hi", "var", "F", "check",
+                    "facts"),
+         "sep_autonomous": ("bind", "law", "regs", "lo", "hi", "var", "f",
+                            "F", "range", "using", "check", "facts"),
+         "energy_integral": ("bind", "law", "kin", "regs", "lo", "hi", "var",
+                             "f", "F", "range", "using", "check", "facts")}
 _TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f", "u", "v", "scale")
 
 
@@ -570,7 +678,8 @@ def _check_args(move, args, goal):
                     for k in ("entry", "bind") if k in args)
     ok = ok and type(args.get("occurrence", 0)) is int
     if ok and move in ("ftc", "close", "int_subst", "int_parts",
-                       "int_improper", "taylor_lagrange", "verify"):
+                       "int_improper", "taylor_lagrange", "verify",
+                       *_ODE_MOVES):
         facts = args["facts"]
         ok = (type(args["check"]) is str and args["check"] in ("ring", "field")
               and type(facts) in (list, tuple)
@@ -591,6 +700,18 @@ def _check_args(move, args, goal):
               and type(args["sense"]) is str
               and args["sense"] in TAYLOR_SENSES
               and _names_variable(args["var"]))
+    if ok and move in _ODE_MOVES:  # E149
+        names = ("law", "kin")
+        lists = ("regs", "using")
+        ok = (all(type(args[k]) is str for k in names if k in args)
+              and all(type(args[k]) in (list, tuple)
+                      and all(type(x) is str for x in args[k])
+                      for k in lists if k in args)
+              and type(args["bind"]) is str and _names_variable(args["var"]))
+        if ok and "range" in args:
+            r = args["range"]
+            ok = (type(r) is Interval and r.var == args["var"]
+                  and not r.lo_closed and not r.hi_closed)
     if ok and move == "int_subst":
         ok = (type(args.get("mode", "forward")) is str
               and args.get("mode", "forward") in ("forward", "reverse")
@@ -600,6 +721,9 @@ def _check_args(move, args, goal):
         raise Refused("bad-args", f"{move} takes {', '.join(sorted(need))}"
                       if need else f"{move} takes no argument but occurrence")
     given = [args[k] for k in _TERM_ARGS if k in args] + list(inst.values())
+    if move in _ODE_MOVES and "range" in args:  # E152: the range's ends
+        given += [e for e in (args["range"].lo, args["range"].hi)
+                  if isinstance(e, Term)]
     if move == "taylor_lagrange":
         given += list(args["derivs"])
     for t in given:  # check_goal first: it refuses a malformed node unread
@@ -617,6 +741,9 @@ def _check_args(move, args, goal):
         if (move in ("int_subst", "int_parts", "int_improper",
                      "taylor_lagrange") and _holds_infinity(t)):
             raise Refused("bad-args", f"{show(t)} mentions oo")
+        if move in _ODE_MOVES and (_holds_infinity(t) or _unfit(t)):
+            raise Refused("bad-args", f"{_brief(t)} holds oo, an Int or a "
+                          "D node")
         if move == "taylor_lagrange" and _unfit(t):  # E102
             raise Refused("bad-args", f"{_brief(t)} holds an Int or D node")
     check_names(goal, *given)  # no x(y) into a goal whose x is a variable
@@ -2232,7 +2359,245 @@ def _verify(state, args, minted, buf):
     return None, theorem, {}
 
 
+# ---------------------------------------------------------------- ODE rules
+#
+# p1_expected section 30 (E147-E155): §6.5's quad_t, sep_autonomous and
+# energy_integral, reading Γ's laws on declared functions.
+
+_ODE_MOVES = ("quad_t", "sep_autonomous", "energy_integral")
+S_ODE_CONTAIN, S_ODE_RANGE, S_ODE_LAW = "ode_contain", "ode_range", \
+    "ode_law"
+S_ODE_F_C0, S_ODE_F_C1, S_ODE_D = "ode_F_C0", "ode_F_C1", "ode_D"
+
+
+def _ode_get(gamma, name, kind):
+    """E149: the Assumption named `name`, of that kind, or
+    'ode-no-assumption'."""
+    for a in gamma:
+        if a.name == name:
+            if _assume_kind(a.judgement, a.var) == kind:
+                return a
+            raise Refused("ode-no-assumption", f"{name} is not a {kind} "
+                          "assumption")
+    raise Refused("ode-no-assumption", f"no assumption is named {name!r}")
+
+
+def _ode_law(a):
+    """E149: a law c*D[s] y(s) == R as (s, c, y, R), c = 1 for a bare D.
+    c is free of s and holds no Call or D; otherwise 'ode-law-shape'."""
+    j, s = a.judgement, a.var
+    lhs, c = j.lhs, Num(1)
+    if type(lhs) is Mul and type(lhs.b) is Deriv:
+        c, lhs = lhs.a, lhs.b
+    if type(lhs) is not Deriv or list(trees(j.rhs)):
+        raise Refused("ode-law-shape", f"{a.name}: the law is not c*D[{s}] "
+                      f"y({s}) == R with no D in R")
+    if s in fv(c) or _has_call(c) or list(trees(c)):
+        raise Refused("ode-law-shape", f"{a.name}: its coefficient "
+                      f"{_brief(c)} mentions {s}, a Call or a D")
+    return s, c, lhs.body.fn, j.rhs
+
+
+def _ode_matches(a, R, f, var, y):
+    """E152, E153 as E156 amends them: R is field-equal to f[var := y(s)],
+    f holding no Call; otherwise 'ode-law-mismatch'. Returns field's
+    divisors, which the caller owes nonzero at s (E156)."""
+    if _has_call(f):
+        raise Refused("ode-law-mismatch", f"f = {_brief(f)} holds a Call")
+    want = subst(f, {var: y})
+    try:
+        return FD.field(R, want).divisors
+    except FD.NotEqual:
+        raise Refused("ode-law-mismatch", f"{a.name}'s rhs {_brief(R)} is "
+                      f"not f at {_brief(y)}, {_brief(want)}") from None
+
+
+def _ode_regs(gamma, names, fns):
+    """E149: for each declared function in fns, the first reg in `names`
+    of class >= 1 on it; 'ode-no-regularity' when there is none."""
+    regs = [_ode_get(gamma, n, "reg") for n in names]
+    out = []
+    for fn in fns:
+        found = [r for r in regs if r.judgement.e.fn == fn]
+        if not found:
+            raise Refused("ode-no-regularity", f"no reg among "
+                          f"{', '.join(names) or 'none'} is on {fn}")
+        out.append(found[0])
+    return out
+
+
+def _ode_scope(g, var, law_vars, terms, ends):
+    """E149: var is fresh (not free or bound in the goal, not a law's
+    variable); F and f mention only the goal's variables and var and hold
+    no Call; lo and hi only the goal's variables."""
+    names = fv(g)
+    if var in names or var in bv(g) or var in law_vars:
+        raise Refused("ode-scope", f"{var} is a variable of the goal or of "
+                      "the law; the antiderivative's variable must be new")
+    for t in terms:
+        out = fv(t) - names - {var}
+        if out or _has_call(t):
+            raise Refused("ode-scope", f"{_brief(t)} mentions "
+                          f"{', '.join(sorted(out)) or 'a Call'}, not the "
+                          "goal's")
+    for t in ends:
+        out = fv(t) - names
+        if out:
+            raise Refused("ode-scope", f"{_brief(t)} mentions "
+                          f"{', '.join(sorted(out))}, not in the goal")
+
+
+def _ode_contain(buf, t0, t1, read, G):
+    """E150: t0 <= t1, then each read assumption's finite ends against [t0,
+    t1], at G."""
+    _emit(buf, with_domain(Rel("<=", t0, t1), G), S_ODE_CONTAIN, G)
+    for a in read:
+        i = a.interval
+        if isinstance(i.lo, Term):
+            _emit(buf, with_domain(Rel("<=" if i.lo_closed else "<", i.lo,
+                                       t0), G), S_ODE_CONTAIN, G)
+        if isinstance(i.hi, Term):
+            _emit(buf, with_domain(Rel("<=" if i.hi_closed else "<", t1,
+                                       i.hi), G), S_ODE_CONTAIN, G)
+
+
+def _ode_at(a, point):
+    """An order assumption's judgement at `point` (E154)."""
+    return subst(a.judgement, {a.var: point})
+
+
+def _ode_range_items(rng, y):
+    """E152: a < y and y < b for rng's finite ends."""
+    out = []
+    if isinstance(rng.lo, Term):
+        out.append(Rel("<", rng.lo, y))
+    if isinstance(rng.hi, Term):
+        out.append(Rel("<", y, rng.hi))
+    return out
+
+
+def _ode_deriv(buf, F, var, target, on_open, check, minted, G):
+    """E149: D[var] F == target on on_open by deriv and the check, with
+    Reg(F, 1) there; target's formers charged there first."""
+    _charge_formers(buf, target, on_open, G)
+    later = {}
+    d = DV.deriv(F, var, on_open)
+    for key, source in d.emissions:
+        _emit(later, key, source, G)
+    _check(check, d.output, target, minted, on_open, G, later,
+           "ode-check-failed")
+    cites = tuple(dict.fromkeys(rec.entry for rec in minted))
+    _emit(buf, with_domain(Reg(F, 1), on_open), S_ODE_F_C1, G)
+    _emit(buf, with_domain(Rel("==", Deriv(var, F), target), on_open),
+          S_ODE_D, G, ("deriv+" + check, cites))
+    for ob in later.values():
+        buf[ob.key] = _merged(buf.get(ob.key), ob)
+
+
+def _ode_mint(state, conclusion, cdom, G, rule, buf):
+    """The conclusion's formers at cdom, then the handle (E149)."""
+    for side in (conclusion.lhs, conclusion.rhs):
+        _charge_formers(buf, side, cdom, G)
+    check_goal((conclusion,))
+    h = Handle(next(_IDS), state.lineage)
+    _MINTED[h.id] = _Minted(h, state.lineage, with_domain(conclusion, G),
+                            rule)
+    return state.goal, None, {"handle": h}
+
+
+def _quad_t(state, args, minted, buf):
+    """E151: c*y' == R(s), R free of Calls; y(t1) == y(t0) + F(t1) - F(t0)."""
+    g = state.goal[0]
+    G, gamma, var, F = g.dom, _GAMMA.get(state.lineage, ()), args["var"], \
+        args["F"]
+    t0, t1 = args["lo"], args["hi"]
+    law = _ode_get(gamma, args["law"], "law")
+    _ode_scope(g, var, {law.var}, (F,), (t0, t1))
+    s, c, y, R = _ode_law(law)
+    if _has_call(R):
+        raise Refused("ode-law-mismatch", f"{law.name}'s rhs {_brief(R)} "
+                      "holds a Call; quad_t integrates a function of the "
+                      "time alone")
+    reg, = _ode_regs(gamma, args["regs"], (y,))
+    for t in (t0, t1):
+        _charge_formers(buf, t, G, G)
+    _ode_contain(buf, t0, t1, (law, reg), G)
+    on_closed = G + (Interval(var, t0, True, t1, True),)
+    on_open = G + (Interval(var, t0, False, t1, False),)
+    _charge_formers(buf, F, on_closed, G)
+    _emit(buf, with_domain(Reg(F, 0), on_closed), S_ODE_F_C0, G)
+    target = subst(R, {s: Var(var)})
+    target = target if c == Num(1) else Div(target, c)
+    _ode_deriv(buf, F, var, target, on_open, args["check"], minted, G)
+    Y = lambda t: Call(y, (t,))
+    conclusion = Rel("==", Y(t1), Add(Y(t0), Add(subst(F, {var: t1}),
+                                                 Neg(subst(F, {var: t0})))))
+    return _ode_mint(state, conclusion, G, G, "quad_t", buf)
+
+
+def _ode_autonomous(state, args, minted, buf, energy):
+    """E152 (sep_autonomous) and E153 (energy_integral)."""
+    g = state.goal[0]
+    G, gamma, var = g.dom, _GAMMA.get(state.lineage, ()), args["var"]
+    F, f, rng, t0, t1 = args["F"], args["f"], args["range"], args["lo"], \
+        args["hi"]
+    law = _ode_get(gamma, args["law"], "law")
+    kin = _ode_get(gamma, args["kin"], "law") if energy else None
+    law_vars = {law.var} | ({kin.var} if energy else set())
+    _ode_scope(g, var, law_vars, (F, f), (t0, t1))
+    using = [_ode_get(gamma, n, "order") for n in args["using"]]
+    s, c, y, R = _ode_law(law)
+    if energy:
+        ks, kc, x, kr = _ode_law(kin)
+        if not (ks == s and kc == Num(1) and kr == Call(y, (Var(s),))
+                and x != y):
+            raise Refused("ode-law-shape", f"{kin.name} is not D[{s}] x({s}) "
+                          f"== {y}({s}) for a function x other than {y}")
+        moving = x
+    else:
+        moving = y
+    Ys = Call(moving, (Var(s),))
+    divisors = _ode_matches(law, R, f, var, Ys)
+    regs = _ode_regs(gamma, args["regs"], (x, y) if energy else (y,))
+    for t in (t0, t1):
+        _charge_formers(buf, t, G, G)
+    _ode_contain(buf, t0, t1, (law, *([kin] if energy else []), *regs,
+                               *using), G)
+    at_s = G + (Interval(s, t0, True, t1, True),) + tuple(
+        _ode_at(u, Var(s)) for u in using)
+    for item in _ode_range_items(rng, Ys):
+        _emit(buf, with_domain(item, at_s), S_ODE_RANGE, G)
+    for d in divisors:  # E156: the law's match holds where these are nonzero
+        _emit(buf, with_domain(NonZero(d), at_s), S_ODE_LAW, G)
+    on_rng = G + (rng,)
+    _charge_formers(buf, F, on_rng, G)
+    target = f if energy else Div(c, f)
+    _ode_deriv(buf, F, var, target, on_rng, args["check"], minted, G)
+    X = lambda t: Call(moving, (t,))
+    dF = Add(subst(F, {var: X(t1)}), Neg(subst(F, {var: X(t0)})))
+    if energy:
+        V = lambda t: Pow(Call(y, (t,)), 2)
+        conclusion = Rel("==", V(t1), Add(V(t0), Mul(Div(Num(2), c), dF)))
+    else:
+        conclusion = Rel("==", t1, Add(t0, dF))
+    cdom = G + tuple(_ode_range_items(rng, X(t0))) + tuple(
+        _ode_range_items(rng, X(t1))) + tuple(
+        _ode_at(u, t) for t in (t0, t1) for u in using)
+    rule = "energy_integral" if energy else "sep_autonomous"
+    return _ode_mint(state, conclusion, cdom, G, rule, buf)
+
+
+def _sep_autonomous(state, args, minted, buf):
+    return _ode_autonomous(state, args, minted, buf, False)
+
+
+def _energy_integral(state, args, minted, buf):
+    return _ode_autonomous(state, args, minted, buf, True)
+
+
 _MOVE = {"rewrite": _rewrite, "fact": _fact, "ftc": _ftc, "close": _close,
          "int_subst": _int_subst, "int_flip": _int_flip,
          "int_parts": _int_parts, "int_improper": _int_improper,
-         "taylor_lagrange": _taylor, "bound": _bound, "verify": _verify}
+         "taylor_lagrange": _taylor, "bound": _bound, "verify": _verify,
+         "quad_t": _quad_t, "sep_autonomous": _sep_autonomous,
+         "energy_integral": _energy_integral}

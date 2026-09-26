@@ -431,14 +431,17 @@ def with_domain(prop, dom):
     """`prop` (a Rel or NonZero with dom == (), or a Reg) placed on `dom`.
 
     E5: a Rel or NonZero whose sides have no free variable gets dom (),
-    whatever `dom` is. A Reg gets `dom` as its C^k domain unchanged. This is
-    the only way the kernel and deriv build an obligation key.
+    whatever `dom` is, unless it holds a Call (p1_expected E157): a
+    declared function is an unknown, so v(0) >= 0 is not closed and keeps
+    the domain that may say it. A Reg gets `dom` as its C^k domain
+    unchanged. This is the only way the kernel and deriv build an
+    obligation key.
     """
     if isinstance(prop, Reg):
         return replace(prop, dom=tuple(dom))
     if not isinstance(prop, (Rel, NonZero)) or prop.dom != ():
         raise ValueError(f"not a proposition without a domain: {prop!r}")
-    return replace(prop, dom=tuple(dom) if fv(prop) else ())
+    return replace(prop, dom=tuple(dom) if fv(prop) or _calls(prop) else ())
 
 
 def check_goal(goal):

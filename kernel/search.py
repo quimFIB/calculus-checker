@@ -564,9 +564,24 @@ def _linear_factors(p, atoms):
     return c, out
 
 
+# E158: the most monomials a numerator may have for clear to propose it.
+# An expanded numerator past this is left to the methods that read the key
+# as written, and one deeper than the stack withholds (the G9 review).
+CLEAR_TERMS = 64
+
+
 def _clear(key, depth):
     """E142: g's field normal form N / D; D > 0 or D < 0 by this search,
-    then N (as content times its linear factors) with g's relation."""
+    then N (as content times its linear factors) with g's relation. E158:
+    withheld for a numerator of more than CLEAR_TERMS monomials, and on a
+    RecursionError."""
+    try:
+        return _clear_at(key, depth)
+    except RecursionError:
+        return None
+
+
+def _clear_at(key, depth):
     if depth >= TG.FACTOR_DEPTH:
         return None
     if type(key) is NonZero:
@@ -581,7 +596,7 @@ def _clear(key, depth):
         num, den, atoms = FD.field_parts(g)
     except (Refused, FD.NotEqual):
         return None
-    if not den or not num:
+    if not den or not num or len(num) > CLEAR_TERMS:
         return None
     d = None
     for poly_, e in den:
@@ -589,6 +604,9 @@ def _clear(key, depth):
         f = f if e == 1 else Pow(f, e)
         d = f if d is None else Mul(d, f)
     c, factors = _linear_factors(num, atoms)
+    if c.denominator != 1:  # E158: a rational content moves into d, whose
+        d = Mul(Num(c.denominator), d)  # sign it keeps; n has no Div
+        c *= c.denominator
     n = lit(c)
     for f in factors:
         n = Mul(n, residual.poly_term(f, atoms))

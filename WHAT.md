@@ -161,9 +161,7 @@ solution against its equation of motion, or an initial condition.
 P9(a), each a plain `Proved.`; `kernel/problems/readiness/P1_2.json` puts
 readiness P1(2) on the page. The page's **Classify** box reads a force as
 F(t), F(v), F(x) or none, and which parameter set to zero would fix a
-"none" (`app/assist/CLASSIFY.md`), which is P1's other four parts. Not
-built: hypotheses about an unknown function and `sep_autonomous`
-(UNIT00.md G6), so P1's reductions are goals, not derivations.
+"none" (`app/assist/CLASSIFY.md`), which is P1's other four parts.
 **field reads an atom's argument up to exact cancellation** (UNIT00.md
 G8, p1_expected section 27, 2026-09-26). exp(-b*((m/b)*L)/m) and exp(-L)
 are now one atom to `field` (it still owes b and m), so v(t_up) = 0 and
@@ -176,7 +174,14 @@ strict `taylor_lagrange` and `bound scale m/b`.
 **Discharge clears denominators** (section 29): u/w < 1 from u <= V < w
 and w > 0 is now discharged by multiplying through by w, so P4(a)'s
 integral proves with v_inf a parameter.
-`python3.12 kernel/proof_of_life.py` passes 1111 checks.
+**P1's reductions are derivations** (section 30, UNIT00.md G6): a goal
+installs under assumptions about a declared function (the equation of
+motion `m*D[s] v(s) == ...` on [0, oo), v in C^1, v(s) >= 0), and the
+kernel's `quad_t`, `sep_autonomous` and `energy_integral` read them to
+prove P1(a)-(c)'s integrated forms, each `Proved.`. The loader takes an
+`assume` list in a problem file; none uses it while the gate is read, and
+the page and `.dx` scripts have no syntax for it yet.
+`python3.12 kernel/proof_of_life.py` passes 1134 checks.
 
 **Doom Emacs has a `:lang dx` module** (`emacs/doom/dx`, 2026-09-26, the
 owner's ask). Linked into `$DOOMDIR/modules/lang/dx` and enabled as `dx`
