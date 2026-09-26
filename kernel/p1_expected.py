@@ -15815,3 +15815,337 @@ TAYLOR_BAD_MOVES += [
      "move": ("taylor_lagrange", _EXP5), "refusal": "taylor-scope",
      "why": "E108: u is in fv(goal) through the domain"},
 ]
+
+
+# ---------------------------------------------------------------------------
+# 26. verify, hyperbolic derivatives, and unit 00's entries (unit 00 spec
+#     2026-09-26)
+#
+# The owner, 2026-09-26, approved finishing §17's gate corpus and asked for
+# the work to go on unsupervised. UNIT00.md is the gap list: the unit 00
+# share of the gate is P1, P3(a), P4(a) and P9(a), and the smallest cut is
+# G1-G5. This section is G1-G4, specified before any code: a move that
+# closes an equation with no ?A after differentiating its D nodes (§6.5's
+# ode_verify, in general form), four §6.3 rules for the hyperbolic
+# functions P4 uses, and eleven entries. G5 (classify) is untrusted and
+# lives in app/assist; G6 (hypotheses and sep_autonomous) is recorded, not
+# built (E124).
+
+VERIFY_MOVE = "verify"
+VERIFY_ARGS = ("check", "facts")
+
+DECISIONS_UNIT00 = {
+    "E112": "The move verify closes an equation goal l == r @ G whose rhs "
+            "is not ?A. Its args are close's check and facts. On an order "
+            "goal it refuses 'goal-shape' (E96's list of order moves is "
+            "unchanged), and on a goal whose rhs is ?A it refuses "
+            "'verify-has-mvar': an unknown is instantiated by close, never "
+            "by verify. install already accepts an equation with no ?A "
+            "(D15 makes ?A optional); until now no move could close one.",
+    "E113": "verify's D nodes. Every Deriv node D[x] e of l and r, in "
+            "REWRITE_RULE's pre-order, is replaced by deriv(e, x, G)'s "
+            "output, and each of deriv's emissions is emitted at G with "
+            "the rule name as its source (ftc's convention). A D node "
+            "inside an Int is refused 'verify-D-under-binder', and a D "
+            "node whose body holds another D node is refused "
+            "'verify-nested-D' (E124): so every D node verify rewrites has "
+            "position domain G and no ancestor binder, and its body holds "
+            "no D or Int node (deriv's d_const guard refuses the latter, "
+            "'Int-or-D-not-normalisable'). deriv's own refusals "
+            "('deriv-no-rule') pass through unchanged.",
+    "E114": "verify's check. With every D node replaced, the new sides l' "
+            "and r' have their formers charged at G (source 'former'), "
+            "then close's _check runs on l' == r' at G with the check and "
+            "the facts: field's divisors at G ('field_div'), the facts' "
+            "inst formers and hypotheses at G. A failure refuses "
+            "'verify-check-failed' carrying the residual l' - r'. On "
+            "success the goal is closed and the theorem is the original "
+            "goal, as bound's is (E99). trig_norm is not tried (E124).",
+    "E115": "verify is sound. Fix a point of G where every emitted key "
+            "holds. For each replaced node D[x] e: the D former charged at "
+            "install owes Reg(e, 1) at G (E64), so e is C^1 on a "
+            "neighbourhood of the point and D[x] e denotes its derivative "
+            "there; deriv's output with its side conditions is §6.3's rule "
+            "table applied to e, each rule the derivative law it names "
+            "wherever its sides hold, so D[x] e equals the output at the "
+            "point. Hence l = l' and r = r' there, and the check proves l' "
+            "= r' wherever its divisors are nonzero and its facts' "
+            "hypotheses hold, which are emitted at G. The theorem l == r @ "
+            "G then holds at every point of G.",
+    "E116": "Four §6.3 rules, added to deriv.APP_RULES, each output "
+            "literal (E12): d_sinh: cosh u * du; d_cosh: sinh u * du; "
+            "d_tanh: (1 - (tanh u)^2) * du, the sech^2 law written without "
+            "a divisor; d_atanh: du / (1 - u^2), with sides u > -1 and u < "
+            "1 (its natural domain row, open, the derivative's domain; "
+            "field charges the divisor 1 - u^2 # 0 as d_atan's 1 + u^2 is "
+            "charged). No side for the other three: sinh, cosh and tanh "
+            "are total and C^infinity (domains.py). asinh and acosh stay "
+            "without rules (E124). Sound: (sinh)' = cosh, (cosh)' = sinh, "
+            "(tanh)' = 1/cosh^2 = 1 - tanh^2 because cosh^2 - sinh^2 = 1, "
+            "(atanh)' = 1/(1 - u^2) on (-1, 1); the chain rule for du.",
+    "E117": "Eleven entries, appended after exp_pos in this order "
+            "(UNIT00_ENTRIES): exp_ln, ln_exp, exp_neg, ln_pos, sinh_zero, "
+            "cosh_zero, tanh_zero, atanh_zero, tanh_def, cosh_sq and "
+            "cosh_pos. Each is a theorem of real analysis for every value "
+            "of its schema variable satisfying its hypotheses. The four "
+            "values at 0 have no schema and no hypothesis, so they are "
+            "exact values (E31) and E27 reads them as unevaluated forms. "
+            "field's facts are a^k == r, so tanh_def, cosh_sq and exp_neg "
+            "state their lhs as an atom or its power.",
+    "E118": "Sources and codes. verify's emissions carry deriv's rule "
+            "names, 'former', 'field_div', 'fact_hyp' (SOURCES_UNIT00 "
+            "adds none). Its refusals are REFUSAL_CODES_UNIT00's, plus "
+            "'goal-shape', 'bad-args', 'deriv-no-rule', "
+            "'Int-or-D-not-normalisable' and 'obligation-decided-false' "
+            "as every move has them.",
+    "E119": "The script tactic is `verify [by C] [using h, ...].` "
+            "(SCRIPT.md), the palette offers it on an equation goal with "
+            "no ?A, and E57's principle for verify is stated below.",
+    "E120": "The problem files. kernel/problems/unit00/ holds one file per "
+            "goal a lettered part states, named by the part: P1C_REDUCE, "
+            "P3A_SEPARATE, P3A_V_ODE, P3A_V_INIT, P3A_TOP, P3A_HEIGHT, "
+            "P4A_SEPARATE, P4A_V_ODE, P4A_V_INIT, P4A_X, P9A_V. Each goal "
+            "is the worked solution's statement with its parameters "
+            "signed in the domain (m > 0, b > 0, g > 0, v0 > 0 and so on); "
+            "the course's derived constants (tau = m/b, v_inf = mg/b, c = "
+            "Mg/v_inf^2) are written out in the parameters the problem "
+            "gives, except P4's v_inf, which the problem gives (w). Every "
+            "reference proof closes as a plain 'Proved.'.",
+    "E121": "Readiness P4 is series (sums, convergence tests, a radius): "
+            "§6.7, stage 2. It is not in the stage 1 gate; the gate report "
+            "lists it as not yet workable (UNIT00.md).",
+    "E122": "P3(a)'s top of the flight is a verify goal: v(t_up) == 0 "
+            "with t_up = (m/b) ln(1 + b v0/(m g)), closed by exp_neg and "
+            "exp_ln. Its height is ftc on [0, t_up], whose orientation 0 "
+            "<= t_up discharge proves by citing ln_pos (1 + b v0/(m g) > "
+            "1), and then the same two entries.",
+    "E123": "P4(a)'s v(t) = w tanh(g t / w) is verified against M v' = M g "
+            "- c v^2 with c = M g / w^2 by field alone (d_tanh has no "
+            "divisor); x(t) = (w^2/g) ln cosh(g t / w) is ftc of v with the "
+            "fact tanh_def at u := g s / w, then cosh_zero and ln_one.",
+    "E124": "Out of this step, recorded: a D node inside an Int or another "
+            "D (second derivatives: m x'' = F(x) verified directly); "
+            "trig_norm in verify's check; asinh and acosh derivatives; "
+            "G6's hypotheses on a declared function (the equation of "
+            "motion as a hypothesis, v in C^1, the chain rule for declared "
+            "symbols) and §6.5's sep_autonomous, quad_t and "
+            "energy_integral, which P1's reductions need to be proofs "
+            "rather than goals; P3(b)'s strict ln(1 + z) < z; every number "
+            "to four figures (stage 2).",
+}
+
+REFUSAL_CODES_UNIT00 = {
+    "verify-has-mvar": "E112: verify on a goal whose rhs is ?A; use close",
+    "verify-D-under-binder": "E113: a D node inside an Int",
+    "verify-nested-D": "E113: a D node whose body holds a D node",
+    "verify-check-failed": "E114: l' - r' is not 0 by the check. Carries "
+                           "the residual",
+}
+
+UNIT00_ENTRIES = {
+    "exp_ln": {"statement": "exp(ln u) == u @ u > 0", "schema": ("u",),
+               "hyps": ("u > 0",)},
+    "ln_exp": {"statement": "ln(exp u) == u", "schema": ("u",), "hyps": ()},
+    "exp_neg": {"statement": "exp(-u) == 1/exp u", "schema": ("u",),
+                "hyps": ()},
+    "ln_pos": {"statement": "ln u > 0 @ u > 1", "schema": ("u",),
+               "hyps": ("u > 1",)},
+    "sinh_zero": {"statement": "sinh 0 == 0", "schema": (), "hyps": ()},
+    "cosh_zero": {"statement": "cosh 0 == 1", "schema": (), "hyps": ()},
+    "tanh_zero": {"statement": "tanh 0 == 0", "schema": (), "hyps": ()},
+    "atanh_zero": {"statement": "atanh 0 == 0", "schema": (), "hyps": ()},
+    "tanh_def": {"statement": "tanh u == sinh u / cosh u", "schema": ("u",),
+                 "hyps": ()},
+    "cosh_sq": {"statement": "(cosh u)^2 == 1 + (sinh u)^2",
+                "schema": ("u",), "hyps": ()},
+    "cosh_pos": {"statement": "cosh u > 0", "schema": ("u",), "hyps": ()},
+}
+
+# deriv's four new rules, F -> (output as deriv builds it, shown; the sides
+# on the domain (), shown). Checked by calling deriv directly.
+UNIT00_DERIV = {
+    "sinh x": ("cosh x*1", ()),
+    "cosh(2*x)": ("sinh(2*x)*(0*x + 2*1)", ()),
+    "tanh x": ("(1 - (tanh x)^2)*1", ()),
+    "atanh x": ("1/(1 - x^2)", ("x > -1", "x < 1")),
+}
+
+# The goals and reference proofs; each also a problem file (E120) except
+# the ones marked "table only". Steps are problem-file steps.
+_P3_V = "-(m*g/b) + (v0 + m*g/b)*exp(-b*t/m)"
+_P3_TUP = "m/b*ln(1 + b*v0/(m*g))"
+_P3_DOM = "m > 0, b > 0, g > 0, v0 > 0"
+_P4_DOM = "M > 0, g > 0, w > 0"
+
+VERIFY_PROOFS = {
+    "P1C_REDUCE": {
+        "goal": "v0 + Int[s = 0 .. t] F0*exp(-s/tau)/m == ?A "
+                "@ m > 0, tau > 0, t >= 0",
+        "steps": [("ftc", {"F": "-(F0*tau/m)*exp(-s/tau)", "check": "field",
+                           "facts": [], "occurrence": 0}),
+                  ("rewrite", {"entry": "exp_zero", "inst": {},
+                               "at": "exp(-0/tau)"}),
+                  ("close", {"value": "v0 + F0*tau/m*(1 - exp(-t/tau))",
+                             "check": "field", "facts": []})],
+        "report": "Proved."},
+    "P3A_SEPARATE": {
+        "goal": "Int[w = v0 .. V] 1/(w + m*g/b) == ?A @ " + _P3_DOM
+                + ", V in [0, v0]",
+        "steps": [("ftc", {"F": "ln(w + m*g/b)", "check": "field",
+                           "facts": []}),
+                  ("close", {"value": "ln(V + m*g/b) - ln(v0 + m*g/b)",
+                             "check": "ring", "facts": []})],
+        "report": "Proved."},
+    "P3A_V_ODE": {
+        "goal": f"m*D[t] ({_P3_V}) == -(m*g) - b*({_P3_V}) @ {_P3_DOM}, "
+                "t >= 0",
+        "steps": [("verify", {"check": "field", "facts": []})],
+        "report": "Proved."},
+    "P3A_V_INIT": {
+        "goal": f"-(m*g/b) + (v0 + m*g/b)*exp(-b*0/m) == v0 @ {_P3_DOM}",
+        "steps": [("rewrite", {"entry": "exp_zero", "inst": {},
+                               "at": "exp(-b*0/m)"}),
+                  ("verify", {"check": "field", "facts": []})],
+        "report": "Proved."},
+    "P3A_TOP": {
+        "goal": f"-(m*g/b) + (v0 + m*g/b)*exp(-b*({_P3_TUP})/m) == 0 "
+                f"@ {_P3_DOM}",
+        "steps": [("fact", {"entry": "exp_neg", "inst":
+                            {"u": "ln(1 + b*v0/(m*g))"}, "bind": "hn"}),
+                  ("fact", {"entry": "exp_ln", "inst":
+                            {"u": "1 + b*v0/(m*g)"}, "bind": "hl"}),
+                  ("verify", {"check": "field", "facts": [["handle", "hn"],
+                                                          ["handle", "hl"]]})],
+        "report": "Proved.",
+        "why": "E122. field reads -b*(m/b*L)/m as -L, so exp(-L) is the atom "
+               "exp_neg's instance names; if field keeps the argument as "
+               "written, the build records the rewrite the proof needs"},
+    "P3A_HEIGHT": {
+        "goal": f"Int[s = 0 .. {_P3_TUP}] {_P3_V.replace('t', 's')} == ?A "
+                f"@ {_P3_DOM}",
+        "steps": [("ftc", {"F": "-(m*g/b)*s - m/b*(v0 + m*g/b)*exp(-b*s/m)",
+                           "check": "field", "facts": []}),
+                  ("rewrite", {"entry": "exp_zero", "inst": {},
+                               "at": "exp(-b*0/m)"}),
+                  ("fact", {"entry": "exp_neg", "inst":
+                            {"u": "ln(1 + b*v0/(m*g))"}, "bind": "hn"}),
+                  ("fact", {"entry": "exp_ln", "inst":
+                            {"u": "1 + b*v0/(m*g)"}, "bind": "hl"}),
+                  ("close", {"value": "m/b*v0 - m^2*g/b^2*ln(1 + b*v0/(m*g))",
+                             "check": "field", "facts": [["handle", "hn"],
+                                                         ["handle", "hl"]]})],
+        "report": "Proved.",
+        "why": "E122: h = v_inf tau (z - ln(1 + z)), z = b v0/(m g)"},
+    "P4A_SEPARATE": {
+        "goal": "Int[u = 0 .. V] M/(M*g - M*g/w^2*u^2) == ?A @ "
+                + _P4_DOM + ", V in [0, w)",
+        "steps": [("ftc", {"F": "w/g*atanh(u/w)", "check": "field",
+                           "facts": []}),
+                  ("rewrite", {"entry": "atanh_zero", "inst": {},
+                               "at": "atanh(0/w)"}),
+                  ("close", {"value": "w/g*atanh(V/w)", "check": "field",
+                             "facts": []})],
+        "report": "Proved.",
+        "why": "rung 5's t = (v_inf/g) artanh(v/v_inf); c = M g/w^2 written "
+               "out"},
+    "P4A_V_ODE": {
+        "goal": "M*D[t] (w*tanh(g*t/w)) == M*g - M*g/w^2*(w*tanh(g*t/w))^2 "
+                "@ " + _P4_DOM + ", t >= 0",
+        "steps": [("verify", {"check": "field", "facts": []})],
+        "report": "Proved.", "why": "E123"},
+    "P4A_V_INIT": {
+        "goal": "w*tanh(g*0/w) == 0 @ " + _P4_DOM,
+        "steps": [("rewrite", {"entry": "tanh_zero", "inst": {},
+                               "at": "tanh(g*0/w)"}),
+                  ("verify", {"check": "ring", "facts": []})],
+        "report": "Proved."},
+    "P4A_X": {
+        "goal": "Int[s = 0 .. t] w*tanh(g*s/w) == ?A @ " + _P4_DOM
+                + ", t >= 0",
+        "steps": [("fact", {"entry": "tanh_def", "inst": {"u": "g*s/w"},
+                            "bind": "ht"}),
+                  ("ftc", {"F": "w^2/g*ln(cosh(g*s/w))", "check": "field",
+                           "facts": [["handle", "ht"]]}),
+                  ("rewrite", {"entry": "cosh_zero", "inst": {},
+                               "at": "cosh(g*0/w)"}),
+                  ("rewrite", {"entry": "ln_one", "inst": {}, "at": "ln 1"}),
+                  ("close", {"value": "w^2/g*ln(cosh(g*t/w))",
+                             "check": "field", "facts": []})],
+        "report": "Proved.",
+        "why": "E123: ln cosh's former owes cosh(g s/w) > 0, cited from "
+               "cosh_pos"},
+    "P9A_V": {
+        "goal": "-Int[s = 0 .. x] (-(kappa*s) + alpha*s^3) == ?A @ x >= 0",
+        "steps": [("ftc", {"F": "-(kappa*s^2/2) + alpha*s^4/4",
+                           "check": "ring", "facts": [], "occurrence": 0}),
+                  ("close", {"value": "kappa*x^2/2 - alpha*x^4/4",
+                             "check": "ring", "facts": []})],
+        "report": "Proved."},
+    "EQUILIBRIUM": {  # table only: V'(x_star) == 0 at x_star = sqrt(kappa/alpha)
+        "goal": "D[x] (kappa*x^2/2 - alpha*x^4/4) == kappa*x - alpha*x^3",
+        "steps": [("verify", {"check": "ring", "facts": []})],
+        "report": "Proved."},
+    "TANH_DERIV": {  # table only: the sech^2 law against its usual form
+        "goal": "D[x] tanh x == 1/(cosh x)^2",
+        "steps": [("fact", {"entry": "tanh_def", "inst": {"u": "x"},
+                            "bind": "ht"}),
+                  ("fact", {"entry": "cosh_sq", "inst": {"u": "x"},
+                            "bind": "hc"}),
+                  ("verify", {"check": "field", "facts": [["handle", "ht"],
+                                                          ["handle", "hc"]]})],
+        "report": "Proved."},
+    "ATANH_DERIV": {  # table only
+        "goal": "D[x] atanh x == 1/(1 - x^2) @ x in (-1, 1)",
+        "steps": [("verify", {"check": "field", "facts": []})],
+        "report": "Proved."},
+}
+
+_WRONG_V = "-(m*g/b) + (v0 + m*g/b)*exp(-b*t/(2*m))"
+VERIFY_BAD_MOVES = [
+    {"id": "verify_wrong_candidate",
+     "goal": f"m*D[t] ({_WRONG_V}) == -(m*g) - b*({_WRONG_V}) @ {_P3_DOM}, "
+             "t >= 0",
+     "move": ("verify", {"check": "field", "facts": []}),
+     "refusal": "verify-check-failed", "residual": True,
+     "why": "the rate halved: a candidate that fails its equation"},
+    {"id": "verify_wrong_sign",
+     "goal": "M*D[t] (w*tanh(g*t/w)) == M*g + M*g/w^2*(w*tanh(g*t/w))^2 "
+             "@ " + _P4_DOM + ", t >= 0",
+     "move": ("verify", {"check": "field", "facts": []}),
+     "refusal": "verify-check-failed", "residual": True},
+    {"id": "verify_on_mvar", "goal": "D[x] x^2 == ?A",
+     "move": ("verify", {"check": "ring", "facts": []}),
+     "refusal": "verify-has-mvar"},
+    {"id": "verify_on_order", "goal": "x^2 >= 0 @ x in [0, 1]",
+     "move": ("verify", {"check": "ring", "facts": []}),
+     "refusal": "goal-shape"},
+    {"id": "verify_nested", "goal": "D[x] D[x] x^3 == 6*x",
+     "move": ("verify", {"check": "ring", "facts": []}),
+     "refusal": "verify-nested-D"},
+    {"id": "verify_under_int",
+     "goal": "Int[x = 0 .. 1] D[x] x^2 == 1",
+     "move": ("verify", {"check": "ring", "facts": []}),
+     "refusal": "verify-D-under-binder"},
+    {"id": "verify_no_rule", "goal": "D[x] asinh x == 1/sqrt(1 + x^2)",
+     "move": ("verify", {"check": "field", "facts": []}),
+     "refusal": "deriv-no-rule", "why": "E116, E124: no asinh rule"},
+    {"id": "verify_ring_divisor", "goal": "D[x] ln x == 1/x @ x > 0",
+     "move": ("verify", {"check": "ring", "facts": []}),
+     "refusal": "verify-check-failed",
+     "why": "ring does not cancel 1*(1/x) against 1/x's divisor-free form? "
+            "if ring closes it the build moves this row to VERIFY_PROOFS"},
+    {"id": "verify_atanh_outside", "goal": "D[x] atanh x == 1/(1 - x^2) "
+             "@ x in [0, 2]",
+     "install": True, "refusal": "obligation-decided-false",
+     "why": "atanh's former: x < 1 fails at x = 2, at install"},
+    {"id": "verify_no_equation", "goal": "D[x] x^2 == 3*x",
+     "move": ("verify", {"check": "ring", "facts": []}),
+     "refusal": "verify-check-failed", "residual": "-x",
+     "why": "2x - 3x: residual -x"},
+]
+
+E57_PRINCIPLE["verify"] = (
+    "erases the goal by closing it; each D node it rewrites was owed where "
+    "it entered (the D former, Reg(e, 1) at G), deriv's sides are emitted "
+    "at G, and its body holds no Int or D node (E113), so nothing whose "
+    "existence was never charged is erased")
