@@ -16188,3 +16188,116 @@ UNIT00_EXACT_VALUES_ADD = ("sinh_zero", "cosh_zero", "tanh_zero",
 UNIT00_PROBLEM_FILES = ("P1C_REDUCE", "P3A_SEPARATE", "P3A_V_ODE",
                         "P3A_V_INIT", "P3A_TOP", "P3A_HEIGHT", "P4A_SEPARATE",
                         "P4A_V_ODE", "P4A_V_INIT", "P4A_X", "P9A_V")  # E120
+
+
+# ---------------------------------------------------------------------------
+# 27. field reads an atom's argument up to exact cancellation (UNIT00.md G8,
+#     2026-09-26)
+#
+# The owner, 2026-09-26, chose G8 as the next kernel step while the gate is
+# read ("Go with your recommendation"). E125 found the wall: field keys an
+# App by its argument's normal form, and that form cancels nothing, so
+# exp(-b*((m/b)*L)/m) and exp(-L) are two atoms and v(t_up) == 0, the
+# course's own "set v = 0", is stuck. Specified here before any code.
+
+DECISIONS_G8 = {
+    "E131": "field keys an atom's argument (App, Call, RPow: every place "
+            "the normaliser keys a subterm) by its normal form with each "
+            "denominator factor that divides the numerator exactly divided "
+            "out, as many times as it divides. Sound: a factor in an "
+            "argument's denominator is a factor of a divisor field already "
+            "returns (a monomial factor is an atom of it, any other is its "
+            "content-normal rest), so wherever the returned divisors are "
+            "nonzero the factor is nonzero and N/D = (N/f)/(D/f); the two "
+            "arguments are equal there, and by congruence the two atoms. "
+            "No divisor is added or dropped: cancellation changes keys "
+            "only. The division is poly.exact_div: division by leading "
+            "terms in lex order, which fails at the first leading monomial "
+            "LT(f) does not divide, and gives up (no cancellation) when the "
+            "quotient passes field.TERMS_BOUND monomials.",
+    "E132": "What does not change. ring keys as before and cancels nothing "
+            "(it returns no divisors, so it has nothing to cancel against). "
+            "No gcd is computed: a factor that divides only a product of "
+            "other factors, or a numerator that is a multiple of a factor "
+            "only up to a divisor the argument does not hold, is kept "
+            "(incomplete, never unsound). Int and D atoms are keyed by "
+            "their tree exactly (E66 (1)). rewrite still matches up to "
+            "ring; a learner reaches the cancelled form through close or "
+            "verify with check field and facts.",
+    "E133": "Three entries, appended after cosh_pos in this order: exp_neg "
+            "(exp(-u) == 1/exp u), exp_ln (exp(ln u) == u @ u > 0) and "
+            "ln1p_pos (ln(1 + u) > 0 @ u > 0). The last is stated on "
+            "ln(1 + u), the course's own form (z = v0/v_inf): search's "
+            "sign methods compare with 0, so 1 + z > 1 is not found, and z "
+            "> 0 is. They are E122's entries, now used by a proof (E129).",
+    "E134": "The course's forms of P3(a)'s top and height, as goals: v(t_up) "
+            "== 0 by verify with exp_neg and exp_ln; h = Int[s = 0 .. t_up] "
+            "v(s) by ftc (its orientation 0 <= t_up cited from ln1p_pos), "
+            "exp_zero, then close with the same two facts. Table only: no "
+            "problem file is added while the gate (app/GATE.md) is read, "
+            "so the page's problem list does not change under it. E125's "
+            "quadratures in v stay the gate's P3A_TOP and P3A_HEIGHT.",
+    "E135": "Must-reject, each a NotEqual: an argument whose denominator "
+            "does not divide its numerator (exp(x/y) vs exp(x)); one that "
+            "divides only with a remainder (exp((x^2 + 1)/(x + 1)) vs "
+            "exp(x - 1)); every accepted case under ring; an atom that "
+            "matches but a residual that does not (exp(x*y/y) vs exp(x) + "
+            "1).",
+}
+
+G8_ENTRIES = {
+    "exp_neg": {"statement": "exp(-u) == 1/exp u", "schema": ("u",),
+                "hyps": ()},
+    "exp_ln": {"statement": "exp(ln u) == u @ u > 0", "schema": ("u",),
+               "hyps": ("u > 0",)},
+    "ln1p_pos": {"statement": "ln(1 + u) > 0 @ u > 0", "schema": ("u",),
+                 "hyps": ("u > 0",)},
+}
+G8_ENTRIES_APPEND = tuple(G8_ENTRIES)  # after cosh_pos (E133): 42
+
+# (lhs, rhs, divisors field returns, first seen): field accepts, ring
+# refuses NotEqual (E131, E132).
+G8_FIELD_ACCEPTS = [
+    ("exp(b*x/b)", "exp(x)", ("b",)),
+    ("sin((x^2 - 1)/(x - 1))", "sin(x + 1)", ("x - 1",)),
+    ("exp(-b*(m/b*ln(1 + y))/m)", "exp(-ln(1 + y))", ("b", "m")),
+    ("sqrt((x*y + y)/y)", "sqrt(x + 1)", ("y",)),
+    ("exp(sin(x*y/y))", "exp(sin x)", ("y",)),
+    ("exp(x*y/(y*z))", "exp(x/z)", ("y*z", "z")),
+    ("exp((x^2 - 1)^2/(x - 1)^2)", "exp((x + 1)^2)", ("(x - 1)^2",)),
+]
+# (check, lhs, rhs): NotEqual (E135)
+G8_REJECTS = [
+    ("field", "exp(x/y)", "exp(x)"),
+    ("field", "exp((x^2 + 1)/(x + 1))", "exp(x - 1)"),
+    ("field", "exp(x*y/y)", "exp(x) + 1"),
+] + [("ring", lhs, rhs) for lhs, rhs, _ in G8_FIELD_ACCEPTS]
+
+_P3_L = "ln(1 + b*v0/(m*g))"
+_P3_V_TUP = f"-(m*g/b) + (v0 + m*g/b)*exp(-b*({_P3_TUP})/m)"
+_G8_FACTS = [("fact", {"entry": "exp_neg", "inst": {"u": _P3_L},
+                       "bind": "hn"}),
+             ("fact", {"entry": "exp_ln", "inst": {"u": "1 + b*v0/(m*g)"},
+                       "bind": "hl"})]
+G8_PROOFS = {
+    "P3A_TOP_COURSE": {
+        "goal": f"{_P3_V_TUP} == 0 @ {_P3_DOM}",
+        "steps": _G8_FACTS + [
+            ("verify", {"check": "field",
+                        "facts": [["handle", "hn"], ["handle", "hl"]]})],
+        "report": "Proved.",
+        "why": "E134: v(t_up) = 0, the worked solution's 'set v = 0'"},
+    "P3A_HEIGHT_COURSE": {
+        "goal": f"Int[s = 0 .. {_P3_TUP}] -(m*g/b) + (v0 + m*g/b)*"
+                f"exp(-b*s/m) == ?A @ {_P3_DOM}",
+        "steps": [("ftc", {"F": "-(m*g/b)*s - m/b*(v0 + m*g/b)*exp(-b*s/m)",
+                           "check": "field", "facts": []}),
+                  ("rewrite", {"entry": "exp_zero", "inst": {},
+                               "at": "exp(-b*0/m)"})] + _G8_FACTS + [
+                  ("close", {"value": f"m^2*g/b^2*(b*v0/(m*g) - {_P3_L})",
+                             "check": "field",
+                             "facts": [["handle", "hn"], ["handle", "hl"]]})],
+        "report": "Proved.",
+        "why": "E134: h = v_inf tau (z - ln(1 + z)), z = b v0/(m g); the "
+               "orientation 0 <= t_up cites ln1p_pos"},
+}
