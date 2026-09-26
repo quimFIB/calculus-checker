@@ -62,6 +62,7 @@ Every route that lands on a node returns this shape:
   "handles": [str]                           -- fact binds usable here
   "retracted": bool
   "goal_tex", "theorem_tex": str | null      -- UI.md §1, KaTeX input
+  "goal_2d", "theorem_2d": str | null        -- GOALS2D.md, Unicode lines
   "progress": {signal, detail} | null        -- UI.md §3, null at n0
   "probe": {before, after, digits, agree} | {skipped} | null   -- UI.md §4
   "admissions": int                          -- obligations admitted here

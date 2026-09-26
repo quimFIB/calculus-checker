@@ -62,6 +62,13 @@
   "Non-nil turns on the pretty display (`prettify-symbols-mode')."
   :type 'boolean)
 
+(defcustom dx-goals-2d t
+  "Non-nil draws the goal in *dx-goals* in two dimensions: fractions
+stacked, roots with a bar, integrals with their limits (app/GOALS2D.md).
+The one-line goal is shown instead when the drawing is wider than the
+goals window."
+  :type 'boolean)
+
 (defcustom dx-goals-delay 0.2
   "Seconds point must rest before *dx-goals* follows it."
   :type 'number)
@@ -374,6 +381,19 @@ is right after the sentence they were checked from (app/EVAL.md)."
       (insert (or text ""))
       (goto-char (point-min)))))
 
+(defun dx--term-block (line drawing)
+  "LINE, or DRAWING (the node's 2D field) when `dx-goals-2d' is on and it
+fits the goals window; indented two spaces."
+  (let* ((win (get-buffer-window "*dx-goals*" t))
+         (width (if win (window-body-width win) 80))
+         (rows (and dx-goals-2d (stringp drawing)
+                    (split-string drawing "\n"))))
+    (if (and rows (<= (+ 2 (apply #'max (mapcar #'string-width rows)))
+                      width))
+        (mapconcat (lambda (r) (concat "  " (string-trim-right r)))
+                   rows "\n")
+      (concat "  " line))))
+
 (defun dx--node-text (n)
   "The goals text of the rendered node N (app/API.md), a plist."
   (concat
@@ -381,9 +401,13 @@ is right after the sentence they were checked from (app/EVAL.md)."
    (when (eq (plist-get n :checked) :json-false)
      "\n(point is past what is checked: this is the last checked goal)")
    "\n"
-   (when (plist-get n :goal) (format "\nGoal\n  %s\n" (plist-get n :goal)))
+   (when (plist-get n :goal)
+     (format "\nGoal\n%s\n"
+             (dx--term-block (plist-get n :goal) (plist-get n :goal_2d))))
    (when (plist-get n :theorem)
-     (format "\nTheorem\n  %s\n" (plist-get n :theorem)))
+     (format "\nTheorem\n%s\n"
+             (dx--term-block (plist-get n :theorem)
+                             (plist-get n :theorem_2d))))
    (when (> (length (plist-get n :handles)) 0)
      (format "\nFacts: %s\n"
              (string-join (append (plist-get n :handles) nil) ", ")))

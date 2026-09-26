@@ -14,6 +14,7 @@ import re
 import secrets
 
 import dx
+import pretty2d
 import script
 import session as S
 import tex
@@ -87,6 +88,16 @@ def _tex(x):
         return None
 
 
+def _2d(x):
+    """pretty2d.pretty(x), or None, as _tex (GOALS2D.md)."""
+    if x is None:
+        return None
+    try:
+        return pretty2d.pretty(x)
+    except Exception:
+        return None
+
+
 def _assist(fn, *args):
     """An assistance call that must not fail the response: None instead."""
     try:
@@ -113,6 +124,7 @@ def render(sess, n):
             "goal": None if st.goal is None else _text(st.goal),
             "theorem": None if st.theorem is None else _text(st.theorem),
             "goal_tex": _tex(st.goal), "theorem_tex": _tex(st.theorem),
+            "goal_2d": _2d(st.goal), "theorem_2d": _2d(st.theorem),
             "admissions": sum(ob.status == K.ADMITTED
                               for ob in st.obligations()),
             "steps": _steps_to(sess, n),

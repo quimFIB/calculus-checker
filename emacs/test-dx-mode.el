@@ -69,6 +69,21 @@
     (dx-test--goals-at (1+ (dx-test--end-of "stage0.S1.")) "Open")
     (should (string-match-p "Int\\[x = 0 \\.\\. 1\\]" (dx-test--goals)))))
 
+(ert-deftest dx-goals-drawn-in-2d-or-one-line ()
+  (dx-test--visit "s1.dx"
+    (dx-test--settled-at (dx-test--end-of "close 2."))
+    (let ((pos (1+ (dx-test--end-of "stage0.S1."))))
+      (let ((dx-goals-2d t))
+        (setq dx--goals-at nil)
+        (dx--show-goals "")
+        (dx-test--goals-at pos "Open")
+        (should (string-match-p "^Goal\n  1 *\n  ⌠" (dx-test--goals))))
+      (let ((dx-goals-2d nil))
+        (setq dx--goals-at nil)
+        (dx--show-goals "")
+        (dx-test--goals-at pos "Open")
+        (should (string-match-p "^Goal\n  Int\\[x = 0" (dx-test--goals)))))))
+
 (ert-deftest dx-a-refusal-is-a-flymake-error-and-the-quickfix-fixes-it ()
   (dx-test--visit "s1.dx"
     (dx-test--settled-at (dx-test--end-of "close 2."))
