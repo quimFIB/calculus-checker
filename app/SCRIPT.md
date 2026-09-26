@@ -44,6 +44,8 @@ verify [by C] [using h, ...].
   before it (E138) asks the sign strictly and mints a strict bound. `bound`
   (E99) closes an order goal from the one order fact among `using`;
   `scale T` (E139) multiplies the fact by T, which it owes positive.
+  Inside these two moves `strictly` and `scale` are clause words, so a
+  handle or variable cannot be named either (E141).
 
 - `verify` (p1_expected E112–E114, §6.5's `ode_verify`) closes an
   equation with no `?A`: each `D[x] e` is differentiated by the rule

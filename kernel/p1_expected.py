@@ -16413,3 +16413,14 @@ STRICT_BAD_MOVES = [
                         "scale": "2"}),
      "refusal": "bad-args", "why": "E139: bound's argument only"},
 ]
+
+# Section 28, after the skeptic review (2026-09-26): nothing unsound.
+DECISIONS_STRICT_REVIEW = {
+    "E141": "The loader types bound's scale as a string (ARG_TYPES), so a "
+            "problem file with a non-string scale raises ValueError at "
+            "load, as every malformed file does, instead of a TypeError at "
+            "feed. In the tactic syntax `strictly` and `scale` are clause "
+            "words of taylor_lagrange and bound only (SCRIPT.md), so a "
+            "handle or variable of those names is not usable in those two "
+            "moves; the other moves are unaffected.",
+}

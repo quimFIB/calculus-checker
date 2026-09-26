@@ -50,7 +50,8 @@ ARG_TYPES = {"at": str, "F": str, "value": str, "inst": dict, "facts": list,
              "var": str, "new_var": str, "sub": str, "lo": str, "hi": str,
              "f": str, "mode": str,
              "u": str, "v": str,  # int_parts' (p1_expected section 19)
-             "derivs": list, "side": str, "sense": str}  # section 25
+             "derivs": list, "side": str, "sense": str,  # section 25
+             "scale": str}  # section 28 (E139)
 # The args that are GRAMMAR.md strings for terms, parsed with the file's sig.
 TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f", "u", "v", "scale")
 
