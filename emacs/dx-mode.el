@@ -17,6 +17,8 @@
 ;;   C-c C-l             show the goals and response windows
 ;;   C-c C-t             the next hint rung at point (a numeric prefix picks it)
 ;;   C-c C-a             use the refusal's suggestion (an eglot quickfix)
+;;   C-c C-e             evaluate the integral at point, or in the region
+;;                       (C-u: insert the proof at point)
 ;;   C-c C-p             toggle the pretty display
 ;;   C-c TAB             complete a move name into its template
 ;; Diagnostics, completion-at-point and code actions are eglot's own.
@@ -238,6 +240,75 @@ plain text (app/DX.md).  `*' is left alone: it would draw `(*' as `(·'.")
                                         (min 3 (1+ (cdr dx--hint)))
                                       1))))))))
 
+(defconst dx--eval-words
+  '(("proved" . "Proved by the kernel")
+    ("unverified" . "SymPy's answer, not verified")
+    ("outside-grammar" . "Outside the grammar")
+    ("not-found" . "Not found")
+    ("no-proposer" . "SymPy is not installed")
+    ("has-parameters" . "Has parameters")
+    ("no-goal" . "No goal yet: the header is not checked"))
+  "Headlines for dx/evaluate's statuses (app/EVAL.md).")
+
+(defun dx--evaluation-text (r)
+  (let ((status (plist-get r :status))
+        (num (plist-get r :numeric)))
+    (concat
+     (or (cdr (assoc status dx--eval-words)) status) "\n"
+     (when (plist-get r :term) (format "%s\n" (plist-get r :term)))
+     (when (plist-get r :value)
+       (format "\n  %s %s\n" (if (equal status "proved") "=" "≟")
+               (plist-get r :value)))
+     (when (plist-get r :antiderivative)
+       (format "\nF (%s) = %s\n"
+               (if (eq (plist-get r :antiderivative_checked) t)
+                   "checked by ftc" "SymPy's")
+               (plist-get r :antiderivative)))
+     (when (and num (plist-get num :value))
+       (format "\n≈ %s  ~ (numeric, not a proof)\n" (plist-get num :value)))
+     (unless (or (equal status "proved")
+                 (string-empty-p (or (plist-get r :message) "")))
+       (format "\n%s\n" (plist-get r :message)))
+     (let ((ss (append (plist-get r :sentences) nil)))
+       (when ss
+         (concat "\n" (mapconcat #'identity ss "\n") "\n"
+                 (when (equal status "proved")
+                   "\n(C-u C-c C-e inserts these at point)\n")))))))
+
+(defun dx-evaluate (&optional insert)
+  "Evaluate the integral goal at point; SymPy proposes, the kernel proves.
+With an active region, evaluate the region's text as an integral.  With a
+prefix argument INSERT, put a proved result's sentences at point, which
+is right after the sentence they were checked from (app/EVAL.md)."
+  (interactive "P")
+  (let* ((region (use-region-p))
+         (params (if region
+                     (list :textDocument (eglot--TextDocumentIdentifier)
+                           :term (buffer-substring-no-properties
+                                  (region-beginning) (region-end)))
+                   (dx--position-params)))
+         (at (point-marker)))
+    (dx--show-response "Evaluating…")
+    (dx--request
+     :dx/evaluate params
+     (lambda (r)
+       (dx--show-response (dx--evaluation-text r))
+       (when (and insert (not region) (equal (plist-get r :status) "proved"))
+         (dx--request
+          :dx/goals (list :textDocument (eglot--TextDocumentIdentifier)
+                          :position (eglot--pos-to-lsp-position at))
+          (lambda (node)
+            (if (not (and node (eq (plist-get node :checked) t)
+                          (equal (plist-get node :node) (plist-get r :node))))
+                (message "Not inserted: point has moved past what is checked")
+              (save-excursion
+                (goto-char at)
+                (unless (bolp) (insert "\n"))
+                (insert (mapconcat #'identity
+                                   (append (plist-get r :sentences) nil)
+                                   "\n")
+                        "\n"))))))))))
+
 (defun dx-use-suggestion ()
   "Replace the refused sentence at point with the checker's suggestion."
   (interactive)
@@ -363,6 +434,7 @@ plain text (app/DX.md).  `*' is left alone: it would draw `(*' as `(·'.")
     (define-key m (kbd "C-c C-l") #'dx-layout)
     (define-key m (kbd "C-c C-t") #'dx-hint)
     (define-key m (kbd "C-c C-a") #'dx-use-suggestion)
+    (define-key m (kbd "C-c C-e") #'dx-evaluate)
     (define-key m (kbd "C-c C-p") #'prettify-symbols-mode)
     (define-key m (kbd "C-c TAB") #'dx-complete)
     m)

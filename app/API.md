@@ -104,6 +104,9 @@ POST /layout   {text, functions?}      -> {pieces: [{kind, start, end, segments}
 POST /untex    {latex, functions?}     -> {term, tex} | refusal     (PRETTY.md)
 GET  /templates                        -> {templates: [{move, template, usage}]}   (PRETTY.md)
 POST /drop     {session}              -> {dropped: bool}           (LSP.md)
+POST /evaluate {session, node} | {term, functions?}  -> an evaluation   (EVAL.md)
+POST /evaluate/goal  (same body)      -> {integral, functions, positive, improper, node} | refusal
+POST /evaluate/check (same body, proposal) -> an evaluation, the kernel's half (EVAL.md)
 ```
 
 - **`/problems`** lists every `*.json` under `kernel/problems/` that
@@ -155,7 +158,8 @@ POST /drop     {session}              -> {dropped: bool}           (LSP.md)
 
 API-local refusal codes: `unknown-handle`, `retract-root`, `not-built`,
 `no-integral`, `no-row` (RECOGNIZER.md),
-`bad-tactic` (SCRIPT.md), `bad-tex` (PRETTY.md), `bad-header` (DX.md).
+`bad-tactic` (SCRIPT.md), `bad-tex` (PRETTY.md), `bad-header` (DX.md), `not-an-integral`, `not-an-integral-goal` and
+`refused-goal` (EVAL.md).
 Error codes: `bad-json`, `bad-request`, `unknown-route`, `unknown-session`,
 `unknown-node`, `unknown-problem`, `bad-document` (PERSIST.md),
 `kernel-error`.

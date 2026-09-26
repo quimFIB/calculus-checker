@@ -31,6 +31,7 @@ app/page/index.html   Export, Import, Start fresh; saved state on the status lin
   "script": str,                      -- the page's script text
   "path": [str],                      -- node ids: the checked path, from n0
   "max_rung": int,
+  "evaluations": [{ "node", "status", "value", "sentences" }],  -- EVAL.md
   "nodes": [{ "node": str, "parent": str, "move": str, "args": {...},
               "retracted": bool }],   -- every node but n0, parents first
   "saved": str }                      -- ISO 8601 UTC, information only

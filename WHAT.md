@@ -130,6 +130,18 @@ is the stuck suggestion, and `*dx-goals*` follows point. Suites:
 `app/test_pretty.py`, `app/test_dx.py`, `app/test_lsp.py` (which runs
 the ERT suite when emacs is installed).
 
+**Integrals can be evaluated** (`app/EVAL.md`, the owner's "full
+evaluator", 2026-09-26: DESIGN.md §8.2 brought forward). The page's
+**∫ Evaluate** button, a scratch box beside it, `dx/evaluate` and Emacs's
+`C-c C-e` all ask SymPy, run as a separate process, for a closed form. The
+kernel then proves it by building the script itself: `ftc` (with the √
+facts STUCK.md suggests), the rewrites E27 names (`exp_zero`, `cos_pi`,
+`atan_odd`, …), then `close`. A value is marked ✓ only at `Proved.`;
+anything else is shown as SymPy's claim beside a numeric value. P1(2),
+∫₀¹ 1/(1+x³), proves in 9 sentences; ∫₀^∞ 1/(1+x⁴) is honestly
+"unverified" (its proof holds only modulo admissions). SymPy is optional:
+`./calc --sympy PYTHON` or `CALC_SYMPY`.
+
 **The check-mode page is up** (`app/PAGE.md`, revision 2, 2026-09-25):
 `./calc` serves it at `http://127.0.0.1:8765/`, laid out like rocq-mode. You
 type a tactic script in the centre (`app/SCRIPT.md`, e.g. `ftc x^3 + x^2 by

@@ -87,7 +87,8 @@ class Work(unittest.TestCase):
             doc = json.load(f)
         self.assertEqual(set(doc), {"format", "version", "problem", "goal",
                                     "functions", "script", "path",
-                                    "max_rung", "nodes", "saved"})
+                                    "max_rung", "evaluations", "nodes",
+                                    "saved"})
         for n in doc["nodes"]:
             self.assertEqual(set(n), {"node", "parent", "move", "args",
                                       "retracted"})

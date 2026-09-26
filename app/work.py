@@ -49,6 +49,7 @@ def document(sess):
             "script": getattr(sess, "script", ""),
             "path": list(getattr(sess, "path", ["n0"])),
             "max_rung": getattr(sess, "max_rung", 0),
+            "evaluations": list(getattr(sess, "evaluations", [])),
             "nodes": [{"node": n.id, "parent": n.parent, "move": n.move,
                        "args": n.args, "retracted": n.retracted}
                       for n in sess.nodes.values() if n.parent is not None],
@@ -126,6 +127,8 @@ def check(doc):
           and _is(doc.get("path", ["n0"]), list)
           and all(_is(p, str) for p in doc.get("path", []))
           and _is(doc.get("max_rung", 0), int)
+          and _is(doc.get("evaluations", []), list)
+          and all(_is(e, dict) for e in doc.get("evaluations", []))
           and _is(doc.get("nodes", []), list)
           and all(_is(n, dict) for n in doc.get("nodes", [])))
     if not ok:
@@ -182,6 +185,7 @@ def replay(doc, sid, goal, sig, problem):
     path = path[:checked + 1]
     sess.script, sess.path = text, path
     sess.max_rung = max(0, doc.get("max_rung", 0))
+    sess.evaluations = list(doc.get("evaluations", []))
     return sess, {"script": text, "path": path, "checked": checked,
                   "spans": [list(s) for s in script.spans(text)[:checked]],
                   "dropped": dropped, "ids": ids,

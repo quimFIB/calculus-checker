@@ -102,6 +102,36 @@ class Page(unittest.TestCase):
         self.assertEqual(p.inner_text("#backdrop mark.checked"),
                          "ftc x^3 + x^2 by ring.\nclose 2.")
 
+    @unittest.skipIf(server.integrate.find_python() is None, "no SymPy")
+    def test_evaluate_proves_and_inserts(self):
+        """EVAL.md: Evaluate on S1's goal shows 2 with a check mark, and
+        Insert puts sentences in the script that check to Proved."""
+        p = self.page
+        old = server.PROPOSER
+        server.PROPOSER = server.integrate.Proposer(
+            server.integrate.find_python(), 30)
+        try:
+            self.start()
+            p.click("#evaluate")
+            p.wait_for_selector("#evaluation")
+            self.assertIn("Proved by the kernel", p.inner_text("#evaluation"))
+            self.assertIn("= 2", p.inner_text("#eval-value"))
+            p.click("#eval-insert")
+            self.assertEqual(p.input_value("#script").strip(),
+                             "ftc x^3 + x^2 by ring.\nclose 2 by ring.")
+            p.click("#to-cursor")
+            p.wait_for_function(
+                "() => document.getElementById('status-report')"
+                ".innerText === 'Proved.'")
+            # a typed integral, no session needed for it
+            p.fill("#eval-term", "Int[x = 0 .. oo] exp(-x)")
+            p.click("#eval-go")
+            p.wait_for_function("() => document.getElementById('eval-value')"
+                                " && document.getElementById('eval-value')"
+                                ".innerText.includes('= 1')")
+        finally:
+            server.PROPOSER = old
+
     def test_wrong_F_is_refused_and_checks_nothing(self):
         p = self.page
         self.start()

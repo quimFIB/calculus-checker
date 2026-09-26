@@ -147,4 +147,25 @@
                      (sort (copy-sequence dx-templates)
                            (lambda (a b) (string< (car a) (car b)))))))))
 
+(ert-deftest dx-evaluate-proves-and-inserts ()
+  "EVAL.md: C-c C-e at the header's end writes the value; C-u inserts the
+checked sentences right there."
+  (skip-unless (getenv "CALC_SYMPY"))
+  (dx-test--visit "s1.dx"
+    (dx-test--settled-at (dx-test--end-of "close 2."))
+    (erase-buffer)
+    (insert "problem stage0.S1.\n")
+    (eglot--signal-textDocument/didChange)
+    (dx-test--settled-at (dx-test--end-of "stage0.S1."))
+    (goto-char (point-max))
+    (dx-evaluate '(4))
+    (dx-test--until (lambda () (string-prefix-p "Proved by the kernel"
+                                                (dx-test--response))))
+    (should (string-match-p "= 2" (dx-test--response)))
+    (dx-test--until (lambda () (string-match-p "close 2 by ring\\." (buffer-string))))
+    (eglot--signal-textDocument/didChange)
+    (dx-test--settled-at (dx-test--end-of "close 2 by ring."))
+    (dx-test--goals-at (point-max) "Proved.")
+    (set-buffer-modified-p nil)))
+
 ;;; test-dx-mode.el ends here

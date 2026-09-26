@@ -14,10 +14,13 @@ from urllib.parse import parse_qsl, urlsplit
 
 import api
 import backend
+from assist import integrate
 
 # TIMEOUT.md: where API requests run. In-process unless serve() (or a test)
 # installs a backend.Worker.
 BACKEND = backend.Backend()
+# EVAL.md review 5: SymPy runs here, outside the worker; serve() sets it
+PROPOSER = integrate.Proposer(None)
 
 MAX_BODY = 1 << 20  # a move is a few hundred bytes
 PAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "page",
@@ -86,7 +89,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         url = urlsplit(self.path)
         if url.path == "/cancel":  # TIMEOUT.md: never waits for the step
-            return self._send(200, BACKEND.cancel())
+            killed = PROPOSER.cancel()  # EVAL.md: a proposal is stopped too
+            out = BACKEND.cancel()
+            return self._send(200, {"cancelled": out["cancelled"] or killed})
         try:
             n = int(self.headers.get("Content-Length") or 0)
         except ValueError:
@@ -101,6 +106,13 @@ class Handler(BaseHTTPRequestHandler):
                                               "message": str(e)}})
         if ("POST", url.path) in LOCAL:
             return self._send(*api.handle("POST", url.path, body))
+        if url.path == "/evaluate":  # EVAL.md: propose here, check there
+            if not isinstance(body, dict):
+                return self._send(400, {"error": {
+                    "code": "bad-request",
+                    "message": "the body is a JSON object"}})
+            return self._send(*integrate.evaluate(BACKEND.handle, PROPOSER,
+                                                  body))
         self._send(*BACKEND.handle("POST", url.path, body))
 
     def log_message(self, fmt, *args):
@@ -108,14 +120,16 @@ class Handler(BaseHTTPRequestHandler):
             super().log_message(fmt, *args)
 
 
-def serve(port=8765, verbose=False, step_timeout=10.0, work_dir=None):
+def serve(port=8765, verbose=False, step_timeout=10.0, work_dir=None,
+          sympy=None, eval_timeout=5.0):
     """Serve until interrupted. Requests are taken on threads, so that
     /cancel is heard while a step runs, but reach the kernel one at a
     time, on purpose: the kernel's module-level tables (handles, lineages,
     memo caches) were not written for concurrent steps, and there is one
     learner. The kernel runs in a worker process (TIMEOUT.md)."""
-    global BACKEND
+    global BACKEND, PROPOSER
     BACKEND = backend.Worker(step_timeout, work_dir)
+    PROPOSER = integrate.Proposer(integrate.find_python(sympy), eval_timeout)
     srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     srv.verbose = verbose
     print(f"calc: http://127.0.0.1:{srv.server_address[1]}/ (the check-mode "
@@ -139,14 +153,20 @@ def main(argv=None):
     p.add_argument("--step-timeout", type=float, default=10.0,
                    help="seconds a request may run before it is stopped "
                         "(TIMEOUT.md); 0 for none")
+    p.add_argument("--sympy", default=None,
+                   help="a Python that has SymPy, for evaluating integrals "
+                        "(EVAL.md); default $CALC_SYMPY, else python3")
+    p.add_argument("--eval-timeout", type=float, default=5.0,
+                   help="seconds SymPy may take to propose (EVAL.md)")
     p.add_argument("--lsp", action="store_true",
                    help="run the .dx language server on stdin and stdout "
                         "(LSP.md), for editors; nothing is saved")
     a = p.parse_args(argv)
     if a.lsp:
         import lsp
-        return lsp.main(a.step_timeout)
-    serve(a.port, a.verbose, a.step_timeout, os.path.abspath(a.work))
+        return lsp.main(a.step_timeout, a.sympy, a.eval_timeout)
+    serve(a.port, a.verbose, a.step_timeout, os.path.abspath(a.work),
+          a.sympy, a.eval_timeout)
 
 
 if __name__ == "__main__":

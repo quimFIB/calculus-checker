@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import api  # noqa: E402
 import backend  # noqa: E402
 import script  # noqa: E402
+from assist import integrate  # noqa: E402
 
 COMPACT_SLACK = 50  # LSP.md review 3: nodes > 2 * path + this -> rebuild
 _LINE = re.compile(r"\r\n|\r|\n")
@@ -91,8 +92,10 @@ def _norm(sentence):
 
 
 class Server:
-    def __init__(self, inp, out, backend_):
+    def __init__(self, inp, out, backend_, proposer=None):
         self.inp, self.out, self.backend = inp, out, backend_
+        self.proposer = proposer or integrate.Proposer(None)
+        self.evaluating = None    # the request id of the running dx/evaluate
         self.wlock = threading.Lock()
         self.dlock = threading.Lock()
         self.docs = {}
@@ -187,6 +190,8 @@ class Server:
 
     def on_S_cancelRequest(self, p, _):
         self.cancelled.add(p.get("id"))
+        if p.get("id") is not None and p.get("id") == self.evaluating:
+            self.proposer.cancel()  # EVAL.md: kills SymPy, not the worker
 
     # ------------------------------------------------ documents
 
@@ -441,6 +446,42 @@ class Server:
         threading.Thread(target=work, daemon=True).start()
         return _LATER
 
+    def on_dx_evaluate(self, p, rid):
+        """EVAL.md: {textDocument, position} evaluates the goal there;
+        {textDocument?, term} a typed integral. Answered on a thread."""
+        if "term" in p:
+            uri = (p.get("textDocument") or {}).get("uri")
+            with self.dlock:
+                doc = self.docs.get(uri)
+                sig = (doc.root or {}).get("functions") if doc else None
+            body = {"term": p["term"], "functions": sig or {}}
+        else:
+            with self.dlock:
+                doc = self.docs.get(p["textDocument"]["uri"])
+                node, _ = self._node_at(doc, p["position"]) \
+                    if doc and doc.path else (None, None)
+                sid = doc.session if doc else None
+            if node is None:
+                return {"status": "no-goal",
+                        "message": "check the header first"}
+            body = {"session": sid, "node": node["node"]}
+
+        def work():
+            self.evaluating = rid
+            try:
+                _, out = integrate.evaluate(self.backend.handle,
+                                            self.proposer, body)
+            finally:
+                self.evaluating = None
+            if rid in self.cancelled:
+                self.cancelled.discard(rid)
+                self.send({"id": rid, "error": {"code": -32800,
+                                                "message": "cancelled"}})
+            else:
+                self.send({"id": rid, "result": out})
+        threading.Thread(target=work, daemon=True).start()
+        return _LATER
+
     def on_dx_stats(self, p, _):
         with self.dlock:
             doc = self.docs.get(p["textDocument"]["uri"])
@@ -503,14 +544,16 @@ def _refusal_text(r):
     return out
 
 
-def main(step_timeout=10.0):
+def main(step_timeout=10.0, sympy=None, eval_timeout=5.0):
     api.WORK_DIR = None  # the buffer is the work; nothing is saved
     out = os.fdopen(os.dup(1), "wb")
     os.dup2(2, 1)
     sys.stdout = sys.stderr
     worker = backend.Worker(step_timeout, None)
     try:
-        code = Server(sys.stdin.buffer, out, worker).run()
+        proposer = integrate.Proposer(integrate.find_python(sympy),
+                                      eval_timeout)
+        code = Server(sys.stdin.buffer, out, worker, proposer).run()
     finally:
         worker.close()
     sys.exit(code)

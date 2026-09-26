@@ -102,6 +102,15 @@ td.key { font-family: var(--mono); word-break: break-word; }
 .msg.ok { border-color: var(--ok); }
 .msg.hint { border-style: dashed; }
 .msg.timeout { border-color: var(--muted); border-style: dashed; }
+#eval-box { border-top: 1px solid var(--line); padding: 8px 12px; }
+#eval-box h3 { margin: 0 0 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
+.eval-row { display: flex; gap: 6px; align-items: center; }
+.eval-row input, .eval-row math-field { flex: 1; min-width: 0; }
+.msg.eval .verdict { font-weight: 600; }
+.msg.eval .verdict.ok { color: var(--ok); }
+.msg.eval .verdict.claim { color: var(--muted); }
+.msg.eval .sentences { font-family: var(--mono); font-size: 12px; white-space: pre-wrap; margin-top: 6px; }
+.msg.eval .numeric { color: var(--muted); margin-top: 4px; }
 .msg.hint .cost { color: var(--muted); font-size: 12px; margin-top: 4px; }
 .msg .code { color: var(--bad); font-family: var(--mono); font-weight: 600; }
 #saved.unsaved, .unsaved { color: var(--bad); }
@@ -215,6 +224,7 @@ details.card tr.match td { background: var(--sel); font-weight: 600; }
       <button id="hint-1" class="hint" title="Hint: what kind of move" disabled>?</button>
       <button id="hint-2" class="hint" title="Hint: which technique" disabled>??</button>
       <button id="hint-3" class="hint" title="Hint: how, for this integral" disabled>???</button>
+      <button id="evaluate" title="Evaluate the goal's integral; the kernel proves the value (EVAL.md)" disabled>∫ Evaluate</button>
       <span class="keys">Alt+↓ next · Alt+↑ undo · Ctrl+Enter to cursor</span>
     </div>
     <div class="editor">
@@ -244,6 +254,11 @@ int_flip [occurrence N].
 int_parts in x with u := T; v := T [occurrence N] [by ...] [using ...].
 (* comments like this *)</div>
     </div>
+    </div>
+    <div id="eval-box">
+      <h3>Evaluate an integral</h3>
+      <div class="eval-row"><input id="eval-term" class="term" spellcheck="false"
+        aria-label="An integral to evaluate" placeholder="Int[x = 0 .. 1] x*exp(x)"><button id="eval-go">Evaluate</button></div>
     </div>
     <div class="response-pane"><h2>Response</h2><div id="response" class="muted">Nothing yet.</div></div>
   </section>
@@ -388,6 +403,7 @@ function setBusy(b) {
   $("next").disabled = b || !has;
   $("to-cursor").disabled = b || !has;
   for (const r of [1, 2, 3]) $("hint-" + r).disabled = b || !has;
+  $("evaluate").disabled = b || !has;
   paintPretty();
 }
 
@@ -489,6 +505,90 @@ async function hint(rung) {
 }
 for (const r of [1, 2, 3]) $("hint-" + r).onclick = () => hint(r);
 
+// ---------------------------------------------------------------- evaluate
+// EVAL.md: SymPy proposes, the kernel proves. A value is marked ✓ only when
+// the kernel reached Proved.; otherwise it is SymPy's claim, marked so.
+const EVAL_WORDS = {
+  proved: "✓ Proved by the kernel", unverified: "SymPy's answer, not verified",
+  "outside-grammar": "Outside the grammar", "not-found": "Not found",
+  "no-proposer": "SymPy is not installed", "has-parameters": "Has parameters",
+  cancelled: "Cancelled" };
+async function evaluate(body) {
+  const box = $("response");
+  box.className = "muted";
+  box.textContent = "Evaluating…";
+  let r;
+  try { r = await api("POST", "/evaluate", body); } catch (e) { return showError(e); }
+  if (r.refusal && !r.status) return showResponse(r.refusal, false);
+  showEvaluation(r, body);
+}
+function showEvaluation(r, body) {
+  const box = $("response");
+  box.className = "";
+  const ok = r.status === "proved";
+  const msg = el("div", { class: "msg eval " + (ok ? "ok" : ""), id: "evaluation" },
+    el("div", { class: "verdict " + (ok ? "ok" : "claim") }, EVAL_WORDS[r.status] ?? r.status));
+  if (r.term) msg.append(el("div", { class: "muted" }, r.term));
+  if (r.value) msg.append(math(r.value_tex, (ok ? "= " : "≟ ") + r.value, "eval-value"));
+  if (r.antiderivative) msg.append(el("div", { class: "muted" },
+    r.antiderivative_checked ? "Antiderivative, checked by ftc:" : "Antiderivative, SymPy's:"),
+    math(r.antiderivative_tex, "F = " + r.antiderivative, "eval-F"));
+  if (r.numeric && r.numeric.value !== undefined)
+    msg.append(el("div", { class: "numeric", id: "eval-numeric" },
+      `≈ ${r.numeric.value.toPrecision(Math.max(1, Math.min(12, r.numeric.digits)))}  ~ (numeric, not a proof)`));
+  if (!ok && r.message) msg.append(el("div", {}, r.message));
+  if (r.sentences && r.sentences.length) {
+    msg.append(el("div", { class: "sentences" }, r.sentences.join("\n")));
+    // the sentences hold only from the node they were checked at (review 13)
+    if (ok && body.session && body.node === current() && body.session === S.session)
+      msg.append(el("button", { id: "eval-insert", onclick: () => insertChecked(r.sentences) },
+        "Insert"));
+  }
+  box.replaceChildren(msg);
+}
+// Insert right after the checked region: where the sentences were checked.
+function insertChecked(sentences) {
+  const ta = $("script");
+  if (P.on && P.live) serialize();
+  const at = checkedEnd();
+  const before = ta.value.slice(0, at), after = ta.value.slice(at);
+  const text = (before ? "\n" : "") + sentences.join("\n") + (after && !/^\s/.test(after) ? "\n" : "");
+  ta.value = before + text + after;
+  ta.focus();
+  ta.setSelectionRange(at + text.length, at + text.length);
+  paint(); saveScript();
+  P.live = false;
+  if (P.on) relayout({ piece: P.pieces.length, seg: "first-empty" });
+}
+$("evaluate").onclick = () => S.session && evaluate({ session: S.session, node: current() });
+async function evaluateTerm() {
+  const mf = document.querySelector("#eval-box math-field");
+  let term = $("eval-term").value;
+  if (mf && !mf.hidden) {
+    try {
+      const u = await quick("/untex", { latex: mf.value, functions: sigOf() });
+      if (u.refusal) return showResponse(u.refusal, false);
+      term = u.term;
+      $("eval-term").value = term;
+    } catch (e) { return showError(e); }
+  }
+  if (!term.trim()) return;
+  evaluate({ term, functions: sigOf() });
+}
+$("eval-go").onclick = evaluateTerm;
+$("eval-term").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); evaluateTerm(); } });
+// PRETTY.md: in pretty mode the scratch box is a MathLive field (type `int`)
+function paintEvalBox() {
+  const row = document.querySelector("#eval-box .eval-row");
+  let mf = row.querySelector("math-field");
+  if (P.on && window.MathfieldElement && !mf) {
+    mf = el("math-field", { id: "eval-field", "aria-label": "An integral to evaluate, pretty" });
+    row.insertBefore(mf, $("eval-go"));
+  }
+  if (mf) mf.hidden = !P.on;
+  $("eval-term").hidden = !!(P.on && mf);
+}
+
 // An edit inside the checked region retracts back to that sentence, as
 // Proof General does.
 $("script").addEventListener("beforeinput", (ev) => {
@@ -572,6 +672,7 @@ async function setPretty(on) {
   $("script").hidden = $("backdrop").hidden = P.on;
   $("pretty-toggle").setAttribute("aria-pressed", String(P.on));
   storePretty(P.on);
+  paintEvalBox();
   paint();
 }
 $("pretty-toggle").onclick = () => setPretty(!P.on);

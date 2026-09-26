@@ -21,9 +21,11 @@ import untex
 import work
 from assist import palette as PL
 from assist import factor as FA
-from assist import probe, progress, recognizer, stuck
+from assist import integrate, probe, progress, recognizer, stuck
 from session import K, KERNEL, Refusal, loader
-from terms import Integral, Refused, parse_goal, parse_term, show, trees
+from entries import STATEMENTS as ENTRY_TEXT
+from terms import (Integral, MVar, Neg, Num, NegInf, PosInf, Refused, Rel, Var,
+                   parse_goal, parse_judgement, parse_term, show, trees)
 
 PROBLEMS = os.path.join(KERNEL, "problems")
 WORK_DIR = None  # PERSIST.md: server.py sets it; None saves nothing
@@ -437,6 +439,7 @@ def tree(query):
     sess = _session(query)
     return {"session": sess.id, "problem": sess.problem_id,
             "max_rung": getattr(sess, "max_rung", 0),
+            "evaluations": list(getattr(sess, "evaluations", [])),
             "saved": getattr(sess, "saved", None),
             "nodes": [{"node": n.id, "parent": n.parent, "move": n.move,
                        "report": K.report(n.state),
@@ -503,6 +506,227 @@ def drop(body):
     if sess is not None and OWNER.get(getattr(sess, "key", None)) == sid:
         OWNER[sess.key] = None
     return {"dropped": sess is not None}
+
+
+# ---------------------------------------------------------------- evaluate
+
+def _eval_target(body):
+    """EVAL.md: (start state, handles, sig, goal, session or None) for
+    {session, node} or {term, functions?}. A term gets an unregistered
+    session: never _own or _save, so it takes no work file (review 4)."""
+    if "term" in body:
+        term, sig = _field(body, "term", str), _sig(body)
+        try:
+            t = parse_term(term, sig)
+        except Refused as r:
+            raise Refusal.of(r) from None
+        if not isinstance(t, Integral):
+            raise Refusal("not-an-integral", "evaluate takes a definite "
+                          "integral, Int[x = a .. b] f")
+        try:
+            sess = S.Session("scratch", show(t) + " == ?A", sig)
+        except Refusal as r:
+            raise Refusal("refused-goal", f"{r.code}: {r.message}") from None
+        n = sess.root()
+        return n.state, dict(n.handles), sig, n.state.goal, None, n
+    sess = _session(body)
+    n = _node(sess, body)
+    return n.state, dict(n.handles), sess.sig, n.state.goal, sess, n
+
+
+def _integral_of(goal):
+    """The goal's integral and the parameters its domain says are > 0, or
+    a not-an-integral-goal refusal naming the shape wanted."""
+    ok = (goal is not None and len(goal) == 1 and isinstance(goal[0], Rel)
+          and goal[0].op == "==" and isinstance(goal[0].lhs, Integral)
+          and isinstance(goal[0].rhs, MVar))
+    if not ok:
+        raise Refusal("not-an-integral-goal", "evaluate wants a goal of the "
+                      "shape Int[x = a .. b] f == ?A")
+    positive = [d.lhs.name for d in goal[0].dom
+                if isinstance(d, Rel) and d.op == ">" and
+                isinstance(d.lhs, Var) and d.rhs == Num(0)]
+    t = goal[0].lhs
+    improper = any(isinstance(e, (PosInf, NegInf)) for e in (t.lo, t.hi))
+    return t, positive, improper
+
+
+def evaluate_goal(body):
+    """EVAL.md, review 5: what the proposer needs, read without it."""
+    _, _, sig, goal, _, n = _eval_target(body)
+    t, positive, improper = _integral_of(goal)
+    return {"integral": show(t), "functions": sig, "positive": positive,
+            "improper": improper, "node": n.id}
+
+
+def _eval_step(sig):
+    def step(st, text):
+        state, handles = st
+        try:
+            move, args = script.parse(text)
+        except script.TacticError as e:
+            return None, {"code": "bad-tactic", "message": str(e),
+                          "residual": None}
+        try:
+            r = K.step(state, move, loader.step_args(args, handles, sig))
+        except Refused as e:
+            r = e
+        if isinstance(r, (K.Refusal, Refused)):
+            res = getattr(r, "residual", None)
+            out = {"code": r.code, "message": r.message,
+                   "residual": None if res is None else _text(res)}
+            out["stuck"] = _assist(lambda: stuck.explain(
+                r.code, r.message, res, state.goal, move, args, sig=sig,
+                handles=handles, trial=lambda ss: _trial_at(
+                    state, handles, sig, ss), show_move=script.show))
+            return None, out
+        handles = dict(handles)
+        if move in ("fact", "taylor_lagrange"):
+            handles[args["bind"]] = r.last.handle
+        return (r, handles), None
+    return step
+
+
+def _match(pat, t, schema, inst):
+    """Structural match of an entry's side against a term: schema
+    variables bind (consistently), everything else must be equal."""
+    if isinstance(pat, Var) and pat.name in schema:
+        if pat.name in inst:
+            return inst[pat.name] == t
+        inst[pat.name] = t
+        return True
+    if isinstance(pat, Neg) and isinstance(pat.a, Var) and \
+            pat.a.name in schema and not isinstance(t, Neg):
+        # -u against an argument that is negative only up to arithmetic
+        # (atan((2*0 - 1)/sqrt 3)): u := -(t); the kernel checks -u = t
+        return _match(pat.a, Neg(t), schema, inst)
+    if type(pat) is not type(t):
+        return False
+    if not hasattr(pat, "__dataclass_fields__"):
+        return pat == t
+    for f in pat.__dataclass_fields__:
+        a, b = getattr(pat, f), getattr(t, f)
+        if hasattr(a, "__dataclass_fields__"):
+            if not _match(a, b, schema, inst):
+                return False
+        elif isinstance(a, tuple):
+            if len(a) != len(b) or not all(
+                    _match(x, y, schema, inst) for x, y in zip(a, b)):
+                return False
+        elif a != b:
+            return False
+    return True
+
+
+def _rewrite_of(sig):
+    """EVAL.md's planner: `rewrite ENTRY [with u := T] at R.` for the
+    entry E27 named and the subterm it left, or None."""
+    def rw(entry, residual):
+        if entry not in ENTRY_TEXT:
+            return None
+        text, schema = ENTRY_TEXT[entry]
+        try:
+            lhs = parse_judgement(text).lhs
+            r = parse_term(residual, sig)
+        except (Refused, AttributeError):
+            return None
+        inst = {}
+        if not _match(lhs, r, set(schema), inst):
+            return None
+        with_ = "; ".join(f"{v} := {show(inst[v])}" for v in schema)
+        return (f"rewrite {entry}" + (f" with {with_}" if with_ else "") +
+                f" at {residual}.")
+    return rw
+
+
+def _trial_at(state, handles, sig, sentences):
+    handles = dict(handles)
+    for text in sentences:
+        move, args = script.parse(text)
+        r = K.step(state, move, loader.step_args(args, handles, sig))
+        if isinstance(r, K.Refusal):
+            return False
+        if move in ("fact", "taylor_lagrange"):
+            handles[args["bind"]] = r.last.handle
+        state = r
+    return True
+
+
+def _numeric(goal):
+    try:
+        v = probe.value(goal)
+    except probe.Skip as e:
+        return {"skipped": str(e)}
+    except Exception as e:  # never fail the response
+        return {"skipped": f"{type(e).__name__}"}
+    old = probe.TOL
+    try:
+        probe.TOL = old / 2
+        w = probe.value(goal)
+    except Exception:
+        w = v
+    finally:
+        probe.TOL = old
+    return {"value": v, "digits": probe.digits(v, w)}
+
+
+def evaluate_check(body):
+    """EVAL.md: the kernel's half. `proposal` is sympy_propose.py's answer
+    (untrusted); nothing is recorded in the tree."""
+    state, handles, sig, goal, sess, n = _eval_target(body)
+    t, _, improper = _integral_of(goal)
+    prop = body.get("proposal")
+    if not isinstance(prop, dict):
+        raise ApiError(400, "bad-request", "proposal is an object")
+
+    def normal(text):
+        try:
+            return show(parse_term(text, sig))
+        except (Refused, TypeError, ValueError):
+            return None
+
+    out = {"status": prop.get("status") or "error", "term": show(t),
+           "value": None, "antiderivative": None, "sentences": [],
+           "antiderivative_checked": False, "refusal": None,
+           "message": prop.get("message") or "", "node": n.id}
+    if out["status"] == "ok":
+        built = integrate.build(
+            (state, handles), _eval_step(sig), prop, improper,
+            side_of=lambda st: show(st[0].goal[0].lhs),
+            report_of=lambda st: K.report(st[0]), normal=normal,
+            rewrite_of=_rewrite_of(sig))
+        if built is None:
+            out.update(status="outside-grammar",
+                       message="SymPy's answer did not parse as a term")
+        else:
+            out.update(built)
+            if built["status"] == "proved":
+                out["message"] = "Proved by the kernel."
+            else:
+                r = built["refusal"] or {}
+                if r.get("code") == "admissions":
+                    out["message"] = ("SymPy's answer, not verified: the "
+                                      "kernel's proof reads "
+                                      f"\"{r.get('message')}\"")
+                else:
+                    out["message"] = ("SymPy's answer, not verified: the "
+                                      f"kernel said {r.get('code')}: "
+                                      f"{r.get('message')}")
+    if out["status"] != "proved" and out["value"] is None and \
+            prop.get("value"):
+        out["value"] = normal(prop["value"])
+    if prop.get("value_note"):
+        out["message"] = (out["message"] + " " + prop["value_note"]).strip()
+    out["value_tex"] = _term_tex(out["value"], sig) if out["value"] else None
+    out["antiderivative_tex"] = _term_tex(out["antiderivative"], sig) \
+        if out["antiderivative"] else None
+    out["numeric"] = _numeric(goal)
+    if sess is not None:
+        sess.evaluations = getattr(sess, "evaluations", []) + [{
+            "node": n.id, "status": out["status"], "value": out["value"],
+            "sentences": out["sentences"]}]
+        _save(sess)
+    return out
 
 
 def templates(_):
@@ -635,6 +859,8 @@ ROUTES = {("GET", "/problems"): problems,
           ("POST", "/untex"): untex_,
           ("GET", "/templates"): templates,
           ("POST", "/drop"): drop,
+          ("POST", "/evaluate/goal"): evaluate_goal,
+          ("POST", "/evaluate/check"): evaluate_check,
           ("GET", "/moves"): moves,
           ("GET", "/hint"): hint,
           ("GET", "/palette"): palette,

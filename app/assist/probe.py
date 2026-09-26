@@ -76,11 +76,11 @@ def _integral(t, env, budget):
     lo, hi = t.lo, t.hi
     body = lambda x: _ev(t.body, {**env, t.var: x}, budget)  # noqa: E731
     if isinstance(lo, NegInf) and isinstance(hi, PosInf):
-        return (_half(body, 0.0, 1, budget) + _half(body, 0.0, -1, budget))
+        return (_half(body, 0.0, 1, budget) - _half(body, 0.0, -1, budget))
     if isinstance(hi, PosInf):
         return _half(body, _ev(lo, env, budget), 1, budget)
     if isinstance(lo, NegInf):
-        return _half(body, _ev(hi, env, budget), -1, budget)
+        return -_half(body, _ev(hi, env, budget), -1, budget)
     return _adapt(body, _ev(lo, env, budget), _ev(hi, env, budget), budget)
 
 

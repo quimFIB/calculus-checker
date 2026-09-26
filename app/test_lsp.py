@@ -18,6 +18,7 @@ sys.path.insert(0, HERE)
 
 import api  # noqa: E402
 import script  # noqa: E402
+from assist import integrate  # noqa: E402
 from session import loader  # noqa: E402
 
 URI = "file:///work/a.dx"
@@ -360,6 +361,19 @@ class Lsp(unittest.TestCase):
                               "rung": 1})
         self.assertEqual(h["node"], "n0")
         self.assertNotIn("error", h)
+
+    @unittest.skipIf(integrate.find_python() is None, "no SymPy")
+    def test_evaluate_the_goal_at_a_position_and_a_term(self):
+        c = self.client()
+        c.open(S1)
+        c.settled()
+        r = c.ask("dx/evaluate", {"textDocument": {"uri": URI},
+                                  "position": {"line": 1, "character": 0}})
+        self.assertEqual((r["status"], r["value"], r["node"]),
+                         ("proved", "2", "n0"))
+        r = c.ask("dx/evaluate", {"textDocument": {"uri": URI},
+                                  "term": "Int[x = 0 .. pi] sin x"})
+        self.assertEqual((r["status"], r["value"]), ("proved", "2"))
 
 
 @unittest.skipIf(shutil.which("emacs") is None, "emacs is not installed")
