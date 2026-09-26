@@ -102,8 +102,8 @@ td.key { font-family: var(--mono); word-break: break-word; }
 .msg.ok { border-color: var(--ok); }
 .msg.hint { border-style: dashed; }
 .msg.timeout { border-color: var(--muted); border-style: dashed; }
-#eval-box { border-top: 1px solid var(--line); padding: 8px 12px; }
-#eval-box h3 { margin: 0 0 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
+#eval-box, #classify-box { border-top: 1px solid var(--line); padding: 8px 12px; }
+#eval-box h3, #classify-box h3 { margin: 0 0 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
 .eval-row { display: flex; gap: 6px; align-items: center; }
 .eval-row input, .eval-row math-field { flex: 1; min-width: 0; }
 .msg.eval .verdict { font-weight: 600; }
@@ -252,6 +252,7 @@ fact h := E [with x := T; ...].
 int_subst x := T as y from T to T [reverse T] [occurrence N] [by ...] [using ...].
 int_flip [occurrence N].
 int_parts in x with u := T; v := T [occurrence N] [by ...] [using ...].
+verify [by ...] [using ...].
 (* comments like this *)</div>
     </div>
     </div>
@@ -259,6 +260,11 @@ int_parts in x with u := T; v := T [occurrence N] [by ...] [using ...].
       <h3>Evaluate an integral</h3>
       <div class="eval-row"><input id="eval-term" class="term" spellcheck="false"
         aria-label="An integral to evaluate" placeholder="Int[x = 0 .. 1] x*exp(x)"><button id="eval-go">Evaluate</button></div>
+    </div>
+    <div id="classify-box">
+      <h3>Classify a force</h3>
+      <div class="eval-row"><input id="classify-term" class="term" spellcheck="false"
+        aria-label="A force F in m x'' = F, in t, v and x" placeholder="-(m*g) - b*v"><button id="classify-go">Classify</button></div>
     </div>
     <div class="response-pane"><h2>Response</h2><div id="response" class="muted">Nothing yet.</div></div>
   </section>
@@ -576,6 +582,29 @@ async function evaluateTerm() {
   evaluate({ term, functions: sigOf() });
 }
 $("eval-go").onclick = evaluateTerm;
+
+// ---------------------------------------------------------------- classify
+// CLASSIFY.md: F(t), F(v), F(x) or none, read off the force's free
+// variables (t, v, x). A report, not a proof, and it says so.
+async function classifyForce() {
+  const force = $("classify-term").value;
+  if (!force.trim()) return;
+  let r;
+  try { r = await quick("/classify", { force, functions: sigOf() }); } catch (e) { return showError(e); }
+  if (r.refusal) return showResponse(r.refusal, false);
+  const msg = el("div", { class: "msg", id: "classification" },
+    el("div", { class: "verdict" }, r.case === "none" ? "None of the three"
+      : r.case === "constant" ? "A constant force" : "Case " + r.case),
+    el("div", {}, r.why));
+  if (r.reduction) msg.append(el("div", { class: "muted" }, "First reduction: " + r.reduction));
+  for (const p of r.repairs)
+    msg.append(el("div", { class: "muted" }, `With ${p.parameter} = 0 it becomes ${p.case}.`));
+  msg.append(el("div", { class: "numeric" }, "~ a report on the term, not a proof"));
+  $("response").className = "";
+  $("response").replaceChildren(msg);
+}
+$("classify-go").onclick = classifyForce;
+$("classify-term").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); classifyForce(); } });
 $("eval-term").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); evaluateTerm(); } });
 // PRETTY.md: in pretty mode the scratch box is a MathLive field (type `int`)
 function paintEvalBox() {

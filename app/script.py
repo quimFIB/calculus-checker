@@ -27,6 +27,7 @@ FORMS = {
     "taylor_lagrange": ({"in", "from", "to", "at", "derivs", *SENSES, "by",
                          "using"}, {"in", "from", "to", "at", "derivs"}),
     "bound": ({"by", "using"}, {"using"}),
+    "verify": ({"by", "using"}, set()),
 }
 USAGE = {
     "ftc": "ftc T [occurrence N] [by ring|field] [using h, ...]",
@@ -44,6 +45,7 @@ USAGE = {
                        "to T at T derivs T; T; ... increasing|decreasing "
                        "[by ring|field] [using h, ...]",
     "bound": "bound [by ring|field] using h, ...",
+    "verify": "verify [by ring|field] [using h, ...]",
 }
 
 # PRETTY.md, autocomplete: each move's shape with a `_` hole for every
@@ -60,6 +62,7 @@ TEMPLATES = {
     "taylor_lagrange": "taylor_lagrange h := lower of _ in u from _ to _ at _ "
                        "derivs _; _ increasing by field.",
     "bound": "bound by field using h.",
+    "verify": "verify by field.",
 }
 
 
@@ -221,7 +224,7 @@ def _build(move, head, cl):
         return occ
     if move == "taylor_lagrange":
         return _taylor(head, cl)
-    if move == "bound":
+    if move in ("bound", "verify"):  # p1_expected E99, E112
         if head:
             raise TacticError(f"unexpected {head!r}")
         return _checked({}, cl)
@@ -297,8 +300,8 @@ def show(move, args):
              f"{args['f']} in {args['var']} from {args['lo']} to "
              f"{args['hi']} at {args['at']} derivs "
              f"{'; '.join(args['derivs'])} {args['sense']}{_tail(args)}")
-    elif move == "bound":
-        s = f"bound{_tail(args)}"
+    elif move in ("bound", "verify"):
+        s = f"{move}{_tail(args)}"
     else:
         raise ValueError(f"no tactic form for {move!r}")
     return s + "."

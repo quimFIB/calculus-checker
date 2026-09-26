@@ -268,7 +268,12 @@ class Page(unittest.TestCase):
                 self.assertEqual(p.eval_on_selector_all(
                     ".katex-error", "es => es.length"), 0)
                 self.assertTrue(p.query_selector("#formal-goal .katex"))
-                if not pid.startswith("taylor."):  # order goals (E96)
+                # order goals (E96) and verify's goals (E112) have no ?A
+                if not pid.startswith(("taylor.", "unit00.")) or pid in (
+                        "unit00." + n for n in ("P1C_REDUCE", "P3A_SEPARATE",
+                                                "P3A_TOP", "P3A_HEIGHT",
+                                                "P4A_SEPARATE", "P4A_X",
+                                                "P9A_V")):
                     self.assertIn("?A", p.inner_text("#goal .plain"))
 
     def test_palette_card_progress_probe(self):
@@ -339,6 +344,25 @@ class Page(unittest.TestCase):
         p.wait_for_selector(".node.current[data-node='n4']", timeout=120000)
         self.assertEqual(self.report(), "Proved.")
         self.assertIn("(5/16)*b^6 <=", p.inner_text("#theorem"))
+
+    def test_unit00_verify_and_classify(self):
+        """p1_expected E112: P4(a)'s v(t) verified against its equation,
+        offered by the palette and checked on the page; CLASSIFY.md's box
+        reads unit 00 P1(d)."""
+        p = self.page
+        self.start("unit00.P4A_V_ODE")
+        p.wait_for_selector("#palette-moves button")
+        self.assertIn("verify", p.inner_text("#palette-moves"))
+        self.type_script("verify by field.\n")
+        p.click("#next")
+        p.wait_for_selector(".node.current[data-node='n1']", timeout=60000)
+        self.assertEqual(self.report(), "Proved.")
+        p.fill("#classify-term", "-b*v - kappa*x")
+        p.click("#classify-go")
+        p.wait_for_selector("#classification")
+        text = p.inner_text("#classification")
+        self.assertIn("None of the three", text)
+        self.assertIn("With b = 0 it becomes F(x).", text)
 
     # ------------------------------------------------ pretty mode (PRETTY.md)
 

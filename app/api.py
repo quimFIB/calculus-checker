@@ -20,6 +20,7 @@ import tex
 import untex
 import work
 from assist import palette as PL
+from assist import classify as CL
 from assist import factor as FA
 from assist import integrate, probe, progress, recognizer, stuck
 from session import K, KERNEL, Refusal, loader
@@ -71,7 +72,8 @@ def _summary(n):
             "taylor_lagrange": a.get("f") and
             f"{a.get('bind')} := {a.get('side')} of {a['f']} at {a.get('at')}",
             "bound": a.get("facts") and ", ".join(
-                f[1] for f in a["facts"])}.get(n.move)
+                f[1] for f in a["facts"]),
+            "verify": a.get("check") and f"by {a['check']}"}.get(n.move)
     return f"{n.move} {main}" if main else n.move
 
 
@@ -835,6 +837,18 @@ def factor(body):
                      "product")
 
 
+def classify(body):
+    """CLASSIFY.md: F(t), F(v), F(x) or none, from the force's free
+    variables (§12.1); a report, not a judgement."""
+    force = _field(body, "force", str)
+    names = {k: _field(body, k, str, optional=True) or k
+             for k in ("t", "v", "x")}
+    try:
+        return CL.classify(force, sig=_sig(body), **names)
+    except CL.Refusal as e:
+        raise Refusal(e.code, e.message) from None
+
+
 def apart(body):
     """FACTOR.md: partial fractions over Q or R, checked by the kernel."""
     t, var, fld = _factor_args(body)
@@ -868,7 +882,8 @@ ROUTES = {("GET", "/problems"): problems,
           ("GET", "/export"): export,
           ("POST", "/import"): import_,
           ("POST", "/factor"): factor,
-          ("POST", "/apart"): apart}
+          ("POST", "/apart"): apart,
+          ("POST", "/classify"): classify}
 
 
 def handle(method, path, args):

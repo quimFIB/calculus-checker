@@ -2,7 +2,9 @@
 
 **Status (2026-09-26):** the owner approved finishing §17's gate corpus
 ("Go ahead") and asked for the work to go on unsupervised. This file is the
-gap list, written before any code, as `P3.md` was for readiness P3. It
+gap list, written before any code, as `P3.md` was for readiness P3.
+G1–G5 are built (p1_expected section 26; `app/assist/CLASSIFY.md`), and
+the build added G8 below. The corpus and its reading are `app/GATE.md`. It
 names the lettered parts that make up the gate's unit 00 share, probes each
 against the kernel as it stands (main at 4034076), and picks the smallest
 cut.
@@ -65,6 +67,8 @@ lettered part split into the goals its worked solution states.
 | G4 | **Hyperbolic entries.** tanh u = sinh u / cosh u, cosh²u − sinh²u = 1 (field's fact for the tanh derivative), cosh u > 0 (ln cosh's former), and the values at 0 (sinh 0 = 0, cosh 0 = 1, tanh 0 = 0, atanh 0 = 0). | P4(a) | entries |
 | G5 | **Classification.** §12.1's `classify` reads the free variables of the right-hand side. It is a tactic report, not a judgement (§5.2), so it belongs in the untrusted assistance layer: F(t), F(v), F(x) or none, with the reason. | P1 | assistance |
 | G6 | **Hypotheses about an unknown function, and §6.5's derived lemmas.** P1's "first reduction" as a checked step needs the equation of motion as a hypothesis on a declared function (`m*D[t] v(t) == ...`), v ∈ C¹, the chain rule for declared functions (`deriv.py`: "d_chain waits for declared"), and `sep_autonomous`, `quad_t` and `energy_integral`, each derived from `int_subst` and `ftc`. None of that exists: install refuses a hypothesis holding a `D` node (E26 (b)). | P1(a)–(c) as proofs | kernel: hypotheses and three rules |
+| G8 | **field keeps an App's argument as written** (found by the build, E125). exp(−b·((m/b)·L)/m) is not the atom exp(−L), and rewrite matches up to `ring`, which cannot cancel b/b. So v(t↑) = 0, the course's own "set v = 0" read on v(t), is stuck; the reference proofs take t↑ and h as quadratures in v instead. The fix touches the trusted normaliser (field-normal atom arguments) or rewrite (matching up to field). | P3(a) as the course writes it | kernel |
+| G9 | **Discharge is linear in the variables** (E126). u/w < 1 from u ≤ V < w with w > 0 is bilinear and is admitted; P4's quadrature is stated in the scaled form z = u/w. | P4(a) unscaled | discharge |
 | G7 | Numbers to four figures (t↑ = 0.1111 s, c = 0.2594 kg/m, t₉₉ = 14.84 s). | P3, P4 | stage 2 |
 
 ## The smallest cut

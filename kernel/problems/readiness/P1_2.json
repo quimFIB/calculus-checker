@@ -1,0 +1,107 @@
+{
+  "format": "calc-problem/0",
+  "id": "readiness.P1_2",
+  "title": "readiness P1(2): the integral of 1/(1 + x^3) over [0, 1]",
+  "source": "mechanics-to-relativity readiness P1(2); p1_expected PROOFS['P1.2'] (§11.2), as a problem file for §17's gate",
+  "statement": "Evaluate Int_0^1 dx/(1 + x^3) exactly: factor the denominator, split into partial fractions, and integrate each piece.",
+  "goal": "Int[x = 0 .. 1] 1/(1 + x^3) == ?A",
+  "answer_schema": "closed",
+  "declarations": {
+    "functions": {}
+  },
+  "reference_proof": [
+    {
+      "id": "s1",
+      "move": "fact",
+      "args": {
+        "entry": "sqrt_sq_val",
+        "inst": {
+          "a": "3"
+        },
+        "bind": "h_sqrt3"
+      }
+    },
+    {
+      "id": "s2",
+      "move": "ftc",
+      "args": {
+        "F": "(1/3)*ln(1 + x) - (1/6)*ln(x^2 - x + 1) + (1/sqrt 3)*atan((2*x - 1)/sqrt 3)",
+        "check": "field",
+        "facts": [
+          [
+            "handle",
+            "h_sqrt3"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "s3",
+      "move": "rewrite",
+      "args": {
+        "entry": "ln_one",
+        "inst": {},
+        "at": "ln(1^2 - 1 + 1)"
+      }
+    },
+    {
+      "id": "s4",
+      "move": "rewrite",
+      "args": {
+        "entry": "ln_one",
+        "inst": {},
+        "at": "ln(1 + 0)"
+      }
+    },
+    {
+      "id": "s5",
+      "move": "rewrite",
+      "args": {
+        "entry": "ln_one",
+        "inst": {},
+        "at": "ln(0^2 - 0 + 1)"
+      }
+    },
+    {
+      "id": "s6",
+      "move": "rewrite",
+      "args": {
+        "entry": "atan_one_sqrt3",
+        "inst": {},
+        "at": "atan((2*1 - 1)/sqrt 3)"
+      }
+    },
+    {
+      "id": "s7",
+      "move": "rewrite",
+      "args": {
+        "entry": "atan_odd",
+        "inst": {
+          "u": "1/sqrt 3"
+        },
+        "at": "atan((2*0 - 1)/sqrt 3)"
+      }
+    },
+    {
+      "id": "s8",
+      "move": "rewrite",
+      "args": {
+        "entry": "atan_one_sqrt3",
+        "inst": {},
+        "at": "atan(1/sqrt 3)"
+      }
+    },
+    {
+      "id": "s9",
+      "move": "close",
+      "args": {
+        "value": "(1/3)*ln 2 + pi/(3*sqrt 3)",
+        "check": "field",
+        "facts": []
+      }
+    }
+  ],
+  "notes": [
+    "The same steps as p1_expected's P1.2, so the gate's corpus has readiness P1's second part on the page; P1(1) is parts.P1_PARTS."
+  ]
+}

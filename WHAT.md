@@ -71,6 +71,15 @@ cases, and plot the maximum hint rung per problem against time. If the average
 does not fall, the tool is a crutch rather than a trainer and §1's claim has
 failed.
 
+**The gate's corpus is ready (2026-09-26).** `app/GATE.md` fixes it in
+order before it is read: readiness P1(1), P1(2), P2, P3 part 1 (two
+bounds) and P5, then eleven goals from unit 00 (`UNIT00.md`).
+`python3 app/gate.py [DIR]` reads the work files `./calc` saves and prints
+the rung per problem, whether each replays to a proof, whether the
+recognizer fires on it, and the verdict (the last third's mean rung below
+the first third's), with problems where no row fires listed apart.
+Readiness P4 is series and waits for stage 2.
+
 Read `DESIGN.md` §1, §8.5 and §17 first — the idea, the product, and what would
 kill it. Nothing else is required reading before stage 1; Waterproof's course
 evaluations are optional, since adoption evidence for the class is not this
@@ -141,6 +150,21 @@ anything else is shown as SymPy's claim beside a numeric value. P1(2),
 ∫₀¹ 1/(1+x³), proves in 9 sentences; ∫₀^∞ 1/(1+x⁴) is honestly
 "unverified" (its proof holds only modulo admissions). SymPy is optional:
 `./calc --sympy PYTHON` or `CALC_SYMPY`.
+
+**Unit 00's quadrature cases are problems** (`UNIT00.md`, p1_expected
+section 26, 2026-09-26). A new move, **`verify`** (§6.5's `ode_verify`),
+closes an equation with no `?A` by differentiating its `D` nodes with the
+rule table and checking the sides by `ring` or `field`: a candidate
+solution against its equation of motion, or an initial condition.
+`deriv` knows sinh, cosh, tanh and atanh, with seven hyperbolic entries.
+`kernel/problems/unit00/` holds eleven goals from P1(c), P3(a), P4(a) and
+P9(a), each a plain `Proved.`; `kernel/problems/readiness/P1_2.json` puts
+readiness P1(2) on the page. The page's **Classify** box reads a force as
+F(t), F(v), F(x) or none, and which parameter set to zero would fix a
+"none" (`app/assist/CLASSIFY.md`), which is P1's other four parts. Not
+built: hypotheses about an unknown function and `sep_autonomous`
+(UNIT00.md G6), so P1's reductions are goals, not derivations.
+`python3.12 kernel/proof_of_life.py` passes 1068 checks.
 
 **Doom Emacs has a `:lang dx` module** (`emacs/doom/dx`, 2026-09-26, the
 owner's ask). Linked into `$DOOMDIR/modules/lang/dx` and enabled as `dx`

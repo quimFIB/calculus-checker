@@ -33,6 +33,7 @@ int_flip [occurrence N].
 int_parts in x with u := T; v := T [occurrence N] [by C] [using h, ...].
 taylor_lagrange h := lower|upper of T in u from T to T at T derivs T; T; ... increasing|decreasing [by C] [using h, ...].
 bound [by C] using h, ....
+verify [by C] [using h, ...].
 ```
 
 - `taylor_lagrange` (p1_expected E97) mints the handle `h` for the lower or
@@ -41,6 +42,12 @@ bound [by C] using h, ....
   the derivatives D_1 .. D_m, `;`-separated, and exactly one of
   `increasing` or `decreasing` says the sign of the last. `bound` (E99)
   closes an order goal from the one order fact among `using`.
+
+- `verify` (p1_expected E112–E114, §6.5's `ode_verify`) closes an
+  equation with no `?A`: each `D[x] e` is differentiated by the rule
+  table, then `by C` checks the two sides agree. A candidate solution is
+  checked against its equation of motion this way, and an initial
+  condition is the same move on a goal with no `D`.
 
 - `by C` is `by ring` or `by field`. Omitted, it is `by ring`.
 - `using h, ...` lists fact names bound earlier on the path; omitted, none.

@@ -162,6 +162,13 @@ def moves(goal):
                         for t in subterms(g.lhs))):
         out.append({"move": "close", "sentence": "close _.",
                     "why": "no integral or derivative left: name the value"})
+    if (g is not None and getattr(g, "op", "==") == "=="
+            and not isinstance(getattr(g, "rhs", None), MVar)):
+        # p1_expected E112: an equation with no unknown, e.g. a candidate
+        # solution against its equation of motion (§6.5's ode_verify)
+        out.append({"move": "verify", "sentence": "verify by field.",
+                    "why": "an equation with no ?A: differentiate its D "
+                           "nodes and check both sides agree"})
     if g is not None and getattr(g, "op", "==") != "==":  # p1_expected E96
         out += [
             {"move": "taylor_lagrange",

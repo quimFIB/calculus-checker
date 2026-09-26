@@ -29,7 +29,8 @@ KATEX = os.path.join(os.path.dirname(PAGE), "katex")  # UI.md: vendored
 MATHLIVE = os.path.join(os.path.dirname(PAGE), "mathlive")  # PRETTY.md
 # PRETTY.md review 4: routes that only parse, answered in this process so
 # that a keystroke never waits behind a step (or is hit by its Cancel)
-LOCAL = {("POST", "/layout"), ("POST", "/untex"), ("GET", "/templates")}
+LOCAL = {("POST", "/layout"), ("POST", "/untex"), ("GET", "/templates"),
+         ("POST", "/classify")}  # CLASSIFY.md: no session, no kernel step
 TYPES = {".js": "text/javascript", ".css": "text/css", ".woff2": "font/woff2"}
 
 

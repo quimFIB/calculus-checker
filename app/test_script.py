@@ -69,6 +69,20 @@ class Syntax(unittest.TestCase):
                             "1] t))^2.")
         self.assertEqual(a["inst"], {"u": "Int[t = 0 .. 1] t"})
 
+    def test_verify(self):
+        """p1_expected E112: verify takes only by and using."""
+        self.assertEqual(script.parse("verify by field using h, k"),
+                         ("verify", {"check": "field",
+                                     "facts": [["handle", "h"],
+                                               ["handle", "k"]]}))
+        self.assertEqual(script.parse("verify"),
+                         ("verify", {"check": "ring", "facts": []}))
+        self.assertEqual(script.show("verify", {"check": "field",
+                                                 "facts": []}),
+                         "verify by field.")
+        with self.assertRaises(script.TacticError):
+            script.parse("verify x^2")
+
     def test_bad_tactics(self):
         for text in ("", "prove it.", "ftc.", "ftc x by magic.",
                      "rewrite sin_pi.", "fact sqrt_sq_val.",

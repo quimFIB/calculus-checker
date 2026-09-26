@@ -78,7 +78,7 @@
 
 (defconst dx-moves
   '("ftc" "int_improper" "close" "rewrite" "fact" "int_subst" "int_flip"
-    "int_parts" "taylor_lagrange" "bound")
+    "int_parts" "taylor_lagrange" "bound" "verify")
   "The moves, as app/SCRIPT.md names them.")
 
 (defconst dx-templates
@@ -91,7 +91,8 @@
     ("int_flip" . "int_flip.")
     ("int_parts" . "int_parts in x with u := _; v := _ by ring.")
     ("taylor_lagrange" . "taylor_lagrange h := lower of _ in u from _ to _ at _ derivs _; _ increasing by field.")
-    ("bound" . "bound by field using h."))
+    ("bound" . "bound by field using h.")
+    ("verify" . "verify by field."))
   "Each move's shape, as script.TEMPLATES has it (app/PRETTY.md).")
 
 (defconst dx-pretty-symbols

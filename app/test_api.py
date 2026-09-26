@@ -380,7 +380,7 @@ class ProblemFiles(Api):
     every step."""
 
     def test_every_proof_matches_the_loader(self):
-        self.assertEqual(sum(len(p.proofs) for p in _files().values()), 14)  # + P3 part 1
+        self.assertEqual(sum(len(p.proofs) for p in _files().values()), 26)  # + P3 part 1, unit 00 (E120), readiness P1(2)
         for pid, p in _files().items():
             for name, steps in p.proofs.items():
                 with self.subTest(problem=pid, proof=name):
@@ -511,7 +511,7 @@ class Http(unittest.TestCase):
             s, r = self.req("POST", "/layout", {"text": "close 2."})
             self.assertEqual(s, 200)
             s, r = self.req("GET", "/templates")
-            self.assertEqual(len(r["templates"]), 10)
+            self.assertEqual(len(r["templates"]), 11)  # + verify (E112)
         finally:
             server.BACKEND = saved
         self.assertEqual(calls, [])
