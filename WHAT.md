@@ -181,7 +181,7 @@ kernel's `quad_t`, `sep_autonomous` and `energy_integral` read them to
 prove P1(a)-(c)'s integrated forms, each `Proved.`. The loader takes an
 `assume` list in a problem file; none uses it while the gate is read, and
 the page and `.dx` scripts have no syntax for it yet.
-`python3.12 kernel/proof_of_life.py` passes 1134 checks.
+`python3.12 kernel/proof_of_life.py` passes 1137 checks.
 
 **Doom Emacs has a `:lang dx` module** (`emacs/doom/dx`, 2026-09-26, the
 owner's ask). Linked into `$DOOMDIR/modules/lang/dx` and enabled as `dx`

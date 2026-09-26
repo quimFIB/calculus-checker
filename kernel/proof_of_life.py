@@ -6126,6 +6126,28 @@ def ode_emission_problems():
     return out
 
 
+def ode_forged_range_problems():
+    """E159 (1): object.__new__ ranges with infinities misplaced or junk
+    ends are refused bad-args, never read."""
+    import loader
+    c = X.ODE_PROOFS["P1A_SEP"]
+    out = []
+    for lo, hi in ((T.POS_INF, T.POS_INF), (T.NEG_INF, T.NEG_INF),
+                   (T.POS_INF, T.NEG_INF), (None, T.POS_INF),
+                   ("junk", T.POS_INF)):
+        st = _ode_install(c)
+        args = loader.step_args(c["steps"][0][1], {}, c["sig"])
+        r = object.__new__(T.Interval)
+        for k, v in (("var", "w"), ("lo", lo), ("lo_closed", False),
+                     ("hi", hi), ("hi_closed", False)):
+            object.__setattr__(r, k, v)
+        args["range"] = r
+        got = K.step(st, "sep_autonomous", args)
+        if not (isinstance(got, K.Refusal) and got.code == "bad-args"):
+            out.append(f"({lo!r}, {hi!r}): {getattr(got, 'code', 'accepted')}")
+    return out
+
+
 def ode_checks(suite):
     for name, c in X.ODE_PROOFS.items():
         suite.check("O", f"ODE_PROOFS {name}: {c['goal']} -> "
@@ -6133,6 +6155,11 @@ def ode_checks(suite):
     for b in X.ODE_BAD_MOVES:
         suite.check("O", f"ODE_BAD_MOVES {b['id']} -> {b['refusal']}",
                     lambda b=b: ode_bad_move_problems(b))
+    for b in X.ODE_REVIEW_BAD_MOVES:
+        suite.check("O", f"ODE_REVIEW_BAD_MOVES {b['id']} -> {b['refusal']}",
+                    lambda b=b: ode_bad_move_problems(b))
+    suite.check("O", "a hand-built range w in (oo, oo) is refused bad-args "
+                "(E159)", ode_forged_range_problems)
     for rid, gamma, sig, g, want in X.ODE_INSTALL_REFUSALS:
         suite.check("O", f"ODE_INSTALL_REFUSALS {rid} -> {want} (E148)",
                     lambda a=(gamma, sig, g, want): ode_install_problems(*a))

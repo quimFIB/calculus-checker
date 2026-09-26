@@ -711,7 +711,12 @@ def _check_args(move, args, goal):
         if ok and "range" in args:
             r = args["range"]
             ok = (type(r) is Interval and r.var == args["var"]
-                  and not r.lo_closed and not r.hi_closed)
+                  and r.lo_closed is False and r.hi_closed is False)
+            try:  # E159: the range as check_goal reads a domain item
+                ok = ok and (check_goal((Rel("==", Var(r.var), Var(r.var),
+                                             (r,)),)) is None)
+            except Refused:
+                ok = False
     if ok and move == "int_subst":
         ok = (type(args.get("mode", "forward")) is str
               and args.get("mode", "forward") in ("forward", "reverse")
@@ -2544,7 +2549,8 @@ def _ode_autonomous(state, args, minted, buf, energy):
     law = _ode_get(gamma, args["law"], "law")
     kin = _ode_get(gamma, args["kin"], "law") if energy else None
     law_vars = {law.var} | ({kin.var} if energy else set())
-    _ode_scope(g, var, law_vars, (F, f), (t0, t1))
+    _ode_scope(g, var, law_vars, (F, f), (t0, t1, *(
+        e for e in (rng.lo, rng.hi) if isinstance(e, Term))))
     using = [_ode_get(gamma, n, "order") for n in args["using"]]
     s, c, y, R = _ode_law(law)
     if energy:
@@ -2569,6 +2575,8 @@ def _ode_autonomous(state, args, minted, buf, energy):
         _emit(buf, with_domain(item, at_s), S_ODE_RANGE, G)
     for d in divisors:  # E156: the law's match holds where these are nonzero
         _emit(buf, with_domain(NonZero(d), at_s), S_ODE_LAW, G)
+    _charge_formers(buf, c, G, G)  # E159: the law's sides owe their formers
+    _charge_formers(buf, R, at_s, G)  # where the rule reads it, as quad_t's
     on_rng = G + (rng,)
     _charge_formers(buf, F, on_rng, G)
     target = f if energy else Div(c, f)

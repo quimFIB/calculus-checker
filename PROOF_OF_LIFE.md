@@ -501,7 +501,7 @@ bounds and bound's scale, for unit 00 P3(b), at 1097. Item Q followed
 sign (UNIT00.md G9), at 1111. Item O followed (section 30): assumptions
 about declared functions and §6.5's `quad_t`, `sep_autonomous` and
 `energy_integral` (UNIT00.md G6), with the section 29 review folded in
-(E158). The suite is at 1134 of 1134 on Python 3.12.
+(E158). The suite is at 1137 of 1137 on Python 3.12.
 
 ## What is in `kernel/`
 

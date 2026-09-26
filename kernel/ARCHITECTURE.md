@@ -1356,7 +1356,10 @@ with the `using` judgements at s (`ode_range`), the law's divisors
 (`ode_law`), F's formers, `Reg(F, 1)` and the checked `D[var] F == target`
 (`ode_F_C1`, `ode_D`; `ode-check-failed` with the residual), quad_t's
 `Reg(F, 0)` (`ode_F_C0`), and the conclusion's formers at G plus the range
-and `using` items at t0 and t1. The conclusions are E151–E153's.
+and `using` items at t0 and t1. The conclusions are E151–E153's. After
+the section 30 review (E159) the range is re-checked as a domain item
+(a hand-built `(oo, oo)` is `bad-args`), its ends are scope-checked, and
+sep and energy charge the law's c at G and R at s, as quad_t does.
 
 E157 amends E5 in `terms.with_domain`: a key holding a Call keeps its
 domain, since v(0) is an unknown, not a constant. The loader reads a

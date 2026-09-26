@@ -16690,6 +16690,18 @@ DECISIONS_ODE = {
             "owe m*g/b + v > 0 at install, and only the rules read Γ "
             "(E154). Under Γ (up on [0, oo), t >= 0) both hold, so the "
             "theorem is the same.",
+    "E159": "The section 30 review (2026-09-26). (1) Blocking: a range "
+            "built with object.__new__ as w in (oo, oo) passed the args "
+            "check, so no range item was emitted and F's premises sat on "
+            "an empty domain: a false theorem. The range is now read as "
+            "check_goal reads a domain item (its constructor check run "
+            "again), with exact bool flags, and its finite ends go through "
+            "E149's scope check with lo and hi. (2) A law's own definedness "
+            "is owed, not given, in all three rules: sep_autonomous and "
+            "energy_integral charge c's formers at G and R's at G + (s in "
+            "[t0, t1]) + the using judgements at s, as quad_t's target "
+            "already did. So 1 + ln(-1 - s^2) - ln(-1 - s^2) no longer "
+            "reads as 1. ODE_REVIEW_BAD_MOVES pins both.",
     "E157": "Amends E5 at the build. A key holding a Call is not closed: "
             "a declared function is an unknown, so with_domain keeps the "
             "domain of v(0) >= 0 as it does of x >= 0. Before this, the "
@@ -16825,6 +16837,23 @@ ODE_BAD_MOVES = [
      "move": _P1B_ENERGY, "refusal": "ode-law-shape",
      "why": "E153: kin is x' = v exactly"},
 ]
+ODE_REVIEW_BAD_MOVES = [
+    {"id": "undefined_law", "gamma": (
+        ("eom", "s", "[0, oo)",
+         ("law", "D[s] v(s) == 1 + ln(-1 - s^2) - ln(-1 - s^2)")),
+        ("regv", "s", "[0, oo)", ("reg", "v", 1))), "sig": _ODE_V,
+     "goal": "t == v(t) - v(0) @ t >= 0",
+     "move": ("sep_autonomous", {
+         "bind": "h", "law": "eom", "regs": ["regv"], "lo": "0", "hi": "t",
+         "var": "w", "f": "1", "F": "w", "range": "(-oo, oo)", "using": [],
+         "check": "ring", "facts": []}),
+     "refusal": "obligation-decided-false", "why": "E159 (2)"},
+    {"id": "range_end_mentions_s", "gamma": _P1A_GAMMA, "sig": _ODE_V,
+     "goal": ODE_PROOFS["P1A_SEP"]["goal"],
+     "move": ("sep_autonomous", {**_P1A_SEP[1], "range": "(v(s) - 1, oo)"}),
+     "refusal": "ode-scope", "why": "E159 (1)"},
+]
+
 # (id, Γ, sig, goal, refusal): install refuses
 ODE_INSTALL_REFUSALS = [
     ("var_in_goal", (("eom", "t", "[0, oo)",
