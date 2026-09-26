@@ -485,6 +485,19 @@ def ring_polys(terms):
     return polys, tuple(nz.atom_terms)
 
 
+def field_parts(t):
+    """field's normal form of t as (numerator, ((factor, exponent), ...),
+    atoms): t = numerator / product of factor^exponent, every factor monic,
+    atoms mapping each index to its Term. For the untrusted search's clear
+    method (p1_expected E142), which proposes a denominator to multiply
+    by; the checker re-derives nothing from it. Raises Refused like
+    `field`."""
+    nz = _Normaliser(True)
+    f = nz.norm(t)
+    den = tuple((nz.factor_polys[i], e) for i, e in sorted(f.den.items()))
+    return f.num, den, tuple(nz.atom_terms)
+
+
 # ---------------------------------------------------------------- norm_num
 
 _OPS = {"==": operator.eq, "<=": operator.le, "<": operator.lt,

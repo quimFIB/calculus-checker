@@ -890,6 +890,15 @@ steps 4–7). DISCHARGE_SWITCH took two commits: the modules, tested directly
 (item D), and then the wiring, with the suite switched to the post-discharge
 tables by one constant, `DISCHARGE_WIRED` in `proof_of_life.py` (below).
 
+**Method 7, clear (p1_expected section 29, E142–E146).** A key g # 0 or
+g > 0 (>= 0) is discharged from g*d == n by field, with d of certified
+strict sign and n's relation certified; d and n are polynomials over the
+key's own atoms, and field may owe only the key's own divisors. The seams
+are `_clear_terms_ok`, `_clear_identity` and `_clear_relation`; their
+planted bugs run in the suite's own process (item Q). The search tries
+clear last, from `field.field_parts`, splitting the numerator's binomial
+factors with `poly.exact_div`.
+
 **The trust split (E28).** `search.propose(key)` is untrusted and proposes
 one certificate, trying §5.3's methods in TAG_RULES' order and reusing the
 tagger's feasibility checks: `tagger.refutation` is the tagger's own

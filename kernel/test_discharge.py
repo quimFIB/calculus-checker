@@ -1010,7 +1010,7 @@ SEED = 20260924
 PER_CERT = 20      # points sampled per accepted certificate
 MIN_ACCEPTED, MIN_POINTS, MIN_REFUTED = 50, 1000, 50
 CHECKERS = ("reg", "farkas", "hyp", "sign", "sign product", "sign node", "cite",
-            "norm_num", "dispatcher")
+            "clear", "norm_num", "dispatcher")
 XV, YV = T.Var("x"), T.Var("y")
 
 
@@ -1272,6 +1272,20 @@ def mutate(rng, cert):
                 return None
             fs[i] = (f, rel, child)
         c["factors"] = tuple(fs)
+    elif m == "clear":  # E142
+        r = rng.random()
+        if r < 0.3:
+            c["den_rel"] = {">": "<", "<": ">"}[c["den_rel"]]
+        elif r < 0.5:
+            c["num"] = T.Add(c["num"], T.lit(rng.choice((1, -1))))
+        elif r < 0.7:
+            c["den"] = T.Add(c["den"], T.lit(rng.choice((1, -1))))
+        else:
+            k = "den_cert" if r < 0.85 else "num_cert"
+            child = mutate(rng, c[k])
+            if child is None:
+                return None
+            c[k] = child
     elif m == "sign node":
         ps = list(c["parts"])
         r = rng.random()
@@ -1526,6 +1540,59 @@ def _product_key(rng):
     cert = {"method": "sign product", "sense": sense, "content": content,
             "factors": tuple(cfs)}
     return _key(prop, dom), (cert,)
+
+
+def _clear_key(rng):
+    """E142: f1/f2 REL c over an Interval in x, f2 linear with its root
+    outside the Interval (so of one sign there), c a nonzero rational; the
+    relation is the one g = f1/f2 - c has at both ends when they agree,
+    else a random one, and one key in four states the other sign. Also,
+    one key in four, g # 0 read as (f1/f2 - c) # 0."""
+    lo, hi = _q(rng), _q(rng)
+    while lo == hi:
+        hi = _q(rng)
+    lo, hi = min(lo, hi), max(lo, hi)
+    dom = (T.Interval("x", T.lit(lo), True, T.lit(hi), True),)
+    a1, b1 = Fraction(rng.choice((1, -1, 2, 3))), _q(rng)
+    a2 = Fraction(rng.choice((1, -1, 2)))
+    r2 = rng.choice((lo - rng.randint(1, 3), hi + rng.randint(1, 3)))
+    f1 = T.Add(T.Mul(T.lit(a1), XV), T.lit(b1))
+    f2 = T.Add(T.Mul(T.lit(a2), XV), T.lit(-a2 * r2))
+    c = _q(rng) or Fraction(1)
+
+    def g(x):
+        return (a1 * x + b1) / (a2 * (x - r2)) - c
+    q = T.Div(f1, f2)
+    dr = ">" if a2 * ((lo + hi) / 2 - r2) > 0 else "<"
+    n = T.Add(f1, T.Neg(T.Mul(T.lit(c), f2)))  # (f1/f2 - c)*f2
+
+    def cert(k, nr, n=n):
+        """The clear certificate the checker reads, children searched."""
+        dc = SR.propose(T.with_domain(T.Rel(dr, f2, T.Num(0)), dom))
+        prop = T.NonZero(n) if nr == "# 0" else T.Rel(nr, n, T.Num(0))
+        nc = SR.propose(T.with_domain(prop, dom))
+        if dc is None or nc is None:
+            return ()
+        return ({"method": "clear", "den": f2, "den_rel": dr,
+                 "den_cert": dc, "num": n, "num_cert": nc},)
+    if rng.random() < 0.25:
+        k = T.with_domain(T.NonZero(T.Add(q, T.Neg(T.lit(c)))), dom)
+        return k, cert(k, "# 0")
+    ends = (g(lo), g(hi))
+    if all(v > 0 for v in ends):
+        op = ">"
+    elif all(v < 0 for v in ends):
+        op = "<"
+    else:
+        op = rng.choice((">", "<", ">=", "<="))
+    if rng.random() < 0.25:
+        op = {">": "<", "<": ">", ">=": "<=", "<=": ">="}[op]
+    k = T.with_domain(T.Rel(op, q, T.lit(c)), dom)
+    pos = op in (">", ">=")  # g's reading: q - c > 0 or c - q > 0
+    strict = op in (">", "<")
+    nr = (">" if strict else ">=") if dr == ">" else (
+        "<" if strict else "<=")  # the checker's, for g = q - c or c - q
+    return k, cert(k, nr, n if pos else T.Neg(n))
 
 
 def _node_key(rng):
@@ -1826,6 +1893,11 @@ def property_results(seed=SEED, families=None):
             k, certs = _node_key(rng)
             trial(rng, "sign node", k, certs)
 
+    def clear(rng):  # E142
+        for _ in range(450):
+            k, certs = _clear_key(rng)
+            trial(rng, "clear", k, certs)
+
     def cite(rng):
         for _ in range(150):
             k, certs, targets = _cite_key(rng)
@@ -1877,7 +1949,8 @@ def property_results(seed=SEED, families=None):
                     break
 
     runs = {"reg": reg, "farkas": farkas, "hyp": hyp, "sign": sign,
-            "sign product": product, "sign node": node, "cite": cite, "norm_num": leaf,
+            "sign product": product, "sign node": node, "cite": cite,
+            "clear": clear, "norm_num": leaf,
             "dispatcher": dispatcher}
     for name, run in runs.items():
         if families is None or name in families:

@@ -51,6 +51,7 @@ from fractions import Fraction
 import discharge as DC
 import field as FD
 import poly as P
+import residual
 import tagger as TG
 from entries import ENTRIES
 from terms import (Add, Const, Div, Interval, Mul, Neg, NonZero, Num, Pow, Reg,
@@ -128,7 +129,8 @@ def _search_uncached(key, split, depth):
                lambda: _sign(prop), lambda: _product(key, split, depth),
                lambda: (_node(key, depth) if depth == 0 or _IN_NODE
                         else None),
-               lambda: _cite(prop, dom, depth))
+               lambda: _cite(prop, dom, depth),
+               lambda: _clear(key, depth))
     for method in methods:
         try:
             cert = method()
@@ -525,4 +527,87 @@ def _cite(prop, dom, depth=0):
         else:
             return {"method": "cite", "entry": name, "inst": dict(inst),
                     "hyps": tuple(children)}
+    return None
+
+
+# ---------------------------------------------------------------- clear
+
+def _linear_factors(p, atoms):
+    """Untrusted: p as (content, [factor polys]) splitting off every
+    binomial x_i - s*x_j (s = 1, -1) and every rational-root factor that
+    divides it exactly, after the monomial gcd; the rest last."""
+    c, rest = P.content_normal(p)
+    out = []
+    g = P.monomial_gcd(rest)
+    if g:
+        rest = {P.mono_div(m, g): v for m, v in rest.items()}
+        out += [P.atom(i, e) for i, e in g]
+    used = sorted({i for m in rest for i, _ in m})
+    found = True
+    while found and not P.is_const(rest):
+        found = False
+        for i, j in itertools.permutations(used, 2):
+            for s in (1, -1):
+                f = P.add(P.atom(i), P.scale(P.atom(j), -s))
+                q = P.exact_div(rest, f, 2000)
+                if q is not None:
+                    out.append(f)
+                    rest, found = q, True
+                    break
+            if found:
+                break
+    if not P.is_const(rest):
+        split = TG._factor_polys(rest)
+        out += split if split else [rest]
+    elif P.const_value(rest) != 1:
+        c *= P.const_value(rest)
+    return c, out
+
+
+def _clear(key, depth):
+    """E142: g's field normal form N / D; D > 0 or D < 0 by this search,
+    then N (as content times its linear factors) with g's relation."""
+    if depth >= TG.FACTOR_DEPTH:
+        return None
+    if type(key) is NonZero:
+        g, strict = key.e, True
+    else:
+        try:
+            (x, y), strict = DC._reading(replace(key, dom=()))
+        except DC._Reject:
+            return None
+        g = Add(x, Neg(y))
+    try:
+        num, den, atoms = FD.field_parts(g)
+    except (Refused, FD.NotEqual):
+        return None
+    if not den or not num:
+        return None
+    d = None
+    for poly_, e in den:
+        f = residual.poly_term(poly_, atoms)
+        f = f if e == 1 else Pow(f, e)
+        d = f if d is None else Mul(d, f)
+    c, factors = _linear_factors(num, atoms)
+    n = lit(c)
+    for f in factors:
+        n = Mul(n, residual.poly_term(f, atoms))
+    for dr in (">", "<"):
+        # d and n hold no divisor, so their searches never clear again:
+        # the same depth, which keeps E82's node method open to them
+        dc = _search(with_domain(Rel(dr, d, ZERO), key.dom), split=True,
+                     depth=depth)
+        if dc is None:
+            continue
+        if type(key) is NonZero:
+            nr = "# 0"
+        else:
+            nr = (">" if strict else ">=") if dr == ">" else (
+                "<" if strict else "<=")
+        prop = NonZero(n) if nr == "# 0" else Rel(nr, n, ZERO)
+        nc = _search(with_domain(prop, key.dom), split=True, depth=depth)
+        if nc is None:
+            return None
+        return {"method": "clear", "den": d, "den_rel": dr, "den_cert": dc,
+                "num": n, "num_cert": nc}
     return None

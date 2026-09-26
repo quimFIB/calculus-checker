@@ -173,7 +173,10 @@ goals are unchanged too: the course forms are pinned in the suite, not
 added as problem files while the gate is read.
 **P3(b) proves** (section 28): t_up < v0/g from ln(1 + z) < z, by a
 strict `taylor_lagrange` and `bound scale m/b`.
-`python3.12 kernel/proof_of_life.py` passes 1097 checks.
+**Discharge clears denominators** (section 29): u/w < 1 from u <= V < w
+and w > 0 is now discharged by multiplying through by w, so P4(a)'s
+integral proves with v_inf a parameter.
+`python3.12 kernel/proof_of_life.py` passes 1111 checks.
 
 **Doom Emacs has a `:lang dx` module** (`emacs/doom/dx`, 2026-09-26, the
 owner's ask). Linked into `$DOOMDIR/modules/lang/dx` and enabled as `dx`

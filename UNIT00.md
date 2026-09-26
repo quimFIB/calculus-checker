@@ -5,7 +5,7 @@
 gap list, written before any code, as `P3.md` was for readiness P3.
 G1 and G3–G5 are built (p1_expected section 26; `app/assist/CLASSIFY.md`);
 G2 was not needed (E125), and the build added G8 and G9 below; G8 and G2
-were built next (section 27). The corpus and its reading are `app/GATE.md`. It
+were built next (section 27), then P3(b) (section 28) and G9 (section 29). The corpus and its reading are `app/GATE.md`. It
 names the lettered parts that make up the gate's unit 00 share, probes each
 against the kernel as it stands (main at 4034076), and picks the smallest
 cut.
@@ -69,7 +69,7 @@ lettered part split into the goals its worked solution states.
 | G5 | **Classification.** §12.1's `classify` reads the free variables of the right-hand side. It is a tactic report, not a judgement (§5.2), so it belongs in the untrusted assistance layer: F(t), F(v), F(x) or none, with the reason. | P1 | assistance |
 | G6 | **Hypotheses about an unknown function, and §6.5's derived lemmas.** P1's "first reduction" as a checked step needs the equation of motion as a hypothesis on a declared function (`m*D[t] v(t) == ...`), v ∈ C¹, the chain rule for declared functions (`deriv.py`: "d_chain waits for declared"), and `sep_autonomous`, `quad_t` and `energy_integral`, each derived from `int_subst` and `ftc`. None of that exists: install refuses a hypothesis holding a `D` node (E26 (b)). | P1(a)–(c) as proofs | kernel: hypotheses and three rules |
 | G8 | **field keeps an App's argument as written** (found by the build, E125). exp(−b·((m/b)·L)/m) is not the atom exp(−L), and rewrite matches up to `ring`, which cannot cancel b/b. So v(t↑) = 0, the course's own "set v = 0" read on v(t), is stuck; the reference proofs take t↑ and h as quadratures in v instead. The fix touches the trusted normaliser (field-normal atom arguments) or rewrite (matching up to field). **Built (section 27, E131):** field cancels exact factors in an atom's argument, and the course's v(t↑) = 0 and h prove with exp_neg, exp_ln and ln1p_pos. | P3(a) as the course writes it | kernel |
-| G9 | **Discharge is linear in the variables** (E126). u/w < 1 from u ≤ V < w with w > 0 is bilinear and is admitted; P4's quadrature is stated in the scaled form z = u/w. | P4(a) unscaled | discharge |
+| G9 | **Discharge is linear in the variables** (E126). u/w < 1 from u ≤ V < w with w > 0 is bilinear and is admitted; P4's quadrature is stated in the scaled form z = u/w. **Built (section 29):** discharge method 7, `clear`, multiplies through by a denominator of certified sign; the unscaled integral proves outright. | P4(a) unscaled | discharge |
 | G7 | Numbers to four figures (t↑ = 0.1111 s, c = 0.2594 kg/m, t₉₉ = 14.84 s). | P3, P4 | stage 2 |
 
 ## The smallest cut

@@ -16471,7 +16471,8 @@ DECISIONS_CLEAR = {
             "cleared by w or w^2. Table only while the gate is read "
             "(E134's rule); E126's scaled form stays the gate's goal.",
     "E145": "The planted bugs of clear's three seams run in the suite's "
-            "own process (mock.patch, restored after each), each caught by "
+            "own process (the seam set by hand and restored in a finally), "
+            "each caught by "
             "a CLEAR_MUST_REJECT case the bugged checker accepts.",
 }
 
@@ -16480,7 +16481,7 @@ _CL_DOM = "w > 0, u in [0, w)"
 # certificate's children are searched by the suite ('search') or given.
 CLEAR_ACCEPTS = [
     ("u_over_w_lt_1", f"u/w < 1 @ {_CL_DOM}",
-     {"den": "w", "den_rel": ">", "num": "u - w"}),
+     {"den": "w", "den_rel": ">", "num": "w - u"}),
     ("u_over_w_gt_neg_1", f"u/w > -1 @ {_CL_DOM}",
      {"den": "w", "den_rel": ">", "num": "u + w"}),
     ("one_minus_sq_nonzero", f"1 - (u/w)^2 # 0 @ {_CL_DOM}",
@@ -16491,15 +16492,15 @@ CLEAR_ACCEPTS = [
 CLEAR_MUST_REJECT = [
     ("foreign_atom", f"u/w < 1 @ {_CL_DOM}",
      {"den": "w", "den_rel": ">",
-      "num": "u - w + sqrt(-1 - u^2) - sqrt(-1 - u^2)"}, "clear-terms"),
+      "num": "w - u + sqrt(-1 - u^2) - sqrt(-1 - u^2)"}, "clear-terms"),
     ("den_with_div", f"u/w < 1 @ {_CL_DOM}",
-     {"den": "w^2/w", "den_rel": ">", "num": "u - w"}, "clear-terms"),
+     {"den": "w^2/w", "den_rel": ">", "num": "w - u"}, "clear-terms"),
     ("identity_wrong", f"u/w < 1 @ {_CL_DOM}",
-     {"den": "w", "den_rel": ">", "num": "w - u"}, "identity-fails"),
+     {"den": "w", "den_rel": ">", "num": "u - w"}, "identity-fails"),
     ("identity_wrong_false_key", f"u/w > 1 @ {_CL_DOM}",
      {"den": "w", "den_rel": ">", "num": "w - u"}, "identity-fails"),
     ("den_sign_wrong", f"u/w < 1 @ {_CL_DOM}",
-     {"den": "w", "den_rel": "<", "num": "u - w"},
+     {"den": "w", "den_rel": "<", "num": "w - u"},
      "child-rejected"),
     ("no_flip_false_key", f"u/(-w) < -1 @ {_CL_DOM}",
      {"den": "-w", "den_rel": "<", "num": "w - u"}, "child-rejected"),
@@ -16528,4 +16529,14 @@ CLEAR_PROOFS = {
                              "facts": []})],
         "report": "Proved.",
         "why": "E144: rung 5's t = (v_inf/g) artanh(v/v_inf), c = M g/w^2"},
+}
+
+DECISIONS_CLEAR_BUILT = {
+    "E146": "Amended from the spec, found by the build: u/w < 1 reads as g "
+            "= 1 - u/w (_reading takes g = x - y with x the larger side), "
+            "so g*w is w - u, not u - w. CLEAR_ACCEPTS u_over_w_lt_1 and "
+            "CLEAR_MUST_REJECT foreign_atom, den_with_div, identity_wrong "
+            "and den_sign_wrong had the sign backwards; each now fails for "
+            "the one reason it names, and foreign_atom and den_with_div "
+            "pass every other rule, so clear_terms_unchecked is caught.",
 }

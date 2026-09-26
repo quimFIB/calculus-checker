@@ -205,6 +205,8 @@ ITEMS = {
     "G": "field reads an atom's argument up to exact cancellation "
          "(p1_expected section 27)",
     "K": "strict Taylor bounds and bound's scale (p1_expected section 28)",
+    "Q": "clearing a denominator of certified sign (p1_expected section "
+         "29)",
 }
 UNIT, UNIT_TEXT = "unit", ("unit tests: test_field.py, test_grammar.py, "
                            "test_discharge.py")  # beside 1-6
@@ -5928,6 +5930,89 @@ def strict_checks(suite):
                     and K.S_BOUND_SCALE in X.SOURCES_STRICT) else ["differ"])
 
 
+def _clear_cert(key, spec):
+    """A CLEAR_* certificate: the terms parsed, both children searched
+    (a child the search cannot find is the norm_num leaf, which the
+    checker then rejects)."""
+    import discharge as DC
+    import search as SR
+    d, n, dr = term(spec["den"]), term(spec["num"]), spec["den_rel"]
+    nonzero = isinstance(key, T.NonZero)
+    if nonzero:
+        strict = True
+    else:
+        strict = key.op in ("<", ">")
+    nr = DC._clear_relation(dr, nonzero, strict)
+    leaf = {"method": "norm_num"}
+    dc = SR.propose(T.with_domain(T.Rel(dr, d, T.Num(0)), key.dom)) or leaf
+    prop = T.NonZero(n) if nr == "# 0" else T.Rel(nr, n, T.Num(0))
+    nc = SR.propose(T.with_domain(prop, key.dom)) or leaf
+    return {"method": "clear", "den": d, "den_rel": dr, "den_cert": dc,
+            "num": n, "num_cert": nc}
+
+
+def clear_accept_problems(key_text, spec):
+    import discharge as DC
+    key = T.parse_judgement(key_text, SIG)
+    tag, why = DC.verdict(key, _clear_cert(key, spec))
+    out = [] if tag and tag[0] == "clear" else [f"rejected: {why}"]
+    import search as SR
+    if SR.propose(key) is None:
+        out.append("the search proposes nothing")
+    return out
+
+
+def clear_reject_problems(key_text, spec, reason):
+    import discharge as DC
+    key = T.parse_judgement(key_text, SIG)
+    tag, why = DC.verdict(key, _clear_cert(key, spec))
+    if tag is not None:
+        return ["accepted"]
+    return [] if why.startswith(reason) else [f"rejected {why}, "
+                                               f"expected {reason}"]
+
+
+def clear_planted_problems(name, bug):
+    """E145: with the seam mutated, some caught_by case is accepted."""
+    import discharge as DC
+    real = getattr(DC, bug["seam"])  # patched by hand: the parent never
+    # imports unittest.mock (item 3's clean-afterwards check)
+    if bug["seam"] == "_clear_relation":
+        bad = lambda dr, nonzero, strict: real(">", nonzero, strict)  # noqa
+    else:
+        bad = lambda *a: True  # noqa: E731
+    cases = {c[0]: c for c in X.CLEAR_MUST_REJECT}
+    caught = []
+    setattr(DC, bug["seam"], bad)
+    try:
+        for cid in bug["caught_by"]:
+            _, key_text, spec, _ = cases[cid]
+            key = T.parse_judgement(key_text, SIG)
+            if DC.verdict(key, _clear_cert(key, spec))[0] is not None:
+                caught.append(cid)
+    finally:
+        setattr(DC, bug["seam"], real)
+    if getattr(DC, bug["seam"]) is not real:
+        return ["the seam was not restored"]
+    return [] if caught else [f"{name} went unnoticed"]
+
+
+def clear_checks(suite):
+    for cid, key, spec in X.CLEAR_ACCEPTS:
+        suite.check("Q", f"CLEAR_ACCEPTS {cid}: {key} (E142)",
+                    lambda k=key, s=spec: clear_accept_problems(k, s))
+    for cid, key, spec, why in X.CLEAR_MUST_REJECT:
+        suite.check("Q", f"CLEAR_MUST_REJECT {cid} -> {why}",
+                    lambda k=key, s=spec, w=why: clear_reject_problems(k, s, w))
+    for name, bug in X.CLEAR_PLANTED_BUGS.items():
+        suite.check("Q", f"CLEAR_PLANTED_BUGS {name} ({bug['seam']}) is "
+                    "caught (E145)", lambda n=name, b=bug:
+                    clear_planted_problems(n, b))
+    for name, c in X.CLEAR_PROOFS.items():
+        suite.check("Q", f"CLEAR_PROOFS {name}: {c['goal']} -> "
+                    f"{c['report']!r}", lambda c=c: unit00_proof_problems(c))
+
+
 def _trig_forgery(kind):
     """A replacement for trig_norm.propose, per TRIG_NORM_FORGERIES."""
     import trig_norm as TN
@@ -6986,6 +7071,10 @@ def main():
           "section 28)")
     if K is not None:
         strict_checks(suite)
+
+    print("\nclearing a denominator (item Q; p1_expected section 29)")
+    if K is not None:
+        clear_checks(suite)
 
     print("\nPlanted bugs (each in a child process)")
     suite.check(3, "control: the child, unpatched, finds nothing", control_problems)

@@ -17,6 +17,8 @@ A certificate is plain data, a dict whose 'method' picks the checker:
    'factors': ((f, r, cert), ...)}
   {'method': 'sign node', 'parts': ((r, cert), ...)}           method 5b
   {'method': 'cite', 'entry': name, 'inst': {v: t}, 'hyps': ((h, cert), ...)}
+  {'method': 'clear', 'den': d, 'den_rel': r, 'den_cert': cert,
+   'num': n, 'num_cert': cert}                                   method 7
   {'method': 'norm_num'}                                         a leaf
 
 Rationals are int or Fraction, terms are Terms, and a field the checker does
@@ -41,7 +43,8 @@ its own small function, looked up by name at call time: `_ends`,
 `_is_fact`, `_atom_fact`, `_multiplier_ok`, `_goal_used`, `_contradicts`,
 `_square_ok`,
 `_constant_ok`, `_sign_identity`, `_parity_ok`, `_relation_ok`, `_factors_hold`,
-`_hyps_hold`, and the regularity checker's `_reg_class_ok`, `_reg_fields`,
+`_hyps_hold`, `_clear_terms_ok`, `_clear_identity`, `_clear_relation`, and
+the regularity checker's `_reg_class_ok`, `_reg_fields`,
 `_reg_rule`, `_reg_children`, `_interior`, `_reg_sides`,
 `_reg_side_count_ok`, `_reg_side_prop` and `_reg_side_holds`. Keep their names and signatures, and call them only as
 written here.
@@ -656,9 +659,100 @@ def _norm_num(key, cert):
     return "norm_num", ()
 
 
+# ---------------------------------------------------------------- clear (method 7)
+
+def _atoms_of(t):
+    """The subterms of t that are not ring operations: Var, Const, App,
+    Call, RPow (and any other node), outermost first."""
+    if type(t) in (Add, Mul, Neg):
+        return _atoms_of(t.a) | (_atoms_of(t.b) if type(t) is not Neg
+                                 else frozenset())
+    if type(t) is Pow:
+        return _atoms_of(t.base)
+    if type(t) is Num:
+        return frozenset()
+    return frozenset((t,))
+
+
+def _subterms(t):
+    out = {t}
+    for k in _kids(t):
+        if isinstance(k, Term):
+            out |= _subterms(k)
+    return out
+
+
+def _clear_terms_ok(key, d, n):
+    """E142 (b): d and n are polynomials over the key's own atoms: no
+    divisor of their own (no Div, no negative power), and every atom of
+    theirs a Var, a Const or a subterm of the key's proposition, so each is
+    defined wherever the key's terms are. A seam (ARCHITECTURE.md §7)."""
+    subs = _subterms(_prop(key))
+    for t in (d, n):
+        if not _plain(t) or any(type(s) is Div or (type(s) is Pow and s.n < 0)
+                                for s in _subterms(t)):
+            return False
+        if any(type(a) not in (Var, Const) and a not in subs
+               for a in _atoms_of(t)):
+            return False
+    return True
+
+
+def _clear_identity(key, g, d, n):
+    """E142 (c): g*d == n by field, owing only divisors the key's own terms
+    owe (each nonzero wherever those terms are defined). A seam."""
+    try:
+        got = FD.field(Mul(g, d), n).divisors
+    except FD.NotEqual:
+        return False
+    sides = (key.e,) if type(key) is NonZero else (key.lhs, key.rhs)
+    own = set()
+    for s in sides:
+        own |= set(FD.field(s, s).divisors)
+    return set(got) <= own
+
+
+def _clear_relation(dr, nonzero, strict):
+    """E142 (d): n's relation: # 0 under a # 0 key, else g's (> or >=)
+    when d > 0 and its mirror when d < 0. A seam."""
+    if nonzero:
+        return "# 0"
+    if dr == ">":
+        return ">" if strict else ">="
+    return "<" if strict else "<="
+
+
+def _clear(key, cert):
+    """E142, §5.3 method 7: clear a denominator of certified strict sign.
+    The key is g # 0, or an ordering read as g > 0 or g >= 0 (_reading);
+    the certificate names d with d > 0 or d < 0 (its own certificate) and
+    n with g*d == n by field, and n's relation (g's, flipped when d < 0;
+    # 0 for # 0) has its own certificate. Where the key's terms are
+    defined: d and n are (E142 (b)), the identity holds (E142 (c)), d is
+    nonzero with its certified sign, so g = n/d has the sign n's relation
+    and d's give, which is the key's."""
+    _fields(cert, "den", "den_rel", "den_cert", "num", "num_cert")
+    d, n, dr = cert["den"], cert["num"], cert["den_rel"]
+    _need(dr in (">", "<"), "bad-relation")
+    _need(isinstance(d, Term) and isinstance(n, Term), "malformed")
+    nonzero = type(key) is NonZero
+    if nonzero:
+        g, strict = key.e, True
+        _need(_plain(g), "malformed")
+    else:
+        (x, y), strict = _reading(_prop(key))
+        _need(_plain(x) and _plain(y), "malformed")
+        g = Add(x, Neg(y))
+    nr = _clear_relation(dr, nonzero, strict)
+    _need(_clear_terms_ok(key, d, n), "clear-terms")
+    _need(_clear_identity(key, g, d, n), "identity-fails")
+    return "clear", _factors_hold(key.dom, ((d, dr, cert["den_cert"]),
+                                            (n, nr, cert["num_cert"])))
+
+
 _CHECKERS = {"farkas": _farkas, "hyp": _hyp, "sign": _sign,
              "sign product": _product, "sign node": _node,
-             "cite": _cite, "norm_num": _norm_num}
+             "cite": _cite, "norm_num": _norm_num, "clear": _clear}
 
 
 # ---------------------------------------------------------------- regularity (E60-E62)
