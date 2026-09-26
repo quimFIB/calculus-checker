@@ -1,0 +1,83 @@
+{
+  "made": "2026-09-26",
+  "source": "mechanics-to-relativity readiness and unit 00 (problems.html), labelled from the course's hints and worked solutions without reading the recognizer",
+  "rule": "the gate's own corpus (DESIGN.md §17): measured before the gate is read; never used to write or tune a row",
+  "entries": [
+    {
+      "id": "parts.P1_PARTS",
+      "x": "x",
+      "integrand": "sin(sqrt x)",
+      "technique": "root substitution",
+      "source": "Rung 2: \"(1) Remove the root with a substitution. What is left is a polynomial times a sine, which is a job for parts.\" Rung 3: \"x = t^2, dx = 2t dt, t from 0 to pi/2: the integral is 2 int_0^{pi/2} t sin t dt\" (parts then finishes the t-integral)"
+    },
+    {
+      "id": "readiness.P1_2",
+      "x": "x",
+      "integrand": "1/(1 + x^3)",
+      "technique": "partial fractions",
+      "source": "Rung 2: \"(2) Factor 1+x^3 over the reals into a linear and an irreducible quadratic factor, and split into partial fractions. Then split the quadratic's numerator into a multiple of the denominator's derivative plus a constant.\""
+    },
+    {
+      "id": "improper.P2",
+      "x": "t",
+      "integrand": "2/((a+e)+(a-e)*t^2)",
+      "technique": "standard",
+      "source": "Worked solution: \"Rationalise with the half-angle substitution to get an arctangent integral.\" I(a) = int 2 dt/((a+e)+(a-e)t^2) = 2/sqrt((a+e)(a-e)) [arctan(sqrt((a-e)/(a+e)) t)]; \"The half-angle route needs nothing but the arctangent.\""
+    },
+    {
+      "id": "improper.P5",
+      "x": "x",
+      "integrand": "1/(1 + x^4)",
+      "technique": "partial fractions",
+      "also": [
+        "other"
+      ],
+      "source": "Problem: \"Evaluate int_0^oo dx/(1+x^4) exactly by partial fractions ... Then find a second, shorter route that uses the substitution x -> 1/x.\" Another way: \"With x -> 1/x, I = int_0^oo x^2 dx/(1+x^4). Adding the two ... u = x - 1/x\" (the 'also' is that reflection-and-add route)"
+    },
+    {
+      "id": "unit00.P1C_REDUCE",
+      "x": "s",
+      "integrand": "F0*exp(-s/tau)/m",
+      "technique": "standard",
+      "source": "Worked solution (c): \"Time only: case F(t). First reduction: integrate once, xdot(t) = v0 + (F0 tau/m)(1 - e^{-t/tau}).\""
+    },
+    {
+      "id": "unit00.P3A_SEPARATE",
+      "x": "w",
+      "integrand": "1/(w + m*g/b)",
+      "technique": "log",
+      "source": "Rung 4: \"m vdot = -b(v + v_inf) with v_inf = mg/b. Separating gives a logarithm\"; worked solution: \"int_{v0}^{v} dw/(w + v_inf) = -t/tau => ln((v + v_inf)/(v0 + v_inf)) = -t/tau\""
+    },
+    {
+      "id": "unit00.P3A_TOP",
+      "x": "w",
+      "integrand": "m/(-(m*g) - b*w)",
+      "technique": "log",
+      "source": "Rung 4: \"Separating gives a logarithm; the argument never vanishes on the upward leg\"; worked solution: \"Setting v = 0, t_up = tau ln(1 + v0/v_inf)\""
+    },
+    {
+      "id": "unit00.P4A_SEPARATE",
+      "x": "z",
+      "integrand": "1/(g*(1 - z^2))",
+      "technique": "standard",
+      "also": [
+        "partial fractions"
+      ],
+      "source": "Rung 3: \"Take Mg outside and it becomes (1/g) int dw/(1 - (w/v_inf)^2), which is an inverse hyperbolic tangent — or partial fractions and two logarithms, if you prefer.\" Worked solution: \"int_0^z (1-u^2)^{-1} du = artanh z\""
+    },
+    {
+      "id": "unit00.P4A_X",
+      "x": "s",
+      "integrand": "w*tanh(g*s/w)",
+      "technique": "log",
+      "source": "Rung 4: \"You need int tanh. Ask yourself what function differentiates to tanh\"; worked solution: \"x(t) = int_0^t v = (v_inf^2/g)[ln cosh(gs/v_inf)]_0^t ... since d/du ln cosh u = tanh u\""
+    },
+    {
+      "id": "unit00.P9A_V",
+      "x": "s",
+      "integrand": "-(kappa*s) + alpha*s^3",
+      "technique": "standard",
+      "source": "Rung 5 / worked solution (a): \"V(x) = -int_0^x(-kappa s + alpha s^3) ds = (1/2) kappa x^2 - (1/4) alpha x^4, with V(0) = 0.\""
+    }
+  ]
+}
