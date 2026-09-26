@@ -261,10 +261,20 @@ class Page(unittest.TestCase):
         ids = p.eval_on_selector_all("#problem-select option",
                                      "os => os.map(o => o.value)")
         self.assertGreater(len(ids), 8)
+        import api
+        goals = {pid: pr.goal_text for pid, (pr, _, _) in
+                 api._problem_files().items()}
         for pid in ids:
             with self.subTest(pid):
                 self.start(pid)
                 p.wait_for_selector("#goal .katex")
+                # the previous problem's goal may still be drawn: wait for
+                # this one's (a ?A goal shows ?A, an order goal its op)
+                want = "?A" if "?A" in goals[pid] else (
+                    "<=" if "<=" in goals[pid] else "==")
+                p.wait_for_function(
+                    "w => document.querySelector('#goal .plain')"
+                    ".innerText.includes(w)", arg=want)
                 self.assertEqual(p.eval_on_selector_all(
                     ".katex-error", "es => es.length"), 0)
                 self.assertTrue(p.query_selector("#formal-goal .katex"))

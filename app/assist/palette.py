@@ -14,8 +14,8 @@ from entries import ENTRIES
 import field as FD
 from assist import factor as FA
 from assist import probe
-from terms import (App, Deriv, Integral, MVar, NegInf, PosInf, Rel, Term,
-                   Var, show, subst)
+from terms import (App, Deriv, Integral, MVar, Neg, NegInf, PosInf, Rel, Term,
+                   Var, fv, show, subst)
 from dataclasses import fields
 
 
@@ -76,7 +76,9 @@ def entry_matches(e, t):
     reads it, by function name and its argument up to ring: with no schema
     variable that is ring_equal alone (sin(2*(pi/2)) is sin pi); with one,
     each subterm of t's argument is tried as its value (sqrt(1 - (1 - t^2))
-    is sqrt(u^2) with u := t). Entries with two schema variables match
+    is sqrt(u^2) with u := t), then, for a closed argument whose value is
+    negative, its negation, so an odd or even entry's f(-u) meets
+    atan((2*0 - 1)/sqrt 3) with u := -(...). Entries with two schema variables match
     syntactically only, so the palette under-approximates."""
     lhs = e.statement.lhs
     inst = {}
@@ -89,7 +91,9 @@ def entry_matches(e, t):
     if len(e.schema) == 1:
         (v,) = e.schema
         seen = set()
-        for c in subterms(t.arg):
+        neg = _float(t.arg) if not fv(t.arg) else None
+        for c in [*subterms(t.arg), *([Neg(t.arg)] if neg and neg < 0
+                                      else [])]:
             if c in seen:
                 continue
             seen.add(c)
