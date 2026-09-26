@@ -16424,3 +16424,108 @@ DECISIONS_STRICT_REVIEW = {
             "handle or variable of those names is not usable in those two "
             "moves; the other moves are unaffected.",
 }
+
+
+# ---------------------------------------------------------------------------
+# 29. Clearing a denominator of certified sign: UNIT00.md G9 (2026-09-26)
+#
+# The owner, 2026-09-26: "Work on all the kernel gaps". E126 found the wall:
+# u/w < 1 from u <= V < w and w > 0 is bilinear, and discharge's methods
+# are linear (farkas) or read signs (sign, sign product, sign node), so
+# P4(a)'s separated integral with v_inf a parameter proved modulo 12
+# admissions. Specified here before the code is committed.
+
+DECISIONS_CLEAR = {
+    "E142": "Discharge method 7, 'clear' (§5.3's methods gain one): a "
+            "certificate {'method': 'clear', 'den': d, 'den_rel': '>' or "
+            "'<', 'den_cert': c1, 'num': n, 'num_cert': c2}. The key is g # "
+            "0, or an ordering read as g > 0 or g >= 0 (the checkers' "
+            "_reading, g = x - y). The checker requires (a) d REL' 0 at the "
+            "key's domain accepted by c1, REL' the den_rel; (b) d and n "
+            "plain, with no Div and no negative power, every atom of theirs "
+            "a Var, a Const or a subterm of the key's proposition "
+            "(_clear_terms_ok); (c) g*d == n by field, every divisor it "
+            "returns one that field returns for the key's own sides "
+            "(_clear_identity); (d) n's relation at the key's domain "
+            "accepted by c2: # 0 for a # 0 key, else g's (> or >=) when d > "
+            "0 and its mirror (< or <=) when d < 0 (_clear_relation). The "
+            "tag is ('clear', cites of both children). Sound: at a point of "
+            "the domain where the key's terms are defined, every divisor "
+            "(c) returns is nonzero, so g*d = n there; d and n are defined "
+            "there by (b); d has its certified strict sign, so g = n/d, "
+            "whose sign is n's times d's, which (d) makes the key's.",
+    "E143": "The search tries clear last, after cite: field's normal form "
+            "of g (field.field_parts, read-only) gives the numerator N and "
+            "the denominator factors; d is their product, tried > 0 then < "
+            "0; n is N as its content times the monomial gcd times every "
+            "binomial x_i - x_j or x_i + x_j that divides it exactly "
+            "(poly.exact_div), then tagger's rational-root split of the "
+            "rest. The children are searched at the same depth, which "
+            "keeps E82's node method open to them: d and n hold no "
+            "divisor, so neither is cleared again, and the search ends. "
+            "Untrusted, like the rest of search.py.",
+    "E144": "P4(a)'s separated integral as the spec first wrote it, "
+            "Int[u = 0 .. V] M/(M*g - M*g/w^2*u^2) with V in [0, w), now "
+            "proves outright ('Proved.', no admission): its sides u/w < 1, "
+            "u/w > -1, 1 - (u/w)^2 # 0 and M*g - M*g/w^2*u^2 # 0 are "
+            "cleared by w or w^2. Table only while the gate is read "
+            "(E134's rule); E126's scaled form stays the gate's goal.",
+    "E145": "The planted bugs of clear's three seams run in the suite's "
+            "own process (mock.patch, restored after each), each caught by "
+            "a CLEAR_MUST_REJECT case the bugged checker accepts.",
+}
+
+_CL_DOM = "w > 0, u in [0, w)"
+# (id, key, certificate as data, the reason the checker rejects it). A
+# certificate's children are searched by the suite ('search') or given.
+CLEAR_ACCEPTS = [
+    ("u_over_w_lt_1", f"u/w < 1 @ {_CL_DOM}",
+     {"den": "w", "den_rel": ">", "num": "u - w"}),
+    ("u_over_w_gt_neg_1", f"u/w > -1 @ {_CL_DOM}",
+     {"den": "w", "den_rel": ">", "num": "u + w"}),
+    ("one_minus_sq_nonzero", f"1 - (u/w)^2 # 0 @ {_CL_DOM}",
+     {"den": "w^2", "den_rel": ">", "num": "(w - u)*(w + u)"}),
+    ("negative_den", f"u/(-w) > -1 @ {_CL_DOM}",
+     {"den": "-w", "den_rel": "<", "num": "u - w"}),
+]
+CLEAR_MUST_REJECT = [
+    ("foreign_atom", f"u/w < 1 @ {_CL_DOM}",
+     {"den": "w", "den_rel": ">",
+      "num": "u - w + sqrt(-1 - u^2) - sqrt(-1 - u^2)"}, "clear-terms"),
+    ("den_with_div", f"u/w < 1 @ {_CL_DOM}",
+     {"den": "w^2/w", "den_rel": ">", "num": "u - w"}, "clear-terms"),
+    ("identity_wrong", f"u/w < 1 @ {_CL_DOM}",
+     {"den": "w", "den_rel": ">", "num": "w - u"}, "identity-fails"),
+    ("identity_wrong_false_key", f"u/w > 1 @ {_CL_DOM}",
+     {"den": "w", "den_rel": ">", "num": "w - u"}, "identity-fails"),
+    ("den_sign_wrong", f"u/w < 1 @ {_CL_DOM}",
+     {"den": "w", "den_rel": "<", "num": "u - w"},
+     "child-rejected"),
+    ("no_flip_false_key", f"u/(-w) < -1 @ {_CL_DOM}",
+     {"den": "-w", "den_rel": "<", "num": "w - u"}, "child-rejected"),
+]
+CLEAR_PLANTED_BUGS = {
+    "clear_terms_unchecked": {
+        "seam": "_clear_terms_ok", "mutation": "always true",
+        "caught_by": ("foreign_atom", "den_with_div")},
+    "clear_identity_unchecked": {
+        "seam": "_clear_identity", "mutation": "always true",
+        "caught_by": ("identity_wrong", "identity_wrong_false_key")},
+    "clear_relation_not_flipped": {
+        "seam": "_clear_relation", "mutation": "g's relation whatever d's "
+                                               "sign",
+        "caught_by": ("no_flip_false_key",)},
+}
+CLEAR_PROOFS = {
+    "P4A_SEPARATE_UNSCALED": {
+        "goal": "Int[u = 0 .. V] M/(M*g - M*g/w^2*u^2) == ?A @ " + _P4_DOM
+                + ", V in [0, w)",
+        "steps": [("ftc", {"F": "w/g*atanh(u/w)", "check": "field",
+                           "facts": []}),
+                  ("rewrite", {"entry": "atanh_zero", "inst": {},
+                               "at": "atanh(0/w)"}),
+                  ("close", {"value": "w/g*atanh(V/w)", "check": "field",
+                             "facts": []})],
+        "report": "Proved.",
+        "why": "E144: rung 5's t = (v_inf/g) artanh(v/v_inf), c = M g/w^2"},
+}
