@@ -56,7 +56,8 @@ def _text(x):
 
 def _obligation(ob, before):
     method, cites = ob.tag
-    return {"key": _text(ob.key), "sources": sorted(ob.sources),
+    return {"key": _text(ob.key), "key_tex": _tex(ob.key),
+            "sources": sorted(ob.sources),
             "status": ob.status, "method": method, "cites": list(cites),
             "reason": ob.reason, "new": ob.key not in before}
 
@@ -144,6 +145,7 @@ def refusal(r):
     return {"refusal": {"code": r.code, "message": r.message,
                         "residual": None if r.residual is None
                         else _text(r.residual),
+                        "residual_tex": _tex(r.residual),
                         "stuck": getattr(r, "stuck", None)}}
 
 

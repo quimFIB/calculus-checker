@@ -81,6 +81,9 @@ class RoundTrip(unittest.TestCase):
                             with self.subTest(pid=pid, proof=name):
                                 self.check(x, "goal", p.sig)
                                 n += 1
+                    for ob in st.obligations():
+                        with self.subTest(pid=pid, proof=name, key=show(ob.key)):
+                            self.check((ob.key,), "goal", p.sig)
         self.assertGreater(n, 40)
 
     def test_generated(self):

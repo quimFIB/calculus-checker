@@ -140,9 +140,24 @@ class Page(unittest.TestCase):
         p.wait_for_selector("#refusal")
         self.assertIn("ftc-check-failed", p.inner_text("#refusal"))
         self.assertIn("residual", p.inner_text("#refusal"))
+        self.assertTrue(p.query_selector("#refusal .residual .katex"))
         self.assertEqual(self.nodes(), 1)
         self.assertEqual(p.query_selector_all("#backdrop mark.checked"), [])
         self.assertEqual(len(p.query_selector_all("#backdrop mark.error")), 1)
+
+    def test_obligations_render_in_katex(self):
+        p = self.page
+        self.start("stage1.SUB1")
+        self.type_script("int_subst x := 1 - t^2 as t from 1 to 0.")
+        p.click("#next")
+        p.wait_for_selector(".node.current[data-node='n1']")
+        keys = p.query_selector_all("#state td.key")
+        self.assertGreater(len(keys), 5)
+        for k in keys:
+            self.assertTrue(k.query_selector(".katex"), k.inner_text())
+        self.assertEqual(p.query_selector_all("#state td.key .katex-error"), [])
+        self.assertEqual(p.get_attribute("#state td.key .imath", "title"),
+                         "1 - x >= 0 @ [0, 1]")
 
     def test_stuck_explains_and_its_suggestion_steps(self):
         """STUCK.md: a refusal shows its kind of stuck, and "Use this" puts
@@ -305,7 +320,7 @@ class Page(unittest.TestCase):
                       p.input_value("#script"))
         p.keyboard.press("Alt+ArrowDown")
         p.wait_for_selector(".node.current[data-node='n2']")
-        self.assertIn("2 rules", p.inner_text("#status-line"))
+        p.wait_for_selector("#status-line >> text=2 rules")  # drawn after the node
         p.click("#hint-2")
         p.wait_for_selector("#hint")
         self.assertIn("max rung 2", p.inner_text("#status-line"))

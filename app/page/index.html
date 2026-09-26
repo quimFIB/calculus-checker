@@ -89,6 +89,12 @@ table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
 th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { color: var(--muted); font-weight: 600; font-size: 11.5px; }
 td.key { font-family: var(--mono); word-break: break-word; }
+table.obs { table-layout: fixed; }
+table.obs th:nth-child(1) { width: 47%; } table.obs th:nth-child(2) { width: 22%; }
+table.obs th:nth-child(3) { width: 13%; }
+table.obs td:nth-child(n+3) { overflow-wrap: anywhere; }
+td.key .imath { display: block; max-width: 100%; overflow-x: auto; overflow-y: hidden; }
+td.key .imath .katex { white-space: normal; }
 .status { font-weight: 600; }
 .status.discharged { color: var(--ok); } .status.admitted { color: var(--warn); }
 .status.refuted { color: var(--bad); } .status.open { color: var(--muted); }
@@ -301,6 +307,17 @@ function math(texSrc, plain, id) {
     box.append(m, el("div", { class: "plain" }, plain));
   } catch (e) { box.append(el("div", {}, plain)); }
   return box;
+}
+
+// The same inline, for a table cell or a residual: text style, so a
+// fraction stays a line high; the plain text is the tooltip.
+function inlineMath(texSrc, plain) {
+  const m = el("span", { class: "imath", title: plain });
+  try {
+    if (!texSrc || !window.katex) throw new Error("no TeX");
+    katex.render(texSrc, m, { throwOnError: true });
+  } catch (e) { m.className = "mono"; m.removeAttribute("title"); m.textContent = plain; }
+  return m;
 }
 
 // Insert a palette sentence at the cursor, or at the end of the script when
@@ -998,7 +1015,8 @@ function showResponse(refusal, ok, node) {
   if (refusal) {
     box.replaceChildren(el("div", { class: "msg bad", role: "alert", id: "refusal" },
       el("div", {}, el("span", { class: "code" }, refusal.code), " ", refusal.message),
-      refusal.residual ? el("div", { class: "residual" }, "residual: " + refusal.residual) : "",
+      refusal.residual ? el("div", { class: "residual" }, "residual: ",
+        inlineMath(refusal.residual_tex, refusal.residual)) : "",
       stuckBox(refusal.stuck)));
   } else if (ok && node) {
     const newObs = node.obligations.filter((o) => o.new).length;
@@ -1037,10 +1055,10 @@ async function showNode(id, viewing = false) {
   if (n.handles.length) parts.push(el("label", {}, "Facts"), el("div", { class: "mono" }, n.handles.join(", ")));
   parts.push(el("label", {}, `Obligations (${n.obligations.length})`));
   if (n.obligations.length) {
-    parts.push(el("table", {},
+    parts.push(el("table", { class: "obs" },
       el("thead", {}, el("tr", {}, ...["obligation", "status", "by", "from"].map((h) => el("th", {}, h)))),
       el("tbody", {}, ...n.obligations.map((o) => el("tr", {},
-        el("td", { class: "key" }, o.key, o.new ? el("span", { class: "new" }, "new") : ""),
+        el("td", { class: "key" }, inlineMath(o.key_tex, o.key), o.new ? el("span", { class: "new" }, "new") : ""),
         el("td", {}, el("span", { class: "status " + o.status }, o.status),
           o.reason ? el("div", { class: "muted" }, o.reason) : ""),
         el("td", { class: "mono" }, [o.method, ...o.cites].filter(Boolean).join(", ")),

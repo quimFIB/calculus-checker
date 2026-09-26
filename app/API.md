@@ -32,8 +32,9 @@ Standard library only (§16.2): `json`, `http.server`, `secrets`.
 - Ids are strings: sessions are random (`secrets.token_hex(8)`), nodes are
   `n0`, `n1`, ... within a session. `n0` is the installed goal.
 - **A refusal is a 200**, because a refused move is an answer, not an error:
-  `{"refusal": {"code", "message", "residual", "stuck"}}`, `residual` a
-  term string or `null`; `stuck` is STUCK.md's explanation on `/step` and
+  `{"refusal": {"code", "message", "residual", "residual_tex", "stuck"}}`,
+  `residual` a term string or `null`, `residual_tex` its TeX (UI.md §1) or
+  `null`; `stuck` is STUCK.md's explanation on `/step` and
   `/tactic` refusals (`{kind, headline, lines, suggest}`, `suggest` a list
   of sentences the kernel accepted from that node, or `null`), `null`
   elsewhere. Codes are the kernel's own (ARCHITECTURE.md §6, GRAMMAR.md §1),
@@ -56,8 +57,8 @@ Every route that lands on a node returns this shape:
   "report":  kernel.report(state)            -- "Open: ...", "Proved.", ...
   "goal":    str | null                      -- show_goal, null once closed
   "theorem": str | null                      -- after close
-  "obligations": [ { "key", "sources", "status", "method", "cites",
-                     "reason", "new" } ... ]
+  "obligations": [ { "key", "key_tex", "sources", "status", "method",
+                     "cites", "reason", "new" } ... ]
   "occurrences": int | null                  -- rewrite (E2)
   "handles": [str]                           -- fact binds usable here
   "retracted": bool

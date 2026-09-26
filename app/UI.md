@@ -61,6 +61,14 @@ browser and requires no `.katex-error`.
 statement's formal goal with KaTeX and keeps the plain string beside it,
 selectable, since a learner copies terms into tactics.
 
+**Obligations and residuals (2026-09-26, the owner's ask).** Each
+obligation carries `key_tex` and a refusal `residual_tex`, from the same
+printer, under the same round trip (every obligation key of every
+reference proof's nodes is read back). The page draws them inline in
+KaTeX's text style, so a fraction stays about a line high in the table,
+with the plain text as the tooltip; when there is no TeX, or KaTeX
+refuses it, the plain text is shown as before.
+
 ## 2. The palette and the card
 
 ```
