@@ -1,42 +1,37 @@
-;;; dx-mode.el --- Proof General style mode for calculus-checker .dx files -*- lexical-binding: t; -*-
+;;; dx-mode.el --- Rocq-style mode for calculus-checker .dx files, over LSP -*- lexical-binding: t; -*-
 
-;; Requires Emacs 28 or later.  See app/DX.md in the repository.
+;; Requires Emacs 29 or later (eglot).  See app/LSP.md in the repository.
 
 ;;; Commentary:
 
 ;; A .dx file is a tactic script (app/SCRIPT.md) whose first sentence names
-;; the goal: `problem ID.' or `goal G [functions f/1, ...].'.  This mode
-;; steps through it against the checker's REPL (`./calc --repl'), as
-;; Proof General does with Rocq: the checked sentences form a locked
-;; region at the top of the buffer, the goal is shown in *dx-goals* and
-;; the last answer in *dx-response*.
+;; the goal: `problem ID.' or `goal G [functions f/1, ...].'.  As coq-lsp
+;; does for Rocq, the checker's language server (`./calc --lsp') checks
+;; the whole buffer as you type: the checked prefix is shaded, a refused
+;; sentence is a flymake error, and *dx-goals* shows the goal at point.
 ;;
 ;; Untrusted, like all of the app: every verdict shown is a string the
 ;; kernel produced.
 ;;
 ;; Keys:
-;;   C-c C-n, M-<down>   check the next sentence
-;;   C-c C-u, M-<up>     retract the last checked sentence
-;;   C-c RET             check or retract up to point
-;;   C-c C-b             check to the end of the buffer
-;;   C-c C-r             retract everything
-;;   C-c C-.             go to the end of the locked region
-;;   C-c C-c             stop the running step
-;;   C-c C-a             use the last refusal's suggestion
-;;   C-c C-t             the next hint rung (a numeric prefix picks it)
 ;;   C-c C-l             show the goals and response windows
+;;   C-c C-t             the next hint rung at point (a numeric prefix picks it)
+;;   C-c C-a             use the refusal's suggestion (an eglot quickfix)
 ;;   C-c C-p             toggle the pretty display
-;;   C-c C-x             stop the checker
 ;;   C-c TAB             complete a move name into its template
+;; Diagnostics, completion-at-point and code actions are eglot's own.
 
 ;;; Code:
 
-(require 'json)
+(require 'cl-lib)
 (require 'subr-x)
 (require 'seq)
+(require 'eglot)
+(require 'jsonrpc)
+(require 'flymake)
 
 (defgroup dx nil
-  "Stepping through calculus-checker .dx scripts."
+  "Checking calculus-checker .dx scripts."
   :group 'languages
   :prefix "dx-")
 
@@ -50,17 +45,21 @@
   "The checker to run: the repository's ./calc by default."
   :type 'string)
 
-(defcustom dx-calc-args '("--repl")
+(defcustom dx-calc-args '("--lsp")
   "Arguments for `dx-calc-program'."
   :type '(repeat string))
+
+(defcustom dx-eglot-auto t
+  "Non-nil connects a .dx buffer to the checker when it is opened."
+  :type 'boolean)
 
 (defcustom dx-pretty t
   "Non-nil turns on the pretty display (`prettify-symbols-mode')."
   :type 'boolean)
 
-(defcustom dx-auto-layout t
-  "Non-nil shows the goals and response windows when checking starts."
-  :type 'boolean)
+(defcustom dx-goals-delay 0.2
+  "Seconds point must rest before *dx-goals* follows it."
+  :type 'number)
 
 (defface dx-locked-face
   '((((background dark)) :background "#1f3a2a" :extend t)
@@ -70,15 +69,7 @@
 (defface dx-pending-face
   '((((background dark)) :background "#3d3418")
     (t :background "#fdf0c9"))
-  "A sentence being checked, or queued.")
-
-(defface dx-error-face
-  '((t :underline (:style wave :color "#b3261e")))
-  "A refused sentence.")
-
-(defface dx-timeout-face
-  '((t :underline (:style line :color "#8a5a00")))
-  "A sentence stopped by the timeout or by C-c C-c.")
+  "The sentence being checked.")
 
 (defconst dx-moves
   '("ftc" "int_improper" "close" "rewrite" "fact" "int_subst" "int_flip"
@@ -113,386 +104,144 @@
 Only the drawing changes: the buffer, what is saved and what is sent stay
 plain text (app/DX.md).  `*' is left alone: it would draw `(*' as `(·'.")
 
-;;;; Buffer state
+;;;; Eglot (app/LSP.md)
 
-(defvar-local dx--proc nil "The checker process for this buffer.")
-(defvar-local dx--session nil "The API session, once the header is checked.")
-(defvar-local dx--path nil "Node ids: element k is the node after sentence k.")
-(defvar-local dx--done nil "Checked sentences, as (START . END) markers, in order.")
-(defvar-local dx--queue nil "Sentences waiting to be checked, as marker pairs.")
-(defvar-local dx--busy nil "The id of the request in flight, or nil.")
-(defvar-local dx--locked-ov nil)
-(defvar-local dx--pending-ov nil)
-(defvar-local dx--error-ov nil)
-(defvar-local dx--last-refusal nil "(SUGGESTION . ERROR-OVERLAY) of the last refusal.")
+(defun dx--contact (&rest _)
+  (cons dx-calc-program dx-calc-args))
+
+(add-to-list 'eglot-server-programs '(dx-mode . dx--contact))
+
+(defun dx--point (pos)
+  "The buffer position of the LSP position POS."
+  (if (fboundp 'eglot-lsp-position-to-point)
+      (eglot-lsp-position-to-point pos)
+    (eglot--lsp-position-to-point pos)))
+
+(defun dx--line-end (pos)
+  "POS, or past its newline when only a newline follows: a full-width band."
+  (if (eq (char-after pos) ?\n) (1+ pos) pos))
+
+(defun dx--buffer-of (uri)
+  "The live dx-mode buffer visiting URI, or nil."
+  (let* ((path (if (fboundp 'eglot-uri-to-path) (eglot-uri-to-path uri)
+                 (eglot--uri-to-path uri)))
+         (buf (find-buffer-visiting path)))
+    (and buf (with-current-buffer buf (derived-mode-p 'dx-mode)) buf)))
+
+(defvar-local dx--checked-ov nil)
+(defvar-local dx--running-ov nil)
+(defvar-local dx--goals-seq 0 "The latest dx/goals request; older replies are dropped.")
+(defvar-local dx--goals-at nil "(TICK . POINT) the goals window shows.")
 (defvar-local dx--hint nil "(NODE . RUNG) of the last hint.")
-(defvar-local dx--partial "" "Output not yet ended by a newline.")
-(defvar-local dx--callbacks nil "Alist of request id to callback.")
-(defvar-local dx--next-id 0)
-
-;;;; Sentences (app/SCRIPT.md, the same rule as script.next_sentence)
-
-(defconst dx--space '(?\s ?\t ?\n ?\r ?\f ?\v)
-  "ASCII whitespace only, as the Python and JavaScript splitters use.")
-
-(defun dx--next-sentence (from)
-  "The (START . END) of the first sentence at or after FROM, or nil.
-A sentence ends at a `.' followed by whitespace or the end, outside
-\(* *) comments (which do not nest), never inside `..'."
-  (save-excursion
-    (let ((i from) (start nil) (limit (point-max)) (found nil) (stop nil))
-      (while (and (not stop) (< i limit))
-        (cond
-         ((and (eq (char-after i) ?\() (eq (char-after (1+ i)) ?*))
-          (goto-char (+ i 2))
-          (if (search-forward "*)" nil t)
-              (setq i (point))
-            (setq stop t)))
-         (t
-          (let ((c (char-after i)))
-            (unless (or start (memq c dx--space))
-              (setq start i))
-            (when (and (eq c ?.)
-                       (not (and (> i (point-min)) (eq (char-before i) ?.)))
-                       (not (eq (char-after (1+ i)) ?.))
-                       (or (= (1+ i) limit) (memq (char-after (1+ i)) dx--space)))
-              (setq found (and start (cons start (1+ i))) stop t))
-            (setq i (1+ i))))))
-      found)))
-
-(defun dx--locked-end ()
-  "Where the locked region ends."
-  (if dx--done (marker-position (cdar (last dx--done))) (point-min)))
-
-(defun dx--span-text (span)
-  (buffer-substring-no-properties (car span) (cdr span)))
-
-;;;; The process
-
-(defun dx--start ()
-  "Start the checker for this buffer, unless it runs."
-  (unless (process-live-p dx--proc)
-    (let ((buf (current-buffer))
-          (process-connection-type nil))
-      (setq dx--partial "" dx--callbacks nil)
-      (setq dx--proc
-            (make-process
-             :name "dx-calc"
-             :buffer nil
-             :command (cons dx-calc-program dx-calc-args)
-             :connection-type 'pipe
-             :coding 'utf-8
-             :noquery t
-             :filter (lambda (_p out)
-                       (when (buffer-live-p buf)
-                         (with-current-buffer buf (dx--filter out))))
-             :sentinel (lambda (_p event)
-                         (when (buffer-live-p buf)
-                           (with-current-buffer buf (dx--died event))))))
-      (when (and dx-auto-layout (not noninteractive)) (dx-layout)))))
-
-(defun dx--died (event)
-  (unless (process-live-p dx--proc)
-    (dx--reset)
-    (dx--show-response (format "The checker stopped: %s" (string-trim event)))))
-
-(defun dx--filter (out)
-  (setq dx--partial (concat dx--partial out))
-  (let ((lines (split-string dx--partial "\n")))
-    (setq dx--partial (car (last lines)))
-    (dolist (line (butlast lines))
-      (unless (string-empty-p (string-trim line))
-        (let* ((msg (json-parse-string line :object-type 'alist
-                                       :array-type 'list :null-object nil
-                                       :false-object nil))
-               (id (alist-get 'id msg))
-               (cb (and id (alist-get id dx--callbacks))))
-          (when cb
-            (setq dx--callbacks (assq-delete-all id dx--callbacks))
-            (funcall cb (alist-get 'status msg) (alist-get 'body msg))))))))
-
-(defun dx--request (method path body callback)
-  "Send one request; CALLBACK gets the status and the body.  Returns its id."
-  (dx--start)
-  (let ((id (setq dx--next-id (1+ dx--next-id))))
-    (push (cons id callback) dx--callbacks)
-    (process-send-string
-     dx--proc
-     (concat (json-serialize `((id . ,id) (method . ,method) (path . ,path)
-                               (body . ,body)))
-             "\n"))
-    id))
-
-;;;; Overlays and the read-only lock
 
 (defun dx--overlay (sym start end face)
-  "Put the overlay held in SYM on START..END with FACE."
+  "Put the overlay held in SYM on START..END with FACE, or remove it."
   (let ((ov (symbol-value sym)))
-    (if (overlayp ov) (move-overlay ov start end)
-      (setq ov (make-overlay start end nil nil nil))
-      (set sym ov))
-    (overlay-put ov 'face face)
-    ov))
-
-(defun dx--paint ()
-  (dx--overlay 'dx--locked-ov (point-min) (dx--locked-end) 'dx-locked-face)
-  (if dx--queue
-      (dx--overlay 'dx--pending-ov (car (car dx--queue))
-                   (cdr (car (last dx--queue))) 'dx-pending-face)
-    (when (overlayp dx--pending-ov) (delete-overlay dx--pending-ov)
-          (setq dx--pending-ov nil))))
-
-(defun dx--lock (on)
-  "While a request runs the locked and queued text is read-only (DX.md
-review 2): a text property, so no change hook ever has to signal."
-  (with-silent-modifications
-    (let ((end (max (dx--locked-end)
-                    (if dx--queue (cdr (car (last dx--queue))) (point-min)))))
-      (if on
-          (add-text-properties (point-min) end
-                               '(read-only "busy: wait, or C-c C-c"
-                                 front-sticky (read-only)))
-        (remove-text-properties (point-min) (point-max)
-                                '(read-only nil front-sticky nil))))))
-
-(defun dx--clear-error ()
-  (when (overlayp dx--error-ov) (delete-overlay dx--error-ov))
-  (setq dx--error-ov nil))
-
-;;;; Stepping
-
-(defun dx--reset ()
-  "Forget the session: nothing is locked."
-  (setq dx--session nil dx--path nil dx--done nil dx--queue nil dx--busy nil
-        dx--hint nil)
-  (dx--lock nil)
-  (dx--clear-error)
-  (dx--paint))
-
-(defun dx--enqueue-until (limit)
-  "Queue every sentence after the locked region that starts before LIMIT."
-  (let ((at (if dx--queue (cdr (car (last dx--queue))) (dx--locked-end)))
-        s)
-    (while (and (setq s (dx--next-sentence at)) (< (car s) limit))
-      (setq dx--queue (append dx--queue
-                              (list (cons (copy-marker (car s))
-                                          (copy-marker (cdr s))))))
-      (setq at (cdr s)))))
-
-(defun dx--run ()
-  "Check the next queued sentence, if nothing runs."
-  (when (and dx--queue (not dx--busy))
-    (dx--clear-error)
-    (dx--paint)
-    (let* ((span (car dx--queue))
-           (text (dx--span-text span))
-           (buf (current-buffer))
-           (done (lambda (status body)
-                   (when (buffer-live-p buf)
-                     (with-current-buffer buf
-                       (dx--answer span status body))))))
-      (dx--lock t)
-      (setq dx--busy
-            (if (null dx--done)
-                (dx--request "POST" "/session" `((header . ,text)) done)
-              (dx--request "POST" "/tactic"
-                           `((session . ,dx--session)
-                             (node . ,(car (last dx--path)))
-                             (text . ,text))
-                           done))))))
-
-(defun dx--stop-queue (span face)
-  "Stop at SPAN, marked with FACE; nothing more runs."
-  (setq dx--queue nil)
-  (dx--overlay 'dx--error-ov (car span) (cdr span) face))
-
-(defun dx--answer (span status body)
-  (setq dx--busy nil)
-  (dx--lock nil)
-  (setq dx--queue (cdr dx--queue))
-  (let ((refusal (alist-get 'refusal body))
-        (timeout (alist-get 'timeout body))
-        (err (alist-get 'error body)))
     (cond
-     ((or err (not (eql status 200)))
-      (dx--stop-queue span 'dx-error-face)
-      (dx--show-response
-       (format "%s: %s" (alist-get 'code err) (alist-get 'message err))))
-     (refusal
-      (dx--stop-queue span 'dx-error-face)
-      (let ((st (alist-get 'stuck refusal)))
-        (setq dx--last-refusal
-              (and st (alist-get 'suggest st)
-                   (cons (string-join (alist-get 'suggest st) "\n")
-                         dx--error-ov))))
-      (dx--show-refusal refusal))
-     (timeout
-      (dx--stop-queue span 'dx-timeout-face)
-      (dx--show-response (alist-get 'message timeout)))
+     ((or (null start) (null end) (>= start end))
+      (when (overlayp ov) (delete-overlay ov))
+      (set sym nil))
      (t
-      (when (null dx--done)
-        (setq dx--session (alist-get 'session body)))
-      (setq dx--path (append dx--path (list (alist-get 'node body))))
-      (setq dx--done (append dx--done (list span)))
-      (dx--show-node body)
-      (dx--show-response
-       (if (equal (alist-get 'move body) "install")
-           (format "%s: the goal is installed" (alist-get 'node body))
-         (let ((new (seq-count (lambda (o) (alist-get 'new o))
-                               (alist-get 'obligations body))))
-           (format "%s: %s accepted%s" (alist-get 'node body)
-                   (alist-get 'move body)
-                   (if (> new 0) (format ", %d new obligation(s)" new) "")))))))
-    (dx--paint)
-    (dx--run)))
+      (if (overlayp ov) (move-overlay ov start end)
+        (setq ov (make-overlay start end nil nil nil))
+        (overlay-put ov 'priority -50)
+        (set sym ov))
+      (overlay-put ov 'face face)))))
 
-(defun dx--retract-to (k)
-  "Keep the first K checked sentences.  The locked region shrinks at once;
-the /retract goes out afterwards (DX.md review 2)."
-  (when (< k (length dx--done))
-    (let ((victim (nth k dx--path))
-          (session dx--session)
-          (buf (current-buffer)))
-      (dx--clear-error)
-      (setq dx--queue nil)
-      (if (= k 0)
-          ;; the header: the API keeps n0, so the client drops the session
-          (progn (dx--reset)
-                 (dx--show-goals "No goal: the header is not checked.")
-                 (dx--show-response "Retracted everything."))
-        (setq dx--path (seq-take dx--path k)
-              dx--done (seq-take dx--done k))
-        (dx--paint)
-        (dx--request "POST" "/retract" `((session . ,session) (node . ,victim))
-                     (lambda (_status body)
-                       (when (buffer-live-p buf)
-                         (with-current-buffer buf
-                           (when (alist-get 'node body)
-                             (dx--show-node body)))))))
-      (dx--paint))))
+(cl-defmethod eglot-handle-notification
+  (_server (_method (eql dx/progress)) &key uri version checkedEnd running
+           &allow-other-keys)
+  "Shade the checked prefix and the sentence being checked."
+  (when-let ((buf (dx--buffer-of uri)))
+    (with-current-buffer buf
+      (when (eql version eglot--versioned-identifier) ; else a stale text
+        (dx--overlay 'dx--checked-ov (point-min)
+                     (and checkedEnd (dx--line-end (dx--point checkedEnd)))
+                     'dx-locked-face)
+        (dx--overlay 'dx--running-ov
+                     (and running (dx--point (plist-get running :start)))
+                     (and running (dx--point (plist-get running :end)))
+                     'dx-pending-face)
+        (setq dx--goals-at nil)
+        (dx--goals-refresh)))))
 
-(defun dx--sentence-index (pos)
-  "The index of the first checked sentence ending after POS."
-  (seq-position dx--done pos (lambda (d p) (> (marker-position (cdr d)) p))))
+(defun dx--position-params ()
+  (list :textDocument (eglot--TextDocumentIdentifier)
+        :position (eglot--pos-to-lsp-position)))
 
-(defun dx--before-change (beg _end)
-  "An edit inside the locked region retracts to the sentence edited."
-  (when (and dx--done (not dx--busy) (< beg (dx--locked-end)))
-    (dx--retract-to (dx--sentence-index beg))))
+(defun dx--request (method params then)
+  "Send METHOD with PARAMS; THEN gets the result in this buffer."
+  (let ((buf (current-buffer)))
+    (jsonrpc-async-request
+     (eglot--current-server-or-lose) method params
+     :success-fn (lambda (result)
+                   (when (buffer-live-p buf)
+                     (with-current-buffer buf (funcall then result))))
+     :error-fn (lambda (err)
+                 (when (buffer-live-p buf)
+                   (dx--show-response
+                    (format "dx: %s" (plist-get err :message)))))
+     :deferred method)))
 
-(defun dx--after-change (beg end len)
-  "An insertion right after the last checked `.' that does not start with
-whitespace edits that sentence (`close 2.' + `5', DX.md review 2)."
-  (when (and dx--done (not dx--busy) (= len 0) (> end beg)
-             (= beg (dx--locked-end))
-             (not (memq (char-after beg) dx--space)))
-    (dx--retract-to (1- (length dx--done)))))
+(defun dx--goals-refresh ()
+  "Ask for the goal at point, unless *dx-goals* already shows it."
+  (when (and (derived-mode-p 'dx-mode) (eglot-current-server))
+    (let ((at (cons (buffer-modified-tick) (point))))
+      (unless (equal at dx--goals-at)
+        (setq dx--goals-at at)
+        (dx--show-diagnostics-here)
+        (let ((seq (setq dx--goals-seq (1+ dx--goals-seq))))
+          (dx--request :dx/goals (dx--position-params)
+                       (lambda (node)
+                         (when (= seq dx--goals-seq)
+                           (dx--show-goals
+                            (if node (dx--node-text node)
+                              "No goal: the header is not checked."))))))))))
+
+(defun dx--show-diagnostics-here ()
+  "Show the full message of a refusal on point's line in *dx-response*."
+  (when-let ((ds (and (bound-and-true-p flymake-mode)
+                      (flymake-diagnostics (line-beginning-position)
+                                           (line-end-position)))))
+    (dx--show-response (mapconcat #'flymake-diagnostic-text ds "\n"))))
+
+(defvar dx--idle-timer nil)
+
+(defun dx--idle ()
+  (when (derived-mode-p 'dx-mode) (dx--goals-refresh)))
 
 ;;;; Commands
 
-(defun dx--check-idle ()
-  (when dx--busy (user-error "Busy: wait, or C-c C-c")))
-
-(defun dx-next ()
-  "Check the next sentence."
-  (interactive)
-  (dx--check-idle)
-  (let ((s (dx--next-sentence (dx--locked-end))))
-    (if (not s) (message "Nothing more to check")
-      (dx--enqueue-until (1+ (car s)))
-      (dx--run))))
-
-(defun dx-undo ()
-  "Retract the last checked sentence."
-  (interactive)
-  (dx--check-idle)
-  (if dx--done (dx--retract-to (1- (length dx--done)))
-    (message "Nothing is checked")))
-
-(defun dx-goto-point ()
-  "Check or retract up to point."
-  (interactive)
-  (dx--check-idle)
-  (if (< (point) (dx--locked-end))
-      (dx--retract-to (dx--sentence-index (point)))
-    (dx--enqueue-until (point))
-    (dx--run)))
-
-(defun dx-goto-end ()
-  "Check to the end of the buffer."
-  (interactive)
-  (dx--check-idle)
-  (dx--enqueue-until (point-max))
-  (dx--run))
-
-(defun dx-retract-all ()
-  "Retract everything, the header too."
-  (interactive)
-  (dx--check-idle)
-  (when dx--done (dx--retract-to 0)))
-
-(defun dx-goto-locked-end ()
-  "Move point to the end of the locked region."
-  (interactive)
-  (goto-char (dx--locked-end)))
-
-(defun dx-interrupt ()
-  "Stop the running step: nothing changes, and it is not refused."
-  (interactive)
-  (if (not (and dx--busy (process-live-p dx--proc)))
-      (message "Nothing is running")
-    (process-send-string
-     dx--proc (concat (json-serialize `((id . 0) (path . "/cancel")
-                                        (body . ((id . ,dx--busy)))))
-                      "\n"))))
+(defun dx-hint (&optional rung)
+  "Ask for a hint on the goal at point: the next rung, or RUNG (1 to 3)."
+  (interactive "P")
+  (let ((ask (lambda (r)
+               (dx--request
+                :dx/hint (append (dx--position-params) (list :rung r))
+                (lambda (body)
+                  (let ((ref (plist-get body :refusal)))
+                    (setq dx--hint (cons (plist-get body :node) r))
+                    (dx--show-response
+                     (if ref (format "%s: %s" (plist-get ref :code)
+                                     (plist-get ref :message))
+                       (format "Hint %s · %s\n%s\nCosts: %s"
+                               (make-string r ??)
+                               (plist-get body :integral)
+                               (plist-get body :text)
+                               (plist-get body :cost))))))))))
+    (if rung (funcall ask (max 1 (min 3 (prefix-numeric-value rung))))
+      ;; the next rung for the same node: ask the node first
+      (dx--request :dx/goals (dx--position-params)
+                   (lambda (node)
+                     (let ((id (plist-get node :node)))
+                       (funcall ask (if (equal (car dx--hint) id)
+                                        (min 3 (1+ (cdr dx--hint)))
+                                      1))))))))
 
 (defun dx-use-suggestion ()
-  "Put the last refusal's suggestion in place of the refused sentence."
+  "Replace the refused sentence at point with the checker's suggestion."
   (interactive)
-  (dx--check-idle)
-  (let ((sug (car dx--last-refusal)) (ov (cdr dx--last-refusal)))
-    (if (not (and sug (overlayp ov) (overlay-buffer ov)))
-        (message "No suggestion to use")
-      (let ((start (overlay-start ov)) (end (overlay-end ov)))
-        (dx--clear-error)
-        (setq dx--last-refusal nil)
-        (save-excursion
-          (goto-char start)
-          (delete-region start end)
-          (insert sug))))))
-
-(defun dx-hint (&optional rung)
-  "Ask for a hint on the current node: the next rung, or RUNG (1 to 3)."
-  (interactive "P")
-  (dx--check-idle)
-  (unless dx--session (user-error "Check the header first"))
-  (let* ((node (car (last dx--path)))
-         (r (cond (rung (max 1 (min 3 (prefix-numeric-value rung))))
-                  ((equal (car dx--hint) node) (min 3 (1+ (cdr dx--hint))))
-                  (t 1)))
-         (buf (current-buffer)))
-    (setq dx--hint (cons node r))
-    (dx--request "GET" "/hint" `((session . ,dx--session) (node . ,node)
-                                 (rung . ,(number-to-string r)))
-                 (lambda (_status body)
-                   (when (buffer-live-p buf)
-                     (with-current-buffer buf
-                       (let ((ref (alist-get 'refusal body)))
-                         (dx--show-response
-                          (if ref (format "%s: %s" (alist-get 'code ref)
-                                          (alist-get 'message ref))
-                            (format "Hint %s · %s\n%s\nCosts: %s"
-                                    (make-string r ??)
-                                    (alist-get 'integral body)
-                                    (alist-get 'text body)
-                                    (alist-get 'cost body)))))))))))
-
-(defun dx-exit ()
-  "Stop the checker; the locked region is cleared."
-  (interactive)
-  (when (process-live-p dx--proc) (delete-process dx--proc))
-  (setq dx--proc nil)
-  (dx--reset))
+  (eglot-code-action-quickfix (point-min) (point-max)))
 
 (defun dx-complete ()
   "Complete the move name before point into its template (app/PRETTY.md)."
@@ -530,47 +279,31 @@ whitespace edits that sentence (`close 2.' + `5', DX.md review 2)."
       (insert (or text ""))
       (goto-char (point-min)))))
 
-(defun dx--show-node (n)
-  (dx--show-goals
-   (concat
-    (alist-get 'report n) "\n"
-    (when (alist-get 'goal n) (format "\nGoal\n  %s\n" (alist-get 'goal n)))
-    (when (alist-get 'theorem n)
-      (format "\nTheorem\n  %s\n" (alist-get 'theorem n)))
-    (when (alist-get 'handles n)
-      (format "\nFacts: %s\n" (string-join (alist-get 'handles n) ", ")))
-    (let ((obs (alist-get 'obligations n)))
-      (format "\nObligations (%d)\n%s" (length obs)
-              (mapconcat
-               (lambda (o)
-                 (format "  %-10s %s%s  [%s]"
-                         (alist-get 'status o) (alist-get 'key o)
-                         (if (alist-get 'new o) " (new)" "")
-                         (string-join (delq nil (cons (alist-get 'method o)
-                                                      (alist-get 'cites o)))
-                                      ", ")))
-               obs "\n"))))))
-
-(defun dx--show-refusal (r)
-  (let ((st (alist-get 'stuck r)))
-    (dx--show-response
-     (concat
-      (format "%s: %s\n" (alist-get 'code r) (alist-get 'message r))
-      (when (alist-get 'residual r)
-        (format "residual: %s\n" (alist-get 'residual r)))
-      (when st
-        (concat "\n" (upcase (or (cdr (assoc (alist-get 'kind st)
-                                              '(("no-match" . "nothing matches")
-                                                ("obligation" . "a condition fails")
-                                                ("algebra" . "the algebra does not close"))))
-                                 "refused"))
-                "\n" (alist-get 'headline st) "\n"
-                (mapconcat (lambda (l) (concat " - " l "\n"))
-                           (alist-get 'lines st) "")
-                (when (alist-get 'suggest st)
-                  (concat "\nSuggestion (C-c C-a):\n  "
-                          (string-join (alist-get 'suggest st) "\n  ")
-                          "\n"))))))))
+(defun dx--node-text (n)
+  "The goals text of the rendered node N (app/API.md), a plist."
+  (concat
+   (plist-get n :report)
+   (when (eq (plist-get n :checked) :json-false)
+     "\n(point is past what is checked: this is the last checked goal)")
+   "\n"
+   (when (plist-get n :goal) (format "\nGoal\n  %s\n" (plist-get n :goal)))
+   (when (plist-get n :theorem)
+     (format "\nTheorem\n  %s\n" (plist-get n :theorem)))
+   (when (> (length (plist-get n :handles)) 0)
+     (format "\nFacts: %s\n"
+             (string-join (append (plist-get n :handles) nil) ", ")))
+   (let ((obs (append (plist-get n :obligations) nil)))
+     (format "\nObligations (%d)\n%s" (length obs)
+             (mapconcat
+              (lambda (o)
+                (format "  %-10s %s%s  [%s]"
+                        (plist-get o :status) (plist-get o :key)
+                        (if (eq (plist-get o :new) t) " (new)" "")
+                        (string-join
+                         (delq nil (cons (plist-get o :method)
+                                         (append (plist-get o :cites) nil)))
+                         ", ")))
+              obs "\n")))))
 
 (defun dx-layout ()
   "Show the script, the goals and the response side by side."
@@ -581,7 +314,9 @@ whitespace edits that sentence (`close 2.' + `5', DX.md review 2)."
            (below (with-selected-window right (split-window-below))))
       (set-window-buffer right (dx--special-buffer "*dx-goals*"))
       (set-window-buffer below (dx--special-buffer "*dx-response*"))
-      (switch-to-buffer script))))
+      (switch-to-buffer script)
+      (setq dx--goals-at nil)
+      (dx--goals-refresh))))
 
 ;;;; Modes
 
@@ -618,34 +353,24 @@ whitespace edits that sentence (`close 2.' + `5', DX.md review 2)."
      . font-lock-type-face))
   "Highlighting for `dx-mode'.")
 
-(defvar dx-mode-map
-  (let ((m (make-sparse-keymap)))
-    (define-key m (kbd "C-c C-n") #'dx-next)
-    (define-key m (kbd "M-<down>") #'dx-next)
-    (define-key m (kbd "C-c C-u") #'dx-undo)
-    (define-key m (kbd "M-<up>") #'dx-undo)
-    (define-key m (kbd "C-c RET") #'dx-goto-point)
-    (define-key m (kbd "C-c C-b") #'dx-goto-end)
-    (define-key m (kbd "C-c C-r") #'dx-retract-all)
-    (define-key m (kbd "C-c C-.") #'dx-goto-locked-end)
-    (define-key m (kbd "C-c C-c") #'dx-interrupt)
-    (define-key m (kbd "C-c C-a") #'dx-use-suggestion)
-    (define-key m (kbd "C-c C-t") #'dx-hint)
-    (define-key m (kbd "C-c C-l") #'dx-layout)
-    (define-key m (kbd "C-c C-p") #'prettify-symbols-mode)
-    (define-key m (kbd "C-c C-x") #'dx-exit)
-    (define-key m (kbd "C-c TAB") #'dx-complete)
-    m)
-  "Keys for `dx-mode'.")
-
 (defun dx--pretty-setup ()
   (setq-local prettify-symbols-alist dx-pretty-symbols)
   (setq-local prettify-symbols-unprettify-at-point 'right-edge)
   (when dx-pretty (prettify-symbols-mode 1)))
 
+(defvar dx-mode-map
+  (let ((m (make-sparse-keymap)))
+    (define-key m (kbd "C-c C-l") #'dx-layout)
+    (define-key m (kbd "C-c C-t") #'dx-hint)
+    (define-key m (kbd "C-c C-a") #'dx-use-suggestion)
+    (define-key m (kbd "C-c C-p") #'prettify-symbols-mode)
+    (define-key m (kbd "C-c TAB") #'dx-complete)
+    m)
+  "Keys for `dx-mode'.")
+
 ;;;###autoload
 (define-derived-mode dx-mode prog-mode "dx"
-  "Step through a calculus-checker .dx script, Proof General style.
+  "Check a calculus-checker .dx script as you type, through eglot.
 
 \\{dx-mode-map}"
   :syntax-table dx-mode-syntax-table
@@ -654,9 +379,10 @@ whitespace edits that sentence (`close 2.' + `5', DX.md review 2)."
   (setq-local comment-start-skip "(\\*+\\s-*")
   (setq-local font-lock-defaults '(dx-font-lock-keywords))
   (dx--pretty-setup)
-  (add-hook 'before-change-functions #'dx--before-change nil t)
-  (add-hook 'after-change-functions #'dx--after-change nil t)
-  (add-hook 'kill-buffer-hook #'dx-exit nil t))
+  (unless dx--idle-timer
+    (setq dx--idle-timer (run-with-idle-timer dx-goals-delay t #'dx--idle)))
+  (when (and dx-eglot-auto buffer-file-name)
+    (eglot-ensure)))
 
 (define-derived-mode dx-goals-mode special-mode "dx-goals"
   "The goals and responses of a `dx-mode' buffer."

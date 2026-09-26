@@ -122,9 +122,13 @@ integral with bound boxes), small boxes for names and menus for `ring` /
 `field`; the text stays the model, read back through `app/untex.py`,
 which refuses what GRAMMAR.md refuses (D4–D6). Typing a move's first
 letters offers its template. `.dx` files (a header sentence, `problem
-ID.` or `goal G.`, then tactics) open in `emacs/dx-mode.el`, a Proof
-General style mode over `./calc --repl`. Suites: `app/test_pretty.py`,
-`app/test_dx.py` (which runs the ERT suite when emacs is installed).
+ID.` or `goal G.`, then tactics) open in `emacs/dx-mode.el`, which talks to
+the checker's language server (`./calc --lsp`, `app/LSP.md`) through
+eglot, as coq-lsp does for Rocq: the whole buffer is checked as you type,
+the checked prefix is shaded, a refusal is a flymake error whose quickfix
+is the stuck suggestion, and `*dx-goals*` follows point. Suites:
+`app/test_pretty.py`, `app/test_dx.py`, `app/test_lsp.py` (which runs
+the ERT suite when emacs is installed).
 
 **The check-mode page is up** (`app/PAGE.md`, revision 2, 2026-09-25):
 `./calc` serves it at `http://127.0.0.1:8765/`, laid out like rocq-mode. You

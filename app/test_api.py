@@ -139,6 +139,14 @@ class Routes(Api):
         self.assertEqual(self.call("GET", "/node", {"session": n["session"],
                                                     "node": "n0"}), n)
 
+    def test_drop_forgets_the_session(self):
+        n = self.s1()
+        body = {"session": n["session"]}
+        self.assertEqual(self.call("POST", "/drop", body), {"dropped": True})
+        self.assertEqual(self.call("POST", "/drop", body), {"dropped": False})
+        self.error(self.call("GET", "/node", dict(body, node="n0"),
+                             status=400), "unknown-session")
+
     def test_parse(self):
         r = self.call("POST", "/parse", {"text": "sin x^2"})
         self.assertEqual(r, {"term": "sin(x^2)",

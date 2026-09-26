@@ -495,6 +495,16 @@ def layout(body):
     return {"pieces": pieces}
 
 
+def drop(body):
+    """LSP.md review 3: forget a session (its nodes and states). App-side
+    only; the work file, if any, is untouched."""
+    sid = _field(body, "session", str)
+    sess = SESSIONS.pop(sid, None)
+    if sess is not None and OWNER.get(getattr(sess, "key", None)) == sid:
+        OWNER[sess.key] = None
+    return {"dropped": sess is not None}
+
+
 def templates(_):
     """PRETTY.md, autocomplete: each move's template and its usage line."""
     return {"templates": [{"move": m, "template": t, "usage": script.USAGE[m]}
@@ -624,6 +634,7 @@ ROUTES = {("GET", "/problems"): problems,
           ("POST", "/layout"): layout,
           ("POST", "/untex"): untex_,
           ("GET", "/templates"): templates,
+          ("POST", "/drop"): drop,
           ("GET", "/moves"): moves,
           ("GET", "/hint"): hint,
           ("GET", "/palette"): palette,

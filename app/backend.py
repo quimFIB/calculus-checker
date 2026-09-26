@@ -155,6 +155,10 @@ class Worker:
                     got = ("dead",)
                 if got[0] == "reply":
                     a = got[1]
+                    if path == "/drop" and sid:  # LSP.md review 3
+                        self.docs.pop(sid, None)
+                        self.live.discard(sid)
+                        self.saved.pop(sid, None)
                     for s, doc in a.get("docs", {}).items():
                         self.docs[s] = doc
                         self.live.add(s)

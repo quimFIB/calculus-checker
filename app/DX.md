@@ -5,6 +5,12 @@ Emacs mode. Take inspiration on rocq mode. You may assume the file
 extension for this is .dx". Written before the code. The page's half of
 the same ask is `PRETTY.md`.
 
+**Revised 2026-09-26: the stepping model below is replaced by a language
+server (LSP.md).** The owner chose "LSP, retire REPL": `./calc --repl`,
+`app/repl.py` and the stepping commands are gone. The .dx format, the
+header, `POST /session {header}`, the pretty display and font lock stay as
+written here. The sections that no longer hold are marked.
+
 Untrusted, like all of `app/`. The Emacs mode is a second client of the
 same API (API.md), as the page is: every verdict it shows is a string the
 kernel produced.
@@ -13,11 +19,10 @@ kernel produced.
 
 ```
 app/dx.py                 a .dx file's header sentence: read and print
-app/repl.py               the API over stdin/stdout, one JSON line each way
-./calc --repl             starts it (./calc alone still serves the page)
-emacs/dx-mode.el          the major mode, one file, no packages beyond Emacs 27+
-emacs/test-dx-mode.el     ERT tests, run against the real ./calc --repl
-app/test_dx.py            dx.py, repl.py, and the ERT suite when emacs is installed
+app/lsp.py                the language server; ./calc --lsp starts it (LSP.md)
+emacs/dx-mode.el          the major mode and its eglot client, Emacs 29+
+emacs/test-dx-mode.el     ERT tests, run by app/test_lsp.py against ./calc --lsp
+app/test_dx.py            dx.py and the sentence fixture
 ```
 
 ## The .dx file
@@ -55,7 +60,7 @@ goal Int[x = 0 .. 1] f(x) == ?A functions f/1.
 The header is sent as `POST /session {header}` (review 3), so no client
 parses one.
 
-## The REPL (`./calc --repl`)
+## The REPL (`./calc --repl`): retired, see LSP.md
 
 One JSON object per line each way, UTF-8:
 
@@ -75,6 +80,9 @@ answers `{"id": null, "status": 400, "body": {"error": ...}}`. End of input
 stops it.
 
 ## The Emacs mode
+
+*The stepping model, keys and windows below are replaced by LSP.md's
+eglot client; the pretty display and font lock still hold.*
 
 Proof General's model, as the page's text mode already follows it (PAGE.md
 revision 2). The buffer is the script; a **locked region** at its start is

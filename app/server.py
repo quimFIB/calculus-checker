@@ -139,13 +139,13 @@ def main(argv=None):
     p.add_argument("--step-timeout", type=float, default=10.0,
                    help="seconds a request may run before it is stopped "
                         "(TIMEOUT.md); 0 for none")
-    p.add_argument("--repl", action="store_true",
-                   help="speak the API as JSON lines on stdin and stdout "
-                        "(DX.md), for the Emacs mode; nothing is saved")
+    p.add_argument("--lsp", action="store_true",
+                   help="run the .dx language server on stdin and stdout "
+                        "(LSP.md), for editors; nothing is saved")
     a = p.parse_args(argv)
-    if a.repl:
-        import repl
-        return repl.main(a.step_timeout)
+    if a.lsp:
+        import lsp
+        return lsp.main(a.step_timeout)
     serve(a.port, a.verbose, a.step_timeout, os.path.abspath(a.work))
 
 

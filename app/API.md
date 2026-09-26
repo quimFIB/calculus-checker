@@ -103,6 +103,7 @@ POST /apart    {term, var, field, ansatz?} -> {polynomial, terms, sum, check}
 POST /layout   {text, functions?}      -> {pieces: [{kind, start, end, segments}]}  (PRETTY.md)
 POST /untex    {latex, functions?}     -> {term, tex} | refusal     (PRETTY.md)
 GET  /templates                        -> {templates: [{move, template, usage}]}   (PRETTY.md)
+POST /drop     {session}              -> {dropped: bool}           (LSP.md)
 ```
 
 - **`/problems`** lists every `*.json` under `kernel/problems/` that
