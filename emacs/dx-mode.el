@@ -85,7 +85,8 @@ goals window."
 
 (defconst dx-moves
   '("ftc" "int_improper" "close" "rewrite" "fact" "int_subst" "int_flip"
-    "int_parts" "taylor_lagrange" "bound" "verify")
+    "int_parts" "taylor_lagrange" "bound" "verify"
+    "quad_t" "sep_autonomous" "energy_integral")
   "The moves, as app/SCRIPT.md names them.")
 
 (defconst dx-templates
@@ -99,7 +100,10 @@ goals window."
     ("int_parts" . "int_parts in x with u := _; v := _ by ring.")
     ("taylor_lagrange" . "taylor_lagrange h := lower of _ in u from _ to _ at _ derivs _; _ increasing by field.")
     ("bound" . "bound by field using h.")
-    ("verify" . "verify by field."))
+    ("verify" . "verify by field.")
+    ("quad_t" . "quad_t h := eom from _ to _ in u antiderivative _ regs regv by field.")
+    ("sep_autonomous" . "sep_autonomous h := eom from _ to _ in w rate _ antiderivative _ range (_, oo) regs regv by field.")
+    ("energy_integral" . "energy_integral h := eom kinematic kin from _ to _ in w rate _ antiderivative _ range (-oo, oo) regs regx, regv by field."))
   "Each move's shape, as script.TEMPLATES has it (app/PRETTY.md).")
 
 (defconst dx-pretty-symbols
@@ -453,11 +457,12 @@ fits the goals window; indented two spaces."
   "Syntax table for `dx-mode'.")
 
 (defconst dx-font-lock-keywords
-  `((,(regexp-opt '("problem" "goal" "functions") 'symbols)
+  `((,(regexp-opt '("problem" "goal" "functions" "assuming") 'symbols)
      . font-lock-preprocessor-face)
     (,(regexp-opt dx-moves 'symbols) . font-lock-keyword-face)
     (,(regexp-opt '("by" "using" "with" "at" "occurrence" "as" "from" "to"
                     "reverse" "in" "derivs" "increasing" "decreasing" "strictly" "scale"
+                    "kinematic" "rate" "antiderivative" "range" "regs" "given"
                     "lower" "upper" "of")
                   'symbols)
      . font-lock-builtin-face)

@@ -9,7 +9,8 @@ import re
 
 KEYWORDS = ("by", "using", "with", "at", "occurrence", "as", "from", "to",
             "reverse", "in", "derivs", "increasing", "decreasing",
-            "strictly", "scale")
+            "strictly", "scale", "kinematic", "rate", "antiderivative", "range",
+            "regs", "given")
 SENSES = ("increasing", "decreasing")  # taylor_lagrange's flag clauses
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_']*\Z")
 
@@ -30,7 +31,19 @@ FORMS = {
                         {"in", "from", "to", "at", "derivs"}),
     "bound": ({"scale", "by", "using"}, {"using"}),
     "verify": ({"by", "using"}, set()),
+    # p1_expected section 30 (E149): h := law, the law's name in Γ
+    "quad_t": ({"from", "to", "in", "antiderivative", "regs", "by",
+                "using"}, {"from", "to", "in", "antiderivative"}),
+    "sep_autonomous": ({"from", "to", "in", "rate", "antiderivative",
+                        "range", "regs", "given", "by", "using"},
+                       {"from", "to", "in", "rate", "antiderivative",
+                        "range"}),
+    "energy_integral": ({"kinematic", "from", "to", "in", "rate", "antiderivative",
+                         "range", "regs", "given", "by", "using"},
+                        {"kinematic", "from", "to", "in", "rate", "antiderivative",
+                         "range"}),
 }
+ODE = ("quad_t", "sep_autonomous", "energy_integral")
 USAGE = {
     "ftc": "ftc T [occurrence N] [by ring|field] [using h, ...]",
     "int_improper": "int_improper T [occurrence N] [by ring|field] "
@@ -48,6 +61,14 @@ USAGE = {
                        "increasing|decreasing [by ring|field] [using h, ...]",
     "bound": "bound [scale T] [by ring|field] using h, ...",
     "verify": "verify [by ring|field] [using h, ...]",
+    "quad_t": "quad_t h := law from T to T in u antiderivative T "
+              "[regs r, ...] [by ring|field] [using h, ...]",
+    "sep_autonomous": "sep_autonomous h := law from T to T in u rate T "
+                      "antiderivative T range (a, b) [regs r, ...] "
+                      "[given a, ...] [by ring|field] [using h, ...]",
+    "energy_integral": "energy_integral h := law kinematic k from T to T in u "
+                       "rate T antiderivative T range (a, b) [regs r, ...] "
+                       "[given a, ...] [by ring|field] [using h, ...]",
 }
 
 # PRETTY.md, autocomplete: each move's shape with a `_` hole for every
@@ -65,6 +86,13 @@ TEMPLATES = {
                        "derivs _; _ increasing by field.",
     "bound": "bound by field using h.",
     "verify": "verify by field.",
+    "quad_t": "quad_t h := eom from _ to _ in u antiderivative _ regs regv "
+              "by field.",
+    "sep_autonomous": "sep_autonomous h := eom from _ to _ in w rate _ "
+                      "antiderivative _ range (_, oo) regs regv by field.",
+    "energy_integral": "energy_integral h := eom kinematic kin from _ to _ in w "
+                       "rate _ antiderivative _ range (-oo, oo) regs regx, "
+                       "regv by field.",
 }
 
 
@@ -226,6 +254,8 @@ def _build(move, head, cl):
         return occ
     if move == "taylor_lagrange":
         return _taylor(head, cl)
+    if move in ODE:
+        return _ode(move, head, cl)
     if move in ("bound", "verify"):  # p1_expected E99, E112
         if head:
             raise TacticError(f"unexpected {head!r}")
@@ -263,6 +293,30 @@ def _taylor(head, cl):
                      "lo": _term(cl["from"], "from"),
                      "hi": _term(cl["to"], "to"), "at": _term(cl["at"], "at"),
                      "derivs": derivs, "side": side, "sense": sense}, cl)
+
+
+def _names(s, what):
+    return [_name(x.strip(), what) for x in _split_top(s, ",")
+            if x.strip()] if s else []
+
+
+def _ode(move, head, cl):
+    """E149's args: 'h := law' plus the clauses; regs and given are name
+    lists, omitted as empty."""
+    h, law = _assign(head, move)
+    args = {"bind": h, "law": _name(law, move)}
+    if move == "energy_integral":
+        args["kin"] = _name(cl["kinematic"], "kinematic")
+    args.update({"regs": _names(cl.get("regs", ""), "regs"),
+                 "lo": _term(cl["from"], "from"), "hi": _term(cl["to"], "to"),
+                 "var": _name(cl["in"], "in")})
+    if move != "quad_t":
+        args["f"] = _term(cl["rate"], "rate")
+    args["F"] = _term(cl["antiderivative"], "antiderivative")
+    if move != "quad_t":
+        args["range"] = _term(cl["range"], "range")
+        args["using"] = _names(cl.get("given", ""), "given")
+    return _checked(args, cl)
 
 
 # ---------------------------------------------------------------- printing
@@ -310,6 +364,20 @@ def show(move, args):
     elif move in ("bound", "verify"):
         sc = f" scale {args['scale']}" if "scale" in args else ""
         s = f"{move}{sc}{_tail(args)}"
+    elif move in ODE:
+        kin = f" kinematic {args['kin']}" if move == "energy_integral" else ""
+        s = (f"{move} {args['bind']} := {args['law']}{kin} from {args['lo']}"
+             f" to {args['hi']} in {args['var']}")
+        if move != "quad_t":
+            s += f" rate {args['f']}"
+        s += f" antiderivative {args['F']}"
+        if move != "quad_t":
+            s += f" range {args['range']}"
+        if args.get("regs"):
+            s += " regs " + ", ".join(args["regs"])
+        if move != "quad_t" and args.get("using"):
+            s += " given " + ", ".join(args["using"])
+        s += _tail(args)
     else:
         raise ValueError(f"no tactic form for {move!r}")
     return s + "."
@@ -472,6 +540,22 @@ def layout(sentence):
                 spans.append((i, i + len(w), "choice:increasing|decreasing"))
     if move == "bound" and "scale" in clause:
         term(clause["scale"])
+    if move in ODE:
+        name(before_assign(head))
+        for w in ("from", "to", "rate", "antiderivative"):  # range: text
+            if w in clause:
+                term(clause[w])
+        for w in ("kinematic", "in"):
+            if w in clause:
+                name(clause[w])
+        for w in ("regs", "given"):
+            if w in clause:
+                b0, b1 = clause[w]
+                a0 = b0
+                for i, c, d in _depth_scan(sentence[b0:b1] + ","):
+                    if c == "," and d == 0:
+                        name(_trim(sentence, a0, b0 + i))
+                        a0 = b0 + i + 1
     if "occurrence" in clause:
         name(clause["occurrence"])
     if "by" in clause:

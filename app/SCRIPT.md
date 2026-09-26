@@ -34,7 +34,18 @@ int_parts in x with u := T; v := T [occurrence N] [by C] [using h, ...].
 taylor_lagrange h := lower|upper of T in u from T to T at T derivs T; T; ... [strictly] increasing|decreasing [by C] [using h, ...].
 bound [scale T] [by C] using h, ....
 verify [by C] [using h, ...].
+quad_t h := L from T to T in u antiderivative T [regs r, ...] [by C] [using h, ...].
+sep_autonomous h := L from T to T in u rate T antiderivative T range I [regs r, ...] [given a, ...] [by C] [using h, ...].
+energy_integral h := L kinematic k from T to T in u rate T antiderivative T range I [regs r, ...] [given a, ...] [by C] [using h, ...].
 ```
+
+- The three ODE rules (p1_expected E149–E153) read Γ, the assumptions
+  the goal was installed under (DX.md's `assuming`). `L` names the law,
+  `kinematic k` energy's x' = v, `regs` the C^1 assumptions, `given` the
+  order assumptions that keep y(s) in `range` (an open interval `(a, b)`,
+  either end `oo`). `rate` is f in u, `antiderivative` F with F' = c/f
+  (sep), f (energy) or R/c (quad_t). Each mints the handle `h`; `verify
+  ... using h` then closes the goal.
 
 - `taylor_lagrange` (p1_expected E97) mints the handle `h` for the lower or
   upper bound of the Taylor remainder of `of T` in the new variable `u`,
@@ -60,7 +71,8 @@ verify [by C] [using h, ...].
 - int_subst's `reverse T` is reverse mode with `f := T`; without it the
   mode is left out (forward).
 - The words `by`, `using`, `with`, `at`, `occurrence`, `as`, `from`, `to`,
-  `reverse`, `in`, `derivs`, `increasing`, `decreasing`, `strictly` and `scale` are split on only at bracket depth 0 and only where
+  `reverse`, `in`, `derivs`, `increasing`, `decreasing`, `strictly`, `scale`,
+  `kinematic`, `rate`, `antiderivative`, `range`, `regs` and `given` are split on only at bracket depth 0 and only where
   the tactic's form has that clause, so `sin(at)` stays a term; a variable
   named like a clause word cannot follow that clause's position unbracketed.
 

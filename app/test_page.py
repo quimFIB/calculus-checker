@@ -294,7 +294,9 @@ class Page(unittest.TestCase):
                     ".katex-error", "es => es.length"), 0)
                 self.assertTrue(p.query_selector("#formal-goal .katex"))
                 # order goals (E96) and verify's goals (E112) have no ?A
-                if not pid.startswith(("taylor.", "unit00.")) or pid in (
+                if pid.startswith("ode."):  # Γ beside the goal (E147)
+                    self.assertTrue(p.query_selector("#assumptions"))
+                if not pid.startswith(("taylor.", "unit00.", "ode.")) or pid in (
                         "unit00." + n for n in ("P1C_REDUCE", "P3A_SEPARATE",
                                                 "P3A_TOP", "P3A_HEIGHT",
                                                 "P4A_SEPARATE", "P4A_X",

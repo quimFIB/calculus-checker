@@ -85,6 +85,17 @@ GET  /problems                         -> {problems: [{id, title, statement}]}
 POST /session  {problem: id}           -> node n0
 POST /session  {goal: str, functions?: {name: arity}}   -> node n0
 POST /session  {header: str}           -> node n0, from a .dx header sentence (DX.md)
+```
+
+A goal of your own may also carry Γ (p1_expected E147, E155): `assume`,
+a list of problem-file items `{name, var, in, law | reg}`, and/or
+`assuming`, lines of DX.md's `name: J for s in I` (a malformed one is
+refused `bad-assume`; install's `assume-shape` and `assume-scope` come
+back as refusals). A problem's Γ is its file's. `/session` and `/import`
+answer with `assumptions`, one line per item, which a client shows beside
+the goal: the theorem is the goal under them.
+
+```
 POST /step     {session, node, move, args}               -> the new node | refusal
 POST /retract  {session, node}         -> the parent node
 GET  /node     ?session&node           -> that node

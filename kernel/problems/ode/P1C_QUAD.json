@@ -1,0 +1,79 @@
+{
+  "format": "calc-problem/0",
+  "id": "ode.P1C_QUAD",
+  "title": "unit 00 P1(c): case F(t), integrate once",
+  "source": "mechanics-to-relativity unit 00 (00-newton-as-ode); p1_expected section 30 (E160)",
+  "statement": "m v' = F0 exp(-t/tau): case F(t). Integrate once: v(t) = v(0) + F0 tau/m (1 - exp(-t/tau)).",
+  "goal": "v(t) == v(0) + F0*tau/m*(1 - exp(-t/tau)) @ m > 0, tau > 0, t >= 0",
+  "answer_schema": "closed",
+  "declarations": {
+    "functions": {
+      "v": 1
+    }
+  },
+  "assume": [
+    {
+      "name": "eom",
+      "var": "s",
+      "in": "[0, oo)",
+      "law": "m*D[s] v(s) == F0*exp(-s/tau)"
+    },
+    {
+      "name": "regv",
+      "var": "s",
+      "in": "[0, oo)",
+      "reg": {
+        "fn": "v",
+        "class": 1
+      }
+    }
+  ],
+  "reference_proof": [
+    {
+      "id": "s1",
+      "move": "quad_t",
+      "args": {
+        "bind": "h",
+        "law": "eom",
+        "regs": [
+          "regv"
+        ],
+        "lo": "0",
+        "hi": "t",
+        "var": "u",
+        "F": "-(F0*tau/m)*exp(-u/tau)",
+        "check": "field",
+        "facts": []
+      }
+    },
+    {
+      "id": "s2",
+      "move": "fact",
+      "args": {
+        "entry": "exp_zero",
+        "inst": {},
+        "bind": "hz"
+      }
+    },
+    {
+      "id": "s3",
+      "move": "verify",
+      "args": {
+        "check": "field",
+        "facts": [
+          [
+            "handle",
+            "h"
+          ],
+          [
+            "handle",
+            "hz"
+          ]
+        ]
+      }
+    }
+  ],
+  "notes": [
+    "Γ (assume) is part of the statement: the goal is proved under it."
+  ]
+}

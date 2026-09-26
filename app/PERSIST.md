@@ -28,6 +28,7 @@ app/page/index.html   Export, Import, Start fresh; saved state on the status lin
 { "format": "calc-work", "version": 1,
   "problem": str | null,              -- a problem id, or null for your own goal
   "goal": str, "functions": {name: arity},
+  "assume": [ {name, var, in, law | reg}, ... ],   (only when Γ is not empty)
   "script": str,                      -- the page's script text
   "path": [str],                      -- node ids: the checked path, from n0
   "max_rung": int,
@@ -47,7 +48,8 @@ suites, which build the API in-process, never touch real work. The key is
 the problem id when it is made only of `[A-Za-z0-9._-]`, is not `.` or
 `..`, and does not end in `.prev` or `.bad` (every problem id qualifies);
 else, and for your own goal, `goal-` and the first 12 hex digits of the
-SHA-256 of `json.dumps([goal, sorted(functions.items())])` in UTF-8. A key
+SHA-256 of `json.dumps([goal, sorted(functions.items())])` in UTF-8
+(with `assume` appended to the list, keys sorted, when Γ is not empty). A key
 never comes from an imported file's name.
 
 **Ownership.** One session writes a key's file: the newest one started

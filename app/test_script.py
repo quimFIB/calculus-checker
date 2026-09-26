@@ -85,6 +85,23 @@ class Syntax(unittest.TestCase):
         with self.assertRaises(script.TacticError):
             script.parse("verify scale 2")
 
+    def test_ode_rules(self):
+        """p1_expected E149: the three rules round-trip, with regs and
+        given as name lists (omitted, empty)."""
+        import p1_expected as X
+        for c in X.ODE_PROOFS.values():
+            for move, args in c["steps"]:
+                with self.subTest(move):
+                    self.assertEqual(script.parse(script.show(move, args)),
+                                     (move, args))
+        move, args = script.parse("quad_t h := eom from 0 to t in u "
+                                  "antiderivative u")
+        self.assertEqual(args["regs"], [])
+        self.assertNotIn("using", args)
+        with self.assertRaises(script.TacticError):
+            script.parse("sep_autonomous h := eom from 0 to t in w "
+                         "antiderivative w range (0, oo)")  # no rate
+
     def test_verify(self):
         """p1_expected E112: verify takes only by and using."""
         self.assertEqual(script.parse("verify by field using h, k"),

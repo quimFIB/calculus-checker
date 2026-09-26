@@ -75,7 +75,10 @@ def _summary(n):
             f"{a.get('bind')} := {a.get('side')} of {a['f']} at {a.get('at')}",
             "bound": a.get("facts") and ", ".join(
                 f[1] for f in a["facts"]),
-            "verify": a.get("check") and f"by {a['check']}"}.get(n.move)
+            "verify": a.get("check") and f"by {a['check']}",
+            **{m: a.get("law") and f"{a.get('bind')} from {a['law']}"
+               for m in ("quad_t", "sep_autonomous", "energy_integral")}
+            }.get(n.move)
     return f"{n.move} {main}" if main else n.move
 
 
@@ -160,7 +163,7 @@ def _trial(sess, at, sentences):
         r = K.step(state, move, loader.step_args(args, handles, sess.sig))
         if isinstance(r, K.Refusal):
             return False
-        if move in ("fact", "taylor_lagrange"):  # both bind a handle
+        if move in S.BINDS:  # each binds a handle
             handles[args["bind"]] = r.last.handle
         state = r
     return True
@@ -243,9 +246,10 @@ def problems(_):
 
 
 def _goal_of(body):
-    """(goal, sig, problem id) for a /session body: a problem's from its
-    own file, else the body's goal and functions. A .dx header (DX.md) is
-    read into one of those first."""
+    """(goal, sig, problem id, assume) for a /session body: a problem's
+    from its own file, else the body's goal, functions and assume (Γ, as a
+    problem file writes it). A .dx header (DX.md) is read into one of
+    those first."""
     if "header" in body:
         try:
             h = dx.header(_field(body, "header", str))
@@ -259,14 +263,21 @@ def _goal_of(body):
         if pid not in files:
             raise ApiError(400, "unknown-problem", f"no problem {pid!r}")
         p = files[pid][0]
-        return p.goal_text, p.sig, pid
-    return _field(body, "goal", str), _sig(body), None
+        return p.goal_text, p.sig, pid, list(p.assume)
+    assume = _field(body, "assume", list, optional=True) or []
+    if "assuming" in body:  # the page's box: one 'name: J for s in I' a line
+        try:
+            assume = assume + [dx.assumption(t) for t in _field(
+                body, "assuming", str).splitlines() if t.strip()]
+        except dx.HeaderError as e:
+            raise Refusal("bad-assume", str(e)) from None
+    return _field(body, "goal", str), _sig(body), None, assume
 
 
 def new_session(body):
-    goal, sig, pid = _goal_of(body)
+    goal, sig, pid, assume = _goal_of(body)
     resume = _field(body, "resume", bool, optional=True) or False
-    k = work.key(pid, goal, sig)
+    k = work.key(pid, goal, sig, assume)
     sid = secrets.token_hex(8)
     resumed, old, unreadable = None, None, False
     if WORK_DIR:
@@ -279,9 +290,9 @@ def new_session(body):
             resumed = {"error": f"{type(e).__name__}: {e}"}
             unreadable = True
     if resume and old is not None:
-        sess, resumed = work.replay(old, sid, goal, sig, pid)
+        sess, resumed = work.replay(old, sid, goal, sig, pid, assume)
     else:
-        sess = S.Session(sid, goal, sig, pid)
+        sess = S.Session(sid, goal, sig, pid, assume)
         if old is not None:  # Start fresh: keep the old file, and its rung
             _aside(k, "prev")
             sess.max_rung = max(0, old.get("max_rung", 0))
@@ -293,7 +304,16 @@ def new_session(body):
     else:
         _own(sess, k)
     return dict(render(sess, sess.root()), resumed=resumed, problem=pid,
-                key=k, functions=sig)
+                key=k, functions=sig, assumptions=_assumptions(sess))
+
+
+def _assumptions(sess):
+    """Γ as the session was installed under it (p1_expected E147), one
+    line each: whoever shows the report shows these beside it."""
+    return [assume_line(a) for a in getattr(sess, "assume", [])]
+
+
+assume_line = dx.show_assumption  # 'eom: J for s in [0, oo)' (DX.md)
 
 
 def _own(sess, k):
@@ -351,17 +371,18 @@ def restore(docs, owner=None, saved=None):
             pid = doc.get("problem")
             if pid is not None:
                 p = _problem_files()[pid][0]
-                goal, sig = p.goal_text, p.sig
+                goal, sig, assume = p.goal_text, p.sig, list(p.assume)
             else:
                 goal, sig = doc["goal"], doc.get("functions", {})
-            sess, got = work.replay(doc, sid, goal, sig, pid)
+                assume = doc.get("assume", [])
+            sess, got = work.replay(doc, sid, goal, sig, pid, assume)
             if got["dropped"] or any(k != v for k, v in got["ids"].items()):
                 raise ValueError(f"{len(got['dropped'])} node(s) did not "
                                  "replay under their own ids")
             sess.path = [got["ids"][p] for p in doc.get("path", ["n0"])]
             sess.script = doc.get("script", "")
             sess.max_rung = doc.get("max_rung", 0)
-            sess.key = work.key(pid, goal, sig)
+            sess.key = work.key(pid, goal, sig, assume)
             sess.saved = (saved or {}).get(sid)
             SESSIONS[sid] = sess
             done.append(sid)
@@ -398,20 +419,21 @@ def import_(body):
         if pid not in files:
             raise ApiError(400, "bad-document", f"no problem {pid!r}")
         p = files[pid][0]
-        goal, sig = p.goal_text, p.sig
+        goal, sig, assume = p.goal_text, p.sig, list(p.assume)
     else:
         fns = doc.get("functions", {})
         if not all(isinstance(k, str) and type(v) is int and v > 0
                    for k, v in fns.items()):
             raise ApiError(400, "bad-document",
                            "functions maps names to positive arities")
-        goal, sig = doc["goal"], fns
-    sess, resumed = work.replay(doc, secrets.token_hex(8), goal, sig, pid)
-    k = work.key(pid, goal, sig)
+        goal, sig, assume = doc["goal"], fns, doc.get("assume", [])
+    sess, resumed = work.replay(doc, secrets.token_hex(8), goal, sig, pid,
+                                assume)
+    k = work.key(pid, goal, sig, assume)
     _aside(k, "prev")
     _own(sess, k)
     return dict(render(sess, sess.root()), resumed=resumed, problem=pid,
-                key=k, functions=sig)
+                key=k, functions=sig, assumptions=_assumptions(sess))
 
 
 def step(body):
@@ -597,7 +619,7 @@ def _eval_step(sig):
                     state, handles, sig, ss), show_move=script.show))
             return None, out
         handles = dict(handles)
-        if move in ("fact", "taylor_lagrange"):
+        if move in S.BINDS:
             handles[args["bind"]] = r.last.handle
         return (r, handles), None
     return step
@@ -662,7 +684,7 @@ def _trial_at(state, handles, sig, sentences):
         r = K.step(state, move, loader.step_args(args, handles, sig))
         if isinstance(r, K.Refusal):
             return False
-        if move in ("fact", "taylor_lagrange"):
+        if move in S.BINDS:
             handles[args["bind"]] = r.last.handle
         state = r
     return True

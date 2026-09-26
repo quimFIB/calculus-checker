@@ -1364,6 +1364,6 @@ sep and energy charge the law's c at G and R at s, as quad_t does.
 E157 amends E5 in `terms.with_domain`: a key holding a Call keeps its
 domain, since v(0) is an unknown, not a constant. The loader reads a
 problem file's optional `assume` list (E155) and the rules' `law`, `kin`,
-`regs`, `using` and `range` args; no problem file uses `assume` while the
-gate is read. Item O runs ODE_PROOFS (unit 00 P1(a)–(c), each `Proved.`),
+`regs`, `using` and `range` args; `problems/ode/` holds P1(a)–(c) with
+their Γ (E160), outside the gate's corpus. Item O runs ODE_PROOFS (unit 00 P1(a)–(c), each `Proved.`),
 ODE_BAD_MOVES and ODE_INSTALL_REFUSALS.

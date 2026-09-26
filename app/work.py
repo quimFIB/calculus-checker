@@ -27,14 +27,18 @@ class BadDocument(ValueError):
     """Not a calc-work version 1 document."""
 
 
-def key(problem, goal, functions):
+def key(problem, goal, functions, assume=()):
     """The file key: the problem id when it is a safe name, else goal- and
-    12 hex digits of SHA-256 over the goal and its sorted functions."""
+    12 hex digits of SHA-256 over the goal and its sorted functions, and
+    its assumptions when it has any."""
     if (problem is not None and _KEY.match(problem)
             and problem not in (".", "..")
             and not problem.endswith((".prev", ".bad"))):
         return problem
-    h = hashlib.sha256(json.dumps([goal, sorted(functions.items())])
+    parts = [goal, sorted(functions.items())]
+    if assume:
+        parts.append(list(assume))
+    h = hashlib.sha256(json.dumps(parts, sort_keys=True)
                        .encode("utf-8")).hexdigest()
     return "goal-" + h[:12]
 
@@ -46,6 +50,8 @@ def document(sess):
     return {"format": FORMAT, "version": VERSION,
             "problem": sess.problem_id, "goal": sess.goal_text,
             "functions": dict(sess.sig),
+            **({"assume": list(sess.assume)} if getattr(sess, "assume", ())
+               else {}),
             "script": getattr(sess, "script", ""),
             "path": list(getattr(sess, "path", ["n0"])),
             "max_rung": getattr(sess, "max_rung", 0),
@@ -123,6 +129,8 @@ def check(doc):
     ok = (_is(doc.get("goal"), str)
           and (doc.get("problem") is None or _is(doc.get("problem"), str))
           and _is(doc.get("functions", {}), dict)
+          and _is(doc.get("assume", []), list)
+          and all(_is(a, dict) for a in doc.get("assume", []))
           and _is(doc.get("script", ""), str)
           and _is(doc.get("path", ["n0"]), list)
           and all(_is(p, str) for p in doc.get("path", []))
@@ -135,13 +143,13 @@ def check(doc):
         raise BadDocument("a field of the work file has the wrong type")
 
 
-def replay(doc, sid, goal, sig, problem):
+def replay(doc, sid, goal, sig, problem, assume=()):
     """A Session rebuilt from doc's nodes by Session.step (PERSIST.md,
     Replay). `goal`, `sig` and `problem` are the caller's: for a problem,
     its own file's, never the document's copy. Returns (session, resumed)
     where resumed is PERSIST.md's object. Raises session.Refusal when the
     goal itself does not install."""
-    sess = S.Session(sid, goal, sig, problem)
+    sess = S.Session(sid, goal, sig, problem, assume)
     ids, dropped = {"n0": "n0"}, []
     retracted = []
     for n in doc.get("nodes", []):

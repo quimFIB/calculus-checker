@@ -16702,6 +16702,13 @@ DECISIONS_ODE = {
             "[t0, t1]) + the using judgements at s, as quad_t's target "
             "already did. So 1 + ln(-1 - s^2) - ln(-1 - s^2) no longer "
             "reads as 1. ODE_REVIEW_BAD_MOVES pins both.",
+    "E160": "The owner, 2026-09-26, lifting E155's 'table only' for these "
+            "three: \"Can you close this two limits first and then push?\" "
+            "kernel/problems/ode/ holds ODE_PROBLEM_FILES, one per "
+            "ODE_PROOFS case, whose goal, assume (Γ as E155 writes it) and "
+            "reference proof are the table's; each replays to 'Proved.'. "
+            "They are not in the gate's corpus (app/GATE.md), which stays as "
+            "it was while the gate is read.",
     "E157": "Amends E5 at the build. A key holding a Call is not closed: "
             "a declared function is an unknown, so with_domain keeps the "
             "domain of v(0) >= 0 as it does of x >= 0. Before this, the "
@@ -16837,6 +16844,8 @@ ODE_BAD_MOVES = [
      "move": _P1B_ENERGY, "refusal": "ode-law-shape",
      "why": "E153: kin is x' = v exactly"},
 ]
+ODE_PROBLEM_FILES = ("P1A_SEP", "P1B_ENERGY", "P1C_QUAD")  # E160
+
 ODE_REVIEW_BAD_MOVES = [
     {"id": "undefined_law", "gamma": (
         ("eom", "s", "[0, oo)",

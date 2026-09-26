@@ -6148,6 +6148,27 @@ def ode_forged_range_problems():
     return out
 
 
+def ode_file_problems(name):
+    import json
+    import loader
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(here, "problems", "ode", name + ".json")
+    raw, c, out = json.load(open(path)), X.ODE_PROOFS[name], []
+    if raw["goal"] != c["goal"]:
+        out.append("goal differs from ODE_PROOFS")
+    p = loader.load(path)
+    if p.assumptions() != _ode_gamma(c["gamma"], c["sig"]):
+        out.append("assume differs from ODE_PROOFS' Γ")
+    if [(s["move"], s["args"]) for s in raw["reference_proof"]] != \
+            [(m, a) for m, a in c["steps"]]:
+        out.append("steps differ from ODE_PROOFS")
+    results, _ = loader.replay(p)
+    st = results[-1][1]
+    if isinstance(st, K.Refusal):
+        return out + [f"{results[-1][0]} refused {st.code}: {st.message}"]
+    return out + ([] if K.report(st) == "Proved." else [K.report(st)])
+
+
 def ode_checks(suite):
     for name, c in X.ODE_PROOFS.items():
         suite.check("O", f"ODE_PROOFS {name}: {c['goal']} -> "
@@ -6163,6 +6184,16 @@ def ode_checks(suite):
     for rid, gamma, sig, g, want in X.ODE_INSTALL_REFUSALS:
         suite.check("O", f"ODE_INSTALL_REFUSALS {rid} -> {want} (E148)",
                     lambda a=(gamma, sig, g, want): ode_install_problems(*a))
+    here = os.path.dirname(os.path.abspath(__file__))
+    names = sorted(f[:-5] for f in os.listdir(os.path.join(
+        here, "problems", "ode")) if f.endswith(".json"))
+    suite.check("O", "problems/ode/ holds exactly ODE_PROBLEM_FILES (E160)",
+                lambda: [] if names == sorted(X.ODE_PROBLEM_FILES)
+                else [f"files {names}"])
+    for name in X.ODE_PROBLEM_FILES:
+        suite.check("O", f"problems/ode/{name}.json replays to 'Proved.' and "
+                    "states ODE_PROOFS' goal, Γ and steps (E160)",
+                    lambda n=name: ode_file_problems(n))
     suite.check("O", "P1A_SEP's emissions and handle (E150, E152, E156)",
                 ode_emission_problems)
     suite.check("O", "the ODE moves and their args are the spec's (E149)",

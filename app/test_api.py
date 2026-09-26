@@ -95,6 +95,39 @@ class Routes(Api):
         self.assertEqual(n["theorem"], "f(x) - f(x) == 0")
         self.assertIsNone(n["goal"])
 
+    def test_session_under_assumptions(self):
+        """p1_expected E147, E160: a problem's Γ and a header's `assuming`
+        install with the goal, are shown beside it, and the ODE rules
+        read them; a bad one is refused and makes no session."""
+        n = self.call("POST", "/session", {"problem": "ode.P1C_QUAD"})
+        self.assertEqual(n["assumptions"][0],
+                         "eom: m*D[s] v(s) == F0*exp(-s/tau) for s in "
+                         "[0, oo)")
+        h = ("goal v(t) == v(0) + t @ t >= 0 functions v/1 assuming eom: "
+             "D[s] v(s) == 1 for s in [0, oo); regv: v in C^1 for s in "
+             "[0, oo).")
+        n = self.call("POST", "/session", {"header": h})
+        self.assertEqual(len(n["assumptions"]), 2)
+        for t in ("quad_t h := eom from 0 to t in u antiderivative u regs "
+                  "regv by ring.", "verify by field using h."):
+            n = self.call("POST", "/tactic", {"session": n["session"],
+                                              "node": n["node"], "text": t})
+        self.assertEqual(n["report"], "Proved.")
+        n = self.call("POST", "/session", {"goal": "v(t) == v(0) + t @ t >= 0",
+                                           "functions": {"v": 1},
+                                           "assuming": "eom: D[s] v(s) == 1 "
+                                           "for s in [0, oo)"})
+        self.assertEqual(len(n["assumptions"]), 1)
+        before = len(api.SESSIONS)
+        self.refused(self.call("POST", "/session", {
+            "goal": "v(t) == v(0) @ t >= 0", "functions": {"v": 1},
+            "assuming": "eom: D[s] v(s) == k for s in [0, oo)"}),
+            "assume-scope")
+        self.refused(self.call("POST", "/session", {
+            "goal": "v(t) == v(0)", "functions": {"v": 1},
+            "assuming": "eom D[s] v(s) == 1"}), "bad-assume")
+        self.assertEqual(len(api.SESSIONS), before)
+
     def test_install_refusal_makes_no_session(self):
         before = len(api.SESSIONS)
         r = self.call("POST", "/session", {"goal": "x # 0"})
@@ -134,7 +167,8 @@ class Routes(Api):
 
     def test_node_route(self):
         n = self.s1()
-        for k in ("resumed", "problem", "key", "functions"):  # /session's own
+        for k in ("resumed", "problem", "key", "functions",
+                  "assumptions"):  # /session's own
             n.pop(k)
         self.assertEqual(self.call("GET", "/node", {"session": n["session"],
                                                     "node": "n0"}), n)
@@ -380,7 +414,7 @@ class ProblemFiles(Api):
     every step."""
 
     def test_every_proof_matches_the_loader(self):
-        self.assertEqual(sum(len(p.proofs) for p in _files().values()), 26)  # + P3 part 1, unit 00 (E120), readiness P1(2)
+        self.assertEqual(sum(len(p.proofs) for p in _files().values()), 29)  # + P3 part 1, unit 00 (E120), readiness P1(2), ode (E160)
         for pid, p in _files().items():
             for name, steps in p.proofs.items():
                 with self.subTest(problem=pid, proof=name):
@@ -511,7 +545,7 @@ class Http(unittest.TestCase):
             s, r = self.req("POST", "/layout", {"text": "close 2."})
             self.assertEqual(s, 200)
             s, r = self.req("GET", "/templates")
-            self.assertEqual(len(r["templates"]), 11)  # + verify (E112)
+            self.assertEqual(len(r["templates"]), 14)  # + verify (E112), ODE (E149)
         finally:
             server.BACKEND = saved
         self.assertEqual(calls, [])

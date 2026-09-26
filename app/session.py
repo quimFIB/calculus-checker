@@ -21,6 +21,11 @@ import loader  # noqa: E402
 from terms import Refused, parse_goal  # noqa: E402
 
 
+# the moves that mint a handle under args["bind"]
+BINDS = ("fact", "taylor_lagrange", "quad_t", "sep_autonomous",
+         "energy_integral")
+
+
 class Refusal(Exception):
     """An API-local refusal, or a kernel one re-raised: code, message and
     residual (a Term or None), as kernel.Refusal carries them."""
@@ -48,18 +53,23 @@ class Node:
 
 
 class Session:
-    def __init__(self, id, goal_text, sig, problem_id=None):
-        """Install `goal_text`, parsed with `sig`. Raises Refusal when the
-        parser or kernel.install refuses."""
+    def __init__(self, id, goal_text, sig, problem_id=None, assume=()):
+        """Install `goal_text`, parsed with `sig`, under `assume`, Γ as a
+        problem file writes it (p1_expected E155). Raises Refusal when the
+        parser, the loader ('bad-assume') or kernel.install refuses."""
         try:
             goal = parse_goal(goal_text, sig)
+            gamma = loader.assumptions(list(assume), sig)
         except Refused as r:
             raise Refusal.of(r) from None
-        st = K.install(goal)
+        except ValueError as e:
+            raise Refusal("bad-assume", str(e)) from None
+        st = K.install(goal, gamma)
         if isinstance(st, K.Refusal):
             raise Refusal.of(st)
         self.id, self.sig, self.problem_id = id, dict(sig), problem_id
         self.goal_text = goal_text
+        self.assume = [dict(a) for a in assume]
         self._ids = itertools.count()
         self.nodes = {}  # insertion-ordered: parents before children
         self._add(None, st, "install", {}, {})
@@ -98,7 +108,7 @@ class Session:
         if isinstance(r, K.Refusal):
             raise Refusal.of(r)
         handles = dict(at.handles)
-        if move in ("fact", "taylor_lagrange"):  # both bind a handle
+        if move in BINDS:  # each binds a handle
             handles[args["bind"]] = r.last.handle
         return self._add(at.id, r, move, dict(args), handles)
 

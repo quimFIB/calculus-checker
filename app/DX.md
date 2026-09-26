@@ -47,6 +47,12 @@ goal Int[x = 0 .. 1] f(x) == ?A functions f/1.
 - `problem ID.` names a problem as `/problems` lists it. The id's own dots
   do not end the sentence, since a sentence ends only at a `.` followed by
   whitespace or the end.
+- `goal G [functions f/1] [assuming name: J for s in I; ...].` adds Γ
+  (p1_expected E147, E155): each item is a law or order judgement `J`, or
+  `v in C^k` for a regularity, on `s in I` (`I` as a domain item writes
+  it, `[0, oo)`). The last depth-0 `assuming` and each item's last depth-0
+  `for` split. Example:
+  `goal v(t) == v(0) + t @ t >= 0 functions v/1 assuming eom: D[s] v(s) == 1 for s in [0, oo); regv: v in C^1 for s in [0, oo).`
 - `goal G [functions f/1, g/2].` is `/session`'s goal and functions. The
   word `functions` splits at bracket depth 0 only, as SCRIPT.md's clause
   words do.

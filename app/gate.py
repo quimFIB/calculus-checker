@@ -102,7 +102,8 @@ def _proved(doc, problem):
     None when it does not replay or is not closed."""
     try:
         sess, resumed = work.replay(doc, "gate", problem.goal_text,
-                                    problem.sig, problem.id)
+                                    problem.sig, problem.id,
+                                    list(problem.assume))
     except Refusal:
         return None
     last = sess.nodes[resumed["path"][-1]].state

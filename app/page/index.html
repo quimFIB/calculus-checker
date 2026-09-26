@@ -209,6 +209,9 @@ details.card tr.match td { background: var(--sel); font-weight: 600; }
       <input id="own-goal" class="term" placeholder="Int[x = 0 .. 1] x^2 == ?A">
       <label for="own-functions">Functions (name/arity, comma separated)</label>
       <input id="own-functions" class="term" placeholder="f/1">
+      <label for="own-assuming">Assuming (one per line: name: J for s in I)</label>
+      <textarea id="own-assuming" class="term" rows="3" spellcheck="false"
+        placeholder="eom: m*D[s] v(s) == -(m*g) - b*v(s) for s in [0, oo)&#10;regv: v in C^1 for s in [0, oo)"></textarea>
       <div style="margin-top:8px"><button id="start-own">Start</button></div>
     </details>
     <div id="problem-info"></div>
@@ -259,6 +262,9 @@ int_subst x := T as y from T to T [reverse T] [occurrence N] [by ...] [using ...
 int_flip [occurrence N].
 int_parts in x with u := T; v := T [occurrence N] [by ...] [using ...].
 verify [by ...] [using ...].
+quad_t h := law from T to T in u antiderivative T [regs r, ...] [by ...].
+sep_autonomous h := law from T to T in u rate T antiderivative T range (a, b) [regs ...] [given ...] [by ...].
+energy_integral h := law kinematic k from ... (as sep_autonomous).
 (* comments like this *)</div>
     </div>
     </div>
@@ -1215,7 +1221,10 @@ async function start(body, title, statement, problemId, route = "/session") {
                        saved: null, again: { body, title, statement, problemId } });
     $("problem-info").replaceChildren(el("h3", {}, title),
       statement ? el("p", {}, statement) : "",
-      el("label", {}, "Formal goal"), math(n.goal_tex, n.goal, "formal-goal"));
+      el("label", {}, "Formal goal"), math(n.goal_tex, n.goal, "formal-goal"),
+      ...((n.assumptions ?? []).length ? [el("label", {}, "Assuming (Γ)"),
+        el("div", { class: "mono", id: "assumptions" },
+           ...n.assumptions.map((a) => el("div", {}, a)))] : []));
     $("script").value = "";
     P.live = false;
     let note = null;
@@ -1253,7 +1262,7 @@ $("import-file").onchange = async () => {
     await start({ document: document_ }, p ? p.title : "Imported goal",
       p ? p.statement : null, p ? p.id : null, "/import");
     if (S.session) S.again = { body: p ? { problem: p.id } : { goal: document_.goal,
-      functions: document_.functions ?? {} }, title: S.title, statement: p ? p.statement : null,
+      functions: document_.functions ?? {}, assume: document_.assume ?? [] }, title: S.title, statement: p ? p.statement : null,
       problemId: S.problemId };
   } catch (e) { showError(e); }
 };
@@ -1277,7 +1286,9 @@ $("start-own").onclick = () => {
     const [name, arity] = part.split("/");
     functions[name.trim()] = parseInt(arity, 10);
   }
-  start({ goal: $("own-goal").value, functions, resume: true }, "Your own goal", null, null);
+  const assuming = $("own-assuming").value.trim();
+  start({ goal: $("own-goal").value, functions, ...(assuming ? { assuming } : {}),
+          resume: true }, "Your own goal", null, null);
 };
 
 let echoTimer = null;

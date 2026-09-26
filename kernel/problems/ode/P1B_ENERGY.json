@@ -1,0 +1,87 @@
+{
+  "format": "calc-problem/0",
+  "id": "ode.P1B_ENERGY",
+  "title": "unit 00 P1(b): case F(x), the energy integral",
+  "source": "mechanics-to-relativity unit 00 (00-newton-as-ode); p1_expected section 30 (E160)",
+  "statement": "m x'' = -kappa x + alpha x^3: case F(x). Multiply by the velocity: m v^2/2 - m v0^2/2 = V(x0) - V(x) with V(x) = kappa x^2/2 - alpha x^4/4.",
+  "goal": "m*v(t)^2/2 - m*v(0)^2/2 == -(kappa*x(t)^2)/2 + alpha*x(t)^4/4 - (-(kappa*x(0)^2)/2 + alpha*x(0)^4/4) @ m > 0, t >= 0",
+  "answer_schema": "closed",
+  "declarations": {
+    "functions": {
+      "x": 1,
+      "v": 1
+    }
+  },
+  "assume": [
+    {
+      "name": "kin",
+      "var": "s",
+      "in": "[0, oo)",
+      "law": "D[s] x(s) == v(s)"
+    },
+    {
+      "name": "eom",
+      "var": "s",
+      "in": "[0, oo)",
+      "law": "m*D[s] v(s) == -(kappa*x(s)) + alpha*x(s)^3"
+    },
+    {
+      "name": "regx",
+      "var": "s",
+      "in": "[0, oo)",
+      "reg": {
+        "fn": "x",
+        "class": 1
+      }
+    },
+    {
+      "name": "regv",
+      "var": "s",
+      "in": "[0, oo)",
+      "reg": {
+        "fn": "v",
+        "class": 1
+      }
+    }
+  ],
+  "reference_proof": [
+    {
+      "id": "s1",
+      "move": "energy_integral",
+      "args": {
+        "bind": "h",
+        "law": "eom",
+        "kin": "kin",
+        "regs": [
+          "regx",
+          "regv"
+        ],
+        "lo": "0",
+        "hi": "t",
+        "var": "w",
+        "f": "-(kappa*w) + alpha*w^3",
+        "F": "-(kappa*w^2)/2 + alpha*w^4/4",
+        "range": "(-oo, oo)",
+        "using": [],
+        "check": "ring",
+        "facts": []
+      }
+    },
+    {
+      "id": "s2",
+      "move": "verify",
+      "args": {
+        "check": "field",
+        "facts": [
+          [
+            "handle",
+            "h"
+          ]
+        ]
+      }
+    }
+  ],
+  "notes": [
+    "Γ (assume) is part of the statement: the goal is proved under it."
+  ]
+}

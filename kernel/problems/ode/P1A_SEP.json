@@ -1,0 +1,77 @@
+{
+  "format": "calc-problem/0",
+  "id": "ode.P1A_SEP",
+  "title": "unit 00 P1(a): case F(v), separate",
+  "source": "mechanics-to-relativity unit 00 (00-newton-as-ode); p1_expected section 30 (E160)",
+  "statement": "m v' = -mg - bv with v(s) >= 0 on the way up: case F(v). Separate: t = Int m dv/F(v), here t = (m/b)(ln(mg/b + v(0)) - ln(mg/b + v(t))).",
+  "goal": "t == m/b*(ln(m*g/b + v(0)) - ln(m*g/b + v(t))) @ m > 0, b > 0, g > 0, t >= 0, v(0) >= 0, v(t) >= 0",
+  "answer_schema": "closed",
+  "declarations": {
+    "functions": {
+      "v": 1
+    }
+  },
+  "assume": [
+    {
+      "name": "eom",
+      "var": "s",
+      "in": "[0, oo)",
+      "law": "m*D[s] v(s) == -(m*g) - b*v(s)"
+    },
+    {
+      "name": "regv",
+      "var": "s",
+      "in": "[0, oo)",
+      "reg": {
+        "fn": "v",
+        "class": 1
+      }
+    },
+    {
+      "name": "up",
+      "var": "s",
+      "in": "[0, oo)",
+      "law": "v(s) >= 0"
+    }
+  ],
+  "reference_proof": [
+    {
+      "id": "s1",
+      "move": "sep_autonomous",
+      "args": {
+        "bind": "h",
+        "law": "eom",
+        "regs": [
+          "regv"
+        ],
+        "lo": "0",
+        "hi": "t",
+        "var": "w",
+        "f": "-b*(m*g/b + w)",
+        "F": "-(m/b)*ln(m*g/b + w)",
+        "range": "(-(m*g)/b, oo)",
+        "using": [
+          "up"
+        ],
+        "check": "field",
+        "facts": []
+      }
+    },
+    {
+      "id": "s2",
+      "move": "verify",
+      "args": {
+        "check": "field",
+        "facts": [
+          [
+            "handle",
+            "h"
+          ]
+        ]
+      }
+    }
+  ],
+  "notes": [
+    "Γ (assume) is part of the statement: the goal is proved under it."
+  ]
+}
