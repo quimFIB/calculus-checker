@@ -1,0 +1,32 @@
+{
+  "format": "calc-problem/0",
+  "id": "unit00.P4A_V_INIT",
+  "title": "unit 00 P4(a): she falls from rest",
+  "source": "mechanics-to-relativity unit 00 (00-newton-as-ode); p1_expected section 26 (E120)",
+  "statement": "Check v(0) = 0 for v(t) = w tanh(g t/w).",
+  "goal": "w*tanh(g*0/w) == 0 @ M > 0, g > 0, w > 0",
+  "answer_schema": "none",
+  "declarations": {
+    "functions": {}
+  },
+  "reference_proof": [
+    {
+      "id": "s1",
+      "move": "rewrite",
+      "args": {
+        "entry": "tanh_zero",
+        "inst": {},
+        "at": "tanh(g*0/w)"
+      }
+    },
+    {
+      "id": "s2",
+      "move": "verify",
+      "args": {
+        "check": "ring",
+        "facts": []
+      }
+    }
+  ],
+  "notes": []
+}

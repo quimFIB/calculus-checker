@@ -91,6 +91,26 @@ def _d_atan(u, du):
     return Div(du, Add(Num(1), Pow(u, 2))), ()
 
 
+def _d_sinh(u, du):  # p1_expected E116
+    return Mul(App("cosh", u), du), ()
+
+
+def _d_cosh(u, du):
+    return Mul(App("sinh", u), du), ()
+
+
+def _d_tanh(u, du):
+    # The sech^2 law with no divisor: 1 - tanh^2 (E116).
+    return Mul(Add(Num(1), Neg(Pow(App("tanh", u), 2))), du), ()
+
+
+def _d_atanh(u, du):
+    # Its natural domain row, open, as the sides; field charges 1 - u^2 # 0
+    # as d_atan's 1 + u^2 is charged (E116).
+    return (Div(du, Add(Num(1), Neg(Pow(u, 2)))),
+            (Rel(">", u, lit(-1)), Rel("<", u, Num(1))))
+
+
 # fn -> rule(u, du) -> (output Term, side-condition props with dom == ()).
 # The rule for fn is named "d_" + fn in the trace and as the emission source.
 # A seam: the walk must look rules up here at call time, never through a
@@ -107,6 +127,10 @@ APP_RULES = MappingProxyType({
     "sqrt": _d_sqrt,
     "ln": _d_ln,
     "atan": _d_atan,
+    "sinh": _d_sinh,
+    "cosh": _d_cosh,
+    "tanh": _d_tanh,
+    "atanh": _d_atanh,
 })
 
 

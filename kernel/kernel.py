@@ -139,7 +139,7 @@ REASON_EMPTY = "domain inconsistent"  # §5.3's pre-check found the domain
 DECIDED_FALSE = "obligation-decided-false"  # E33
 VERDICT = "Proved modulo {n} admissions"
 MOVES = ("rewrite", "fact", "ftc", "close", "int_subst", "int_flip",
-         "int_parts", "int_improper", "taylor_lagrange", "bound")
+         "int_parts", "int_improper", "taylor_lagrange", "bound", "verify")
 # E96: the moves an order goal takes; `bound` takes nothing else
 ORDER_MOVES = ("rewrite", "fact", "taylor_lagrange", "bound")
 ORDERINGS = ("<", "<=", ">", ">=")
@@ -506,7 +506,7 @@ _ARGS = {"rewrite": ("entry", "inst", "at"), "fact": ("entry", "inst", "bind"),
          "int_improper": ("F", "check", "facts"),
          "taylor_lagrange": ("bind", "f", "var", "lo", "hi", "at", "derivs",
                              "side", "sense", "check", "facts"),
-         "bound": ("check", "facts")}
+         "bound": ("check", "facts"), "verify": ("check", "facts")}
 _TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f", "u", "v")
 
 
@@ -570,7 +570,7 @@ def _check_args(move, args, goal):
                     for k in ("entry", "bind") if k in args)
     ok = ok and type(args.get("occurrence", 0)) is int
     if ok and move in ("ftc", "close", "int_subst", "int_parts",
-                       "int_improper", "taylor_lagrange"):
+                       "int_improper", "taylor_lagrange", "verify"):
         facts = args["facts"]
         ok = (type(args["check"]) is str and args["check"] in ("ring", "field")
               and type(facts) in (list, tuple)
@@ -2159,7 +2159,61 @@ def _bound(state, args, minted, buf):
     return None, theorem, {}
 
 
+# ---------------------------------------------------------------- verify
+#
+# p1_expected section 26 (E112-E115): §6.5's ode_verify in general form.
+
+def _verify_nodes(side, G):
+    """E113: the D nodes of one side, in pre-order, as (path, node). A D node
+    inside an Int refuses 'verify-D-under-binder', and one whose body holds
+    a D node 'verify-nested-D'. The walk does not descend into an Int's
+    range beyond what _positions does; it only reads each node's ancestors."""
+    found = []
+    for path, t, _, anc in _positions(side, G):
+        if not isinstance(t, Deriv):
+            continue
+        if any(isinstance(a, _IntScope) for a in anc):
+            raise Refused("verify-D-under-binder", f"{_brief(t)} is inside "
+                          "an Int; verify rewrites D nodes at the goal's "
+                          "domain only")
+        if anc or any(isinstance(n, Deriv) for n in trees(t.body)):
+            raise Refused("verify-nested-D", f"{_brief(t)} is a D node "
+                          "inside another, or holds one (E124: second "
+                          "derivatives are not built)")
+        found.append((path, t))
+    return found
+
+
+def _verify(state, args, minted, buf):
+    """E112-E114. Every D[x] e of either side is replaced by deriv(e, x, G)'s
+    output, its emissions at G under deriv's rule names; the new sides'
+    formers are charged at G; then close's _check proves l' == r' at G.
+    Returns (None, the original goal, no extras)."""
+    g = state.goal[0]
+    if isinstance(g.rhs, MVar):
+        raise Refused("verify-has-mvar", "verify closes an equation with no "
+                      "?A; an unknown is found by close")
+    G = g.dom
+    sides = [g.lhs, g.rhs]
+    for i in (0, 1):
+        # Replace from the last node back, so earlier paths stay valid:
+        # a later pre-order node is never an ancestor of an earlier one,
+        # and no node here holds another (E113).
+        for path, node in reversed(_verify_nodes(sides[i], G)):
+            d = DV.deriv(node.body, node.var, G)
+            for key, source in d.emissions:
+                _emit(buf, key, source, G)
+            sides[i] = _put(sides[i], path, d.output)
+    for side in sides:
+        _charge_formers(buf, side, G, G)
+    _check(args["check"], sides[0], sides[1], minted, G, G, buf,
+           "verify-check-failed")
+    theorem = state.original
+    check_goal(theorem)
+    return None, theorem, {}
+
+
 _MOVE = {"rewrite": _rewrite, "fact": _fact, "ftc": _ftc, "close": _close,
          "int_subst": _int_subst, "int_flip": _int_flip,
          "int_parts": _int_parts, "int_improper": _int_improper,
-         "taylor_lagrange": _taylor, "bound": _bound}
+         "taylor_lagrange": _taylor, "bound": _bound, "verify": _verify}

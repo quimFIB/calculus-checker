@@ -1,0 +1,32 @@
+{
+  "format": "calc-problem/0",
+  "id": "unit00.P3A_V_INIT",
+  "title": "unit 00 P3(a): v(t) starts at v0",
+  "source": "mechanics-to-relativity unit 00 (00-newton-as-ode); p1_expected section 26 (E120)",
+  "statement": "Check the initial condition v(0) = v0 for v(t) = -mg/b + (v0 + mg/b) exp(-bt/m).",
+  "goal": "-(m*g/b) + (v0 + m*g/b)*exp(-b*0/m) == v0 @ m > 0, b > 0, g > 0, v0 > 0",
+  "answer_schema": "none",
+  "declarations": {
+    "functions": {}
+  },
+  "reference_proof": [
+    {
+      "id": "s1",
+      "move": "rewrite",
+      "args": {
+        "entry": "exp_zero",
+        "inst": {},
+        "at": "exp(-b*0/m)"
+      }
+    },
+    {
+      "id": "s2",
+      "move": "verify",
+      "args": {
+        "check": "field",
+        "facts": []
+      }
+    }
+  ],
+  "notes": []
+}

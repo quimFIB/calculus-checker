@@ -1,0 +1,43 @@
+{
+  "format": "calc-problem/0",
+  "id": "unit00.P1C_REDUCE",
+  "title": "unit 00 P1(c): case F(t), the first reduction",
+  "source": "mechanics-to-relativity unit 00 (00-newton-as-ode); p1_expected section 26 (E120)",
+  "statement": "m x'' = F0 exp(-t/tau) depends on t only: case F(t). Integrate once, keeping the constant: v(t) = v0 + Int_0^t F0 exp(-s/tau)/m ds.",
+  "goal": "v0 + (Int[s = 0 .. t] F0*exp(-s/tau)/m) == ?A @ m > 0, tau > 0, t >= 0",
+  "answer_schema": "closed",
+  "declarations": {
+    "functions": {}
+  },
+  "reference_proof": [
+    {
+      "id": "s1",
+      "move": "ftc",
+      "args": {
+        "F": "-(F0*tau/m)*exp(-s/tau)",
+        "check": "field",
+        "facts": [],
+        "occurrence": 0
+      }
+    },
+    {
+      "id": "s2",
+      "move": "rewrite",
+      "args": {
+        "entry": "exp_zero",
+        "inst": {},
+        "at": "exp(-0/tau)"
+      }
+    },
+    {
+      "id": "s3",
+      "move": "close",
+      "args": {
+        "value": "v0 + F0*tau/m*(1 - exp(-t/tau))",
+        "check": "field",
+        "facts": []
+      }
+    }
+  ],
+  "notes": []
+}

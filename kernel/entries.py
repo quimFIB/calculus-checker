@@ -91,6 +91,15 @@ STATEMENTS = {
     "cos_pi": ("cos pi == -1", ()),
     # p1_expected E103: exp is positive, for a monotone Taylor premise
     "exp_pos": ("exp u > 0", ("u",)),
+    # unit 00's (p1_expected E117, UNIT00_ENTRIES): the hyperbolic facts P4
+    # uses
+    "sinh_zero": ("sinh 0 == 0", ()),
+    "cosh_zero": ("cosh 0 == 1", ()),
+    "tanh_zero": ("tanh 0 == 0", ()),
+    "atanh_zero": ("atanh 0 == 0", ()),
+    "tanh_def": ("tanh u == sinh u / cosh u", ("u",)),
+    "cosh_sq": ("(cosh u)^2 == 1 + (sinh u)^2", ("u",)),
+    "cosh_pos": ("cosh u > 0", ("u",)),
 }
 
 

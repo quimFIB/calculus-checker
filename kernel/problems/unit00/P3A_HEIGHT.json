@@ -1,0 +1,35 @@
+{
+  "format": "calc-problem/0",
+  "id": "unit00.P3A_HEIGHT",
+  "title": "unit 00 P3(a): the height reached",
+  "source": "mechanics-to-relativity unit 00 (00-newton-as-ode); p1_expected section 26 (E120)",
+  "statement": "h = Int v dt = Int_{v0}^{0} m w dw/(-mg - bw), the quadrature in v. Evaluate it (the course's v_inf tau (z - ln(1 + z)), z = v0/v_inf).",
+  "goal": "Int[w = v0 .. 0] m*w/(-(m*g) - b*w) == ?A @ m > 0, b > 0, g > 0, v0 > 0",
+  "answer_schema": "closed",
+  "declarations": {
+    "functions": {}
+  },
+  "reference_proof": [
+    {
+      "id": "s1",
+      "move": "ftc",
+      "args": {
+        "F": "-(m/b)*w + m^2*g/b^2*ln(m*g + b*w)",
+        "check": "field",
+        "facts": []
+      }
+    },
+    {
+      "id": "s2",
+      "move": "close",
+      "args": {
+        "value": "m/b*v0 - m^2*g/b^2*(ln(m*g + b*v0) - ln(m*g))",
+        "check": "field",
+        "facts": []
+      }
+    }
+  ],
+  "notes": [
+    "E125: h = Int v dt = Int m w dw/F(w), the quadrature in v; the worked solution's v_inf tau (z - ln(1 + z))"
+  ]
+}

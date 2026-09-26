@@ -1,0 +1,69 @@
+{
+  "format": "calc-problem/0",
+  "id": "unit00.P4A_X",
+  "title": "unit 00 P4(a): the distance fallen",
+  "source": "mechanics-to-relativity unit 00 (00-newton-as-ode); p1_expected section 26 (E120)",
+  "statement": "x(t) = Int_0^t v = Int_0^t w tanh(g s/w) ds. Evaluate it (rung 4: what differentiates to tanh?).",
+  "goal": "Int[s = 0 .. t] w*tanh(g*s/w) == ?A @ M > 0, g > 0, w > 0, t >= 0",
+  "answer_schema": "closed",
+  "declarations": {
+    "functions": {}
+  },
+  "reference_proof": [
+    {
+      "id": "s1",
+      "move": "fact",
+      "args": {
+        "entry": "tanh_def",
+        "inst": {
+          "u": "g*s/w"
+        },
+        "bind": "ht"
+      }
+    },
+    {
+      "id": "s2",
+      "move": "ftc",
+      "args": {
+        "F": "w^2/g*ln(cosh(g*s/w))",
+        "check": "field",
+        "facts": [
+          [
+            "handle",
+            "ht"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "s3",
+      "move": "rewrite",
+      "args": {
+        "entry": "cosh_zero",
+        "inst": {},
+        "at": "cosh(g*0/w)"
+      }
+    },
+    {
+      "id": "s4",
+      "move": "rewrite",
+      "args": {
+        "entry": "ln_one",
+        "inst": {},
+        "at": "ln 1"
+      }
+    },
+    {
+      "id": "s5",
+      "move": "close",
+      "args": {
+        "value": "w^2/g*ln(cosh(g*t/w))",
+        "check": "field",
+        "facts": []
+      }
+    }
+  ],
+  "notes": [
+    "E123: ln cosh's former owes cosh(g s/w) > 0, cited from cosh_pos"
+  ]
+}

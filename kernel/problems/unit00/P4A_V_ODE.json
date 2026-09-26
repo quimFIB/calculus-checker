@@ -1,0 +1,25 @@
+{
+  "format": "calc-problem/0",
+  "id": "unit00.P4A_V_ODE",
+  "title": "unit 00 P4(a): v(t) = v_inf tanh(g t/v_inf) solves the equation",
+  "source": "mechanics-to-relativity unit 00 (00-newton-as-ode); p1_expected section 26 (E120)",
+  "statement": "Check that v(t) = w tanh(g t/w), w = v_inf, satisfies M v' = Mg - c v^2 with c = Mg/w^2.",
+  "goal": "M*D[t] (w*tanh(g*t/w)) == M*g - M*g/w^2*(w*tanh(g*t/w))^2 @ M > 0, g > 0, w > 0, t >= 0",
+  "answer_schema": "none",
+  "declarations": {
+    "functions": {}
+  },
+  "reference_proof": [
+    {
+      "id": "s1",
+      "move": "verify",
+      "args": {
+        "check": "field",
+        "facts": []
+      }
+    }
+  ],
+  "notes": [
+    "E123"
+  ]
+}

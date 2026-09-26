@@ -200,6 +200,8 @@ ITEMS = {
     "T": "trig_norm, field's ordered facts and the trig entries (p1_expected "
          "section 22)",
     "L": "order goals, taylor_lagrange, bound and C^k (p1_expected section 25)",
+    "U": "verify, hyperbolic derivatives and unit 00's goals (p1_expected "
+         "section 26)",
 }
 UNIT, UNIT_TEXT = "unit", ("unit tests: test_field.py, test_grammar.py, "
                            "test_discharge.py")  # beside 1-6
@@ -3523,16 +3525,17 @@ def entries_readonly_problems():
 def app_rules_readonly_problems():
     """deriv.APP_RULES is trusted too in this milestone (§15.2 item 2): a
     helper that 'registers a missing rule' must fail, not extend it. A wrong
-    d cosh = cosh would prove Int[x=0..1] cosh x == cosh 1 - cosh 0 with
-    both admissions true."""
+    d asinh = asinh would prove Int[x=0..1] asinh x == asinh 1 - asinh 0
+    with both admissions true. (cosh was the example until section 26 gave
+    it a rule, E116; asinh still has none, E124.)"""
     out = []
     try:
-        DV.APP_RULES["cosh"] = lambda u, du: (T.Mul(T.App("cosh", u), du), ())
+        DV.APP_RULES["asinh"] = lambda u, du: (T.Mul(T.App("asinh", u), du), ())
         out.append("APP_RULES took a new rule")
     except TypeError:
         pass
-    st = install("Int[x = 0 .. 1] cosh x == ?A", ("cosh", "goal"))
-    r = K.step(st, "ftc", {"F": term("cosh x"), "check": "ring", "facts": []})
+    st = install("Int[x = 0 .. 1] asinh x == ?A", ("asinh", "goal"))
+    r = K.step(st, "ftc", {"F": term("asinh x"), "check": "ring", "facts": []})
     if not (isinstance(r, K.Refusal) and r.code == "deriv-no-rule"):
         out.append(f"ftc with F := cosh x gave {describe(r)}, not deriv-no-rule")
     return out
@@ -4586,7 +4589,7 @@ def discharge_checks(suite):
         return
     suite.check("D", "DISCHARGE_NEW_ENTRIES pinned (sqrt_zero immediately before "
                 "sqrt_sq, cos_zero after exp_one, sqrt_nonneg after it, "
-                "CONSOLIDATION_ENTRIES, atan_zero, trig_norm's seven, then exp_pos last: 32), and EXACT_VALUE_ENTRIES is "
+                "CONSOLIDATION_ENTRIES, atan_zero, trig_norm's seven, exp_pos, then unit 00's seven: 39), and EXACT_VALUE_ENTRIES is "
                 "ENTRIES' exact values", TD.entries_problems)
     for row in TD.expected_certificates():
         where, _, tag, spec = row
@@ -5755,6 +5758,101 @@ def taylor_checks(suite):
                     "(readiness P3 part 1)", lambda n=name: taylor_file_problems(n))
 
 
+def unit00_proof_problems(c):
+    """VERIFY_PROOFS: every step accepted through the loader's path, then
+    the report; a goal verify closed has the goal itself as its theorem
+    (E114), one close closed its instance."""
+    st, handles = K.install(goal(c["goal"])), {}
+    if isinstance(st, K.Refusal):
+        return [f"install refused {st.code}: {st.message}"]
+    for n, (move, args) in enumerate(c["steps"]):
+        st = _parts_feed(st, move, args, handles)
+        if isinstance(st, K.Refusal):
+            return [f"step {n} ({move}) refused {st.code}: {st.message}"]
+    out = []
+    if K.report(st) != c["report"]:
+        out.append(f"report {K.report(st)!r}, expected {c['report']!r}")
+    last = c["steps"][-1]
+    if last[0] == "verify" and st.theorem != goal(c["goal"]):
+        out.append(f"theorem {T.show(st.theorem)}, expected the goal")
+    if last[0] == "close" and st.theorem != T.instantiate(
+            goal(c["goal"]), term(last[1]["value"])):
+        out.append(f"theorem {T.show(st.theorem)}, expected the instance")
+    return out
+
+
+def unit00_bad_move_problems(b):
+    if b.get("install"):
+        return refusal_problems_of(K.install(goal(b["goal"])), b)
+    st = K.install(goal(b["goal"]))
+    if isinstance(st, K.Refusal):
+        return [f"install refused {st.code}: {st.message}"]
+    move, args = b["move"]
+    r = _parts_feed(st, move, args, {})
+    out = refusal_problems_of(r, b)
+    want = b.get("residual")
+    if want and isinstance(r, K.Refusal):
+        if r.residual is None:
+            out.append("no residual")
+        elif want is not True and not equal_by("ring", r.residual,
+                                                term(want))[0]:
+            out.append(f"residual {T.show(r.residual)}, expected {want}")
+    return out
+
+
+def unit00_deriv_problems(F, want):
+    """UNIT00_DERIV: deriv's output as a tree, and its sides on ()."""
+    out_text, sides = want
+    d = DV.deriv(term(F), "x", ())
+    out = []
+    if d.output != term(out_text):
+        out.append(f"output {T.show(d.output)}, expected {out_text}")
+    got = tuple(k for k, _ in d.emissions)
+    exp = tuple(T.parse_judgement(s, SIG) for s in sides)
+    if got != exp:
+        out.append(f"sides {[T.show(k) for k in got]}, expected {list(sides)}")
+    return out
+
+
+def unit00_checks(suite):
+    for name, c in X.VERIFY_PROOFS.items():
+        suite.check("U", f"VERIFY_PROOFS {name}: {c['goal']} -> "
+                    f"{c['report']!r}", lambda c=c: unit00_proof_problems(c))
+    for b in X.VERIFY_BAD_MOVES:
+        suite.check("U", f"VERIFY_BAD_MOVES {b['id']} -> {b['refusal']}",
+                    lambda b=b: unit00_bad_move_problems(b))
+    for F, want in X.UNIT00_DERIV.items():
+        suite.check("U", f"UNIT00_DERIV D[x] {F} -> {want[0]} (E116)",
+                    lambda F=F, w=want: unit00_deriv_problems(F, w))
+    suite.check("U", "verify's codes are the spec's, and every one is met",
+                lambda: [c for c in X.REFUSAL_CODES_UNIT00 if not any(
+                    b["refusal"] == c for b in X.VERIFY_BAD_MOVES)])
+    here = os.path.dirname(os.path.abspath(__file__))
+    names = sorted(f[:-5] for f in os.listdir(os.path.join(
+        here, "problems", "unit00")) if f.endswith(".json"))
+    suite.check("U", "problems/unit00/ holds exactly E120's files",
+                lambda: [] if names == sorted(X.UNIT00_PROBLEM_FILES)
+                else [f"files {names}"])
+    for name in X.UNIT00_PROBLEM_FILES:
+        suite.check("U", f"problems/unit00/{name}.json replays to 'Proved.' "
+                    "and states VERIFY_PROOFS' goal and steps",
+                    lambda n=name: unit00_file_problems(n))
+
+
+def unit00_file_problems(name):
+    import json
+    here = os.path.dirname(os.path.abspath(__file__))
+    raw = json.load(open(os.path.join(here, "problems", "unit00",
+                                      name + ".json")))
+    c, out = X.VERIFY_PROOFS[name], []
+    if raw["goal"] != c["goal"]:
+        out.append("goal differs from VERIFY_PROOFS")
+    if [(s["move"], s["args"]) for s in raw["reference_proof"]] != \
+            [(m, a) for m, a in c["steps"]]:
+        out.append("steps differ from VERIFY_PROOFS")
+    return out + improper_file_problems(name, folder="unit00")
+
+
 def _trig_forgery(kind):
     """A replacement for trig_norm.propose, per TRIG_NORM_FORGERIES."""
     import trig_norm as TN
@@ -5928,7 +6026,8 @@ def consolidation_entries_problems():
     want = list(X.CONSOLIDATION_ENTRIES) + list(
         X.IMPROPER_E27_CHANGES["ENTRIES_append"]) + list(
         X.TRIG_NORM_SWITCH["ENTRIES_append"]) + list(  # and trig_norm's (E87)
-        X.TAYLOR_ENTRIES_APPEND)  # and exp_pos (E103)
+        X.TAYLOR_ENTRIES_APPEND) + list(  # and exp_pos (E103)
+        X.UNIT00_ENTRIES_APPEND)  # and unit 00's seven (E117)
     if "sqrt_nonneg" not in names or \
             names[names.index("sqrt_nonneg") + 1:] != want:
         out.append(f"not appended after sqrt_nonneg in order: {names}")
@@ -5953,7 +6052,8 @@ def consolidation_checks(suite):
     suite.check("C", f"int_flip is a move: MOVES is {len(K.MOVES)} long and names it",
                 lambda: [] if K.MOVES[5] == X.INT_FLIP_MOVE and K.MOVES[6:] ==
                 (X.INT_PARTS_MOVE, X.INT_IMPROPER_MOVE,  # sections 19, 20
-                 X.TAYLOR_MOVE, X.BOUND_MOVE)  # section 25
+                 X.TAYLOR_MOVE, X.BOUND_MOVE,  # section 25
+                 X.VERIFY_MOVE)  # section 26
                 else [f"MOVES is {K.MOVES}"])
     print("\nint_flip (E51): accepted moves")
     for c in FLIP_ACCEPTS:
@@ -6797,6 +6897,10 @@ def main():
     print("\nTaylor with the Lagrange remainder (item L; p1_expected section 25)")
     if K is not None:
         taylor_checks(suite)
+
+    print("\nverify and unit 00 (item U; p1_expected section 26)")
+    if K is not None:
+        unit00_checks(suite)
 
     print("\nPlanted bugs (each in a child process)")
     suite.check(3, "control: the child, unpatched, finds nothing", control_problems)

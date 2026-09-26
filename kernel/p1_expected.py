@@ -15883,14 +15883,14 @@ DECISIONS_UNIT00 = {
             "without rules (E124). Sound: (sinh)' = cosh, (cosh)' = sinh, "
             "(tanh)' = 1/cosh^2 = 1 - tanh^2 because cosh^2 - sinh^2 = 1, "
             "(atanh)' = 1/(1 - u^2) on (-1, 1); the chain rule for du.",
-    "E117": "Eleven entries, appended after exp_pos in this order "
-            "(UNIT00_ENTRIES): exp_ln, ln_exp, exp_neg, ln_pos, sinh_zero, "
+    "E117": "Seven entries, appended after exp_pos in this order "
+            "(UNIT00_ENTRIES; E125 dropped four): sinh_zero, "
             "cosh_zero, tanh_zero, atanh_zero, tanh_def, cosh_sq and "
             "cosh_pos. Each is a theorem of real analysis for every value "
             "of its schema variable satisfying its hypotheses. The four "
             "values at 0 have no schema and no hypothesis, so they are "
             "exact values (E31) and E27 reads them as unevaluated forms. "
-            "field's facts are a^k == r, so tanh_def, cosh_sq and exp_neg "
+            "field's facts are a^k == r, so tanh_def and cosh_sq "
             "state their lhs as an atom or its power.",
     "E118": "Sources and codes. verify's emissions carry deriv's rule "
             "names, 'former', 'field_div', 'fact_hyp' (SOURCES_UNIT00 "
@@ -15943,13 +15943,6 @@ REFUSAL_CODES_UNIT00 = {
 }
 
 UNIT00_ENTRIES = {
-    "exp_ln": {"statement": "exp(ln u) == u @ u > 0", "schema": ("u",),
-               "hyps": ("u > 0",)},
-    "ln_exp": {"statement": "ln(exp u) == u", "schema": ("u",), "hyps": ()},
-    "exp_neg": {"statement": "exp(-u) == 1/exp u", "schema": ("u",),
-                "hyps": ()},
-    "ln_pos": {"statement": "ln u > 0 @ u > 1", "schema": ("u",),
-               "hyps": ("u > 1",)},
     "sinh_zero": {"statement": "sinh 0 == 0", "schema": (), "hyps": ()},
     "cosh_zero": {"statement": "cosh 0 == 1", "schema": (), "hyps": ()},
     "tanh_zero": {"statement": "tanh 0 == 0", "schema": (), "hyps": ()},
@@ -15979,7 +15972,7 @@ _P4_DOM = "M > 0, g > 0, w > 0"
 
 VERIFY_PROOFS = {
     "P1C_REDUCE": {
-        "goal": "v0 + Int[s = 0 .. t] F0*exp(-s/tau)/m == ?A "
+        "goal": "v0 + (Int[s = 0 .. t] F0*exp(-s/tau)/m) == ?A "
                 "@ m > 0, tau > 0, t >= 0",
         "steps": [("ftc", {"F": "-(F0*tau/m)*exp(-s/tau)", "check": "field",
                            "facts": [], "occurrence": 0}),
@@ -16008,46 +16001,36 @@ VERIFY_PROOFS = {
                   ("verify", {"check": "field", "facts": []})],
         "report": "Proved."},
     "P3A_TOP": {
-        "goal": f"-(m*g/b) + (v0 + m*g/b)*exp(-b*({_P3_TUP})/m) == 0 "
-                f"@ {_P3_DOM}",
-        "steps": [("fact", {"entry": "exp_neg", "inst":
-                            {"u": "ln(1 + b*v0/(m*g))"}, "bind": "hn"}),
-                  ("fact", {"entry": "exp_ln", "inst":
-                            {"u": "1 + b*v0/(m*g)"}, "bind": "hl"}),
-                  ("verify", {"check": "field", "facts": [["handle", "hn"],
-                                                          ["handle", "hl"]]})],
+        "goal": f"Int[w = v0 .. 0] m/(-(m*g) - b*w) == ?A @ {_P3_DOM}",
+        "steps": [("ftc", {"F": "-(m/b)*ln(m*g + b*w)", "check": "field",
+                           "facts": []}),
+                  ("close", {"value": "m/b*(ln(m*g + b*v0) - ln(m*g))",
+                             "check": "field", "facts": []})],
         "report": "Proved.",
-        "why": "E122. field reads -b*(m/b*L)/m as -L, so exp(-L) is the atom "
-               "exp_neg's instance names; if field keeps the argument as "
-               "written, the build records the rewrite the proof needs"},
+        "why": "E125: t_up is the separated integral read at v = 0, rung "
+               "5's 'set v = 0'"},
     "P3A_HEIGHT": {
-        "goal": f"Int[s = 0 .. {_P3_TUP}] {_P3_V.replace('t', 's')} == ?A "
-                f"@ {_P3_DOM}",
-        "steps": [("ftc", {"F": "-(m*g/b)*s - m/b*(v0 + m*g/b)*exp(-b*s/m)",
+        "goal": f"Int[w = v0 .. 0] m*w/(-(m*g) - b*w) == ?A @ {_P3_DOM}",
+        "steps": [("ftc", {"F": "-(m/b)*w + m^2*g/b^2*ln(m*g + b*w)",
                            "check": "field", "facts": []}),
-                  ("rewrite", {"entry": "exp_zero", "inst": {},
-                               "at": "exp(-b*0/m)"}),
-                  ("fact", {"entry": "exp_neg", "inst":
-                            {"u": "ln(1 + b*v0/(m*g))"}, "bind": "hn"}),
-                  ("fact", {"entry": "exp_ln", "inst":
-                            {"u": "1 + b*v0/(m*g)"}, "bind": "hl"}),
-                  ("close", {"value": "m/b*v0 - m^2*g/b^2*ln(1 + b*v0/(m*g))",
-                             "check": "field", "facts": [["handle", "hn"],
-                                                         ["handle", "hl"]]})],
+                  ("close", {"value": "m/b*v0 - m^2*g/b^2*(ln(m*g + b*v0) "
+                                      "- ln(m*g))",
+                             "check": "field", "facts": []})],
         "report": "Proved.",
-        "why": "E122: h = v_inf tau (z - ln(1 + z)), z = b v0/(m g)"},
+        "why": "E125: h = Int v dt = Int m w dw/F(w), the quadrature in v; "
+               "the worked solution's v_inf tau (z - ln(1 + z))"},
     "P4A_SEPARATE": {
-        "goal": "Int[u = 0 .. V] M/(M*g - M*g/w^2*u^2) == ?A @ "
-                + _P4_DOM + ", V in [0, w)",
-        "steps": [("ftc", {"F": "w/g*atanh(u/w)", "check": "field",
+        "goal": "Int[z = 0 .. Z] 1/(g*(1 - z^2)) == ?A @ g > 0, "
+                "Z in [0, 1)",
+        "steps": [("ftc", {"F": "atanh(z)/g", "check": "field",
                            "facts": []}),
                   ("rewrite", {"entry": "atanh_zero", "inst": {},
-                               "at": "atanh(0/w)"}),
-                  ("close", {"value": "w/g*atanh(V/w)", "check": "field",
+                               "at": "atanh 0"}),
+                  ("close", {"value": "atanh(Z)/g", "check": "field",
                              "facts": []})],
         "report": "Proved.",
-        "why": "rung 5's t = (v_inf/g) artanh(v/v_inf); c = M g/w^2 written "
-               "out"},
+        "why": "E126: rung 3's form, M g taken outside and w scaled out "
+               "(z = u/w); t = w times this"},
     "P4A_V_ODE": {
         "goal": "M*D[t] (w*tanh(g*t/w)) == M*g - M*g/w^2*(w*tanh(g*t/w))^2 "
                 "@ " + _P4_DOM + ", t >= 0",
@@ -16075,7 +16058,7 @@ VERIFY_PROOFS = {
         "why": "E123: ln cosh's former owes cosh(g s/w) > 0, cited from "
                "cosh_pos"},
     "P9A_V": {
-        "goal": "-Int[s = 0 .. x] (-(kappa*s) + alpha*s^3) == ?A @ x >= 0",
+        "goal": "-(Int[s = 0 .. x] -(kappa*s) + alpha*s^3) == ?A @ x >= 0",
         "steps": [("ftc", {"F": "-(kappa*s^2/2) + alpha*s^4/4",
                            "check": "ring", "facts": [], "occurrence": 0}),
                   ("close", {"value": "kappa*x^2/2 - alpha*x^4/4",
@@ -16093,6 +16076,10 @@ VERIFY_PROOFS = {
                             "bind": "hc"}),
                   ("verify", {"check": "field", "facts": [["handle", "ht"],
                                                           ["handle", "hc"]]})],
+        "report": "Proved."},
+    "LN_DERIV_RING": {  # table only: ring reads 1*(1/x) as 1/x (E127)
+        "goal": "D[x] ln x == 1/x @ x > 0",
+        "steps": [("verify", {"check": "ring", "facts": []})],
         "report": "Proved."},
     "ATANH_DERIV": {  # table only
         "goal": "D[x] atanh x == 1/(1 - x^2) @ x in (-1, 1)",
@@ -16123,17 +16110,12 @@ VERIFY_BAD_MOVES = [
      "move": ("verify", {"check": "ring", "facts": []}),
      "refusal": "verify-nested-D"},
     {"id": "verify_under_int",
-     "goal": "Int[x = 0 .. 1] D[x] x^2 == 1",
+     "goal": "(Int[x = 0 .. 1] D[x] x^2) == 1",
      "move": ("verify", {"check": "ring", "facts": []}),
      "refusal": "verify-D-under-binder"},
     {"id": "verify_no_rule", "goal": "D[x] asinh x == 1/sqrt(1 + x^2)",
      "move": ("verify", {"check": "field", "facts": []}),
      "refusal": "deriv-no-rule", "why": "E116, E124: no asinh rule"},
-    {"id": "verify_ring_divisor", "goal": "D[x] ln x == 1/x @ x > 0",
-     "move": ("verify", {"check": "ring", "facts": []}),
-     "refusal": "verify-check-failed",
-     "why": "ring does not cancel 1*(1/x) against 1/x's divisor-free form? "
-            "if ring closes it the build moves this row to VERIFY_PROOFS"},
     {"id": "verify_atanh_outside", "goal": "D[x] atanh x == 1/(1 - x^2) "
              "@ x in [0, 2]",
      "install": True, "refusal": "obligation-decided-false",
@@ -16149,3 +16131,42 @@ E57_PRINCIPLE["verify"] = (
     "it entered (the D former, Reg(e, 1) at G), deriv's sides are emitted "
     "at G, and its body holds no Int or D node (E113), so nothing whose "
     "existence was never charged is erased")
+
+# Section 26, as built (2026-09-26): what the build found, before review.
+DECISIONS_UNIT00_BUILT = {
+    "E125": "P3(a)'s top and height are quadratures in v, not verify goals "
+            "at t_up. The spec's P3A_TOP (v(t_up) == 0 by exp_neg and "
+            "exp_ln) failed 'verify-check-failed': field keeps an App's "
+            "argument as written, so exp(-b*((m/b)*L)/m) is not the atom "
+            "exp(-L) that exp_neg's instance names, and no rewrite reaches "
+            "it (rewrite matches up to ring, which cannot cancel b/b). The "
+            "height at t_up met the same wall, and first E56's orientation "
+            "(0 <= (m/b) ln(1 + b v0/(m g)), which ln_pos would have met). "
+            "Both are the separated integral read at v = 0, the worked "
+            "solution's own 'set v = 0' (t_up) and h = Int v dt = Int m w "
+            "dw/F(w): each closes with ftc and field. exp_ln, ln_exp, "
+            "exp_neg and ln_pos were then used by no proof and are not "
+            "added (entries join when a proof needs them). Recorded as a "
+            "gap (UNIT00.md G8): a learner who substitutes t_up into v(t), "
+            "as the course does, is stuck on the exp argument; field "
+            "normalising atom arguments, or rewrite matching up to field, "
+            "is the fix, and it touches the trusted normaliser.",
+    "E126": "P4(a)'s separated integral is stated in rung 3's scaled form, "
+            "Int[z = 0 .. Z] 1/(g (1 - z^2)), Z in [0, 1). With w a "
+            "parameter the spec's form proved modulo 12 admissions: u/w < "
+            "1 from u <= V < w and w > 0 is bilinear, and discharge's "
+            "methods are linear in the variables (farkas) or read signs "
+            "(sign, sign product, sign node); none proves it. The scaled "
+            "form's bounds are linear in z.",
+    "E127": "verify_ring_divisor is accepted, not refused: ring reads "
+            "deriv's 1*(1/x) and 1/x alike (1/x is x^-1 to the normaliser, "
+            "whose divisor field would charge and ring does not need to, "
+            "x # 0 being owed by the goal's own former). Moved to "
+            "VERIFY_PROOFS as LN_DERIV_RING.",
+}
+UNIT00_ENTRIES_APPEND = tuple(UNIT00_ENTRIES)  # after exp_pos (E117): 39
+UNIT00_EXACT_VALUES_ADD = ("sinh_zero", "cosh_zero", "tanh_zero",
+                           "atanh_zero")  # no schema, no hypothesis (E31)
+UNIT00_PROBLEM_FILES = ("P1C_REDUCE", "P3A_SEPARATE", "P3A_V_ODE",
+                        "P3A_V_INIT", "P3A_TOP", "P3A_HEIGHT", "P4A_SEPARATE",
+                        "P4A_V_ODE", "P4A_V_INIT", "P4A_X", "P9A_V")  # E120

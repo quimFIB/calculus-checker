@@ -1,0 +1,35 @@
+{
+  "format": "calc-problem/0",
+  "id": "unit00.P3A_TOP",
+  "title": "unit 00 P3(a): the time to the top",
+  "source": "mechanics-to-relativity unit 00 (00-newton-as-ode); p1_expected section 26 (E120)",
+  "statement": "Set v = 0 in the separated integral: t_up = Int_{v0}^{0} m dw/(-mg - bw). Evaluate it (the course's tau ln(1 + v0/v_inf)).",
+  "goal": "Int[w = v0 .. 0] m/(-(m*g) - b*w) == ?A @ m > 0, b > 0, g > 0, v0 > 0",
+  "answer_schema": "closed",
+  "declarations": {
+    "functions": {}
+  },
+  "reference_proof": [
+    {
+      "id": "s1",
+      "move": "ftc",
+      "args": {
+        "F": "-(m/b)*ln(m*g + b*w)",
+        "check": "field",
+        "facts": []
+      }
+    },
+    {
+      "id": "s2",
+      "move": "close",
+      "args": {
+        "value": "m/b*(ln(m*g + b*v0) - ln(m*g))",
+        "check": "field",
+        "facts": []
+      }
+    }
+  ],
+  "notes": [
+    "E125: t_up is the separated integral read at v = 0, rung 5's 'set v = 0'"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "format": "calc-problem/0",
+  "id": "unit00.P3A_V_ODE",
+  "title": "unit 00 P3(a): v(t) solves the equation of motion",
+  "source": "mechanics-to-relativity unit 00 (00-newton-as-ode); p1_expected section 26 (E120)",
+  "statement": "Check that v(t) = -mg/b + (v0 + mg/b) exp(-bt/m) satisfies m v' = -mg - bv.",
+  "goal": "m*D[t] (-(m*g/b) + (v0 + m*g/b)*exp(-b*t/m)) == -(m*g) - b*(-(m*g/b) + (v0 + m*g/b)*exp(-b*t/m)) @ m > 0, b > 0, g > 0, v0 > 0, t >= 0",
+  "answer_schema": "none",
+  "declarations": {
+    "functions": {}
+  },
+  "reference_proof": [
+    {
+      "id": "s1",
+      "move": "verify",
+      "args": {
+        "check": "field",
+        "facts": []
+      }
+    }
+  ],
+  "notes": []
+}

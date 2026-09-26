@@ -1,0 +1,44 @@
+{
+  "format": "calc-problem/0",
+  "id": "unit00.P4A_SEPARATE",
+  "title": "unit 00 P4(a): the skydiver's quadrature",
+  "source": "mechanics-to-relativity unit 00 (00-newton-as-ode); p1_expected section 26 (E120)",
+  "statement": "M v' = Mg - c v^2 with c = Mg/v_inf^2. Take Mg outside and scale w = v_inf z (rung 3): t = v_inf Int_0^Z dz/(g (1 - z^2)) with Z = v/v_inf in [0, 1). Evaluate the integral.",
+  "goal": "Int[z = 0 .. Z] 1/(g*(1 - z^2)) == ?A @ g > 0, Z in [0, 1)",
+  "answer_schema": "closed",
+  "declarations": {
+    "functions": {}
+  },
+  "reference_proof": [
+    {
+      "id": "s1",
+      "move": "ftc",
+      "args": {
+        "F": "atanh(z)/g",
+        "check": "field",
+        "facts": []
+      }
+    },
+    {
+      "id": "s2",
+      "move": "rewrite",
+      "args": {
+        "entry": "atanh_zero",
+        "inst": {},
+        "at": "atanh 0"
+      }
+    },
+    {
+      "id": "s3",
+      "move": "close",
+      "args": {
+        "value": "atanh(Z)/g",
+        "check": "field",
+        "facts": []
+      }
+    }
+  ],
+  "notes": [
+    "E126: rung 3's form, M g taken outside and w scaled out (z = u/w); t = w times this"
+  ]
+}

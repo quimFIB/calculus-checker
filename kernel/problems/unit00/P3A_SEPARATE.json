@@ -1,0 +1,33 @@
+{
+  "format": "calc-problem/0",
+  "id": "unit00.P3A_SEPARATE",
+  "title": "unit 00 P3(a): separate the upward leg",
+  "source": "mechanics-to-relativity unit 00 (00-newton-as-ode); p1_expected section 26 (E120)",
+  "statement": "A bead thrown upward through oil: m v' = -mg - bv with v > 0. Separate: Int_{v0}^{V} dw/(w + mg/b) = -(b/m) t. Evaluate the integral.",
+  "goal": "Int[w = v0 .. V] 1/(w + m*g/b) == ?A @ m > 0, b > 0, g > 0, v0 > 0, V in [0, v0]",
+  "answer_schema": "closed",
+  "declarations": {
+    "functions": {}
+  },
+  "reference_proof": [
+    {
+      "id": "s1",
+      "move": "ftc",
+      "args": {
+        "F": "ln(w + m*g/b)",
+        "check": "field",
+        "facts": []
+      }
+    },
+    {
+      "id": "s2",
+      "move": "close",
+      "args": {
+        "value": "ln(V + m*g/b) - ln(v0 + m*g/b)",
+        "check": "ring",
+        "facts": []
+      }
+    }
+  ],
+  "notes": []
+}
