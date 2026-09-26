@@ -202,6 +202,8 @@ ITEMS = {
     "L": "order goals, taylor_lagrange, bound and C^k (p1_expected section 25)",
     "U": "verify, hyperbolic derivatives and unit 00's goals (p1_expected "
          "section 26)",
+    "G": "field reads an atom's argument up to exact cancellation "
+         "(p1_expected section 27)",
 }
 UNIT, UNIT_TEXT = "unit", ("unit tests: test_field.py, test_grammar.py, "
                            "test_discharge.py")  # beside 1-6
@@ -4589,7 +4591,7 @@ def discharge_checks(suite):
         return
     suite.check("D", "DISCHARGE_NEW_ENTRIES pinned (sqrt_zero immediately before "
                 "sqrt_sq, cos_zero after exp_one, sqrt_nonneg after it, "
-                "CONSOLIDATION_ENTRIES, atan_zero, trig_norm's seven, exp_pos, then unit 00's seven: 39), and EXACT_VALUE_ENTRIES is "
+                "CONSOLIDATION_ENTRIES, atan_zero, trig_norm's seven, exp_pos, unit 00's seven, then G8's three: 42), and EXACT_VALUE_ENTRIES is "
                 "ENTRIES' exact values", TD.entries_problems)
     for row in TD.expected_certificates():
         where, _, tag, spec = row
@@ -5853,6 +5855,47 @@ def unit00_file_problems(name):
     return out + improper_file_problems(name, folder="unit00")
 
 
+def g8_accept_problems(lhs, rhs, divisors):
+    """G8_FIELD_ACCEPTS: field accepts with exactly these divisors, first
+    seen (E131); ring refuses NotEqual (E132)."""
+    out = []
+    try:
+        got = tuple(FD.field(term(lhs), term(rhs)).divisors)
+        if got != tuple(term(d) for d in divisors):
+            out.append(f"divisors {[T.show(d) for d in got]}, expected "
+                       f"{list(divisors)}")
+    except FD.NotEqual:
+        out.append("field: NotEqual")
+    return out
+
+
+def g8_reject_problems(check, lhs, rhs):
+    try:
+        getattr(FD, check)(term(lhs), term(rhs))
+    except FD.NotEqual:
+        return []
+    return [f"{check} accepted"]
+
+
+def g8_checks(suite):
+    for lhs, rhs, divs in X.G8_FIELD_ACCEPTS:
+        suite.check("G", f"G8_FIELD_ACCEPTS field {lhs} == {rhs}, owing "
+                    f"{', '.join(divs)} (E131)",
+                    lambda a=(lhs, rhs, divs): g8_accept_problems(*a))
+    for check, lhs, rhs in X.G8_REJECTS:
+        suite.check("G", f"G8_REJECTS {check} {lhs} == {rhs} -> NotEqual "
+                    "(E132, E135)", lambda a=(check, lhs, rhs):
+                    g8_reject_problems(*a))
+    for name, c in X.G8_PROOFS.items():
+        suite.check("G", f"G8_PROOFS {name}: {c['goal']} -> {c['report']!r}",
+                    lambda c=c: unit00_proof_problems(c))
+    suite.check("G", "G8_ENTRIES pinned as stated (E133)", lambda: [
+        n for n, e in X.G8_ENTRIES.items()
+        if n not in EN.ENTRIES
+        or EN.ENTRIES[n].statement != T.parse_judgement(e["statement"], SIG)
+        or tuple(EN.ENTRIES[n].schema) != e["schema"]])
+
+
 def _trig_forgery(kind):
     """A replacement for trig_norm.propose, per TRIG_NORM_FORGERIES."""
     import trig_norm as TN
@@ -6027,7 +6070,8 @@ def consolidation_entries_problems():
         X.IMPROPER_E27_CHANGES["ENTRIES_append"]) + list(
         X.TRIG_NORM_SWITCH["ENTRIES_append"]) + list(  # and trig_norm's (E87)
         X.TAYLOR_ENTRIES_APPEND) + list(  # and exp_pos (E103)
-        X.UNIT00_ENTRIES_APPEND)  # and unit 00's seven (E117)
+        X.UNIT00_ENTRIES_APPEND) + list(  # and unit 00's seven (E117)
+        X.G8_ENTRIES_APPEND)  # and G8's three (E133)
     if "sqrt_nonneg" not in names or \
             names[names.index("sqrt_nonneg") + 1:] != want:
         out.append(f"not appended after sqrt_nonneg in order: {names}")
@@ -6901,6 +6945,10 @@ def main():
     print("\nverify and unit 00 (item U; p1_expected section 26)")
     if K is not None:
         unit00_checks(suite)
+
+    print("\nfield's atom arguments (item G; p1_expected section 27)")
+    if K is not None:
+        g8_checks(suite)
 
     print("\nPlanted bugs (each in a child process)")
     suite.check(3, "control: the child, unpatched, finds nothing", control_problems)

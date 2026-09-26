@@ -164,7 +164,14 @@ F(t), F(v), F(x) or none, and which parameter set to zero would fix a
 "none" (`app/assist/CLASSIFY.md`), which is P1's other four parts. Not
 built: hypotheses about an unknown function and `sep_autonomous`
 (UNIT00.md G6), so P1's reductions are goals, not derivations.
-`python3.12 kernel/proof_of_life.py` passes 1068 checks.
+**field reads an atom's argument up to exact cancellation** (UNIT00.md
+G8, p1_expected section 27, 2026-09-26). exp(-b*((m/b)*L)/m) and exp(-L)
+are now one atom to `field` (it still owes b and m), so v(t_up) = 0 and
+the height at t_up prove the course's way, with `exp_neg`, `exp_ln` and
+`ln1p_pos`. `ring` and rewrite's matching are unchanged. The gate's own
+goals are unchanged too: the course forms are pinned in the suite, not
+added as problem files while the gate is read.
+`python3.12 kernel/proof_of_life.py` passes 1088 checks.
 
 **Doom Emacs has a `:lang dx` module** (`emacs/doom/dx`, 2026-09-26, the
 owner's ask). Linked into `$DOOMDIR/modules/lang/dx` and enabled as `dx`

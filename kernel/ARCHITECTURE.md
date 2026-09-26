@@ -39,8 +39,8 @@ tests alone: `python3 -m unittest discover -s kernel`.
 | `terms.py` | trusted | 1, 8: nodes, fv/bv, substitution, goal checks, parser, printer | stdlib |
 | `entries.py` | trusted | 7: the twenty-three §6.8 entries, pinned (P1's ten, stage 0's four, the owner's `sqrt_zero` and `cos_zero`, E35, `sqrt_nonneg`, E49, and the consolidation's six, E54) | terms |
 | `domains.py` | trusted | 2, 5: E26 (a)'s natural-domain table and regularity's one added datum (C1_EXTRA), the one table the formers and the regularity checker both read (E61, §13) | terms |
-| `poly.py` | trusted | 4: copied from `spike/ring/poly.py` | stdlib |
-| `field.py` | trusted | 4: `ring`, `field`, `norm_num` | poly, terms |
+| `poly.py` | trusted | 4: copied from `spike/ring/poly.py`, plus `exact_div` (p1_expected E131) | stdlib |
+| `field.py` | trusted | 4: `ring`, `field`, `norm_num`; field keys an atom's argument with exactly dividing denominator factors cancelled (E131) | poly, terms |
 | `deriv.py` | trusted | 2: §6.3's entries, applied | terms |
 | `kernel.py` | trusted | 2, 3, 5: rules (`int_subst` and `int_flip` among them, §11, §12), E56's orientation rule, E6 and E26's formers, matcher, tracker, handles, `step`, discharge at emission (§5) | terms, entries, field, deriv, discharge, tagger, search, refute, residual, schema (poly only through field) |
 | `discharge.py` | trusted | 5: the certificate checkers (hyp, Farkas, sign, sign product, cite, the norm_num leaf, and regularity's, §13) and the exact-value rewrite (E28–E31) | terms, entries, field, poly, domains |

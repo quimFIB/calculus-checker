@@ -100,6 +100,11 @@ STATEMENTS = {
     "tanh_def": ("tanh u == sinh u / cosh u", ("u",)),
     "cosh_sq": ("(cosh u)^2 == 1 + (sinh u)^2", ("u",)),
     "cosh_pos": ("cosh u > 0", ("u",)),
+    # G8's (p1_expected E133): t_up substituted into v(t), as the course
+    # does, and the height's orientation
+    "exp_neg": ("exp(-u) == 1/exp u", ("u",)),
+    "exp_ln": ("exp(ln u) == u @ u > 0", ("u",)),
+    "ln1p_pos": ("ln(1 + u) > 0 @ u > 0", ("u",)),
 }
 
 

@@ -11,7 +11,9 @@ Functions return fresh dicts and never mutate their arguments.
 Trusted (§15.2 item 4). Copied from spike/ring/poly.py, which stays as the
 record. The spike's `divide_exact` and `to_str` are not here: they served
 only residual display, and display is untrusted, so they moved to
-kernel/residual.py. Nothing else changed.
+kernel/residual.py. Nothing else changed, until `exact_div` (p1_expected
+E131), which field uses to cancel inside an atom's argument; residual.py's
+`divide_exact` stays untrusted and separate.
 """
 
 from fractions import Fraction
@@ -162,3 +164,40 @@ def frozen(p):
 
 def degree_in(p, i):
     return max((dict(m).get(i, 0) for m in p), default=0)
+
+
+def exact_div(p, f, bound):
+    """p / f when f divides p exactly, else None (p1_expected E131).
+
+    Division by leading terms in lex order: when f divides p, LT(p) =
+    LT(q)·LT(f) at every step, so a leading monomial LT(f) does not divide
+    means f does not divide p. The leading monomial of the remainder falls
+    strictly each step, and lex is a well-order, so the loop ends. Zero
+    divided by f is zero.
+
+    The work is bounded (E136): f cannot divide p when its degree in some
+    atom exceeds p's, which is checked first; and the division gives up
+    (None) once the monomials it has touched, the remainder and f at each
+    step, pass `bound`. Giving up only withholds a cancellation.
+    """
+    if not p:
+        return {}
+    if any(degree_in(p, i) < e for m in f for i, e in m):
+        return None
+    fm = leading(f)
+    fc = f[fm]
+    q, r, work = {}, dict(p), 0
+    while r:
+        work += len(r) + len(f)
+        if work > bound:
+            return None
+        m = leading(r)
+        d = dict(m)
+        for i, e in fm:
+            if d.get(i, 0) < e:
+                return None
+            d[i] -= e
+        t = {tuple(sorted((i, e) for i, e in d.items() if e)): r[m] / fc}
+        q = add(q, t)
+        r = sub(r, mul(t, f))
+    return q

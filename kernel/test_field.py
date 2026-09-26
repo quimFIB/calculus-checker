@@ -204,6 +204,38 @@ class Field(unittest.TestCase):
         # The kernel's norm_num discharges them (E7).
         self.assertEqual(divisors("x/3", "(1/3)*x"), terms("3"))
 
+    def test_atom_arguments_cancel_exact_factors(self):
+        # p1_expected E131, E132: field only; the divisor is still owed
+        self.assertEqual(divisors("exp(b*x/b)", "exp(x)"), terms("b"))
+        self.assertTrue(holds("field", "f((x^2 - 1)/(x - 1))", "f(x + 1)"))
+        self.assertTrue(holds("field", "(x*y/y)^z", "x^z"))
+        self.assertFalse(holds("ring", "exp(b*x/b)", "exp(x)"))
+        self.assertFalse(holds("field", "exp(x/y)", "exp(x)"))
+        self.assertFalse(holds("field", "exp((x^2 + 1)/(x + 1))",
+                               "exp(x - 1)"))
+
+    def test_exact_div(self):
+        P = FD.P
+        x, y = P.atom(0), P.atom(1)
+        f = P.add(x, P.const(-1))
+        p = P.mul(P.add(x, P.const(1)), f)
+        self.assertEqual(P.exact_div(p, f, 100), P.add(x, P.const(1)))
+        self.assertIsNone(P.exact_div(P.add(p, P.const(1)), f, 100))
+        self.assertEqual(P.exact_div({}, f, 100), {})
+        self.assertEqual(P.exact_div(P.mul(x, y), y, 100), x)
+        self.assertIsNone(P.exact_div(x, y, 100))
+        big = P.power(P.add(x, y), 6)
+        self.assertIsNone(P.exact_div(P.mul(big, f), f, 3))  # over bound
+
+    def test_cancel_work_is_bounded(self):
+        # E136: the skeptic's x^n/(x - y - z - w) ran for minutes
+        import time
+        for t in ("sin(x^100/(x - y - z - w))",
+                  "sin((x + y + z + w)^12/(x - y - z - w))"):
+            start = time.monotonic()
+            self.assertTrue(holds("field", t, t))
+            self.assertLess(time.monotonic() - start, 5, t)
+
     def test_common_denominator_is_not_squared(self):
         ok, _, r = decide("field", "1/(x+1) + 1/(x+1) + 1", "2/(1+x)")
         self.assertFalse(ok)
@@ -712,6 +744,23 @@ class Properties(unittest.TestCase):
             self.assertEqual(set(ds), set(input_divisors(a)), show(a))
             self.assertEqual(len(ds), len(set(ds)))
 
+    def test_atom_arguments_cancel_soundly(self):
+        # p1_expected E131: field keys sin(t*u/u) as sin(t), owing u; and
+        # sin(t/u) against sin(t) holds only where it is true.
+        rng = random.Random(9)
+        cancelled = 0
+        for _ in range(self.N):
+            t, u = random_term(rng, 2), random_term(rng, 2)
+            for a, b in ((App("sin", Div(Mul(t, u), u)), App("sin", t)),
+                         (App("sin", Div(t, u)), App("sin", t))):
+                got = attempt("field", a, b)
+                if got is None:
+                    continue
+                cancelled += got[0]
+                check_sound(self, "field", got[0], got[1], a, b, rng,
+                            n_points=4)
+        self.assertGreater(cancelled, self.N // 2)
+
     def test_ring_implies_field_and_is_sound(self):
         rng = random.Random(5)
         for _ in range(self.N):
@@ -872,6 +921,10 @@ def _lcm_ignores_second(self, a, b):
     return _add(self, a, b)
 
 
+def _cancel_drops_denominator(self, f):
+    return FD._Frac(f.num, {})  # every argument's denominator dropped
+
+
 def _reduce_drops_q(n, i, k, p_num, q):
     return _reduce(n, i, k, p_num, FD.P.const(1))
 
@@ -882,6 +935,7 @@ PLANTED = {
     "inverse_drops_content": ("invert", _inverse_drops_content),
     "lcm_ignores_second_denominator": ("add", _lcm_ignores_second),
     "reduce_drops_q": ("reduce", staticmethod(_reduce_drops_q)),
+    "cancel_drops_denominator": ("cancel", _cancel_drops_denominator),
 }
 
 

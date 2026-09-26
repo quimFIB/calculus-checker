@@ -818,14 +818,15 @@ def entries_problems():
             *X.IMPROPER_E27_CHANGES["ENTRIES_append"],
             *X.TRIG_NORM_SWITCH["ENTRIES_append"],  # E87: 31
             *X.TAYLOR_ENTRIES_APPEND,  # E103: 32
-            *X.UNIT00_ENTRIES_APPEND]  # E117: 39
+            *X.UNIT00_ENTRIES_APPEND,  # E117: 39
+            *X.G8_ENTRIES_APPEND]  # E133: 42
     if names[-len(tail):] != tail:
         out.append(f"cos_zero, sqrt_nonneg and CONSOLIDATION_ENTRIES are not "
                    f"last, in that order: {names}")
-    if len(names) != 39:
-        out.append(f"ENTRIES has {len(names)} entries, expected 39")
+    if len(names) != 42:
+        out.append(f"ENTRIES has {len(names)} entries, expected 42")
     for name, e in {**X.SQRT_NONNEG_ENTRY, **X.CONSOLIDATION_ENTRIES,
-                    **X.UNIT00_ENTRIES}.items():
+                    **X.UNIT00_ENTRIES, **X.G8_ENTRIES}.items():
         got = ENTRIES.get(name)
         if got is None or got.statement != judgement(e["statement"]) \
                 or tuple(got.schema) != e["schema"] \

@@ -16301,3 +16301,19 @@ G8_PROOFS = {
         "why": "E134: h = v_inf tau (z - ln(1 + z)), z = b v0/(m g); the "
                "orientation 0 <= t_up cites ln1p_pos"},
 }
+
+# Section 27, after the skeptic review (2026-09-26): no unsound verdict (a
+# fuzz of 2,623 cancellation-heavy pairs, every field caller emitting the
+# divisors), one denial of service.
+DECISIONS_G8_REVIEW = {
+    "E136": "exact_div's work is bounded, not only its quotient: "
+            "sin(x^100/(x - y - z - w)) ran for minutes, the remainder "
+            "growing by |f| terms a step. It first refuses a divisor whose "
+            "degree in some atom exceeds the dividend's (then f cannot "
+            "divide it), and gives up (no cancellation) once the monomials "
+            "touched, remainder and divisor at each step, pass "
+            "field.TERMS_BOUND. test_field pins both cases under 5 s.",
+    "E137": "rewrite still matches up to ring (E132): rewrite exp_ln at "
+            "exp(ln(x^2/x)) with u := x is refused rewrite-lhs-mismatch; "
+            "the fact with close or verify reaches it.",
+}

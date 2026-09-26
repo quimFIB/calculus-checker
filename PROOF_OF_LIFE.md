@@ -493,8 +493,9 @@ API followed, and then (2026-09-25) items P, I and T: `int_parts`,
 followed (section 25): order goals, `taylor_lagrange`, `bound` and C^k,
 for readiness P3 part 1, at 1027 of 1027. Item U followed (section 26,
 2026-09-26): `verify`, the hyperbolic derivative rules and entries, and
-unit 00's eleven goals (UNIT00.md). The suite is at 1068 of 1068 on
-Python 3.12.
+unit 00's eleven goals (UNIT00.md), at 1068 of 1068. Item G followed
+(section 27): field reads an atom's argument up to exact cancellation
+(UNIT00.md G8). The suite is at 1088 of 1088 on Python 3.12.
 
 ## What is in `kernel/`
 

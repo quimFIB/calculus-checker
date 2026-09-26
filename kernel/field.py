@@ -8,7 +8,9 @@ rests on.
 normalise lhs − rhs and ask whether the numerator is the zero polynomial.
 Everything that is not a ring or field operation is an **opaque atom**, and
 two atoms are one atom when their heads agree and their arguments normalise
-to the same form. That is congruence, and nothing more.
+to the same form. That is congruence, and nothing more. field's form of an
+argument has each denominator factor that divides the numerator exactly
+divided out (p1_expected E131, E136); ring's is the form as it stands.
 
   ring   equality in ℚ[atoms]. A divisor whose normal form is a nonzero
          constant is a coefficient. Any other divisor d gives an atom inv(d),
@@ -178,7 +180,30 @@ class _Normaliser:
         return _Frac(P.atom(i), {})
 
     def key(self, t):
-        return self.frac_key(self.norm(t))
+        """An atom argument's key (App, Call, RPow). field keys it with
+        every denominator factor that divides the numerator exactly
+        cancelled (p1_expected E131): each such factor is a factor of a
+        divisor field returns, so the two arguments agree wherever the
+        returned divisors are nonzero. ring cancels nothing (it returns no
+        divisors), so its key is the normal form as it stands."""
+        f = self.norm(t)
+        return self.frac_key(self.cancel(f) if self.is_field else f)
+
+    def cancel(self, f):
+        """f with each denominator factor that divides its numerator
+        exactly divided out, as often as it does. Incomplete (no gcd, and
+        a factor that divides only a product of other factors is kept),
+        never unsound: every division is exact."""
+        num, den = f.num, {}
+        for fid, e in f.den.items():
+            while e:
+                q = P.exact_div(num, self.factor_polys[fid], TERMS_BOUND)
+                if q is None:
+                    break
+                num, e = q, e - 1
+            if e:
+                den[fid] = e
+        return _Frac(num, den)
 
     @staticmethod
     def frac_key(f):
