@@ -16317,3 +16317,99 @@ DECISIONS_G8_REVIEW = {
             "exp(ln(x^2/x)) with u := x is refused rewrite-lhs-mismatch; "
             "the fact with close or verify reaches it.",
 }
+
+
+# ---------------------------------------------------------------------------
+# 28. Strict Taylor bounds and a scaled bound: unit 00 P3(b) (2026-09-26)
+#
+# The owner, 2026-09-26: "Work on all the kernel gaps". UNIT00.md's P3(b)
+# row: t_up < v0/g from ln(1 + z) < z, which needs a strict
+# taylor_lagrange (E101's out list) and a bound that multiplies the fact
+# by a positive constant. Specified here before any code.
+
+DECISIONS_STRICT = {
+    "E138": "taylor_lagrange's sense also takes 'strictly increasing' and "
+            "'strictly decreasing'. The monotone premise is then D_(n+2) > "
+            "0 (or < 0) on G + (u in (a, c)), the first order premise a < "
+            "p @ G instead of a <= p, and the minted conclusion is E97's "
+            "with < for <=. Everything else is E97 and E98, in their order. "
+            "Sound: on (a, c) and at a, D_k = f^(k) as E97 argues; D_(n+2) "
+            "> 0 on (a, c) and continuity at a make f^(n+1) strictly "
+            "increasing on [a, c); p > a gives Taylor's xi in (a, p), so "
+            "f^(n+1)(a) < f^(n+1)(xi) < f^(n+1)(p), and W = (p - a)^(n+1) / "
+            "(n+1)! > 0; the products are strictly ordered. Decreasing is "
+            "the mirror image.",
+    "E139": "bound takes an optional term `scale` s: the check is hi - lo "
+            "== s*(d' - c') instead of hi - lo == d' - c', s's formers are "
+            "charged at G before it, and s > 0 @ G is emitted after it "
+            "(source 'bound_scale'). Sound: where the divisors are nonzero "
+            "and s > 0, hi - lo = s(d' - c') has the sign of d' - c', which "
+            "is > 0 (>= 0) wherever the fact holds. The loader and "
+            "kernel's term arguments gain 'scale'.",
+    "E140": "Unit 00 P3(b) as a goal: m/b*ln(1 + z) < v0/g with z = "
+            "b*v0/(m*g). taylor_lagrange on f = ln(1 + u) from 0 to z + 1 "
+            "at z, derivs 1/(1 + u) and -1/(1 + u)^2, upper, strictly "
+            "decreasing, mints ln(1 + z) - ln(1 + 0) < 1/(1 + 0)*(z - 0); "
+            "bound with scale m/b and the fact ln_one closes it. Table "
+            "only while the gate is read (E134's rule).",
+}
+SOURCES_STRICT = {"bound_scale": "s > 0 at G for bound's scale (E139)"}
+
+_P3B_Z = "b*v0/(m*g)"
+_P3B_TAYLOR = ("taylor_lagrange", {
+    "bind": "hl", "f": "ln(1 + u)", "var": "u", "lo": "0",
+    "hi": f"{_P3B_Z} + 1", "at": _P3B_Z,
+    "derivs": ["1/(1 + u)", "-1/(1 + u)^2"], "side": "upper",
+    "sense": "strictly decreasing", "check": "field", "facts": []})
+_P3B_ONE = ("fact", {"entry": "ln_one", "inst": {}, "bind": "h1"})
+_P3B_GOAL = f"m/b*ln(1 + {_P3B_Z}) < v0/g @ {_P3_DOM}"
+
+STRICT_PROOFS = {
+    "P3B": {
+        "goal": _P3B_GOAL,
+        "steps": [_P3B_TAYLOR, _P3B_ONE,
+                  ("bound", {"check": "field", "scale": "m/b",
+                             "facts": [["handle", "hl"], ["handle", "h1"]]})],
+        "report": "Proved.",
+        "why": "E140: t_up < v0/g from ln(1 + z) < z"},
+    "LN1P_LT": {
+        "goal": "ln(1 + x) < x @ x > 0",
+        "steps": [("taylor_lagrange", {**_P3B_TAYLOR[1], "hi": "x + 1",
+                                       "at": "x"}),
+                  _P3B_ONE,
+                  ("bound", {"check": "field",
+                             "facts": [["handle", "hl"], ["handle", "h1"]]})],
+        "report": "Proved.",
+        "why": "E138: the inequality itself, no scale"},
+}
+STRICT_BAD_MOVES = [
+    {"id": "strict_wrong_sense", "goal": _P3B_GOAL,
+     "move": ("taylor_lagrange", {**_P3B_TAYLOR[1],
+                                  "sense": "strictly increasing"}),
+     "refusal": "obligation-decided-false",
+     "why": "E138: -1/(1 + u)^2 > 0 is false"},
+    {"id": "strict_needs_p_past_a", "goal": "ln(1 + x) < x @ x >= 0",
+     "move": ("taylor_lagrange", {**_P3B_TAYLOR[1], "hi": "x + 1",
+                                  "at": "x"}),
+     "refusal": "obligation-decided-false",
+     "why": "E138: 0 < x is false at x = 0"},
+    {"id": "strict_bad_sense", "goal": _P3B_GOAL,
+     "move": ("taylor_lagrange", {**_P3B_TAYLOR[1], "sense": "strictly"}),
+     "refusal": "bad-args", "why": "E138: the four senses only"},
+    {"id": "scale_negative", "goal": f"v0/g < m/b*ln(1 + {_P3B_Z}) @ "
+                                     f"{_P3_DOM}",
+     "steps": [_P3B_TAYLOR, _P3B_ONE],
+     "move": ("bound", {"check": "field", "scale": "-(m/b)",
+                        "facts": [["handle", "hl"], ["handle", "h1"]]}),
+     "refusal": "obligation-decided-false",
+     "why": "E139: the check holds with s = -(m/b), and s > 0 is false"},
+    {"id": "scale_wrong", "goal": _P3B_GOAL,
+     "steps": [_P3B_TAYLOR, _P3B_ONE],
+     "move": ("bound", {"check": "field", "scale": "m/(2*b)",
+                        "facts": [["handle", "hl"], ["handle", "h1"]]}),
+     "refusal": "bound-check-failed", "why": "E139"},
+    {"id": "scale_on_non_bound", "goal": "x == ?A @ x > 0",
+     "move": ("close", {"value": "x", "check": "ring", "facts": [],
+                        "scale": "2"}),
+     "refusal": "bad-args", "why": "E139: bound's argument only"},
+]
