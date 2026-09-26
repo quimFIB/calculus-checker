@@ -8,7 +8,8 @@ here: the trusted parser reads them when the step is fed.
 import re
 
 KEYWORDS = ("by", "using", "with", "at", "occurrence", "as", "from", "to",
-            "reverse", "in", "derivs", "increasing", "decreasing")
+            "reverse", "in", "derivs", "increasing", "decreasing",
+            "strictly", "scale")
 SENSES = ("increasing", "decreasing")  # taylor_lagrange's flag clauses
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_']*\Z")
 
@@ -24,9 +25,10 @@ FORMS = {
     "int_flip": ({"occurrence"}, set()),
     "int_parts": ({"in", "with", "occurrence", "by", "using"},
                   {"in", "with"}),
-    "taylor_lagrange": ({"in", "from", "to", "at", "derivs", *SENSES, "by",
-                         "using"}, {"in", "from", "to", "at", "derivs"}),
-    "bound": ({"by", "using"}, {"using"}),
+    "taylor_lagrange": ({"in", "from", "to", "at", "derivs", *SENSES,
+                         "strictly", "by", "using"},
+                        {"in", "from", "to", "at", "derivs"}),
+    "bound": ({"scale", "by", "using"}, {"using"}),
     "verify": ({"by", "using"}, set()),
 }
 USAGE = {
@@ -42,9 +44,9 @@ USAGE = {
     "int_parts": "int_parts in x with u := T; v := T [occurrence N] "
                  "[by ring|field] [using h, ...]",
     "taylor_lagrange": "taylor_lagrange h := lower|upper of T in u from T "
-                       "to T at T derivs T; T; ... increasing|decreasing "
-                       "[by ring|field] [using h, ...]",
-    "bound": "bound [by ring|field] using h, ...",
+                       "to T at T derivs T; T; ... [strictly] "
+                       "increasing|decreasing [by ring|field] [using h, ...]",
+    "bound": "bound [scale T] [by ring|field] using h, ...",
     "verify": "verify [by ring|field] [using h, ...]",
 }
 
@@ -227,7 +229,9 @@ def _build(move, head, cl):
     if move in ("bound", "verify"):  # p1_expected E99, E112
         if head:
             raise TacticError(f"unexpected {head!r}")
-        return _checked({}, cl)
+        scale = ({"scale": _term(cl["scale"], "scale")} if "scale" in cl
+                 else {})  # E139
+        return _checked(scale, cl)
     # int_parts
     if head:
         raise TacticError(f"unexpected {head!r}")
@@ -249,13 +253,16 @@ def _taylor(head, cl):
     senses = [s for s in SENSES if s in cl]
     if len(senses) != 1 or cl[senses[0]]:
         raise TacticError("say increasing or decreasing, once, alone")
+    if cl.get("strictly"):
+        raise TacticError("strictly takes no text: 'strictly increasing'")
+    sense = ("strictly " if "strictly" in cl else "") + senses[0]  # E138
     derivs = [_term(d.strip(), "derivs") for d in _split_top(cl["derivs"], ";")
               if d.strip()]
     return _checked({"bind": h, "f": _term(f[3:].strip(), "of"),
                      "var": _name(cl["in"], "in"),
                      "lo": _term(cl["from"], "from"),
                      "hi": _term(cl["to"], "to"), "at": _term(cl["at"], "at"),
-                     "derivs": derivs, "side": side, "sense": senses[0]}, cl)
+                     "derivs": derivs, "side": side, "sense": sense}, cl)
 
 
 # ---------------------------------------------------------------- printing
@@ -301,7 +308,8 @@ def show(move, args):
              f"{args['hi']} at {args['at']} derivs "
              f"{'; '.join(args['derivs'])} {args['sense']}{_tail(args)}")
     elif move in ("bound", "verify"):
-        s = f"{move}{_tail(args)}"
+        sc = f" scale {args['scale']}" if "scale" in args else ""
+        s = f"{move}{sc}{_tail(args)}"
     else:
         raise ValueError(f"no tactic form for {move!r}")
     return s + "."
@@ -462,6 +470,8 @@ def layout(sentence):
         for i, w in cuts:
             if w in SENSES:
                 spans.append((i, i + len(w), "choice:increasing|decreasing"))
+    if move == "bound" and "scale" in clause:
+        term(clause["scale"])
     if "occurrence" in clause:
         name(clause["occurrence"])
     if "by" in clause:

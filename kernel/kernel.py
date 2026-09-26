@@ -507,7 +507,7 @@ _ARGS = {"rewrite": ("entry", "inst", "at"), "fact": ("entry", "inst", "bind"),
          "taylor_lagrange": ("bind", "f", "var", "lo", "hi", "at", "derivs",
                              "side", "sense", "check", "facts"),
          "bound": ("check", "facts"), "verify": ("check", "facts")}
-_TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f", "u", "v")
+_TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f", "u", "v", "scale")
 
 
 def _names_variable(v):
@@ -558,7 +558,7 @@ def _check_args(move, args, goal):
     need = set(_ARGS[move])
     optional = ({"occurrence"} if move in ("rewrite", "int_flip", "ftc",
                                            "int_parts", "int_improper")
-                else set())
+                else {"scale"} if move == "bound" else set())
     if move == "int_subst":  # INT_SUBST_RULE step 1 (E36, E45, E48)
         optional = {"mode", "occurrence"}
         if type(args) is dict and args.get("mode") == "reverse":
@@ -589,7 +589,7 @@ def _check_args(move, args, goal):
               and type(args["side"]) is str
               and args["side"] in ("lower", "upper")
               and type(args["sense"]) is str
-              and args["sense"] in ("increasing", "decreasing")
+              and args["sense"] in TAYLOR_SENSES
               and _names_variable(args["var"]))
     if ok and move == "int_subst":
         ok = (type(args.get("mode", "forward")) is str
@@ -2024,6 +2024,11 @@ def _int_improper(state, args, minted, buf):
 S_TAYLOR_ORDER, S_TAYLOR_F_C = "taylor_order", "taylor_f_C"
 S_TAYLOR_D_C0, S_TAYLOR_D = "taylor_D_C0", "taylor_D"
 S_TAYLOR_MONO = "taylor_monotone"
+S_BOUND_SCALE = "bound_scale"
+# E97, and E138's strict senses: (the monotone premise's relation, strict)
+TAYLOR_SENSES = {"increasing": (">=", False), "decreasing": ("<=", False),
+                 "strictly increasing": (">", True),
+                 "strictly decreasing": ("<", True)}
 
 
 def _taylor_scope(g, u, f, derivs, ends):
@@ -2079,7 +2084,9 @@ def _taylor(state, args, minted, buf):
     on_O = G + (Interval(u, a, False, c, False),)
     for t in (a, c, p):  # E107: the ends and the point enter at G first
         _charge_formers(buf, t, G, G)
-    _emit(buf, with_domain(Rel("<=", a, p), G), S_TAYLOR_ORDER, G)
+    mono, strict = TAYLOR_SENSES[args["sense"]]
+    _emit(buf, with_domain(Rel("<" if strict else "<=", a, p), G),
+          S_TAYLOR_ORDER, G)  # E138: a strict sense needs p past a
     _emit(buf, with_domain(Rel("<", p, c), G), S_TAYLOR_ORDER, G)
     for t in Ds:
         _charge_formers(buf, t, on_I, G)
@@ -2095,16 +2102,17 @@ def _taylor(state, args, minted, buf):
                "taylor-check-failed")
         _emit(buf, with_domain(Rel("==", Deriv(u, Ds[k]), Ds[k + 1]), on_O),
               S_TAYLOR_D, G, ("deriv+" + check, cites))
-    up = args["sense"] == "increasing"
-    _emit(buf, with_domain(Rel(">=" if up else "<=", Ds[n + 2], Num(0)),
-                           on_O), S_TAYLOR_MONO, G)
+    up = mono in (">=", ">")
+    _emit(buf, with_domain(Rel(mono, Ds[n + 2], Num(0)), on_O),
+          S_TAYLOR_MONO, G)
     T, W = _taylor_poly(Ds, u, a, p, n)
     R = Add(subst(f, {u: p}), Neg(T))
     left, right = (a, p) if up else (p, a)
+    op = "<" if strict else "<="
     if args["side"] == "lower":
-        conclusion = Rel("<=", Mul(subst(Ds[n + 1], {u: left}), W), R)
+        conclusion = Rel(op, Mul(subst(Ds[n + 1], {u: left}), W), R)
     else:
-        conclusion = Rel("<=", R, Mul(subst(Ds[n + 1], {u: right}), W))
+        conclusion = Rel(op, R, Mul(subst(Ds[n + 1], {u: right}), W))
     for side in (conclusion.lhs, conclusion.rhs):
         _charge_formers(buf, side, G, G)
     check_goal((conclusion,))
@@ -2147,8 +2155,16 @@ def _bound(state, args, minted, buf):
         if not isinstance(h, (Rel, NonZero)):
             raise Refused("bound-fact-shape", f"the fact's hypothesis "
                           f"{_brief(h)} is not in the goal's domain")
-    _check(args["check"], Add(hi, Neg(lo)), Add(d, Neg(c)), eqs, G, G, buf,
+    diff = Add(d, Neg(c))
+    if "scale" in args:  # E139: hi - lo == s*(d' - c'), s > 0 at G
+        s = args["scale"]
+        _charge_formers(buf, s, G, G)
+        diff = Mul(s, diff)
+    _check(args["check"], Add(hi, Neg(lo)), diff, eqs, G, G, buf,
            "bound-check-failed")
+    if "scale" in args:
+        _emit(buf, with_domain(Rel(">", args["scale"], Num(0)), G),
+              S_BOUND_SCALE, G)
     for v in rec.inst:
         _charge_formers(buf, v, G, G)
     for h in rec.conclusion.dom:

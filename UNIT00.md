@@ -33,7 +33,7 @@ findings change what that means in practice:
 | P1 (a)–(e) | classify each force as F(t), F(v), F(x) or none; the first reduction | yes | G5 (classify), G6 for the reductions as checked steps |
 | P2, P5, P6, P11 | dimensional analysis, the pi theorem, scaling | no | §6.6 `buckingham`, stage 2 |
 | P3 (a) | v(t) for linear drag on the way up, t↑ and h in closed form | yes | G1, G2, G3 |
-| P3 (b) | t↑ < v₀/g from ln(1 + z) < z | later | a strict `taylor_lagrange` (E101's out list) |
+| P3 (b) | t↑ < v₀/g from ln(1 + z) < z | yes, built (section 28) | a strict `taylor_lagrange` and bound's `scale` (E138–E140) |
 | P3 (c), (d) | expansion in b; a numeric descent time | no | `big_O`, certified numbers (stage 2) |
 | P4 (a) | quadratic drag: c, v(t) = v∞ tanh(gt/v∞), x(t) = (v∞²/g) ln cosh(gt/v∞) | yes | G1, G2, G3, G4 |
 | P4 (b), (c) | four numbers; the asymptotic lag | no | stage 2 |

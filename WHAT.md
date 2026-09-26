@@ -171,7 +171,9 @@ the height at t_up prove the course's way, with `exp_neg`, `exp_ln` and
 `ln1p_pos`. `ring` and rewrite's matching are unchanged. The gate's own
 goals are unchanged too: the course forms are pinned in the suite, not
 added as problem files while the gate is read.
-`python3.12 kernel/proof_of_life.py` passes 1088 checks.
+**P3(b) proves** (section 28): t_up < v0/g from ln(1 + z) < z, by a
+strict `taylor_lagrange` and `bound scale m/b`.
+`python3.12 kernel/proof_of_life.py` passes 1097 checks.
 
 **Doom Emacs has a `:lang dx` module** (`emacs/doom/dx`, 2026-09-26, the
 owner's ask). Linked into `$DOOMDIR/modules/lang/dx` and enabled as `dx`

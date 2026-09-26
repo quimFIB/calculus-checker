@@ -69,6 +69,22 @@ class Syntax(unittest.TestCase):
                             "1] t))^2.")
         self.assertEqual(a["inst"], {"u": "Int[t = 0 .. 1] t"})
 
+    def test_strict_and_scale(self):
+        """p1_expected E138, E139: strictly before the sense, scale T on
+        bound; each round-trips."""
+        t = ("taylor_lagrange hl := upper of ln(1 + u) in u from 0 to x + 1 "
+             "at x derivs 1/(1 + u); -1/(1 + u)^2 strictly decreasing by "
+             "field.")
+        move, args = script.parse(t)
+        self.assertEqual(args["sense"], "strictly decreasing")
+        self.assertEqual(script.show(move, args), t)
+        b = "bound scale m/b by field using hl, h1."
+        move, args = script.parse(b)
+        self.assertEqual(args["scale"], "m/b")
+        self.assertEqual(script.show(move, args), b)
+        with self.assertRaises(script.TacticError):
+            script.parse("verify scale 2")
+
     def test_verify(self):
         """p1_expected E112: verify takes only by and using."""
         self.assertEqual(script.parse("verify by field using h, k"),

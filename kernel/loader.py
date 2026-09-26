@@ -52,7 +52,7 @@ ARG_TYPES = {"at": str, "F": str, "value": str, "inst": dict, "facts": list,
              "u": str, "v": str,  # int_parts' (p1_expected section 19)
              "derivs": list, "side": str, "sense": str}  # section 25
 # The args that are GRAMMAR.md strings for terms, parsed with the file's sig.
-TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f", "u", "v")
+TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f", "u", "v", "scale")
 
 
 @dataclass(frozen=True)

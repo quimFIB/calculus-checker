@@ -437,7 +437,9 @@ proceeds as follows, with refusals given in the order they are tested:
   `check_goal` on the new goal. It owes no order of its own.
 - **`int_parts`**, **`int_improper`**, **`taylor_lagrange`** and
   **`bound`** are specified by p1_expected sections 19-25 (items P, I, T,
-  L).
+  L). Section 28 (item K) adds taylor_lagrange's strict senses (E138: D_(n+2)
+  > 0 or < 0, a < p, a strict conclusion) and bound's optional `scale` s
+  (E139: hi - lo == s*(d' - c'), then s > 0 at G, source `bound_scale`).
 - **`verify`** is §6.5's `ode_verify` in general form, specified by
   p1_expected section 26 (E112-E115, E128-E130). Its args are `{"check",
   "facts"}` as `close`'s. On an equation goal with no `?A` it refuses a

@@ -204,6 +204,7 @@ ITEMS = {
          "section 26)",
     "G": "field reads an atom's argument up to exact cancellation "
          "(p1_expected section 27)",
+    "K": "strict Taylor bounds and bound's scale (p1_expected section 28)",
 }
 UNIT, UNIT_TEXT = "unit", ("unit tests: test_field.py, test_grammar.py, "
                            "test_discharge.py")  # beside 1-6
@@ -5896,6 +5897,37 @@ def g8_checks(suite):
         or tuple(EN.ENTRIES[n].schema) != e["schema"]])
 
 
+def strict_bad_move_problems(b):
+    """STRICT_BAD_MOVES: the steps, then the move refused by code."""
+    st, handles = K.install(goal(b["goal"])), {}
+    if isinstance(st, K.Refusal):
+        return [f"install refused {st.code}: {st.message}"]
+    for move, args in b.get("steps", ()):
+        st = _parts_feed(st, move, args, handles)
+        if isinstance(st, K.Refusal):
+            return [f"step {move} refused {st.code}: {st.message}"]
+    move, args = b["move"]
+    r = _parts_feed(st, move, args, handles)
+    if not isinstance(r, K.Refusal):
+        return ["accepted"]
+    return [] if r.code == b["refusal"] else [f"refused {r.code}: {r.message}"]
+
+
+def strict_checks(suite):
+    for name, c in X.STRICT_PROOFS.items():
+        suite.check("K", f"STRICT_PROOFS {name}: {c['goal']} -> "
+                    f"{c['report']!r}", lambda c=c: unit00_proof_problems(c))
+    for b in X.STRICT_BAD_MOVES:
+        suite.check("K", f"STRICT_BAD_MOVES {b['id']} -> {b['refusal']}",
+                    lambda b=b: strict_bad_move_problems(b))
+    suite.check("K", "taylor_lagrange's senses and bound's source are the "
+                "spec's (E138, E139)", lambda: [] if (
+                    set(K.TAYLOR_SENSES) == {"increasing", "decreasing",
+                                             "strictly increasing",
+                                             "strictly decreasing"}
+                    and K.S_BOUND_SCALE in X.SOURCES_STRICT) else ["differ"])
+
+
 def _trig_forgery(kind):
     """A replacement for trig_norm.propose, per TRIG_NORM_FORGERIES."""
     import trig_norm as TN
@@ -6949,6 +6981,11 @@ def main():
     print("\nfield's atom arguments (item G; p1_expected section 27)")
     if K is not None:
         g8_checks(suite)
+
+    print("\nstrict Taylor bounds and bound's scale (item K; p1_expected "
+          "section 28)")
+    if K is not None:
+        strict_checks(suite)
 
     print("\nPlanted bugs (each in a child process)")
     suite.check(3, "control: the child, unpatched, finds nothing", control_problems)

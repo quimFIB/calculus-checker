@@ -457,7 +457,7 @@ fits the goals window; indented two spaces."
      . font-lock-preprocessor-face)
     (,(regexp-opt dx-moves 'symbols) . font-lock-keyword-face)
     (,(regexp-opt '("by" "using" "with" "at" "occurrence" "as" "from" "to"
-                    "reverse" "in" "derivs" "increasing" "decreasing"
+                    "reverse" "in" "derivs" "increasing" "decreasing" "strictly" "scale"
                     "lower" "upper" "of")
                   'symbols)
      . font-lock-builtin-face)

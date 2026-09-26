@@ -495,7 +495,9 @@ for readiness P3 part 1, at 1027 of 1027. Item U followed (section 26,
 2026-09-26): `verify`, the hyperbolic derivative rules and entries, and
 unit 00's eleven goals (UNIT00.md), at 1068 of 1068. Item G followed
 (section 27): field reads an atom's argument up to exact cancellation
-(UNIT00.md G8). The suite is at 1088 of 1088 on Python 3.12.
+(UNIT00.md G8), at 1088. Item K followed (section 28): strict Taylor
+bounds and bound's scale, for unit 00 P3(b). The suite is at 1097 of 1097
+on Python 3.12.
 
 ## What is in `kernel/`
 
