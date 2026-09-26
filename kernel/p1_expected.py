@@ -16540,3 +16540,263 @@ DECISIONS_CLEAR_BUILT = {
             "the one reason it names, and foreign_atom and den_with_div "
             "pass every other rule, so clear_terms_unchecked is caught.",
 }
+
+
+# ---------------------------------------------------------------------------
+# 30. Assumptions about declared functions, and §6.5's three derived rules:
+#     UNIT00.md G6 (2026-09-26)
+#
+# The owner, 2026-09-26: "Work on all the kernel gaps". G6: P1's reductions
+# as checked steps need the equation of motion as a hypothesis about an
+# unknown function, v in C^1, and §6.5's quad_t, sep_autonomous and
+# energy_integral. A goal's domain cannot say it: its variables are
+# quantified together, so a hypothesis at a variable s the claim does not
+# mention says "for some s", not "for all s". Specified here before code.
+
+ODE_MOVES = ("quad_t", "sep_autonomous", "energy_integral")
+ODE_ARGS = {
+    "quad_t": ("bind", "law", "regs", "lo", "hi", "var", "F", "check",
+               "facts"),
+    "sep_autonomous": ("bind", "law", "regs", "lo", "hi", "var", "f", "F",
+                       "range", "using", "check", "facts"),
+    "energy_integral": ("bind", "law", "kin", "regs", "lo", "hi", "var",
+                        "f", "F", "range", "using", "check", "facts"),
+}
+
+DECISIONS_ODE = {
+    "E147": "Assumptions (Γ). install takes, beside the goal, a tuple of "
+            "kernel.Assumption(name, var, interval, judgement): 'for every "
+            "var in interval, judgement'. The theorem a proof reaches is "
+            "the goal under Γ: for every assignment of the goal's free "
+            "variables, if every assumption holds and the domain does, the "
+            "claim does. kernel.assumptions(state) returns Γ; report's "
+            "strings are unchanged, and whoever shows a report shows Γ "
+            "beside it. A state's Γ is its lineage's, fixed at install.",
+    "E148": "An assumption is refused 'assume-shape' unless: its name is a "
+            "variable-like name, distinct from the others; interval is an "
+            "Interval on var whose ends hold no Int, D or Call and do not "
+            "mention var; and judgement (with dom ()) is one of (law) an "
+            "equation whose only D nodes are D[var] f(var) for declared f "
+            "(a Call whose one argument is Var(var)), holding no Int; "
+            "(order) an ordering or # 0 judgement holding no Int or D; "
+            "(reg) Reg(f(var), k), 1 <= k <= the C^k bound, f declared: "
+            "f in C^k on the interval (one-sided at a closed end). It is "
+            "refused 'assume-scope' when var is free or bound in the goal, "
+            "or when the judgement or the interval mentions a variable "
+            "other than var and the goal's free variables (so every "
+            "parameter is the goal's, quantified outside Γ). check_goal "
+            "reads each judgement as a side, and one arity per declared "
+            "name holds across the goal and Γ.",
+    "E149": "The three rules mint a handle bound to `bind`, as "
+            "taylor_lagrange does: its conclusion has domain G, the goal "
+            "does not change, and the handle's tags cite the rule. Each "
+            "takes an antiderivative F in a fresh variable `var` (not free "
+            "or bound in the goal, not the law's variable), checked like "
+            "ftc's: D[var] F == target by deriv and `check` with `facts`, "
+            "on an open interval, with F's formers and Reg(F, 1) there. "
+            "The ends t0 (lo) and t1 (hi) are terms free of the law's "
+            "variable s. A law is matched in the step: its lhs is D[s] "
+            "y(s) (c = 1) or c*D[s] y(s) with c free of s and holding no "
+            "Call or D; its rhs is compared with ring (atoms opaque, "
+            "Calls atoms), never rewritten. 'ode-no-assumption' names a "
+            "law, kin, reg or using name Γ does not hold with the right "
+            "kind; 'ode-law-shape' a law of another form; "
+            "'ode-law-mismatch' a rhs that is not the stated f; "
+            "'ode-no-regularity' a function with no reg of class >= 1 "
+            "among regs; 'ode-scope' a var that is not fresh; "
+            "'ode-check-failed' the derivative check (with the residual).",
+    "E150": "Containment, emitted at G (source 'ode_contain'), first: t0 "
+            "<= t1; then for the law (and kin), each reg used and each "
+            "`using` assumption, its interval's finite ends against [t0, "
+            "t1]: lo <= t0 (lo < t0 at an open end) and t1 <= hi (t1 < "
+            "hi). So [t0, t1] lies in every interval the proof reads an "
+            "assumption on.",
+    "E151": "quad_t (§6.5: m x'' = F(t), integrate; here once, for v). The "
+            "law is c*D[s] y(s) == R with R holding no Call or D. target "
+            "= R[s := var]/c (R when c = 1), on G + (var in (t0, t1)); "
+            "Reg(F, 0) on G + (var in [t0, t1]). Conclusion: y(t1) == "
+            "y(t0) + (F[var := t1] - F[var := t0]) @ G. Sound: h = y - F "
+            "is continuous on [t0, t1] (y by its reg, F by its C^0 "
+            "premise) and h' = y' - R/c = 0 on (t0, t1) (the law holds "
+            "there, c # 0 because R/c's former owes it), so h(t1) = "
+            "h(t0).",
+    "E152": "sep_autonomous (§6.5). The law is c*D[s] y(s) == R with R "
+            "ring-equal to f[w := y(s)], f holding no Call or D (w is "
+            "`var`); range is an open Interval on var, (a, b), either end "
+            "possibly infinite. target = c/f, on G + range, whose formers "
+            "owe f # 0 there. Range, emitted with source 'ode_range': a < "
+            "y(s) and y(s) < b (finite ends) @ G + (s in [t0, t1]) + each "
+            "`using` assumption's judgement at s. Conclusion: t1 == t0 + "
+            "(F[var := y(t1)] - F[var := y(t0)]) @ G, its formers charged "
+            "at G + the range items at y(t0) and y(t1) + each `using` "
+            "judgement at t0 and at t1 (true wherever G is, by the "
+            "containment and range obligations). Sound: h(s) = F(y(s)) - s "
+            "is continuous on [t0, t1] and h' = F'(y) y' - 1 = (c/f(y)) y' "
+            "- 1 = (c y' - f(y))/f(y) = 0 on (t0, t1), since y(s) is in "
+            "(a, b), where F' = c/f and f # 0, and c y' = R = f(y) by the "
+            "law. So h(t1) = h(t0). DESIGN §6.5 states it with the "
+            "integral t = Int m dw/f(w); the antiderivative form needs no "
+            "Int with Call limits (whose orientation nothing decides).",
+    "E153": "energy_integral (§6.5, m x'' = F(x), as the first-order "
+            "system x' = v, m v' = F(x)). kin is D[s] x(s) == v(s) exactly "
+            "(c = 1, rhs the Call v(s)); law is c*D[s] v(s) == R with R "
+            "ring-equal to f[w := x(s)]; both laws on the same s, x and v "
+            "distinct. target = f on G + range; range items for x(s). "
+            "Conclusion: v(t1)^2 == v(t0)^2 + 2/c*(F[var := x(t1)] - "
+            "F[var := x(t0)]) @ G, formers as E152's with x. Sound: h(s) = "
+            "(c/2) v^2 - F(x) has h' = c v v' - F'(x) x' = v f(x) - f(x) v "
+            "= 0 on (t0, t1), so h(t1) = h(t0), and c # 0 (2/c's former) "
+            "divides it out.",
+    "E154": "Γ's instances in a domain are exactly E152's: an order "
+            "assumption at the point s, t0 or t1, and only where E150's "
+            "containment was emitted for it. Nothing else reads Γ: a law "
+            "or a reg is read only by the rule that names it, in the step, "
+            "and discharge never sees Γ.",
+    "E155": "Problem files may carry 'assume': a list of {name, var, in, "
+            "and law or reg}: `in` an interval as a domain item writes it "
+            "('[0, oo)'), `law` a judgement ('m*D[s] v(s) == ...'), `reg` "
+            "{fn, class}. The loader builds the Assumptions. No problem "
+            "file uses it while the gate is read (E134's rule): the proofs "
+            "below are table only.",
+}
+
+# Γ as data: (name, var, interval text, ('law', judgement) or ('reg', fn,
+# k)). Declared functions are named in each case's sig.
+_ODE_V = {"v": 1}
+_ODE_XV = {"x": 1, "v": 1}
+_P1A_GAMMA = (
+    ("eom", "s", "[0, oo)", ("law", "m*D[s] v(s) == -(m*g) - b*v(s)")),
+    ("regv", "s", "[0, oo)", ("reg", "v", 1)),
+    ("up", "s", "[0, oo)", ("law", "v(s) >= 0")),
+)
+_P1B_GAMMA = (
+    ("kin", "s", "[0, oo)", ("law", "D[s] x(s) == v(s)")),
+    ("eom", "s", "[0, oo)",
+     ("law", "m*D[s] v(s) == -(kappa*x(s)) + alpha*x(s)^3")),
+    ("regx", "s", "[0, oo)", ("reg", "x", 1)),
+    ("regv", "s", "[0, oo)", ("reg", "v", 1)),
+)
+_P1C_GAMMA = (
+    ("eom", "s", "[0, oo)", ("law", "m*D[s] v(s) == F0*exp(-s/tau)")),
+    ("regv", "s", "[0, oo)", ("reg", "v", 1)),
+)
+_P1A_SEP = ("sep_autonomous", {
+    "bind": "h", "law": "eom", "regs": ["regv"], "lo": "0", "hi": "t",
+    "var": "w", "f": "-(m*g) - b*w", "F": "-(m/b)*ln(m*g/b + w)",
+    "range": "(-(m*g)/b, oo)", "using": ["up"], "check": "field",
+    "facts": []})
+_P1B_ENERGY = ("energy_integral", {
+    "bind": "h", "law": "eom", "kin": "kin", "regs": ["regx", "regv"],
+    "lo": "0", "hi": "t", "var": "w", "f": "-(kappa*w) + alpha*w^3",
+    "F": "-(kappa*w^2)/2 + alpha*w^4/4", "range": "(-oo, oo)", "using": [],
+    "check": "ring", "facts": []})
+_P1C_QUAD = ("quad_t", {
+    "bind": "h", "law": "eom", "regs": ["regv"], "lo": "0", "hi": "t",
+    "var": "u", "F": "-(F0*tau/m)*exp(-u/tau)", "check": "field",
+    "facts": []})
+
+# (the ODE's Γ, sig, goal, steps, report)
+ODE_PROOFS = {
+    "P1A_SEP": {
+        "gamma": _P1A_GAMMA, "sig": _ODE_V,
+        "goal": "t == m/b*(ln(m*g/b + v(0)) - ln(m*g/b + v(t))) @ m > 0, "
+                "b > 0, g > 0, t >= 0",
+        "steps": [_P1A_SEP,
+                  ("verify", {"check": "field",
+                              "facts": [["handle", "h"]]})],
+        "report": "Proved.",
+        "why": "E152: unit 00 P1(a), F(v): separate; up keeps v(s) above "
+               "-mg/b"},
+    "P1B_ENERGY": {
+        "gamma": _P1B_GAMMA, "sig": _ODE_XV,
+        "goal": "m*v(t)^2/2 - m*v(0)^2/2 == -(kappa*x(t)^2)/2 + "
+                "alpha*x(t)^4/4 - (-(kappa*x(0)^2)/2 + alpha*x(0)^4/4) "
+                "@ m > 0, t >= 0",
+        "steps": [_P1B_ENERGY,
+                  ("verify", {"check": "field",
+                              "facts": [["handle", "h"]]})],
+        "report": "Proved.",
+        "why": "E153: unit 00 P1(b)'s F(x) (P9's force): multiply by the "
+               "velocity"},
+    "P1C_QUAD": {
+        "gamma": _P1C_GAMMA, "sig": _ODE_V,
+        "goal": "v(t) == v(0) + F0*tau/m*(1 - exp(-t/tau)) @ m > 0, "
+                "tau > 0, t >= 0",
+        "steps": [_P1C_QUAD,
+                  ("fact", {"entry": "exp_zero", "inst": {}, "bind": "hz"}),
+                  ("verify", {"check": "field",
+                              "facts": [["handle", "h"], ["handle", "hz"]]})],
+        "report": "Proved.",
+        "why": "E151: unit 00 P1(c), F(t): integrate once"},
+}
+
+# (id, Γ, sig, goal, steps before, the move, refusal)
+ODE_BAD_MOVES = [
+    {"id": "law_mismatch", "gamma": _P1A_GAMMA, "sig": _ODE_V,
+     "goal": ODE_PROOFS["P1A_SEP"]["goal"],
+     "move": ("sep_autonomous", {**_P1A_SEP[1], "f": "-(m*g) + b*w"}),
+     "refusal": "ode-law-mismatch", "why": "E149"},
+    {"id": "no_such_law", "gamma": _P1A_GAMMA, "sig": _ODE_V,
+     "goal": ODE_PROOFS["P1A_SEP"]["goal"],
+     "move": ("sep_autonomous", {**_P1A_SEP[1], "law": "eqm"}),
+     "refusal": "ode-no-assumption", "why": "E149"},
+    {"id": "law_is_a_reg", "gamma": _P1A_GAMMA, "sig": _ODE_V,
+     "goal": ODE_PROOFS["P1A_SEP"]["goal"],
+     "move": ("sep_autonomous", {**_P1A_SEP[1], "law": "regv"}),
+     "refusal": "ode-no-assumption", "why": "E149: the wrong kind"},
+    {"id": "no_regularity", "gamma": _P1A_GAMMA, "sig": _ODE_V,
+     "goal": ODE_PROOFS["P1A_SEP"]["goal"],
+     "move": ("sep_autonomous", {**_P1A_SEP[1], "regs": []}),
+     "refusal": "ode-no-regularity", "why": "E149"},
+    {"id": "wrong_antiderivative", "gamma": _P1A_GAMMA, "sig": _ODE_V,
+     "goal": ODE_PROOFS["P1A_SEP"]["goal"],
+     "move": ("sep_autonomous", {**_P1A_SEP[1],
+                                 "F": "(m/b)*ln(m*g/b + w)"}),
+     "refusal": "ode-check-failed", "why": "E149"},
+    {"id": "var_not_fresh", "gamma": _P1A_GAMMA, "sig": _ODE_V,
+     "goal": ODE_PROOFS["P1A_SEP"]["goal"],
+     "move": ("sep_autonomous", {**_P1A_SEP[1], "var": "t",
+                                 "f": "-(m*g) - b*t",
+                                 "F": "-(m/b)*ln(m*g/b + t)",
+                                 "range": "(-(m*g)/b, oo)"}),
+     "refusal": "ode-scope", "why": "E149"},
+    {"id": "outside_the_law", "gamma": (
+        ("eom", "s", "[0, T]", ("law", "m*D[s] v(s) == -(m*g) - b*v(s)")),
+        ("regv", "s", "[0, T]", ("reg", "v", 1)),
+        ("up", "s", "[0, T]", ("law", "v(s) >= 0"))), "sig": _ODE_V,
+     "goal": "T + 1 == T + 1 + 0*v(0) @ m > 0, b > 0, g > 0, T > 0",
+     "move": ("sep_autonomous", {**_P1A_SEP[1], "hi": "T + 1"}),
+     "refusal": "obligation-decided-false",
+     "why": "E150: T + 1 <= T is false"},
+    {"id": "quad_law_with_call", "gamma": _P1A_GAMMA, "sig": _ODE_V,
+     "goal": ODE_PROOFS["P1A_SEP"]["goal"],
+     "move": ("quad_t", {**_P1C_QUAD[1], "F": "u"}),
+     "refusal": "ode-law-mismatch",
+     "why": "E151: quad_t's rhs holds no Call"},
+    {"id": "energy_kin_shape", "gamma": (
+        ("kin", "s", "[0, oo)", ("law", "D[s] x(s) == 2*v(s)")),
+        *_P1B_GAMMA[1:]), "sig": _ODE_XV,
+     "goal": ODE_PROOFS["P1B_ENERGY"]["goal"],
+     "move": _P1B_ENERGY, "refusal": "ode-law-shape",
+     "why": "E153: kin is x' = v exactly"},
+]
+# (id, Γ, sig, goal, refusal): install refuses
+ODE_INSTALL_REFUSALS = [
+    ("var_in_goal", (("eom", "t", "[0, oo)",
+                      ("law", "D[t] v(t) == 1")),), _ODE_V,
+     "v(t) == v(0) + t @ t >= 0", "assume-scope"),
+    ("stray_parameter", (("eom", "s", "[0, oo)",
+                          ("law", "D[s] v(s) == k")),), _ODE_V,
+     "v(t) == v(0) + t @ t >= 0", "assume-scope"),
+    ("D_of_an_expression", (("eom", "s", "[0, oo)",
+                             ("law", "D[s] (v(s)^2) == 1")),), _ODE_V,
+     "v(t) == v(0) + t @ t >= 0", "assume-shape"),
+    ("D_in_an_order_law", (("up", "s", "[0, oo)",
+                            ("law", "D[s] v(s) >= 0")),), _ODE_V,
+     "v(t) == v(0) + t @ t >= 0", "assume-shape"),
+    ("duplicate_name", (("eom", "s", "[0, oo)",
+                                  ("law", "D[s] v(s) == 1")),
+                                 ("eom", "s", "[0, oo)",
+                                  ("law", "D[s] v(s) == 2"))), _ODE_V,
+     "v(t) == v(0) + t @ t >= 0", "assume-shape"),
+]
