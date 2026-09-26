@@ -491,7 +491,10 @@ API followed, and then (2026-09-25) items P, I and T: `int_parts`,
 `int_improper` with `limits.py` and the sign node, and `trig_norm`
 (p1_expected sections 19-23). The suite was at 992 of 992 then. Item L
 followed (section 25): order goals, `taylor_lagrange`, `bound` and C^k,
-for readiness P3 part 1. The suite is at 1027 of 1027 on Python 3.12.
+for readiness P3 part 1, at 1027 of 1027. Item U followed (section 26,
+2026-09-26): `verify`, the hyperbolic derivative rules and entries, and
+unit 00's eleven goals (UNIT00.md). The suite is at 1068 of 1068 on
+Python 3.12.
 
 ## What is in `kernel/`
 

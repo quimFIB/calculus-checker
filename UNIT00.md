@@ -3,8 +3,8 @@
 **Status (2026-09-26):** the owner approved finishing §17's gate corpus
 ("Go ahead") and asked for the work to go on unsupervised. This file is the
 gap list, written before any code, as `P3.md` was for readiness P3.
-G1–G5 are built (p1_expected section 26; `app/assist/CLASSIFY.md`), and
-the build added G8 below. The corpus and its reading are `app/GATE.md`. It
+G1 and G3–G5 are built (p1_expected section 26; `app/assist/CLASSIFY.md`);
+G2 was not needed (E125), and the build added G8 and G9 below. The corpus and its reading are `app/GATE.md`. It
 names the lettered parts that make up the gate's unit 00 share, probes each
 against the kernel as it stands (main at 4034076), and picks the smallest
 cut.
@@ -62,7 +62,7 @@ lettered part split into the goals its worked solution states.
 | # | Gap | Needed by | Kind |
 |---|---|---|---|
 | G1 | **No move closes an equation without `?A`.** `close` needs `?A` as the rhs, and no move evaluates a `D` node in a goal: `D[t] t^2 == ?A` refuses `close 2*t` with the residual `D[t](t^2) - 2*t`. §6.5's `ode_verify` (a candidate checked against its equation by `deriv` then `field`) has no move, and neither has an initial condition such as v(0) = v₀. | P3(a), P4(a), P9(a) | kernel: a move |
-| G2 | **Missing exp and ln entries.** P3's t↑ = τ ln(1 + v₀/v∞) puts exp(−t↑/τ) into v(t↑) and h; closing needs exp(ln u) = u (u > 0), exp(−u) = 1/exp u, and a sign for ln: the range [0, τ ln(1 + z)] is refused `orientation-undecided` until ln u > 0 for u > 1 can be cited. | P3(a) | entries |
+| G2 | **Missing exp and ln entries.** P3's t↑ = τ ln(1 + v₀/v∞) puts exp(−t↑/τ) into v(t↑) and h; closing needs exp(ln u) = u (u > 0), exp(−u) = 1/exp u, and a sign for ln: the range [0, τ ln(1 + z)] is refused `orientation-undecided` until ln u > 0 for u > 1 can be cited.  **Not built (E125):** the reference proofs take t↑ and h as quadratures in v, so no proof needs these entries; substituting t↑ into v(t) meets G8 first. | P3(a) | entries |
 | G3 | **Hyperbolic functions have no derivative rule.** `deriv` knows sin, cos, exp, sqrt, ln and atan only: `atanh w` and `cosh s` refuse `deriv-no-rule`. P4 needs atanh (the quadrature), tanh (v(t)) and ln cosh (x(t)). | P4(a) | kernel: §6.3 rules |
 | G4 | **Hyperbolic entries.** tanh u = sinh u / cosh u, cosh²u − sinh²u = 1 (field's fact for the tanh derivative), cosh u > 0 (ln cosh's former), and the values at 0 (sinh 0 = 0, cosh 0 = 1, tanh 0 = 0, atanh 0 = 0). | P4(a) | entries |
 | G5 | **Classification.** §12.1's `classify` reads the free variables of the right-hand side. It is a tactic report, not a judgement (§5.2), so it belongs in the untrusted assistance layer: F(t), F(v), F(x) or none, with the reason. | P1 | assistance |

@@ -264,7 +264,7 @@ derivative_domain(closed: Interval) -> Interval
 `ProofState`, or a `Refusal` with the input state untouched (E13). The
 common checks come first, in this order: the state is one the kernel minted
 (`state-not-minted`); the goal is still open (`proof-finished`); the move is
-one of the six in `MOVES` (`bad-move`); `args` has exactly the move's keys, each of
+one of the eleven in `MOVES` (`bad-move`); `args` has exactly the move's keys, each of
 the right type (`bad-args`). Fact slots are resolved next, before any rule
 runs (`fact-not-minted-handle`, `fact-foreign-state-handle`). Each move then
 proceeds as follows, with refusals given in the order they are tested:
@@ -435,6 +435,19 @@ proceeds as follows, with refusals given in the order they are tested:
   rewrite's `rewrite-under-D-needs-open-domain`; the new integral's
   formers (E56's `orientation-undecided`, decided-false formers); and
   `check_goal` on the new goal. It owes no order of its own.
+- **`int_parts`**, **`int_improper`**, **`taylor_lagrange`** and
+  **`bound`** are specified by p1_expected sections 19-25 (items P, I, T,
+  L).
+- **`verify`** is §6.5's `ode_verify` in general form, specified by
+  p1_expected section 26 (E112-E115, E128-E130). Its args are `{"check",
+  "facts"}` as `close`'s. On an equation goal with no `?A` it refuses a
+  metavariable (`verify-has-mvar`), a D node under an Int
+  (`verify-D-under-binder`) and a D whose body holds a D
+  (`verify-nested-D`); then every D node of either side, in pre-order, has
+  deriv's side conditions emitted at G and is replaced by deriv's output,
+  the sides' formers are charged, and lhs − rhs is checked as `close`
+  checks (`verify-check-failed`, residual lhs − rhs). The theorem is the
+  original goal.
 
 A check that fails raises `field.NotEqual(residual)`. The kernel turns it
 into a Refusal carrying `residual.residual_term(r)`, which is lhs − rhs

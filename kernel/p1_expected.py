@@ -16164,6 +16164,24 @@ DECISIONS_UNIT00_BUILT = {
             "x # 0 being owed by the goal's own former). Moved to "
             "VERIFY_PROOFS as LN_DERIV_RING.",
 }
+# Section 26, after the skeptic review (2026-09-26): nothing blocking.
+DECISIONS_UNIT00_REVIEW = {
+    "E128": "verify emits deriv's side conditions in pre-order over each "
+            "side (E113's order), then replaces the D nodes from the last "
+            "to the first, so a replacement never moves a path still to be "
+            "read. A D node in an Int's limit is outside the Int's scope "
+            "(it has no Int ancestor), so it is replaced like any other; "
+            "the Int's body is not re-normalised around it, which the "
+            "check's ring or field does.",
+    "E129": "E120's list and E123 stand as built. E122 (P3A_TOP by "
+            "exp_neg and exp_ln, ln_pos for the height's orientation) is "
+            "superseded by E125, and the spec's unscaled P4A_SEPARATE by "
+            "E126. The superseded rows are kept as the spec was frozen, "
+            "before code.",
+    "E130": "UNIT00.md's G8 (field keeps App arguments) and G9 (linear "
+            "discharge) are recorded, not built: both touch the trusted "
+            "base, and the gate's reading needs neither.",
+}
 UNIT00_ENTRIES_APPEND = tuple(UNIT00_ENTRIES)  # after exp_pos (E117): 39
 UNIT00_EXACT_VALUES_ADD = ("sinh_zero", "cosh_zero", "tanh_zero",
                            "atanh_zero")  # no schema, no hypothesis (E31)

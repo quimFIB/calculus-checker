@@ -2166,8 +2166,9 @@ def _bound(state, args, minted, buf):
 def _verify_nodes(side, G):
     """E113: the D nodes of one side, in pre-order, as (path, node). A D node
     inside an Int refuses 'verify-D-under-binder', and one whose body holds
-    a D node 'verify-nested-D'. The walk does not descend into an Int's
-    range beyond what _positions does; it only reads each node's ancestors."""
+    a D node 'verify-nested-D'. A D node in an Int's limit is outside the
+    Int's scope, so it has no Int ancestor and is replaced like any other
+    (E128)."""
     found = []
     for path, t, _, anc in _positions(side, G):
         if not isinstance(t, Deriv):
@@ -2196,13 +2197,15 @@ def _verify(state, args, minted, buf):
     G = g.dom
     sides = [g.lhs, g.rhs]
     for i in (0, 1):
-        # Replace from the last node back, so earlier paths stay valid:
-        # a later pre-order node is never an ancestor of an earlier one,
-        # and no node here holds another (E113).
-        for path, node in reversed(_verify_nodes(sides[i], G)):
-            d = DV.deriv(node.body, node.var, G)
+        found = [(path, DV.deriv(node.body, node.var, G))
+                 for path, node in _verify_nodes(sides[i], G)]
+        for _, d in found:  # emitted in pre-order (E113)
             for key, source in d.emissions:
                 _emit(buf, key, source, G)
+        # Replaced from the last node back, so earlier paths stay valid:
+        # a later pre-order node is never an ancestor of an earlier one,
+        # and no node here holds another (E113).
+        for path, d in reversed(found):
             sides[i] = _put(sides[i], path, d.output)
     for side in sides:
         _charge_formers(buf, side, G, G)
