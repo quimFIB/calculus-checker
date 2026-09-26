@@ -10,11 +10,14 @@ are built from str, int, bool, None, lists and dicts only.
 import glob
 import json
 import os
+import re
 import secrets
 
+import dx
 import script
 import session as S
 import tex
+import untex
 import work
 from assist import palette as PL
 from assist import factor as FA
@@ -223,7 +226,15 @@ def problems(_):
 
 def _goal_of(body):
     """(goal, sig, problem id) for a /session body: a problem's from its
-    own file, else the body's goal and functions."""
+    own file, else the body's goal and functions. A .dx header (DX.md) is
+    read into one of those first."""
+    if "header" in body:
+        try:
+            h = dx.header(_field(body, "header", str))
+        except dx.HeaderError as e:
+            raise Refusal("bad-header", str(e)) from None
+        body = {k: v for k, v in body.items() if k != "header"}
+        body.update(h)
     if "problem" in body:
         pid = _field(body, "problem", str)
         files = _problem_files()
@@ -264,7 +275,7 @@ def new_session(body):
     else:
         _own(sess, k)
     return dict(render(sess, sess.root()), resumed=resumed, problem=pid,
-                key=k)
+                key=k, functions=sig)
 
 
 def _own(sess, k):
@@ -382,7 +393,7 @@ def import_(body):
     _aside(k, "prev")
     _own(sess, k)
     return dict(render(sess, sess.root()), resumed=resumed, problem=pid,
-                key=k)
+                key=k, functions=sig)
 
 
 def step(body):
@@ -440,6 +451,66 @@ def parse(body):
     except Refused as r:
         raise Refusal.of(r) from None
     return {"term": _text(t), "katex": _tex(t)}
+
+
+def _term_tex(text, sig):
+    """PRETTY.md: a term segment's TeX: "" for the palette's hole `_`,
+    None when the term does not parse (the page keeps it as text)."""
+    if text.strip() == "_":
+        return ""
+    try:
+        return _tex(parse_term(text, sig))
+    except Refused:
+        return None
+
+
+def layout(body):
+    """PRETTY.md: the script cut into sentence, gap and open pieces that
+    cover it exactly; a sentence's term segments carry their TeX."""
+    text, sig = _field(body, "text", str), _sig(body)
+    pieces, at = [], 0
+
+    def plain(kind, a, b):
+        if a < b:
+            pieces.append({"kind": kind, "start": a, "end": b,
+                           "segments": [{"text": text[a:b]}]})
+    for a, b in script.spans(text):
+        plain("gap", at, a)
+        segs = script.layout(text[a:b])
+        for seg in segs:
+            if "term" in seg:
+                seg["tex"] = _term_tex(seg["term"], sig)
+        pieces.append({"kind": "sentence", "start": a, "end": b,
+                       "segments": segs})
+        at = b
+    # after the last sentence: comments and space are a gap; anything
+    # else (an unfinished sentence, an unclosed comment) is the open piece
+    rest = re.sub(r"\(\*.*?\*\)", "", text[at:], flags=re.S)
+    if rest.strip():
+        lead = len(text[at:]) - len(text[at:].lstrip(script.SPACE))
+        plain("gap", at, at + lead)
+        plain("open", at + lead, len(text))
+    else:
+        plain("gap", at, len(text))
+    return {"pieces": pieces}
+
+
+def templates(_):
+    """PRETTY.md, autocomplete: each move's template and its usage line."""
+    return {"templates": [{"move": m, "template": t, "usage": script.USAGE[m]}
+                          for m, t in script.TEMPLATES.items()]}
+
+
+def untex_(body):
+    """PRETTY.md: the term a MathLive field holds, as canonical text."""
+    latex, sig = _field(body, "latex", str), _sig(body)
+    try:
+        t = untex.read(latex, sig)
+    except untex.TexError as e:
+        raise Refusal("bad-tex", str(e)) from None
+    except Refused as r:
+        raise Refusal.of(r) from None
+    return {"term": _text(t), "tex": _tex(t)}
 
 
 # PAGE.md: the optional arguments the kernel's _check_args accepts
@@ -550,6 +621,9 @@ ROUTES = {("GET", "/problems"): problems,
           ("GET", "/node"): node,
           ("GET", "/tree"): tree,
           ("POST", "/parse"): parse,
+          ("POST", "/layout"): layout,
+          ("POST", "/untex"): untex_,
+          ("GET", "/templates"): templates,
           ("GET", "/moves"): moves,
           ("GET", "/hint"): hint,
           ("GET", "/palette"): palette,

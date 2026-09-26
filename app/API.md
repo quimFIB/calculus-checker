@@ -82,6 +82,7 @@ compares, §4). Certificates are not sent in this cut.
 GET  /problems                         -> {problems: [{id, title, statement}]}
 POST /session  {problem: id}           -> node n0
 POST /session  {goal: str, functions?: {name: arity}}   -> node n0
+POST /session  {header: str}           -> node n0, from a .dx header sentence (DX.md)
 POST /step     {session, node, move, args}               -> the new node | refusal
 POST /retract  {session, node}         -> the parent node
 GET  /node     ?session&node           -> that node
@@ -99,6 +100,9 @@ POST /import   {document}              -> node n0 with resumed      (PERSIST.md)
 POST /cancel                           -> {cancelled: bool}         (TIMEOUT.md)
 POST /factor   {term, var, field}      -> {factors, product, check, note}  (assist/FACTOR.md)
 POST /apart    {term, var, field, ansatz?} -> {polynomial, terms, sum, check}
+POST /layout   {text, functions?}      -> {pieces: [{kind, start, end, segments}]}  (PRETTY.md)
+POST /untex    {latex, functions?}     -> {term, tex} | refusal     (PRETTY.md)
+GET  /templates                        -> {templates: [{move, template, usage}]}   (PRETTY.md)
 ```
 
 - **`/problems`** lists every `*.json` under `kernel/problems/` that
@@ -150,7 +154,7 @@ POST /apart    {term, var, field, ansatz?} -> {polynomial, terms, sum, check}
 
 API-local refusal codes: `unknown-handle`, `retract-root`, `not-built`,
 `no-integral`, `no-row` (RECOGNIZER.md),
-`bad-tactic` (SCRIPT.md).
+`bad-tactic` (SCRIPT.md), `bad-tex` (PRETTY.md), `bad-header` (DX.md).
 Error codes: `bad-json`, `bad-request`, `unknown-route`, `unknown-session`,
 `unknown-node`, `unknown-problem`, `bad-document` (PERSIST.md),
 `kernel-error`.

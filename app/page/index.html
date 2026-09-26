@@ -131,6 +131,44 @@ td.key { font-family: var(--mono); word-break: break-word; }
 .palette button { font-family: var(--mono); font-size: 11.5px; padding: 2px 7px; }
 .palette button.rw { border-style: dashed; }
 details.card table td.m { background: var(--sel); }
+
+/* pretty mode (PRETTY.md) */
+#pretty { overflow: auto; font: 14px/1.6 var(--sans); }
+.prow { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 0; padding: 3px 6px;
+        margin: 0 -6px 4px; border-radius: 5px; min-height: 2em; border: 1px solid transparent; }
+.prow:focus-within { border-color: var(--line); }
+.prow.checked { background: var(--checked); }
+.prow.pending { background: var(--pending); }
+.prow.error { background: var(--error-bg); text-decoration: underline wavy var(--bad); }
+.prow.timeout { background: var(--pending); border: 1px dashed var(--muted); }
+.prow.comment { color: var(--muted); font-family: var(--mono); font-size: 12.5px; white-space: pre-wrap; }
+.seg-text { font-family: var(--mono); font-size: 13.5px; white-space: pre-wrap; outline: none;
+            min-width: 1ch; padding: 1px 0; }
+.prow.open .seg-text { flex: 1; min-width: 12ch; }
+.prow.open .seg-text:empty::before { content: attr(data-placeholder); color: var(--muted); }
+.seg-term { display: inline-flex; flex-direction: column; align-items: center; margin: 0 3px;
+            vertical-align: middle; }
+.seg-term math-field { min-width: 2.2em; font-size: 17px; border: 1px solid var(--line);
+                       border-radius: 4px; padding: 0 3px; background: var(--panel); color: var(--ink);
+                       --primary: var(--accent); }
+.prow.checked .seg-term math-field { border-color: transparent; background: transparent; }
+math-field::part(menu-toggle) { display: none; }
+.seg-term.bad math-field { border-color: var(--bad); }
+.seg-term .echo { font-family: var(--mono); font-size: 10.5px; color: var(--muted); max-width: 28em;
+                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seg-term.bad .echo { color: var(--bad); }
+.seg-name { font-family: var(--mono); font-size: 13.5px; border: 1px solid var(--line); border-radius: 4px;
+            padding: 0 4px; margin: 0 2px; min-width: 1.5ch; background: var(--panel); outline: none; }
+.seg-choice { width: auto; font-family: var(--mono); font-size: 12.5px; padding: 1px 4px; margin: 0 2px; }
+.prow.checked .seg-name, .prow.checked .seg-choice { border-color: transparent; background: transparent;
+            appearance: none; color: var(--ink); opacity: 1; }
+.complete { border: 1px solid var(--line); border-radius: 6px; background: var(--panel); margin: -2px 0 6px;
+            box-shadow: 0 4px 14px rgba(0,0,0,.12); max-height: 18em; overflow: auto; }
+.complete .item { padding: 4px 8px; cursor: pointer; display: flex; flex-direction: column; }
+.complete .item.sel { background: var(--sel); }
+.complete .tpl { font-family: var(--mono); font-size: 13px; }
+.complete .usage { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+button[aria-pressed="true"] { background: var(--sel); border-color: var(--accent); }
 details.card tr.match td { background: var(--sel); font-weight: 600; }
 </style>
 <link rel="stylesheet" href="/katex/katex.min.css">
@@ -173,6 +211,7 @@ details.card tr.match td { background: var(--sel); font-weight: 600; }
       <button id="to-cursor" title="Ctrl+Enter" disabled>⇥ To cursor</button>
       <button id="cancel" title="Stop the running step (Escape)" disabled>■ Cancel</button>
       <button id="help-toggle">Tactics</button>
+      <button id="pretty-toggle" aria-pressed="false" title="Two-dimensional input: fractions, roots, integrals (PRETTY.md)">Pretty</button>
       <button id="hint-1" class="hint" title="Hint: what kind of move" disabled>?</button>
       <button id="hint-2" class="hint" title="Hint: which technique" disabled>??</button>
       <button id="hint-3" class="hint" title="Hint: how, for this integral" disabled>???</button>
@@ -185,6 +224,7 @@ details.card tr.match td { background: var(--sel); font-weight: 600; }
 
 ftc x^3 + x^2 by ring.
 close 2."></textarea>
+      <div id="pretty" hidden aria-label="Tactic script, pretty"></div>
     </div>
   </section>
 
@@ -246,9 +286,10 @@ function math(texSrc, plain, id) {
 // the cursor is inside the checked region (which is locked).
 function insertSentence(text) {
   const ta = $("script");
+  if (P.on && P.live) serialize();  // the rows' edits first
   const locked = S.done.length ? S.done[S.done.length - 1].end : 0;
   let at = ta.selectionStart;
-  if (at < locked || document.activeElement !== ta && at === 0) at = ta.value.length;
+  if (P.on || at < locked || document.activeElement !== ta && at === 0) at = ta.value.length;
   const before = ta.value.slice(0, at), after = ta.value.slice(at);
   const pre = before && !/\s$/.test(before) ? "\n" : "";
   ta.value = before + pre + text + (after && !/^\s/.test(after) ? "\n" : "") + after;
@@ -258,6 +299,8 @@ function insertSentence(text) {
   ta.setSelectionRange(hole >= 0 ? pos + hole : pos + text.length,
                        hole >= 0 ? pos + hole + 1 : pos + text.length);
   paint(); saveScript();
+  P.live = false;
+  if (P.on) relayout({ piece: P.pieces.length, seg: "first-empty" });
 }
 
 // TIMEOUT.md: a request that ran out of time, or was cancelled, answers
@@ -334,6 +377,7 @@ function paint() {
   parts.push(text.slice(at) + "\n");
   bd.replaceChildren(...parts);
   bd.scrollTop = $("script").scrollTop;
+  paintPretty();
 }
 
 // ---------------------------------------------------------------- stepping
@@ -344,12 +388,19 @@ function setBusy(b) {
   $("next").disabled = b || !has;
   $("to-cursor").disabled = b || !has;
   for (const r of [1, 2, 3]) $("hint-" + r).disabled = b || !has;
+  paintPretty();
 }
 
 async function stepNext() {
   const text = $("script").value;
   const s = nextSentence(text, checkedEnd());
   if (!s) return false;
+  const bad = P.on ? badAt(s.start) : null;
+  if (bad) {  // PRETTY.md: an unreadable field is never sent
+    S.error = s; paint();
+    showResponse({ code: "bad-tex", message: bad.replace(/^[a-z-]+: /, "") }, false);
+    return false;
+  }
   S.pending = s; S.error = null; paint();
   try {
     const r = await api("POST", "/tactic",
@@ -389,7 +440,7 @@ async function retractTo(k) {
 async function run(job) {
   if (S.busy || !S.session) return;
   setBusy(true);
-  try { await job(); } finally {
+  try { if (P.on) await flushPretty(); await job(); } finally {
     setBusy(false);
     await refreshTree();
     await showNode(current());
@@ -399,7 +450,7 @@ async function run(job) {
 const next = () => run(async () => { await stepNext(); });
 const undo = () => run(async () => { await retractTo(S.done.length - 1); });
 const toCursor = () => run(async () => {
-  const cur = $("script").selectionStart;
+  const cur = P.on ? prettyCursor() : $("script").selectionStart;
   if (cur < checkedEnd()) {
     const k = S.done.findIndex((d) => d.end > cur);
     await retractTo(k);
@@ -442,7 +493,12 @@ for (const r of [1, 2, 3]) $("hint-" + r).onclick = () => hint(r);
 // Proof General does.
 $("script").addEventListener("beforeinput", (ev) => {
   const ta = $("script");
-  const pos = Math.min(ta.selectionStart, ta.selectionEnd) - (ev.inputType === "deleteContentBackward" && ta.selectionStart === ta.selectionEnd ? 1 : 0);
+  let pos = Math.min(ta.selectionStart, ta.selectionEnd) - (ev.inputType === "deleteContentBackward" && ta.selectionStart === ta.selectionEnd ? 1 : 0);
+  // an insertion right after the last checked "." that does not start with
+  // whitespace edits that sentence (`close 2.` + `5`; PRETTY.md review 7)
+  if (pos === checkedEnd() && ev.inputType.startsWith("insert") &&
+      !/^[ \t\n\r\f\v]/.test(ev.data ?? (ev.inputType === "insertLineBreak" ? "\n" : "x"))) pos -= 1;
+  if (S.session && pos < checkedEnd() && S.busy) { ev.preventDefault(); return; }
   if (S.session && pos < checkedEnd()) {
     const k = S.done.findIndex((d) => d.end > pos);
     if (k >= 0 && !S.busy) run(() => retractTo(k));
@@ -456,6 +512,322 @@ document.addEventListener("keydown", (ev) => {
   else if (ev.altKey && ev.key === "ArrowUp") { ev.preventDefault(); undo(); }
   else if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); toCursor(); }
 });
+
+
+// ---------------------------------------------------------------- pretty mode
+// PRETTY.md: another way of writing the same script. The textarea's text is
+// the model; rows are drawn from POST /layout and every edit rewrites it.
+// P.live: the rows describe the textarea's text. Anything that sets the
+// text itself (start, the palette, Use this) clears it, so stale rows are
+// never written back over the new text.
+const P = { on: false, loaded: null, pieces: [], layoutSeq: 0, reads: new Set(), focus: null,
+            live: false };
+const SHORTCUTS = (() => {
+  const t = { pi: "\\pi", oo: "\\infty", infty: "\\infty", sqrt: "\\sqrt{#0}",
+              int: "\\int_{#?}^{#?}", asin: "\\arcsin", acos: "\\arccos", atan: "\\arctan" };
+  for (const f of ["sin", "cos", "tan", "exp", "ln", "sinh", "cosh", "tanh"]) t[f] = "\\" + f;
+  for (const g of ("alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi rho " +
+                   "sigma tau upsilon phi chi psi omega").split(" ")) t[g] = "\\" + g;
+  return t;
+})();
+const sigOf = () => S.functions ?? {};
+
+function loadMathLive() {
+  P.loaded ??= new Promise((ok, fail) => {
+    const sc = el("script", { src: "/mathlive/mathlive.min.js" });
+    sc.onload = () => {
+      MathfieldElement.fontsDirectory = "/mathlive/fonts";
+      MathfieldElement.soundsDirectory = null;
+      ok();
+    };
+    sc.onerror = () => { P.loaded = null; fail(new Error("MathLive did not load")); };
+    document.head.append(sc);
+  });
+  return P.loaded;
+}
+
+// A parse-only request: outside the step queue and the Cancel button.
+async function quick(path, body) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify(body) });
+  const data = await r.json();
+  if (data.error) throw new Error(`${data.error.code}: ${data.error.message}`);
+  return data;
+}
+
+function storePretty(on) { try { localStorage.setItem("calc.pretty", on ? "1" : "0"); } catch (e) { /* none */ } }
+function storedPretty() { try { return localStorage.getItem("calc.pretty") === "1"; } catch (e) { return false; } }
+
+async function setPretty(on) {
+  if (on) {
+    try { await loadMathLive(); } catch (e) { return showError(e); }
+    P.live = false;
+    P.on = true;
+    await relayout();
+  } else {
+    await flushPretty();
+    P.on = false;
+  }
+  $("pretty").hidden = !P.on;
+  $("script").hidden = $("backdrop").hidden = P.on;
+  $("pretty-toggle").setAttribute("aria-pressed", String(P.on));
+  storePretty(P.on);
+  paint();
+}
+$("pretty-toggle").onclick = () => setPretty(!P.on);
+
+// Wait for the field reads in flight (review 4), then rebuild the text.
+async function flushPretty() {
+  while (P.reads.size) await Promise.allSettled([...P.reads]);
+  if (P.on && P.live) serialize();
+}
+
+// Draw the rows for the script's pieces; focus goes back to the same
+// piece and segment when it still exists.
+async function relayout(focusAt) {
+  if (!P.on) return;
+  await flushPretty();
+  const text = $("script").value, seq = ++P.layoutSeq;
+  let r;
+  try { r = await quick("/layout", { text, functions: sigOf() }); }
+  catch (e) { return showError(e); }
+  if (seq !== P.layoutSeq || text !== $("script").value) return;
+  P.pieces = r.pieces.map((pc) => ({ ...pc, segs: pc.segments.map((g) => ({ ...g })) }));
+  if (!P.pieces.length || P.pieces[P.pieces.length - 1].kind !== "open")
+    P.pieces.push({ kind: "open", start: text.length, end: text.length, segs: [{ text: "" }] });
+  const box = $("pretty");
+  box.replaceChildren(...P.pieces.map((pc, i) => drawPiece(pc, i)));
+  P.live = true;
+  paintPretty();
+  const f = focusAt ?? P.focus;
+  if (f) focusSeg(f.piece, f.seg);
+}
+
+function drawPiece(pc, i) {
+  if (pc.kind === "gap") {
+    pc.orig = pc.segs[0].text;
+    const shown = pc.orig.replace(/^\s+|\s+$/g, "");
+    return shown ? el("div", { class: "prow comment", "data-piece": i }, shown) : el("span", { hidden: "" });
+  }
+  const row = el("div", { class: "prow " + pc.kind, "data-piece": i });
+  pc.segs.forEach((g, j) => row.append(
+    g.term !== undefined && g.tex !== null ? drawField(pc, g, i, j)
+    : g.name !== undefined ? drawName(pc, g, i, j)
+    : g.choice !== undefined ? drawChoice(pc, g, i, j) : drawText(pc, g, i, j)));
+  pc.row = row;
+  return row;
+}
+
+function drawText(pc, g, i, j) {
+  if (g.term !== undefined) { g.text = g.term; delete g.term; }
+  const span = el("span", { class: "seg-text", contenteditable: "plaintext-only", spellcheck: "false",
+                            "data-seg": j });
+  if (pc.kind === "open") span.dataset.placeholder = "type a tactic, end it with a full stop";
+  span.textContent = g.text;
+  span.addEventListener("focus", () => { P.focus = { piece: i, seg: j }; });
+  span.addEventListener("input", () => {
+    g.text = span.textContent; g.changed = true; edited();
+    if (pc.kind === "open") complete(g, span);
+  });
+  span.addEventListener("keydown", (ev) => {
+    if (AC.box && AC.g === g) {
+      if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+        ev.preventDefault(); return moveComplete(ev.key === "ArrowDown" ? 1 : -1);
+      }
+      if (ev.key === "Enter" || ev.key === "Tab") { ev.preventDefault(); return takeComplete(AC.at); }
+      if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); return closeComplete(); }
+    }
+    if (ev.key === "Enter" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+      ev.preventDefault();
+      g.changed = false;
+      relayout(nextFocus(i));
+    }
+  });
+  span.addEventListener("blur", () => {
+    closeComplete();
+    if (g.changed) { g.changed = false; relayout(); }
+  });
+  g.el = span;
+  return span;
+}
+
+// A name slot (a variable, a fact, an entry): a small box of text.
+function drawName(pc, g, i, j) {
+  g.text = g.name; delete g.name;
+  const span = el("span", { class: "seg-name", contenteditable: "plaintext-only", spellcheck: "false",
+                            "data-seg": j, title: "a name" });
+  span.textContent = g.text;
+  span.addEventListener("focus", () => { P.focus = { piece: i, seg: j }; });
+  span.addEventListener("input", () => { g.text = span.textContent.trim(); edited(); });
+  span.addEventListener("keydown", (ev) => { if (ev.key === "Enter") ev.preventDefault(); });
+  g.el = span;
+  return span;
+}
+
+// A choice (ring or field, lower or upper, increasing or decreasing).
+function drawChoice(pc, g, i, j) {
+  g.text = g.choice; delete g.choice;
+  const sel = el("select", { class: "seg-choice", "data-seg": j },
+    ...g.options.map((o) => el("option", { value: o }, o)));
+  sel.value = g.text;
+  sel.addEventListener("focus", () => { P.focus = { piece: i, seg: j }; });
+  sel.addEventListener("change", () => { g.text = sel.value; edited(); });
+  g.el = sel;
+  return sel;
+}
+
+// Autocomplete (PRETTY.md): a move name typed in the open row offers its
+// template; taking one puts the whole shape in, with a box for each slot.
+let TEMPLATES = null;
+async function templates() {
+  if (!TEMPLATES) {
+    const r = await fetch("/templates");
+    TEMPLATES = (await r.json()).templates;
+  }
+  return TEMPLATES;
+}
+const AC = { box: null, items: [], at: 0, g: null, span: null };
+async function complete(g, span) {
+  const asked = g.text;
+  const m = /^\s*([a-z_]+)$/.exec(asked);
+  const list = m ? (await templates()).filter((t) => t.move.startsWith(m[1])) : [];
+  if (asked !== span.textContent) return;  // typing went on: a newer call answers
+  closeComplete();
+  if (!list.length) return;
+  AC.items = list; AC.at = 0; AC.g = g; AC.span = span;
+  AC.box = el("div", { class: "complete", id: "complete", role: "listbox" },
+    ...list.map((t, k) => el("div", { class: "item" + (k === 0 ? " sel" : ""), role: "option",
+                                      onmousedown: (ev) => { ev.preventDefault(); takeComplete(k); } },
+      el("span", { class: "tpl" }, t.template), el("span", { class: "usage" }, t.usage))));
+  span.parentElement.after(AC.box);
+}
+function closeComplete() { if (AC.box) AC.box.remove(); AC.box = null; }
+function moveComplete(d) {
+  AC.at = (AC.at + d + AC.items.length) % AC.items.length;
+  [...AC.box.children].forEach((c, k) => c.classList.toggle("sel", k === AC.at));
+}
+function takeComplete(k) {
+  const t = AC.items[k], g = AC.g, span = AC.span;
+  closeComplete();
+  g.text = span.textContent = t.template;
+  g.changed = false;
+  edited();
+  const i = P.pieces.findIndex((pc) => pc.segs && pc.segs.includes(g));
+  relayout({ piece: i, seg: "first-empty" });
+}
+
+// After Enter: the first empty field of the row just laid out, else the
+// open row.
+function nextFocus(i) { return { piece: i, seg: "first-empty" }; }
+
+function drawField(pc, g, i, j) {
+  // the initial LaTeX is the element's text; options wait for mounting
+  const mf = el("math-field", {}, g.tex);
+  mf.addEventListener("mount", () => { mf.inlineShortcuts = SHORTCUTS; mf.smartFence = true; },
+                      { once: true });
+  g.orig = g.term; g.seq = 0; g.bad = null;
+  const echo = el("span", { class: "echo" }, g.term === "_" ? "" : g.term);
+  const wrap = el("span", { class: "seg-term", "data-seg": j }, mf, echo);
+  mf.addEventListener("focus", () => { P.focus = { piece: i, seg: j }; });
+  mf.addEventListener("input", () => readField(g, mf, wrap, echo));
+  g.el = mf; g.wrap = wrap;
+  return wrap;
+}
+
+async function readField(g, mf, wrap, echo) {
+  const my = ++g.seq;
+  const req = quick("/untex", { latex: mf.value, functions: sigOf() });
+  P.reads.add(req);
+  let r;
+  try { r = await req; } catch (e) { r = { refusal: { code: "error", message: String(e.message) } }; }
+  finally { P.reads.delete(req); }
+  if (my !== g.seq) return;  // a newer read is on its way
+  if (r.refusal) {
+    g.bad = `${r.refusal.code}: ${r.refusal.message}`;
+    wrap.classList.add("bad"); wrap.title = g.bad; echo.textContent = r.refusal.message;
+  } else {
+    g.bad = null; g.term = r.term;
+    wrap.classList.remove("bad"); wrap.title = ""; echo.textContent = r.term;
+  }
+  edited();
+}
+
+function focusSeg(i, j) {
+  const pc = P.pieces[i] && P.pieces[i].segs ? P.pieces[i] : P.pieces[P.pieces.length - 1];
+  if (!pc || !pc.segs) return;
+  let g = null;
+  if (j === "first-empty") g = pc.segs.find((s) => s.el && s.el.tagName === "MATH-FIELD" && s.term === "_");
+  else g = pc.segs[j];
+  if (!g || !g.el) {
+    const open = P.pieces[P.pieces.length - 1];
+    g = open.segs[0];
+  }
+  if (!g || !g.el) return;
+  const target = g.el;
+  P.focus = { piece: P.pieces.indexOf(pc), seg: pc.segs.indexOf(g) };
+  // a math-field takes the focus only once MathLive has mounted it
+  setTimeout(() => target.focus(), 0);
+}
+
+// Rebuild the textarea's text from the rows (review 4: a field never
+// edited gives its original text).
+function serialize() {
+  let text = "";
+  for (const pc of P.pieces) {
+    pc.start = text.length;
+    let body;
+    if (pc.kind === "gap") body = pc.orig;
+    else body = pc.segs.map((g) => g.el && g.el.tagName === "MATH-FIELD"
+                                    ? (g.seq ? g.term : g.orig) : g.text).join("");
+    if (pc.kind === "open" && body && text && !/\s$/.test(text)) body = "\n" + body;
+    text += body;
+    pc.end = text.length;
+  }
+  if (text !== $("script").value) {
+    $("script").value = text;
+    saveScript();
+  }
+}
+
+function edited() {
+  S.error = null;
+  serialize();
+  paintPretty();
+}
+
+// The unreadable field in the sentence starting at `start`, if any.
+function badAt(start) {
+  const pc = P.pieces.find((q) => q.kind === "sentence" && q.start === start);
+  const g = pc && pc.segs.find((s) => s.bad);
+  return g ? g.bad : null;
+}
+
+function paintPretty() {
+  if (!P.on) return;
+  const end = checkedEnd();
+  for (const pc of P.pieces) {
+    if (!pc.row) continue;
+    const checked = pc.end <= end && pc.kind === "sentence" && end > 0;
+    const cls = (c, on) => pc.row.classList.toggle(c, !!on);
+    cls("checked", checked);
+    cls("pending", S.pending && S.pending.start === pc.start);
+    cls("error", S.error && !S.error.timeout && S.error.start === pc.start);
+    cls("timeout", S.error && S.error.timeout && S.error.start === pc.start);
+    for (const g of pc.segs) {
+      if (!g.el) continue;
+      const locked = checked || S.busy;
+      if (g.el.tagName === "MATH-FIELD") g.el.toggleAttribute("read-only", locked);
+      else if (g.el.tagName === "SELECT") g.el.disabled = locked;
+      else g.el.contentEditable = locked ? "false" : "plaintext-only";
+    }
+  }
+}
+
+// To cursor in pretty mode: the end of the row that last had the focus.
+function prettyCursor() {
+  const pc = P.focus && P.pieces[P.focus.piece];
+  return pc ? pc.end : $("script").value.length;
+}
 
 // ---------------------------------------------------------------- goals
 function showError(e) { showResponse({ code: "error", message: String(e.message || e) }, false); }
@@ -480,11 +852,14 @@ function stuckBox(st) {
 
 function useSuggestion(text) {
   const ta = $("script");
+  if (P.on && P.live) serialize();
   if (!S.error) return insertSentence(text);
   ta.value = ta.value.slice(0, S.error.start) + text + ta.value.slice(S.error.end);
   S.error = null;
-  ta.focus();
+  if (!P.on) ta.focus();
   paint(); saveScript();
+  P.live = false;
+  if (P.on) relayout();
 }
 
 function showResponse(refusal, ok, node) {
@@ -686,13 +1061,15 @@ async function start(body, title, statement, problemId, route = "/session") {
   try {
     const n = await api("POST", route, body);
     if (n.refusal) return showResponse(n.refusal, false);
-    Object.assign(S, { session: n.session, problemId, title, path: [n.node], done: [],
+    Object.assign(S, { session: n.session, functions: n.functions ?? body.functions ?? {},
+                       problemId, title, path: [n.node], done: [],
                        error: null, pending: null, nodes: { [n.node]: n }, maxRung: 0,
                        saved: null, again: { body, title, statement, problemId } });
     $("problem-info").replaceChildren(el("h3", {}, title),
       statement ? el("p", {}, statement) : "",
       el("label", {}, "Formal goal"), math(n.goal_tex, n.goal, "formal-goal"));
     $("script").value = "";
+    P.live = false;
     let note = null;
     if (n.resumed && n.resumed.error)
       note = el("div", { class: "msg bad", id: "dropped" },
@@ -704,7 +1081,7 @@ async function start(body, title, statement, problemId, route = "/session") {
     $("export").disabled = $("start-fresh").disabled = false;
     await refreshTree();
     await showNode(current());
-    $("script").focus();
+    if (P.on) await relayout({ piece: Infinity, seg: 0 }); else $("script").focus();
   } catch (e) { showError(e); }
 }
 
@@ -772,6 +1149,7 @@ $("echo-input").oninput = () => {
 
 paint();
 loadProblems().catch(showError);
+if (storedPretty()) setPretty(true);
 </script>
 </body>
 </html>

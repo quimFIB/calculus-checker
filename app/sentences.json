@@ -1,0 +1,136 @@
+{
+ "note": "DX.md review 4: the sentence rule. script.spans, the page's nextSentence and dx-mode's splitter must all give these spans (start, end as character offsets).",
+ "cases": [
+  {
+   "text": "ftc x^3 + x^2 by ring.\nclose 2.\n",
+   "spans": [
+    [
+     0,
+     22
+    ],
+    [
+     23,
+     31
+    ]
+   ]
+  },
+  {
+   "text": "problem stage0.S1.\n\nftc x by ring.",
+   "spans": [
+    [
+     0,
+     18
+    ],
+    [
+     20,
+     34
+    ]
+   ]
+  },
+  {
+   "text": "goal Int[x = 0 .. 1] x^2 == ?A.\nclose 1/3.",
+   "spans": [
+    [
+     0,
+     31
+    ],
+    [
+     32,
+     42
+    ]
+   ]
+  },
+  {
+   "text": "(* a comment. with dots. *) close 2. (* trailing *)",
+   "spans": [
+    [
+     28,
+     36
+    ]
+   ]
+  },
+  {
+   "text": "close 1.5 . close 2.",
+   "spans": [
+    [
+     0,
+     11
+    ],
+    [
+     12,
+     20
+    ]
+   ]
+  },
+  {
+   "text": "ftc x.\tclose 2. close 3.",
+   "spans": [
+    [
+     0,
+     6
+    ],
+    [
+     7,
+     24
+    ]
+   ]
+  },
+  {
+   "text": "close 2. unfinished text",
+   "spans": [
+    [
+     0,
+     8
+    ]
+   ]
+  },
+  {
+   "text": "(* unclosed comment. close 2.",
+   "spans": []
+  },
+  {
+   "text": "int_subst x := t^2 as t from 0 .. to 1.",
+   "spans": [
+    [
+     0,
+     39
+    ]
+   ]
+  },
+  {
+   "text": "close 2..\nclose 3.",
+   "spans": [
+    [
+     0,
+     18
+    ]
+   ]
+  },
+  {
+   "text": ".  close 2.",
+   "spans": [
+    [
+     0,
+     1
+    ],
+    [
+     3,
+     11
+    ]
+   ]
+  },
+  {
+   "text": "(* (* not nested *) close 2. *) close 3.",
+   "spans": [
+    [
+     20,
+     28
+    ],
+    [
+     29,
+     40
+    ]
+   ]
+  }
+ ]
+}

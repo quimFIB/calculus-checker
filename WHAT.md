@@ -114,6 +114,18 @@ each spec-first and then reviewed by an independent skeptic:
 routes on 127.0.0.1, over the attempt tree. `python3 -m unittest discover -s app` replays every
 problem file through it against the loader.
 
+**Pretty mode, autocomplete and the Emacs mode** (2026-09-26, owner's
+asks; `app/PRETTY.md`, `app/DX.md`, spec-first and skeptic-reviewed). The
+page's **Pretty** button draws the script as rows of boxes: MathLive
+fields for terms (`/` makes a stacked fraction, `sqrt` a root, `int` an
+integral with bound boxes), small boxes for names and menus for `ring` /
+`field`; the text stays the model, read back through `app/untex.py`,
+which refuses what GRAMMAR.md refuses (D4–D6). Typing a move's first
+letters offers its template. `.dx` files (a header sentence, `problem
+ID.` or `goal G.`, then tactics) open in `emacs/dx-mode.el`, a Proof
+General style mode over `./calc --repl`. Suites: `app/test_pretty.py`,
+`app/test_dx.py` (which runs the ERT suite when emacs is installed).
+
 **The check-mode page is up** (`app/PAGE.md`, revision 2, 2026-09-25):
 `./calc` serves it at `http://127.0.0.1:8765/`, laid out like rocq-mode. You
 type a tactic script in the centre (`app/SCRIPT.md`, e.g. `ftc x^3 + x^2 by

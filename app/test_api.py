@@ -16,6 +16,7 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import api  # noqa: E402
+import script  # noqa: E402
 import server  # noqa: E402
 from session import K, loader  # noqa: E402
 from terms import show  # noqa: E402
@@ -133,7 +134,7 @@ class Routes(Api):
 
     def test_node_route(self):
         n = self.s1()
-        for k in ("resumed", "problem", "key"):  # /session's own (PERSIST.md)
+        for k in ("resumed", "problem", "key", "functions"):  # /session's own
             n.pop(k)
         self.assertEqual(self.call("GET", "/node", {"session": n["session"],
                                                     "node": "n0"}), n)
@@ -217,6 +218,54 @@ class Routes(Api):
         self.refused(self.call("GET", "/hint", {"session": n["session"],
                                                 "node": "n0", "rung": "2"}),
                      "no-row")
+
+
+class Pretty(Api):
+    """PRETTY.md: /layout, /untex, /templates."""
+
+    def test_layout_covers_the_script(self):
+        text = ("(* S1 *)\nftc x^3 + x^2 by ring.\n\nclose 2.\n"
+                "  rewrite sin_pi at sin(")
+        r = self.call("POST", "/layout", {"text": text})
+        kinds = [p["kind"] for p in r["pieces"]]
+        self.assertEqual(kinds, ["gap", "sentence", "gap", "sentence", "gap",
+                                 "open"])
+        self.assertEqual("".join(g.get("text", g.get("term", ""))
+                                 for p in r["pieces"] for g in p["segments"]
+                                 if "choice" not in g and "name" not in g)
+                         .replace(" by .", " by ring."), text)
+        at = 0
+        for p in r["pieces"]:
+            self.assertEqual(p["start"], at)
+            at = p["end"]
+        self.assertEqual(at, len(text))
+        ftc = r["pieces"][1]["segments"]
+        self.assertEqual(ftc[1], {"term": "x^3 + x^2",
+                                  "tex": "x^{3} + x^{2}"})
+
+    def test_layout_holes_and_unparsable_terms(self):
+        r = self.call("POST", "/layout", {"text": "ftc _. close 2x."})
+        self.assertEqual(r["pieces"][0]["segments"][1]["tex"], "")
+        self.assertIsNone(r["pieces"][2]["segments"][1]["tex"])
+
+    def test_layout_uses_the_functions(self):
+        r = self.call("POST", "/layout", {"text": "close f(1).",
+                                          "functions": {"f": 1}})
+        self.assertIn("operatorname", r["pieces"][0]["segments"][1]["tex"])
+
+    def test_untex(self):
+        r = self.call("POST", "/untex", {"latex": r"\frac{1}{1+x^2}"})
+        self.assertEqual(r, {"term": "1/(1 + x^2)",
+                             "tex": r"\frac{1}{1 + x^{2}}"})
+        self.refused(self.call("POST", "/untex", {"latex": "ab"}), "bad-tex")
+        self.refused(self.call("POST", "/untex", {"latex": "e"}),
+                     "D3-bare-e")
+        self.error(self.call("POST", "/untex", {}, status=400), "bad-request")
+
+    def test_templates(self):
+        r = self.call("GET", "/templates")
+        self.assertEqual([t["move"] for t in r["templates"]],
+                         list(script.FORMS))
 
 
 class Errors(Api):
@@ -425,6 +474,39 @@ class Http(unittest.TestCase):
             self.assertEqual(r.status, 200)
             self.assertTrue(r.headers["Content-Type"].startswith("text/html"))
             self.assertIn(b"<title>Calculus checker</title>", r.read())
+
+    def test_mathlive_is_served_and_nothing_else(self):
+        """PRETTY.md Done-when 2: the vendored MathLive, one directory."""
+        with urllib.request.urlopen(self.base + "/mathlive/mathlive.min.js") as r:
+            self.assertEqual(r.headers["Content-Type"], "text/javascript")
+        with urllib.request.urlopen(
+                self.base + "/mathlive/fonts/KaTeX_Main-Regular.woff2") as r:
+            self.assertEqual(r.headers["Content-Type"], "font/woff2")
+        for bad in ("/mathlive/../server.py", "/mathlive/SOURCE",
+                    "/mathlive/x/y/z.js", "/mathlive/LICENSE.txt"):
+            with self.assertRaises(urllib.error.HTTPError, msg=bad):
+                urllib.request.urlopen(self.base + bad)
+
+    def test_parse_only_routes_skip_the_backend(self):
+        """PRETTY.md review 4: /layout, /untex and /templates never reach
+        the step backend, so they cannot queue behind a step."""
+        calls = []
+
+        class Spy:
+            def handle(self, *a):
+                calls.append(a)
+                return 200, {}
+        saved, server.BACKEND = server.BACKEND, Spy()
+        try:
+            s, r = self.req("POST", "/untex", {"latex": "\\frac{1}{2}"})
+            self.assertEqual((s, r["term"]), (200, "1/2"))
+            s, r = self.req("POST", "/layout", {"text": "close 2."})
+            self.assertEqual(s, 200)
+            s, r = self.req("GET", "/templates")
+            self.assertEqual(len(r["templates"]), 10)
+        finally:
+            server.BACKEND = saved
+        self.assertEqual(calls, [])
 
     def test_bad_json(self):
         s, r = self.req("POST", "/step", raw=b"{nope")

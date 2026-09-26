@@ -1,0 +1,7 @@
+MathLive 0.110.0, vendored for app/PRETTY.md (MIT; LICENSE.txt beside this file).
+
+Source:  https://registry.npmjs.org/mathlive/-/mathlive-0.110.0.tgz
+sha256 of the tarball: 3d8ce458805388d65b2a6743eafbb712afbdd77793255f0a010b20d27513217d
+Files:   mathlive.min.js, fonts/*.woff2. The sounds, the ESM and SSR builds
+         and the type declarations are not vendored; the page sets
+         soundsDirectory to null.

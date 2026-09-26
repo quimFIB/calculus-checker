@@ -66,7 +66,8 @@ class Page(unittest.TestCase):
         p.select_option("#problem-select", pid)
         p.click("#start-problem")
         p.wait_for_selector(".node.current[data-node='n0']")
-        p.fill("#script", "")
+        if p.is_visible("#script"):
+            p.fill("#script", "")
 
     def type_script(self, text):
         self.page.fill("#script", text)
@@ -308,6 +309,168 @@ class Page(unittest.TestCase):
         p.wait_for_selector(".node.current[data-node='n4']", timeout=120000)
         self.assertEqual(self.report(), "Proved.")
         self.assertIn("(5/16)*b^6 <=", p.inner_text("#theorem"))
+
+    # ------------------------------------------------ pretty mode (PRETTY.md)
+
+    def pretty_on(self):
+        p = self.page
+        p.click("#pretty-toggle")
+        p.wait_for_selector(".prow.open .seg-text")
+        self.assertTrue(p.is_hidden("#script"))
+
+    def type_open(self, text):
+        p = self.page
+        p.click(".prow.open .seg-text")
+        p.keyboard.type(text)
+        p.keyboard.press("Escape")  # the autocomplete list, if any
+        p.keyboard.press("Enter")
+
+    def read_settled(self):
+        """The script once the field reads in flight have landed."""
+        p = self.page
+        p.wait_for_timeout(300)
+        p.wait_for_function("() => P.reads.size === 0")
+        return p.input_value("#script")
+
+    def test_pretty_proves_s1(self):
+        p = self.page
+        self.start()
+        self.pretty_on()
+        self.type_open("ftc _.")
+        p.wait_for_selector(".prow.sentence math-field")
+        p.wait_for_function("() => document.activeElement.tagName === 'MATH-FIELD'")
+        p.wait_for_timeout(200)  # MathLive's keyboard sink settles
+        p.keyboard.type("x^3")
+        p.keyboard.press("ArrowRight")
+        p.keyboard.type("+x^2")
+        self.assertEqual(self.read_settled(), "ftc x^3 + x^2.")
+        self.assertEqual(p.inner_text(".prow.sentence .echo"), "x^3 + x^2")
+        self.type_open("close 2.")
+        p.wait_for_selector(".prow.sentence:nth-child(3) math-field")
+        p.click("#to-cursor")
+        p.wait_for_selector(".node.current[data-node='n2']")
+        p.wait_for_function("() => document.getElementById('status-report')"
+                            ".innerText === 'Proved.'")
+        self.assertEqual(p.eval_on_selector_all(".prow.checked", "rs => rs.length"), 2)
+        self.assertTrue(p.eval_on_selector_all(
+            ".prow.checked math-field", "fs => fs.every(f => f.hasAttribute('read-only'))"))
+        p.click("#pretty-toggle")
+        self.assertTrue(p.is_visible("#script"))
+        self.assertEqual(p.input_value("#script"), "ftc x^3 + x^2.\nclose 2.")
+        self.assertEqual(p.inner_text("#backdrop mark.checked"),
+                         "ftc x^3 + x^2.\nclose 2.")
+
+    def test_pretty_fraction_and_bad_field(self):
+        p = self.page
+        self.start()
+        self.pretty_on()
+        self.type_open("close _.")
+        p.wait_for_function("() => document.activeElement.tagName === 'MATH-FIELD'")
+        p.wait_for_timeout(200)  # MathLive's keyboard sink settles
+        p.keyboard.type("4/2")
+        self.assertEqual(self.read_settled(), "close 4/2.")
+        p.keyboard.press("ArrowRight")
+        p.keyboard.type("ab")
+        self.read_settled()
+        p.wait_for_selector(".seg-term.bad")
+        p.click("#next")
+        p.wait_for_selector("#refusal")
+        self.assertIn("bad-tex", p.inner_text("#refusal"))
+        self.assertEqual(self.nodes(), 1)
+
+    def test_pretty_keeps_text_set_from_outside(self):
+        """Rows never overwrite text the page set itself: a resumed script,
+        a palette sentence, a new problem's script."""
+        p = self.page
+        self.start()
+        self.type_script("ftc x^3 + x^2 by ring.\n")
+        p.click("#next")
+        p.wait_for_selector(".node.current[data-node='n1']")
+        self.pretty_on()
+        p.wait_for_selector(".prow.checked math-field")
+        self.assertEqual(p.input_value("#script"), "ftc x^3 + x^2 by ring.\n")
+        p.wait_for_selector("#palette-moves button")
+        p.click("#palette-moves button")  # close's template
+        p.wait_for_function("() => document.getElementById('script').value.includes('close')")
+        p.wait_for_selector(".prow.sentence:not(.checked) math-field")
+        self.assertTrue(p.input_value("#script").startswith("ftc x^3 + x^2 by ring.\n"))
+        self.start("trig.COS_SQ")
+        p.wait_for_selector(".prow.open .seg-text")
+        self.assertEqual(p.input_value("#script"), "")
+        p.select_option("#problem-select", "stage0.S1")  # its work comes back
+        p.click("#start-problem")
+        p.wait_for_selector(".prow.checked")
+        self.assertIn("ftc x^3 + x^2 by ring.", p.input_value("#script"))
+
+    def test_autocomplete_takes_int_subst(self):
+        p = self.page
+        self.start("parts.P1_PARTS")
+        self.pretty_on()
+        p.click(".prow.open .seg-text")
+        p.keyboard.type("int_s")
+        p.wait_for_selector("#complete .item")
+        self.assertIn("int_subst x := _ as t from _ to _", p.inner_text("#complete"))
+        p.keyboard.press("Enter")
+        p.wait_for_selector(".prow.sentence math-field")
+        self.assertEqual(p.eval_on_selector_all(".prow.sentence math-field", "fs => fs.length"), 3)
+        self.assertEqual(p.eval_on_selector_all(".prow.sentence .seg-name",
+                                                "ns => ns.map(n => n.textContent)"), ["x", "t"])
+        p.wait_for_function("() => document.activeElement.tagName === 'MATH-FIELD'")
+        p.wait_for_timeout(200)  # MathLive's keyboard sink settles
+        p.keyboard.type("t^2")
+        for k, text in ((1, "0"), (2, "pi/2")):
+            p.wait_for_timeout(200)
+            p.query_selector_all(".prow.sentence math-field")[k].click()
+            p.wait_for_timeout(200)
+            p.keyboard.type(text)
+        self.assertEqual(self.read_settled(),
+                         "int_subst x := t^2 as t from 0 to pi/2 by ring.")
+        p.select_option(".prow.sentence .seg-choice", "field")
+        self.assertIn("by field.", p.input_value("#script"))
+        p.click("#next")
+        p.wait_for_selector(".node.current[data-node='n1']")
+
+    def test_page_splitter_matches_the_fixture(self):
+        """DX.md review 4: nextSentence gives sentences.json's spans."""
+        import json
+        here = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(here, "sentences.json")) as f:
+            cases = json.load(f)["cases"]
+        got = self.page.evaluate("""(cases) => cases.map((c) => {
+            const out = []; let at = 0, s;
+            while ((s = nextSentence(c.text, at))) { out.push([s.start, s.end]); at = s.end; }
+            return out; })""", cases)
+        for c, g in zip(cases, got):
+            self.assertEqual(g, c["spans"], c["text"])
+
+    def test_mathlive_output_matches_the_fixture(self):
+        """PRETTY.md review 8: the captured LaTeX in untex_cases.json is
+        still what MathLive gives for those keys, with the page's shortcuts."""
+        import json
+        here = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(here, "untex_cases.json")) as f:
+            cases = [c for c in json.load(f)["cases"] if "keys" in c]
+        p = self.page
+        self.start()
+        self.pretty_on()
+        for c in cases:
+            with self.subTest(c["keys"]):
+                # a fresh field each time: MathLive keeps recent keystrokes
+                # for its shortcuts, whatever its value is set to
+                p.evaluate("""() => { document.getElementById('probe-field')?.remove();
+                    const m = document.createElement('math-field');
+                    m.id = 'probe-field'; document.getElementById('pretty').append(m);
+                    m.addEventListener('mount', () => { m.inlineShortcuts = SHORTCUTS; }); }""")
+                p.wait_for_timeout(200)
+                p.click("#probe-field")
+                p.wait_for_timeout(150)
+                for k in c["keys"]:
+                    if k[:1].isupper() and k.isalpha():
+                        p.keyboard.press(k)
+                    else:
+                        p.keyboard.type(k)
+                self.assertEqual(p.evaluate(
+                    "() => document.getElementById('probe-field').value"), c["latex"])
 
 
 if __name__ == "__main__":

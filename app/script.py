@@ -46,6 +46,22 @@ USAGE = {
     "bound": "bound [by ring|field] using h, ...",
 }
 
+# PRETTY.md, autocomplete: each move's shape with a `_` hole for every
+# required term; names are placeholders to overwrite. Every template parses.
+TEMPLATES = {
+    "ftc": "ftc _ by ring.",
+    "int_improper": "int_improper _ by field.",
+    "close": "close _ by ring.",
+    "rewrite": "rewrite entry at _.",
+    "fact": "fact h := entry with a := _.",
+    "int_subst": "int_subst x := _ as t from _ to _ by ring.",
+    "int_flip": "int_flip.",
+    "int_parts": "int_parts in x with u := _; v := _ by ring.",
+    "taylor_lagrange": "taylor_lagrange h := lower of _ in u from _ to _ at _ "
+                       "derivs _; _ increasing by field.",
+    "bound": "bound by field using h.",
+}
+
 
 class TacticError(Exception):
     """A sentence that fits no form: refused 'bad-tactic' by the API."""
@@ -333,3 +349,139 @@ def spans(text):
 def sentences(text):
     """Every complete sentence of a script, as its text, in order."""
     return [text[a:b] for a, b in spans(text)]
+
+
+# ---------------------------------------------------------------- layout
+
+def _trim(text, a, b):
+    """(a, b) shrunk past whitespace at both ends."""
+    while a < b and text[a] in SPACE:
+        a += 1
+    while b > a and text[b - 1] in SPACE:
+        b -= 1
+    return a, b
+
+
+def _cuts(text, a, b, allowed):
+    """(start, word) of each clause word in text[a:b], as _clauses finds
+    them: whole words at bracket depth 0, after whitespace."""
+    out = []
+    for i, c, d in _depth_scan(text[a:b]):
+        if d or (i and not text[a + i - 1].isspace()):
+            continue
+        for w in allowed:
+            j = a + i + len(w)
+            if text.startswith(w, a + i) and (j == b or text[j].isspace()):
+                out.append((a + i, w))
+                break
+    return out
+
+
+def _items(text, a, b):
+    """The value span of each `name := T` item (or bare T) in text[a:b],
+    split at depth-0 ';'."""
+    out, start = [], a
+    for i, c, d in _depth_scan(text[a:b] + ";"):
+        if c == ";" and d == 0:
+            s, e = start, a + i
+            k = text.find(":=", s, e)
+            out.append(_trim(text, k + 2 if k >= 0 else s, e))
+            start = a + i + 1
+    return [x for x in out if x[0] < x[1]]
+
+
+def layout(sentence):
+    """PRETTY.md: the sentence cut into segments {"text": s}, {"term": s},
+    {"name": s} and {"choice": s, "options": [...]}, in order, whose texts
+    concatenate to the sentence exactly. A sentence that
+    parse refuses, or that holds a comment, is one text segment."""
+    whole = [{"text": sentence}]
+    if "(*" in sentence:
+        return whole
+    try:
+        move, _ = parse(sentence)
+    except TacticError:
+        return whole
+    a, end = _trim(sentence, 0, len(sentence))
+    if sentence[end - 1:end] == "." and sentence[end - 2:end] != "..":
+        end -= 1
+    start = a + len(move)
+    cuts = _cuts(sentence, start, end, FORMS[move][0])
+    bounds = [c[0] for c in cuts] + [end]
+    head = _trim(sentence, start, bounds[0])
+    clause = {w: _trim(sentence, i + len(w), bounds[k + 1])
+              for k, (i, w) in enumerate(cuts)}
+    spans = []  # (start, end, kind): term, name or choice
+
+    def term(span):
+        spans.append((*span, "term"))
+
+    def name(span):
+        spans.append((*span, "name"))
+
+    def before_assign(span):
+        """The name before ':=' in span, and the text after it."""
+        k = sentence.find(":=", *span)
+        name(_trim(sentence, span[0], k))
+        return _trim(sentence, k + 2, span[1])
+
+    if move in ("ftc", "int_improper", "close"):
+        term(head)
+    elif move == "rewrite":
+        name(head)
+        for it in _items(sentence, *clause.get("with", (0, 0))):
+            term(it)
+        term(clause["at"])
+    elif move == "fact":
+        name(before_assign(head))
+        for it in _items(sentence, *clause.get("with", (0, 0))):
+            term(it)
+    elif move == "int_subst":
+        term(before_assign(head))
+        name(clause["as"])
+        for w in ("from", "to", "reverse"):
+            if w in clause:
+                term(clause[w])
+    elif move == "int_parts":
+        name(clause["in"])
+        for it in _items(sentence, *clause["with"]):
+            term(it)
+    elif move == "taylor_lagrange":
+        rest = before_assign(head)
+        k = sentence.find(" of ", *rest)
+        spans.append((rest[0], k, "choice:lower|upper"))
+        term(_trim(sentence, k + 4, rest[1]))
+        name(clause["in"])
+        for w in ("from", "to", "at"):
+            term(clause[w])
+        for it in _items(sentence, *clause["derivs"]):
+            term(it)
+        for i, w in cuts:
+            if w in SENSES:
+                spans.append((i, i + len(w), "choice:increasing|decreasing"))
+    if "occurrence" in clause:
+        name(clause["occurrence"])
+    if "by" in clause:
+        spans.append((*clause["by"], "choice:ring|field"))
+    if "using" in clause:
+        base, b0 = clause["using"]
+        a0 = base
+        for i, c, d in _depth_scan(sentence[base:b0] + ","):
+            if c == "," and d == 0:
+                name(_trim(sentence, a0, base + i))
+                a0 = base + i + 1
+    out, at = [], 0
+    for s, e, kind in sorted(spans):
+        if s >= e:
+            continue
+        if s > at:
+            out.append({"text": sentence[at:s]})
+        if kind.startswith("choice:"):
+            out.append({"choice": sentence[s:e],
+                        "options": kind[7:].split("|")})
+        else:
+            out.append({kind: sentence[s:e]})
+        at = e
+    if at < len(sentence):
+        out.append({"text": sentence[at:]})
+    return out
