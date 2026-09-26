@@ -168,4 +168,27 @@ checked sentences right there."
     (dx-test--goals-at (point-max) "Proved.")
     (set-buffer-modified-p nil)))
 
+(defvar flycheck-mode)                  ; not loaded here: bind it dynamically
+
+(ert-deftest dx-reads-flycheck-when-flymake-is-off ()
+  "Doom Emacs shows eglot's diagnostics through flycheck, not flymake."
+  (with-temp-buffer
+    (dx-mode)
+    (insert "ftc x.\n")
+    (goto-char (point-min))
+    (let ((flymake-mode nil) (flycheck-mode t) (asked nil))
+      (cl-letf (((symbol-function 'flycheck-overlay-errors-in)
+                 (lambda (beg end) (setq asked (list beg end)) '(e1 e1)))
+                ((symbol-function 'flycheck-error-message)
+                 (lambda (_) "ftc-check-failed: here")))
+        (dx--show-diagnostics-here)
+        (should (equal asked (list 1 8)))
+        (should (equal (dx-test--response) "ftc-check-failed: here"))))))
+
+(ert-deftest dx-docver-under-either-eglot ()
+  (with-temp-buffer
+    (if (boundp 'eglot--docver)
+        (let ((eglot--docver 7)) (should (eql (dx--docver) 7)))
+      (let ((eglot--versioned-identifier 7)) (should (eql (dx--docver) 7))))))
+
 ;;; test-dx-mode.el ends here

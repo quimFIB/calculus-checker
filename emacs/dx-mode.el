@@ -22,6 +22,7 @@
 ;;   C-c C-p             toggle the pretty display
 ;;   C-c TAB             complete a move name into its template
 ;; Diagnostics, completion-at-point and code actions are eglot's own.
+;; Doom Emacs users: see emacs/doom/dx/README.org for the :lang dx module.
 
 ;;; Code:
 
@@ -38,7 +39,9 @@
   :prefix "dx-")
 
 (defconst dx--here
-  (file-name-directory (or load-file-name buffer-file-name default-directory))
+  (file-name-directory
+   ;; the real file: a linked dx-mode.el still finds ../calc
+   (file-truename (or load-file-name buffer-file-name default-directory)))
   "The directory this file was loaded from.")
 
 (defcustom dx-calc-program
@@ -123,6 +126,12 @@ plain text (app/DX.md).  `*' is left alone: it would draw `(*' as `(·'.")
   "POS, or past its newline when only a newline follows: a full-width band."
   (if (eq (char-after pos) ?\n) (1+ pos) pos))
 
+(defun dx--docver ()
+  "The version eglot last sent of this buffer's text.
+Newer eglot (Doom pins 1.24) renamed `eglot--versioned-identifier' to `eglot--docver'."
+  (if (boundp 'eglot--docver) (symbol-value 'eglot--docver)
+    (bound-and-true-p eglot--versioned-identifier)))
+
 (defun dx--buffer-of (uri)
   "The live dx-mode buffer visiting URI, or nil."
   (let* ((path (if (fboundp 'eglot-uri-to-path) (eglot-uri-to-path uri)
@@ -156,7 +165,7 @@ plain text (app/DX.md).  `*' is left alone: it would draw `(*' as `(·'.")
   "Shade the checked prefix and the sentence being checked."
   (when-let ((buf (dx--buffer-of uri)))
     (with-current-buffer buf
-      (when (eql version eglot--versioned-identifier) ; else a stale text
+      (when (eql version (dx--docver)) ; else a stale text
         (dx--overlay 'dx--checked-ov (point-min)
                      (and checkedEnd (dx--line-end (dx--point checkedEnd)))
                      'dx-locked-face)
@@ -200,12 +209,26 @@ plain text (app/DX.md).  `*' is left alone: it would draw `(*' as `(·'.")
                             (if node (dx--node-text node)
                               "No goal: the header is not checked."))))))))))
 
+(declare-function flycheck-overlay-errors-in "ext:flycheck")
+(declare-function flycheck-error-message "ext:flycheck")
+
+(defun dx--diagnostics-here ()
+  "The messages of the diagnostics on point's line: flymake's, or
+flycheck's when it shows eglot's instead (as Doom Emacs sets it up)."
+  (let ((beg (line-beginning-position)) (end (line-end-position)))
+    (cond
+     ((bound-and-true-p flymake-mode)
+      (mapcar #'flymake-diagnostic-text (flymake-diagnostics beg end)))
+     ((and (bound-and-true-p flycheck-mode)
+           (fboundp 'flycheck-overlay-errors-in))
+      ;; an empty line has no overlay in it: look one past its end
+      (mapcar #'flycheck-error-message
+              (flycheck-overlay-errors-in beg (min (1+ end) (point-max))))))))
+
 (defun dx--show-diagnostics-here ()
   "Show the full message of a refusal on point's line in *dx-response*."
-  (when-let ((ds (and (bound-and-true-p flymake-mode)
-                      (flymake-diagnostics (line-beginning-position)
-                                           (line-end-position)))))
-    (dx--show-response (mapconcat #'flymake-diagnostic-text ds "\n"))))
+  (when-let ((ds (dx--diagnostics-here)))
+    (dx--show-response (string-join (delete-dups ds) "\n"))))
 
 (defvar dx--idle-timer nil)
 

@@ -142,6 +142,19 @@ anything else is shown as SymPy's claim beside a numeric value. P1(2),
 "unverified" (its proof holds only modulo admissions). SymPy is optional:
 `./calc --sympy PYTHON` or `CALC_SYMPY`.
 
+**Doom Emacs has a `:lang dx` module** (`emacs/doom/dx`, 2026-09-26, the
+owner's ask). Linked into `$DOOMDIR/modules/lang/dx` and enabled as `dx`
+under `:lang`, it loads dx-mode from the checkout (so `./calc` is found),
+connects eglot on `dx-mode-local-vars-hook`, shows `*dx-goals*` and
+`*dx-response*` as popups stacked on the right, binds `SPC m` keys
+(`SPC m E` evaluates and inserts the proof), turns each move's template
+into a yasnippet snippet and starts new .dx files from a `goal` template.
+dx-mode now also reads flycheck, which Doom uses for eglot's diagnostics,
+and eglot 1.24's renamed document version. `emacs/doom/check-in-doom.el`
+checks all of it inside a real Doom; it passes in three setups: evil with
+`(lsp +eglot)` and flycheck, evil without `:tools lsp`, and no evil, no
+popups, with lsp-mode.
+
 **The check-mode page is up** (`app/PAGE.md`, revision 2, 2026-09-25):
 `./calc` serves it at `http://127.0.0.1:8765/`, laid out like rocq-mode. You
 type a tactic script in the centre (`app/SCRIPT.md`, e.g. `ftc x^3 + x^2 by

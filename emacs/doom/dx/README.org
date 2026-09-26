@@ -1,0 +1,123 @@
+#+title:    :lang dx
+#+subtitle: Check calculus-checker .dx scripts as you type, in Doom Emacs
+
+* Description
+A Doom Emacs module around =emacs/dx-mode.el=: the checker's language
+server (=./calc --lsp=, see =app/LSP.md=) checks the whole .dx buffer
+through eglot, shades what is checked, shows a refused sentence as an
+error, and keeps the goal at point in a =*dx-goals*= popup.
+
+What the module adds to plain dx-mode:
+- dx-mode is loaded from your checkout, so it finds =../calc= beside it;
+- eglot connects on =dx-mode-local-vars-hook=, as Doom's =lsp!= does, so
+  previews and temporary buffers don't start a checker;
+- =*dx-goals*= and =*dx-response*= are popups on the right, one above the
+  other, that stay open until you hide them (with =:ui popup=);
+- localleader keys (below), as well as dx-mode's own =C-c= keys;
+- a yasnippet snippet for each move, filled in field by field (type =ftc=,
+  then =TAB=; with =:editor snippets=), and a template for new .dx files
+  (with =:editor file-templates=);
+- refusals shown through flycheck, when =:checkers syntax= uses it (Doom's
+  default), still reach =*dx-response*=.
+
+** Module flags
+This module has no flags.
+
+** Packages
+None are installed.  dx-mode needs Emacs 29 or later, for eglot.
+
+** Hacks
+- The commands are in config.el, not autoload.el: Doom does not index the
+  autoloads of a module linked into =$DOOMDIR/modules=.
+- dx-mode's own =dx-eglot-auto= is turned off; set =+dx-eglot-auto= to nil
+  instead to open .dx files without connecting.
+
+* Installation
+1. Link the module into your private modules (it is not part of Doom):
+   #+begin_src sh
+   mkdir -p ~/.config/doom/modules/lang
+   ln -s ~/calculus-checker/emacs/doom/dx ~/.config/doom/modules/lang/dx
+   #+end_src
+   Use your =$DOOMDIR= in place of =~/.config/doom= if it is elsewhere.
+   If you copy the directory instead of linking it, tell the module where
+   the checkout is, in =$DOOMDIR/init.el= before =(doom! ...)=:
+   #+begin_src emacs-lisp
+   (setq +dx-dir "~/calculus-checker/emacs/")
+   #+end_src
+2. Enable it in =$DOOMDIR/init.el=:
+   #+begin_src emacs-lisp
+   (doom! ...
+          :tools
+          (lsp +eglot)   ; recommended, see below
+          :lang
+          dx)
+   #+end_src
+3. Run =doom sync= and restart Emacs.
+
+dx-mode always talks to the checker through eglot.  =:tools (lsp +eglot)=
+is the best match (Doom then pins a newer eglot and sets it up), but the
+module works without =:tools lsp= too, using the eglot built into Emacs,
+and alongside =:tools lsp= without =+eglot=: lsp-mode keeps your other
+languages and eglot takes the .dx buffers.  Doom's own LSP keys (=SPC c
+a= and the like) are eglot's only with =+eglot=; the =SPC m= keys below
+work in every case.
+
+To evaluate integrals (=SPC m e=), the checker needs a Python that has
+SymPy: see "Enabling it" in =app/EVAL.md=, and set =dx-calc-args= to
+='("--lsp" "--sympy" "/path/to/python")= if it is not found by itself.
+
+* Usage
+Open a .dx file.  Its first sentence names the goal (=problem stage0.S1.=
+or =goal Int[x = 0 .. 1] 3*x^2 + 2*x == ?A.=), then come the moves, one
+sentence each (=app/SCRIPT.md=).
+
+| Key         | Command                     | What it does                                        |
+|-------------+-----------------------------+-----------------------------------------------------|
+| =SPC m l=   | =+dx/layout=                | open the goals and response popups                  |
+| =SPC m g=   | =+dx/goals=                 | show the goal at point                              |
+| =SPC m h=   | =dx-hint=                   | the next hint rung at point                         |
+| =SPC m a=   | =dx-use-suggestion=         | replace a refused sentence with the suggestion      |
+| =SPC m e=   | =dx-evaluate=               | evaluate the integral goal at point, or the region  |
+| =SPC m E=   | =+dx/evaluate-and-insert=   | evaluate, and insert the checked proof at point     |
+| =SPC m c=   | =dx-complete=               | complete a move name into its shape                 |
+| =SPC m p=   | =prettify-symbols-mode=     | toggle the pretty display (∫, √, π, ∞)              |
+
+These are for evil users (=M-SPC m= in insert state).  Without evil, the
+localleader is =C-c l=: =C-c l l=, =C-c l e= and so on.  dx-mode's own
+=C-c C-l=, =C-c C-t=, =C-c C-a=, =C-c C-e=, =C-c C-p= and =C-c TAB= work
+either way.  The popups stay open while you work; =+popup/toggle= (=C-`=,
+or =SPC ~= with evil, since terminals can't send =C-`=) hides them and
+brings them back.
+
+* Configuration
+dx-mode's settings are in =M-x customize-group RET dx=: =dx-calc-program=,
+=dx-calc-args=, =dx-pretty= and =dx-goals-delay=.  For example, in
+=$DOOMDIR/config.el=:
+#+begin_src emacs-lisp
+(after! dx-mode
+  (setq dx-pretty nil))
+#+end_src
+
+The popups' placement is an ordinary popup rule, which yours override
+(the module's are set before your config.el runs):
+#+begin_src emacs-lisp
+(set-popup-rule! "^\\*dx-goals\\*" :side 'bottom :size 0.3)
+#+end_src
+
+* Troubleshooting
+- A warning at startup, /lang\/dx: no dx-mode.el in +dx-dir/, and .dx
+  files open in fundamental mode: the module was copied, not linked, and
+  =+dx-dir= does not point at the checkout's =emacs/= directory.
+- /calc: not found/: dx-mode found no =../calc= beside it.  =M-x
+  describe-variable RET dx-calc-program= shows which checker is run.
+- Nothing is shaded: the header sentence is refused; the flycheck error on
+  the first line says why.
+
+* Testing
+=emacs/doom/check-in-doom.el= checks the module end to end inside your
+Doom (it needs a terminal or a display; Doom loads no user config in
+=--batch=):
+#+begin_src sh
+emacs -nw -l emacs/doom/check-in-doom.el   # from the checkout
+cat /tmp/dx-doom-check.txt                 # PASS/FAIL lines
+#+end_src
