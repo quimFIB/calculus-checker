@@ -1,0 +1,17 @@
+(* Lesson 10. An order goal: prove an inequality, not find a value.
+   Taylor's theorem with a monotone remainder, then `bound`. *)
+goal b^2/2 <= exp b - (1 + b) @ b in [0, 1).
+
+fact h0 := exp_zero.
+
+(* Expand f = exp u at 0, valid on [0, 1), read at u = b. derivs lists
+   f', f'', f''' (here all exp u). With three listed, the polynomial
+   is order n = 1 (1 + b), and the last derivative's sign (>= 0:
+   increasing) bounds the remainder between f''(0)*b^2/2 and
+   f''(b)*b^2/2. `lower` binds the left one to hl:
+   exp 0 * b^2/2 <= exp b - (exp 0 + exp 0 * b). The goal is unchanged. *)
+taylor_lagrange hl := lower of exp u in u from 0 to 1 at b derivs exp u; exp u; exp u increasing by ring.
+
+(* bound closes an order goal from one order fact. hl says exp 0
+   where the goal says 1, so h0 goes to field too. *)
+bound by field using hl, h0.

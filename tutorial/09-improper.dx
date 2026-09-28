@@ -1,0 +1,10 @@
+(* Lesson 9. An infinite end: F(oo) is a limit, and the kernel takes it. *)
+goal Int[x = 0 .. oo] exp(-x) == ?A.
+
+(* Like ftc, but also checks that F has a finite limit at the infinite
+   end and puts that limit in F(oo)'s place: here 0. *)
+int_improper -exp(-x) by ring.
+
+(* -0 - (-exp(-0)) == ?A. exp_zero matches exp(-0) up to ring. *)
+rewrite exp_zero at exp(-0).
+close 1 by ring.

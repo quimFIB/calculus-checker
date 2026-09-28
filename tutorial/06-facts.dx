@@ -1,0 +1,22 @@
+(* Lesson 6. Facts: an entry bound to a name and handed to a check.
+   Goal: Int[x = 0 .. 1] sqrt(1 - x^2) == ?A, a quarter of the unit disc. *)
+problem consolidation.QC1.
+
+int_subst x := cos theta as theta from pi/2 to 0 by ring.
+
+(* cos is decreasing here, so the kernel flips the range: the new
+   integral runs over [0, pi/2] and holds sqrt(1 - (cos theta)^2).
+   Turn the inside into a square, then take the root, which needs
+   sin theta >= 0 on the range (discharged for you). *)
+rewrite pyth_cos with u := theta at (cos theta)^2.
+rewrite sqrt_sq with u := sin theta at sqrt(1 - (1 - (sin theta)^2)).
+
+(* F' comes out in sin^2 and cos^2 together; ring alone cannot see
+   they add to 1. `fact` binds the identity to h_pyth, and
+   `using h_pyth` gives it to the check. *)
+fact h_pyth := pyth_cos with u := theta.
+ftc (theta - sin theta * cos theta)/2 by field using h_pyth.
+rewrite sin_pi_half at sin(pi/2).
+rewrite cos_pi_half at cos(pi/2).
+rewrite sin_zero at sin 0.
+close pi/4 by ring.

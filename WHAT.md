@@ -290,6 +290,15 @@ work readiness P1, P3 (part 1) and P5 in the loop with `./calc`, and plot
 the maximum hint rung per problem against time. That is the owner's to
 run; nothing in it is code.
 
+**Before the gate, `QUICKSTART.md`** (2026-09-28, the owner's ask): the
+language by twelve worked lessons, `tutorial/01-ftc.dx` to `12-ode.dx`,
+from S1 to an equation of motion, covering every stage-1 move, the
+entries and what a refusal looks like. None is a gate problem, so the
+gate's early rungs measure calculus rather than notation.
+`app/test_tutorial.py` proves every lesson, checks every other example
+on the page does what the page says, and pins the entries tables to the
+kernel's.
+
 **Python version:** the suite passes 1027 of 1027 on Python 3.12.
 On 3.11 five deep-term checks fail with `RecursionError` in dataclass
 `__eq__`, so 3.12 is the floor in practice.

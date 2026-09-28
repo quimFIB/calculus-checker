@@ -1,0 +1,15 @@
+(* Lesson 5. Forward substitution, x := phi(t): kill a root.
+   Goal: Int[x = 0 .. 1] x*sqrt(1 - x) == ?A *)
+problem stage1.SUB1.
+
+(* x = 1 - t^2 makes 1 - x a square. `from 1 to 0` names the t that
+   lands on each old end, in order: phi(1) = 0 and phi(0) = 1, which
+   the kernel checks. The new integral runs from t = 1 to t = 0, and
+   ftc takes it as it stands. *)
+int_subst x := 1 - t^2 as t from 1 to 0 by ring.
+
+(* sqrt(t^2) is t only because t >= 0 on the range; sqrt_sq carries
+   that condition, and the kernel discharges it from the range. *)
+rewrite sqrt_sq with u := t at sqrt(1 - (1 - t^2)).
+ftc (2/5)*t^5 - (2/3)*t^3 by ring.
+close 4/15 by ring.

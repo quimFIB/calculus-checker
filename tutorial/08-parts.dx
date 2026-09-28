@@ -1,0 +1,16 @@
+(* Lesson 8. Integration by parts: Int u v' = [u v] - Int u' v. *)
+goal Int[x = 0 .. 1] x*exp x == ?A.
+
+(* Name u and v (not v'); the kernel checks u * D[x] v against the
+   integrand. `in x` is the integration variable. *)
+int_parts in x with u := x; v := exp x by ring.
+
+(* 1*exp 1 - 0*exp 0 - (Int[x = 0 .. 1] 1*exp x) == ?A. The integral
+   is no longer the whole left side, so point ftc at it: occurrence 0
+   is the first Int, counted left to right. *)
+ftc exp x occurrence 0 by ring.
+
+(* A rewrite replaces every match of its subterm. *)
+rewrite exp_one at exp 1.
+rewrite exp_zero at exp 0.
+close 1 by ring.

@@ -1,0 +1,14 @@
+(* Lesson 4. Substitution the way you would say it: "let u = x^2".
+   Goal: Int[x = 0 .. 1] x*exp(x^2) == ?A, lesson 2's integral again. *)
+problem stage1.S2R.
+
+(* Reverse mode: u := g(x) with g = x^2, `from 0 to 1` the new ends
+   g(0) and g(1), and `reverse f` the integrand in u. The kernel checks
+   x*exp(x^2) == f(g(x)) * g'(x), that is exp(x^2)/2 * 2x. *)
+int_subst x := x^2 as u from 0 to 1 reverse exp(u)/2 by ring.
+
+(* Int[u = 0 .. 1] exp(u)/2 == ?A *)
+ftc exp(u)/2 by ring.
+rewrite exp_one at exp 1.
+rewrite exp_zero at exp 0.
+close (e_const - 1)/2 by ring.

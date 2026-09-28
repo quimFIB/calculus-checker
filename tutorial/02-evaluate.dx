@@ -1,0 +1,13 @@
+(* Lesson 2. Values must be fully evaluated: exp 1 is not an answer,
+   e_const is. The rewrite entries turn one into the other.
+   Goal: Int[x = 0 .. 1] x*exp(x^2) == ?A *)
+problem stage0.S2.
+
+(* The inner derivative is 2x, so F carries a 1/2. *)
+ftc exp(x^2)/2 by ring.
+
+(* Now exp(1^2)/2 - exp(0^2)/2 == ?A. The entry exp_one says
+   exp 1 == e_const; `at` names the subterm to rewrite. *)
+rewrite exp_one at exp(1^2).
+rewrite exp_zero at exp(0^2).
+close (e_const - 1)/2 by ring.

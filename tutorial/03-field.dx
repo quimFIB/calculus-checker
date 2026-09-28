@@ -1,0 +1,12 @@
+(* Lesson 3. ring knows + - * and whole powers. field also knows
+   division, and every divisor it uses becomes an obligation that it
+   is nonzero. Goal: Int[x = 1 .. e_const] (ln x)/x == ?A *)
+problem stage0.S3.
+
+(* D[x] (ln x)^2/2 is ln x * (1/x): a quotient, so field. The
+   obligations pane now lists x # 0 and x > 0 (ln's domain) on the
+   range, each discharged with a method. *)
+ftc (ln x)^2 / 2 by field.
+rewrite ln_e at ln e_const.
+rewrite ln_one at ln 1.
+close 1/2 by ring.

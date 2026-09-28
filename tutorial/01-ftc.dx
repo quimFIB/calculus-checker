@@ -1,0 +1,10 @@
+(* Lesson 1. The whole loop: an integral, an antiderivative, a value.
+   Goal: Int[x = 0 .. 1] 3*x^2 + 2*x == ?A *)
+problem stage0.S1.
+
+(* You propose F. The kernel differentiates it, checks F' against the
+   integrand with ring, and replaces the integral by F(1) - F(0). *)
+ftc x^3 + x^2 by ring.
+
+(* The goal is now 1^3 + 1^2 - (0^3 + 0^2) == ?A. Name the value. *)
+close 2 by ring.
