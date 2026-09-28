@@ -1,0 +1,4 @@
+(* Exercise 3, after lesson 3. Split the fraction in your head: 1 + 1/x^2. Which check cancels the x^2?
+   Solution: tutorial/solutions/03-field.dx *)
+goal Int[x = 1 .. 2] (x^2 + 1)/x^2 == ?A.
+

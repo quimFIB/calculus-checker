@@ -8,8 +8,9 @@ replaceability test made operational.
 A design, two spikes, and **a complete stage-1 headless kernel** that proves
 readiness P1 from the sheet's own goal and stage 0's S1–S3 as plain
 `Proved.`, with every obligation discharged by a checked certificate
-(`kernel/`, 2026-09-23 to 2026-09-25). The tool a learner would use is not
-built yet: there is a JSON API (`app/`), but no UI or assistance tier.
+(`kernel/`, 2026-09-23 to 2026-09-25). The tool a learner uses is built
+on it: `./calc` serves a page and a language server over a JSON API
+(`app/`), with the assistance tier; `QUICKSTART.md` teaches its language.
 Design 2026-09-20, stage 0b first pass 2026-09-21, decoupling pass and stage 0
 first pass 2026-09-22, the stage 0c `ring`/`field` spike (`spike/ring/`) and a
 recognizer spike (`spike/recognizer/`) 2026-09-23, the proof-of-life kernel
@@ -285,19 +286,23 @@ rational integrand. The quadratic drag (parameters) is out of scope.
 `bound` are tactics (`app/SCRIPT.md`), the palette offers them on an order
 goal, and `taylor.P3_LOWER` / `taylor.P3_UPPER` are problems.
 
-**Next,** per §17: stage 1's lists are done (2026-09-25). The gate:
-work readiness P1, P3 (part 1) and P5 in the loop with `./calc`, and plot
-the maximum hint rung per problem against time. That is the owner's to
-run; nothing in it is code.
+**Learning the language: `QUICKSTART.md`** (2026-09-28, the owner's
+ask). Twelve worked lessons, `tutorial/01-ftc.dx` to `12-ode.dx`, run
+from S1 to an equation of motion. With the page's other examples they
+cover every move but `sep_autonomous` and `energy_integral`, the
+entries, and what a refusal says. Each lesson has
+an exercise, `tutorial/exercises/`, with a solution in
+`tutorial/solutions/`. `app/test_tutorial.py` proves every lesson and
+solution and runs every other example on the page, including the text
+the page quotes from each refusal. It also parses the terms tables, pins
+the entries tables to the kernel's, and refuses any example whose goal is
+a gate problem's with the variables renamed.
 
-**Before the gate, `QUICKSTART.md`** (2026-09-28, the owner's ask): the
-language by twelve worked lessons, `tutorial/01-ftc.dx` to `12-ode.dx`,
-from S1 to an equation of motion, covering every stage-1 move, the
-entries and what a refusal looks like. None is a gate problem, so the
-gate's early rungs measure calculus rather than notation.
-`app/test_tutorial.py` proves every lesson, checks every other example
-on the page does what the page says, and pins the entries tables to the
-kernel's.
+**Next,** per §17: stage 1's lists are done (2026-09-25). The gate
+(`app/GATE.md`): work its seventeen problems in order on the page, then
+`python3 app/gate.py`. That is the owner's to run; nothing in it is
+code. QUICKSTART.md's last section says what the gate does not record,
+and which files hold its answers.
 
 **Python version:** the suite passes 1027 of 1027 on Python 3.12.
 On 3.11 five deep-term checks fail with `RecursionError` in dataclass

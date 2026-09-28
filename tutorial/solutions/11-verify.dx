@@ -1,0 +1,4 @@
+(* Exercise 11: a solution. *)
+goal D[t] (y0/(1 + y0*t)) == -(y0/(1 + y0*t))^2 @ y0 > 0, t >= 0.
+
+verify by field.

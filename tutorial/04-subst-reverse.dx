@@ -2,9 +2,11 @@
    Goal: Int[x = 0 .. 1] x*exp(x^2) == ?A, lesson 2's integral again. *)
 problem stage1.S2R.
 
-(* Reverse mode: u := g(x) with g = x^2, `from 0 to 1` the new ends
-   g(0) and g(1), and `reverse f` the integrand in u. The kernel checks
-   x*exp(x^2) == f(g(x)) * g'(x), that is exp(x^2)/2 * 2x. *)
+(* Reverse mode. Read `x := x^2 as u` as "replace x by u, where
+   u = x^2": the name before := is the variable the integral is over
+   now, the one after `as` is the new one. `from 0 to 1` are u's ends
+   (0^2 and 1^2), and `reverse` gives the integrand in u. The kernel
+   checks x*exp(x^2) == exp(x^2)/2 * 2x, that is f(u(x)) * u'(x). *)
 int_subst x := x^2 as u from 0 to 1 reverse exp(u)/2 by ring.
 
 (* Int[u = 0 .. 1] exp(u)/2 == ?A *)

@@ -1,0 +1,4 @@
+(* Exercise 5, after lesson 5. x := t^2 kills the root. Expect a log in the answer.
+   Solution: tutorial/solutions/05-subst-forward.dx *)
+problem stage1.SUB2.
+

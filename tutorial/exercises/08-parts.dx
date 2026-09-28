@@ -1,0 +1,4 @@
+(* Exercise 8, after lesson 8. u := x, and v with v' = sin x. Four entries evaluate the ends.
+   Solution: tutorial/solutions/08-parts.dx *)
+goal Int[x = 0 .. pi] x*sin x == ?A.
+

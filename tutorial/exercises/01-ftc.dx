@@ -1,0 +1,4 @@
+(* Exercise 1, after lesson 1. Find an antiderivative of 4x^3 - 3x^2 + 1 and evaluate.
+   Solution: tutorial/solutions/01-ftc.dx *)
+goal Int[x = 0 .. 2] 4*x^3 - 3*x^2 + 1 == ?A.
+

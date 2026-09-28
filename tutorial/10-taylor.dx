@@ -4,12 +4,17 @@ goal b^2/2 <= exp b - (1 + b) @ b in [0, 1).
 
 fact h0 := exp_zero.
 
-(* Expand f = exp u at 0, valid on [0, 1), read at u = b. derivs lists
-   f', f'', f''' (here all exp u). With three listed, the polynomial
-   is order n = 1 (1 + b), and the last derivative's sign (>= 0:
-   increasing) bounds the remainder between f''(0)*b^2/2 and
-   f''(b)*b^2/2. `lower` binds the left one to hl:
-   exp 0 * b^2/2 <= exp b - (exp 0 + exp 0 * b). The goal is unchanged. *)
+(* The general rule: `of f in u from a to c at p derivs D1; ...; Dm`
+   lists f's first m derivatives. The Taylor polynomial has order
+   n = m - 2: T = f(a) + D1(a)(p - a) + ... + Dn(a)(p - a)^n/n!.
+   `increasing` says Dm >= 0 on (a, c), so D(n+1) grows, and then with
+   W = (p - a)^(n+1)/(n+1)!:
+     lower:  D(n+1)(a) * W  <=  f(p) - T
+     upper:  f(p) - T  <=  D(n+1)(p) * W
+   (`decreasing` swaps a and p.) Here f = exp u, a = 0, p = b, m = 3,
+   so n = 1, T = exp 0 + exp 0 * (b - 0) and W = (b - 0)^2/2. `lower`
+   binds hl: exp 0*((b - 0)^2/2) <= exp b - (exp 0 + exp 0*(b - 0)).
+   The goal is unchanged. *)
 taylor_lagrange hl := lower of exp u in u from 0 to 1 at b derivs exp u; exp u; exp u increasing by ring.
 
 (* bound closes an order goal from one order fact. hl says exp 0

@@ -1,0 +1,8 @@
+(* Exercise 6: a solution. *)
+goal Int[x = 0 .. 3] x/sqrt(x + 1) == ?A.
+
+fact h := sqrt_sq_val with a := x + 1.
+ftc (2/3)*(x + 1)*sqrt(x + 1) - 2*sqrt(x + 1) by field using h.
+rewrite sqrt_sq with u := 2 at sqrt(3 + 1).
+rewrite sqrt_sq with u := 1 at sqrt(0 + 1).
+close 8/3.

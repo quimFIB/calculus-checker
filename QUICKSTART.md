@@ -2,18 +2,15 @@
 
 Twelve short lessons, each a complete script that the kernel checks to
 `Proved.` They start with the smallest proof there is and end with an
-equation of motion. On the way they cover every move a stage-1 problem
-needs, the rewrite entries, and what a refusal looks like. The scripts
-are the files in `tutorial/`. `app/test_tutorial.py` checks every one of
-them, and every other example on this page, so nothing here has drifted
-from what the checker does.
+equation of motion. On the way they show what each move needs, the
+entries you evaluate with, and what a refusal tells you. Each lesson ends
+with an exercise for you to write yourself.
 
-**This comes before the gate.** None of these twelve goals is one of the
-gate's seventeen problems (`app/GATE.md`). The gate records how far up the
-hint ladder you go on each problem. If you learn the notation while doing
-the gate, the early problems cost hints for syntax, the late ones don't,
-and the gate "passes" on notation rather than calculus. Get the language
-here first. See [Before the gate](#before-the-gate) at the end.
+The lesson scripts are `tutorial/01-ftc.dx` to `12-ode.dx`. The exercises
+are in `tutorial/exercises/`, and their solutions in `tutorial/solutions/`.
+`app/test_tutorial.py` proves every lesson and every solution, runs
+every other example on this page, and checks that the text quoted after
+each refusal is what the checker says.
 
 ## Starting it
 
@@ -25,76 +22,124 @@ Then open http://127.0.0.1:8765/. It needs Python 3.12 or newer.
 
 The page has three panes:
 
-- **Problem** (left): the problem picker; **Your own goal**, a form with
-  Goal, Functions and Assuming fields; **Parse echo**, which shows how a
-  term you type is read; and **Attempts**, the tree of everything you have
-  tried, with retracted branches kept and struck through.
+- **Problem** (left): the problem picker, with Start, Export, Import and
+  **Start fresh**; **Your own goal**, a form with Goal, Functions and
+  Assuming fields; **Parse echo**, which shows how a term you type is
+  read; and **Attempts**, the tree of everything you have tried, with
+  retracted branches kept and struck through.
 - **Script** (centre): where you type tactics. `Alt+↓` checks the next
   sentence, `Alt+↑` retracts the last one, and `Ctrl+Enter` checks or
   retracts up to the cursor. Checked text is shaded green. Editing inside
-  it retracts back to the sentence you edited.
-- **Goals** (right): the current goal, its obligations, a palette of moves
-  and rewrites that fit (click one to insert it), and a progress note.
+  it retracts back to the sentence you edited. The toolbar also has the
+  hint buttons `?` `??` `???`, **Tactics** (a short syntax list),
+  **Pretty** (two-dimensional input) and **∫ Evaluate**.
+- **Goals** (right), from the top:
+  - the current goal, and a progress note after each step;
+  - a palette of moves and rewrites that fit (click one to insert it);
+  - the **Antiderivative card**, a collapsible list of standard forms and
+    their antiderivatives, with the rows that match the goal's integral
+    marked;
+  - **Factor over ℚ**, **Factor over ℝ** and **Partial fractions**, when
+    the goal's first integral is a quotient of polynomials;
+  - the facts you have bound, and the obligations.
+
   Below them are the **Evaluate** and **Classify** boxes and the
-  **Response**: the last success or refusal.
+  **Response**, which holds the last success, refusal or hint.
 
 **Running a lesson on the page.** Every lesson file starts with a header
 sentence, which the page takes in the left pane rather than the script:
 
 - `problem stage0.S1.` means: choose `stage0.S1` in the picker and press
   Start.
-- `goal G @ D functions f/1 assuming ... .` means: open **Your own goal**,
-  put `G @ D` in Goal, `f/1` in Functions and each assumption on its own
-  line in Assuming, then press Start.
+- `goal G @ D functions f/1 assuming a1; a2.` means: open **Your own
+  goal**, put `G @ D` in Goal, `f/1` in Functions and each assumption on
+  its own line in Assuming. Leave out the header's `;` between assumptions
+  and its final `.`, then press Start.
 
 Paste the rest of the file into the script pane and step through it. The
 `(* ... *)` comments can stay: they are comments to the checker too.
 
+**Start resumes saved work.** The page saves every goal's work and brings
+it back on Start. So when a second example uses the same problem or goal
+as one you have finished, as several below do, press **Start fresh**. The
+old work is kept as a `.prev.json` file, one generation only: a second
+Start fresh replaces it.
+
 **Running a lesson in Emacs.** Load the mode once, with
 `(load "/path/to/calculus-checker/emacs/dx-mode.el")` in your init, then
 open the file itself. `dx-mode` (Emacs 29+) runs `./calc --lsp` and
-checks the whole buffer as you type. The checked part is shaded, a refused sentence is
-underlined, and `*dx-goals*` shows the goal at point. Useful keys: `C-c C-l`
-goals window, `C-c C-t` next hint, `C-c C-a` use the suggestion, `C-c C-e`
-evaluate, `C-c TAB` complete a move into its template. Doom users:
-`emacs/doom/dx/README.org`.
+checks the whole buffer as you type. The checked part is shaded and a
+refused sentence is underlined. Press `C-c C-l` to lay out the two side
+windows, since nothing opens them for you:
+
+- `*dx-goals*` shows the goal at point;
+- `*dx-response*` shows a refusal's full message and suggestion, hints
+  and evaluations.
+
+The other keys are `C-c C-t` for the next hint, `C-c C-a` to use a
+refusal's suggestion, `C-c C-e` to evaluate, and `C-c TAB` to complete a
+move name into its template. Emacs saves no work: the buffer is your
+work. Doom users: `emacs/doom/dx/README.org`.
 
 ## Writing terms
 
-The kernel's grammar (`kernel/GRAMMAR.md`) is strict on purpose: each of
-these refusals stops a misreading that would otherwise prove something
-you did not mean.
+The grammar (`kernel/GRAMMAR.md`) is strict on purpose: each of these
+refusals stops a misreading that would otherwise prove something you did
+not mean.
 
 | Write | Not | Why |
 |---|---|---|
 | `2*x` | `2x` | no implicit multiplication |
-| `exp(x)`, `exp x` | `e^x` | `e_const` is the number e; `e^x` would be a different function |
+| `exp(x)`, `exp x` | `e^x` | bare `e` is not a name. `e_const` is the number e, but `e_const^x` is a real power that no derivative rule handles, so write eˣ as `exp x` |
 | `sin x`, `x*y` | `sinx`, `xy` | a name is one letter (plus digits or `_suffix`) or a Greek word: `v0`, `x_1`, `theta` |
 | `ln x` | `log x` | |
 | `1/2` | `0.5` | no decimals |
-| `(sin x)^2` or `sin(x^2)` | `sin(x)^2` | ambiguous, so refused |
+| `(sin x)^2`, `sin(x^2)` | `sin(x)^2` | ambiguous, so refused |
+| `exp(-x)` | `exp -x` | an unbracketed argument cannot start with `-` |
+| `x^(-1)` | `x^-1` | bracket a negative exponent |
 | `x*(x + 1)` | `x(x + 1)` | only declared functions are called |
 
-Other conventions:
+Write roots with `sqrt`. `x^(1/2)` parses, but no rule differentiates a
+fractional power, so an antiderivative written that way is always
+refused.
 
-- A function's argument can go without brackets, but binds tightly:
-  `sin x*y` is `(sin x)*y`. Type a term in **Parse echo** to see how it
-  reads.
-- The constants are `pi` and `e_const`. Infinity is `oo`, and appears only as
-  an integral's end or an open interval's end, such as `[0, oo)`.
+A function's argument can go without brackets. It takes in a power but
+stops at `*`, `/`, `+` and `-`. `D[x]` reads its argument the same way,
+so bracket anything longer than one factor. **Parse echo** shows how
+anything reads:
+
+| You type | It reads |
+|---|---|
+| `sin x*y` | `sin x * y` |
+| `sin x^2` | `sin(x^2)` |
+| `D[t] w*tanh(t)` | `D[t] w * tanh t` |
+| `D[t] (w*tanh(t))` | `D[t](w*tanh t)` |
+
+Parse echo does not know declared functions, so it refuses a term with
+lesson 12's `v(t)` in it. The kernel reads it fine.
+
+The rest of the notation:
+
+- The constants are `pi` and `e_const`. Infinity is `oo`, and appears only
+  as an integral's end or an open interval's end, such as `[0, oo)`.
 - `Int[x = a .. b] e` is the integral of `e` over x from a to b.
   `D[x] e` is the derivative of `e` with respect to x.
 - A goal is `left == right`, or an order `<=` `<` `>=` `>`, optionally
-  followed by `@` and what may be assumed: `@ a > 0, b > 0`, or an interval
-  `@ b in [0, 1)`. `?A` is the unknown value you are asked to find.
+  followed by `@` and what may be assumed: `@ a > 0, b > 0`, or an
+  interval `@ b in [0, 1)`. `?A` is the unknown value you are asked to
+  find. A chain such as `0 < x < 1` is written `0 < x, x < 1`.
+- In obligations: `e # 0` means e ≠ 0. `e in C^0(I)` means e is continuous
+  on I. `e in C^1(I)` means e is differentiable on I, with a continuous
+  derivative. `[a, b]` includes its ends and `(a, b)` does not. What
+  follows `@` is where the claim must hold.
 - A tactic is one sentence ending in `.`. `(* ... *)` is a comment.
 
 ## Lesson 1: the whole loop
 
 `ftc F` claims that F is an antiderivative of the integrand. The kernel
-differentiates F by its rule table and compares F′ with the integrand, using
-`ring` (algebra with `+ - *` and whole powers). If they agree, the integral
-becomes F(b) − F(a). `close V` names the value.
+differentiates F by its rule table and compares F′ with the integrand
+using `ring`, which is algebra with `+ - *` and whole powers. If they
+agree, the integral becomes F(b) − F(a). `close V` names the value.
 
 `tutorial/01-ftc.dx`:
 
@@ -111,38 +156,46 @@ ftc x^3 + x^2 by ring.
 close 2 by ring.
 ```
 
-Get it wrong and the kernel says by how much:
+Get it wrong and the kernel says by how much (press Start fresh first):
 
 ```dx
 problem stage0.S1.
 ftc x^3 + x.
-(* refused: ftc-check-failed *)
+(* refused: ftc-check-failed "ring leaves lhs - rhs = -2*x + 1" *)
 ```
 
-The response reads `ring leaves lhs - rhs = -2*x + 1` and shows where F′ and
-the integrand diverge. **Nothing is accepted that was not checked.** The
-status line's `0 machine-checked` is honest: the kernel itself is not
+The response reads `ring leaves lhs - rhs = -2*x + 1` and shows where F′
+and the integrand diverge. **Nothing is accepted that was not checked.**
+The status line's `0 machine-checked` is honest: the kernel itself is not
 formally verified (`DESIGN.md` §14).
 
 Behind every step is a list of **obligations**: what must be true for the
-step to be valid. For `ftc` these are that F is continuous on [0, 1] and
-differentiable inside, and that F′ matches the integrand. Each is shown
-with how it was discharged (`reg`, `deriv+ring`, …). An obligation that is
-false refuses the step, and so does a goal that owes one. An integral
-across a pole is refused before any move:
+step to be valid. For `ftc` these are:
+
+- the integrand is continuous on [0, 1] (`C^0`);
+- F is continuous on [0, 1] and continuously differentiable inside
+  (`C^1`);
+- F′ is the integrand.
+
+Each obligation is shown with how it was discharged (`reg`, `deriv+ring`,
+…). An obligation that is false refuses the step, and so does a goal
+that owes one. An integral across a pole is refused before any move:
 
 ```dx
 goal Int[x = -1 .. 1] 1/x^2 == ?A.
-(* refused: obligation-decided-false *)
+(* refused: obligation-decided-false "x^2 # 0 @ [-1, 1] is false at x = 0" *)
 ```
 
 The response reads `x^2 # 0 @ [-1, 1] is false at x = 0`.
+
+**Your turn:** `tutorial/exercises/01-ftc.dx`,
+`goal Int[x = 0 .. 2] 4*x^3 - 3*x^2 + 1 == ?A.`
 
 ## Lesson 2: values must be evaluated
 
 `close` accepts only a value in closed form: `exp 1` is not an answer,
 `e_const` is. The **entries** (listed [below](#the-entries)) are the
-known facts that make that step: `rewrite E at T` replaces the subterm
+known facts that take you there: `rewrite E at T` replaces the subterm
 `T` using entry `E`.
 
 `tutorial/02-evaluate.dx`:
@@ -169,50 +222,75 @@ Closing too early names the entry still to use:
 problem stage0.S2.
 ftc exp(x^2)/2.
 close (exp 1 - exp 0)/2.
-(* refused: close-not-evaluated *)
+(* refused: close-not-evaluated "exp 1 can still be evaluated (exp_one)" *)
 ```
 
-`exp 1 can still be evaluated (exp_one)`. And when an antiderivative is off
-by a constant factor, the refusal carries a corrected sentence. On the
-page, **Use this** puts it in place of yours. In Emacs it is `C-c C-a`.
+The response reads `exp 1 can still be evaluated (exp_one)`. And when an
+antiderivative is off by a constant factor, the refusal carries a
+corrected sentence. On the page, **Use this** puts it in place of yours;
+in Emacs it is `C-c C-a`.
 
 ```dx
 problem stage0.S2.
 ftc exp(x^2).
-(* refused: ftc-check-failed *)
+(* refused: ftc-check-failed "Your F′ is 2 times the integrand. Scale F by 1/2." "ftc (exp(x^2))/2 by ring." *)
 ```
 
-`Your F′ is 2 times the integrand. Scale F by 1/2.`, with the suggestion
-`ftc (exp(x^2))/2 by ring.`
+The response reads `Your F′ is 2 times the integrand. Scale F by 1/2.`,
+with the suggestion `ftc (exp(x^2))/2 by ring.`
+
+**Your turn:** `tutorial/exercises/02-evaluate.dx`,
+`goal Int[x = 0 .. pi/2] cos x == ?A.`
 
 ## Lesson 3: `ring` and `field`
 
-`by ring` is the default. `by field` also divides, and every divisor it
-uses becomes an obligation that it is nonzero. Use `field` when F′ or the
-value has a quotient in it.
+`ring` is the default check. Dividing by a number is just a
+coefficient to it, as in lesson 2's `exp(x^2)/2`. Any other quotient
+`a/d` it treats as `a` times an opaque `1/d`, so it passes whenever both
+sides hold the same quotients. `field` also cancels and
+combines divisors, and every divisor it uses becomes an obligation that
+it is nonzero. **Start with `ring`. If its residual still has a `1/(…)` of
+something that is not a number, switch to `field`.**
+
+```dx
+goal Int[x = 1 .. 2] (x + 1)/x == ?A.
+ftc x + ln x by ring.
+(* refused: ftc-check-failed "ring leaves lhs - rhs = -x*(1/x) + 1" *)
+```
+
+The response reads `ring leaves lhs - rhs = -x*(1/x) + 1`: `ring` cannot
+cancel x against 1/x.
 
 `tutorial/03-field.dx`:
 
 ```dx
-(* Lesson 3. ring knows + - * and whole powers. field also knows
-   division, and every divisor it uses becomes an obligation that it
-   is nonzero. Goal: Int[x = 1 .. e_const] (ln x)/x == ?A *)
-problem stage0.S3.
+(* Lesson 3. ring treats a quotient a/d as a times an opaque 1/d, so
+   it passes when both sides hold the same quotients. When a divisor
+   has to cancel, as x*(1/x) = 1 does here, it takes field.
+   Goal: Int[x = 1 .. 2] (x + 1)/x == ?A *)
+goal Int[x = 1 .. 2] (x + 1)/x == ?A.
 
-(* D[x] (ln x)^2/2 is ln x * (1/x): a quotient, so field. The
-   obligations pane now lists x # 0 and x > 0 (ln's domain) on the
-   range, each discharged with a method. *)
-ftc (ln x)^2 / 2 by field.
-rewrite ln_e at ln e_const.
+(* F' is 1 + 1/x; the integrand is (x + 1)*(1/x). by ring leaves
+   -x*(1/x) + 1. by field cancels, and owes x # 0 on (1, 2), which
+   the obligations pane shows discharged from the range. *)
+ftc x + ln x by field.
+
+(* 2 + ln 2 - (1 + ln 1) == ?A *)
 rewrite ln_one at ln 1.
-close 1/2 by ring.
+close 1 + ln 2 by ring.
 ```
+
+**Your turn:** `tutorial/exercises/03-field.dx`,
+`goal Int[x = 1 .. 2] (x^2 + 1)/x^2 == ?A.`
 
 ## Lesson 4: substitution, "let u = x²"
 
-`int_subst` has two modes. **Reverse**, the one you would say out loud:
-name the new variable as a function of the old one, give the new ends, and
-write the integrand in the new variable after `reverse`.
+`int_subst` has two modes. **Reverse** is the one you would say out loud:
+u is a function of the old variable.
+
+**Try the hints first.** Before reading the script, start `stage1.S2R`
+and press `?`, `??` and `???` (in Emacs, `C-c C-t` three times). They name the
+kind of move, then the technique, then how it applies here, in that order.
 
 `tutorial/04-subst-reverse.dx`:
 
@@ -221,9 +299,11 @@ write the integrand in the new variable after `reverse`.
    Goal: Int[x = 0 .. 1] x*exp(x^2) == ?A, lesson 2's integral again. *)
 problem stage1.S2R.
 
-(* Reverse mode: u := g(x) with g = x^2, `from 0 to 1` the new ends
-   g(0) and g(1), and `reverse f` the integrand in u. The kernel checks
-   x*exp(x^2) == f(g(x)) * g'(x), that is exp(x^2)/2 * 2x. *)
+(* Reverse mode. Read `x := x^2 as u` as "replace x by u, where
+   u = x^2": the name before := is the variable the integral is over
+   now, the one after `as` is the new one. `from 0 to 1` are u's ends
+   (0^2 and 1^2), and `reverse` gives the integrand in u. The kernel
+   checks x*exp(x^2) == exp(x^2)/2 * 2x, that is f(u(x)) * u'(x). *)
 int_subst x := x^2 as u from 0 to 1 reverse exp(u)/2 by ring.
 
 (* Int[u = 0 .. 1] exp(u)/2 == ?A *)
@@ -233,10 +313,13 @@ rewrite exp_zero at exp 0.
 close (e_const - 1)/2 by ring.
 ```
 
+**Your turn:** `tutorial/exercises/04-subst-reverse.dx`,
+`goal Int[x = 0 .. 1] 2*x*(x^2 + 1)^3 == ?A.`
+
 ## Lesson 5: substitution, x = φ(t)
 
-**Forward**: name the old variable as a function of the new one. This is
-the mode for killing a root.
+**Forward** mode is the other direction: the old variable is a function
+of the new one. This is the mode for killing a root.
 
 `tutorial/05-subst-forward.dx`:
 
@@ -247,73 +330,130 @@ problem stage1.SUB1.
 
 (* x = 1 - t^2 makes 1 - x a square. `from 1 to 0` names the t that
    lands on each old end, in order: phi(1) = 0 and phi(0) = 1, which
-   the kernel checks. The new integral runs from t = 1 to t = 0, and
-   ftc takes it as it stands. *)
+   the kernel checks. The new integral is written as f(phi(t)) *
+   phi'(t), with phi' as the rule table produces it, unsimplified:
+   Int[t = 1 .. 0] (1 - t^2)*sqrt(1 - (1 - t^2))*(0 + (0*t^2 + (-1)*(2*t^1*1)))
+   The last factor is -2t. ring sees through that form, so nothing
+   needs tidying by hand. Two plain-number ends are kept as written,
+   so the range stays 1 .. 0, and ftc takes it as it stands. *)
 int_subst x := 1 - t^2 as t from 1 to 0 by ring.
 
 (* sqrt(t^2) is t only because t >= 0 on the range; sqrt_sq carries
    that condition, and the kernel discharges it from the range. *)
 rewrite sqrt_sq with u := t at sqrt(1 - (1 - t^2)).
+
+(* The integrand is now (1 - t^2)*t*(-2t) = 2t^4 - 2t^2. *)
 ftc (2/5)*t^5 - (2/3)*t^3 by ring.
 close 4/15 by ring.
 ```
 
-Entries with a side condition (`sqrt_sq`: `sqrt(u^2) == u @ u >= 0`) are
-instantiated with `with u := T;`, and the condition becomes an obligation.
+An entry with a condition (`sqrt_sq`: `sqrt(u^2) == u @ u >= 0`) is
+instantiated with `with u := T;`, and in a `rewrite` its condition
+becomes an obligation at once.
+
+**Your turn:** `tutorial/exercises/05-subst-forward.dx`,
+`problem stage1.SUB2.`
 
 ## Lesson 6: facts, for the checks
 
-A `rewrite` changes the goal. A `fact` changes nothing: it binds an entry to a
-name, and `using h` hands it to a check (`ftc`, `close`, `bound`,
-`verify`). Use one when `ring` or `field` needs an identity to see that two
-sides agree.
+A `rewrite` changes the goal. A `fact` changes nothing: it binds an entry
+to a name, and `using h` hands it to a check. Use one when a check needs
+an identity to see that two sides agree.
+
+- **Facts go to `field`**: write `by field using h`. `ring`, which is also
+  what you get with no `by`, takes none, and a `using` list under it is
+  refused as `bad-args`. The one exception is `bound`'s single order
+  fact.
+- **A fact's left side must be one function application, or a power of
+  one**, such as `(sqrt a)^2` or `exp 0`. `pyth`, whose left side is a
+  sum, can be bound, but every check refuses it (`field-fact-shape`). Use
+  `pyth_cos` instead.
+- **A fact's condition is checked where the fact is used,** not when you
+  bind it. A refusal can come from the `with` in an earlier `fact`.
+
+Without the fact, the refusal names it:
+
+```dx
+goal Int[x = 0 .. 1] sqrt(x + 1) == ?A.
+ftc (2/3)*(x + 1)*sqrt(x + 1) by field.
+(* refused: ftc-check-failed "The difference is zero by the identity sqrt_sq_val: the answer is right, written another way" "Bind it as a fact and check by field using it." *)
+```
+
+The response reads `The difference is zero by the identity sqrt_sq_val:
+the answer is right, written another way`, followed by `Bind it as a fact
+and check by field using it.`
 
 `tutorial/06-facts.dx`:
 
 ```dx
-(* Lesson 6. Facts: an entry bound to a name and handed to a check.
-   Goal: Int[x = 0 .. 1] sqrt(1 - x^2) == ?A, a quarter of the unit disc. *)
-problem consolidation.QC1.
+(* Lesson 6. Facts: a known identity bound to a name and handed to a
+   check. Goal: Int[x = 0 .. 1] sqrt(x + 1) == ?A *)
+goal Int[x = 0 .. 1] sqrt(x + 1) == ?A.
 
-int_subst x := cos theta as theta from pi/2 to 0 by ring.
+(* F = (2/3)(x + 1)^(3/2), written with sqrt. Its derivative has
+   1/(2*sqrt(x + 1)) in it; clearing that divisor, field meets
+   (sqrt(x + 1))^2, an opaque square, so the check needs
+   (sqrt a)^2 == a with a := x + 1. `fact` binds it to h; its
+   condition, x + 1 >= 0, is checked where h is used. *)
+fact h := sqrt_sq_val with a := x + 1.
 
-(* cos is decreasing here, so the kernel flips the range: the new
-   integral runs over [0, pi/2] and holds sqrt(1 - (cos theta)^2).
-   Turn the inside into a square, then take the root, which needs
-   sin theta >= 0 on the range (discharged for you). *)
-rewrite pyth_cos with u := theta at (cos theta)^2.
-rewrite sqrt_sq with u := sin theta at sqrt(1 - (1 - (sin theta)^2)).
+(* Facts go to field only: `by field using h`. *)
+ftc (2/3)*(x + 1)*sqrt(x + 1) by field using h.
 
-(* F' comes out in sin^2 and cos^2 together; ring alone cannot see
-   they add to 1. `fact` binds the identity to h_pyth, and
-   `using h_pyth` gives it to the check. *)
-fact h_pyth := pyth_cos with u := theta.
-ftc (theta - sin theta * cos theta)/2 by field using h_pyth.
-rewrite sin_pi_half at sin(pi/2).
-rewrite cos_pi_half at cos(pi/2).
-rewrite sin_zero at sin 0.
-close pi/4 by ring.
+(* (2/3)*(1 + 1)*sqrt(1 + 1) - (2/3)*(0 + 1)*sqrt(0 + 1) == ?A.
+   sqrt 2 is already a closed form; sqrt(0 + 1) is not. sqrt_sq's
+   left side, sqrt(u^2) with u := 1, is sqrt(1^2), equal to
+   sqrt(0 + 1) up to ring, so it applies there. *)
+rewrite sqrt_sq with u := 1 at sqrt(0 + 1).
+close (4/3)*sqrt 2 - 2/3 by ring.
 ```
+
+With `using` but no `by field`:
+
+```dx
+goal Int[x = 0 .. 1] sqrt(x + 1) == ?A.
+fact h := sqrt_sq_val with a := x + 1.
+ftc (2/3)*(x + 1)*sqrt(x + 1) using h.
+(* refused: bad-args "ftc takes F, check, facts" *)
+```
+
+That message, `ftc takes F, check, facts`, is not much help; it means the
+check refused the facts. Inside `ftc` only, `field` also tries the trig
+entries on its own after failing: the addition formulas, parity,
+`tan_def` and `pyth_cos`, on sin, cos and tan of multiples of one angle.
+So a trig identity of that kind needs no fact there, but one mixing two
+angles, such as sin(x + 1) against sin x and cos 1, does.
+
+**Your turn:** `tutorial/exercises/06-facts.dx`,
+`goal Int[x = 0 .. 3] x/sqrt(x + 1) == ?A.`
 
 ## Lesson 7: your own goal, with parameters
 
 Anything after `@` is assumed. Parameters are ordinary letters, and the
-obligations use the assumptions: here the range [0, a] is only a range
-because a > 0.
+obligations use the assumptions.
 
 `tutorial/07-parameters.dx`:
 
 ```dx
 (* Lesson 7. Your own goal, with a parameter and an assumption about it.
-   Everything after @ is what you may assume. *)
+   Everything after @ is what you may assume. The kernel must know
+   which of 0 and a is the lower end before it can state anything on
+   the range; a > 0 tells it (a < 0 would too). *)
 goal Int[x = 0 .. a] x^2 == ?A @ a > 0.
 
 ftc x^3/3 by ring.
 close a^3/3 by ring.
 ```
 
-A reversed range is legal. `int_flip` turns ∫ₐᵇ f into ∫ᵦᵃ −f when you want
-it the usual way round:
+Without an assumption that orders the ends, the goal itself is refused:
+
+```dx
+goal Int[x = 0 .. a] x^2 == ?A.
+(* refused: orientation-undecided "the order of 0 and a is not decided" *)
+```
+
+A reversed range is legal. `int_flip` turns `Int[x = b .. a] e` into
+`Int[x = a .. b] -e` when you want it the usual way round:
 
 ```dx
 goal Int[x = 1 .. 0] 2*x == ?A.
@@ -321,6 +461,9 @@ int_flip.
 ftc -(x^2).
 close -1.
 ```
+
+**Your turn:** `tutorial/exercises/07-parameters.dx`,
+`goal Int[x = 0 .. a] 2*x + c == ?A @ a > 0.`
 
 ## Lesson 8: integration by parts, and occurrences
 
@@ -339,7 +482,8 @@ int_parts in x with u := x; v := exp x by ring.
    is the first Int, counted left to right. *)
 ftc exp x occurrence 0 by ring.
 
-(* A rewrite replaces every match of its subterm. *)
+(* A rewrite replaces every copy of its `at` term that is written
+   exactly the same: both exp 1 here, then both exp 0. *)
 rewrite exp_one at exp 1.
 rewrite exp_zero at exp 0.
 close 1 by ring.
@@ -348,6 +492,9 @@ close 1 by ring.
 `occurrence N` works the same way wherever a move could apply at more than
 one place (`ftc`, `int_improper`, `rewrite`, `int_subst`, `int_flip`,
 `int_parts`).
+
+**Your turn:** `tutorial/exercises/08-parts.dx`,
+`goal Int[x = 0 .. pi] x*sin x == ?A.`
 
 ## Lesson 9: an infinite end
 
@@ -361,17 +508,23 @@ goal Int[x = 0 .. oo] exp(-x) == ?A.
    end and puts that limit in F(oo)'s place: here 0. *)
 int_improper -exp(-x) by ring.
 
-(* -0 - (-exp(-0)) == ?A. exp_zero matches exp(-0) up to ring. *)
+(* -0 - (-exp(-0)) == ?A. The `at` term is copied from the goal:
+   exp(-0). exp_zero's left side, exp 0, only has to equal it up to
+   ring, which it does. *)
 rewrite exp_zero at exp(-0).
 close 1 by ring.
 ```
+
+**Your turn:** `tutorial/exercises/09-improper.dx`,
+`goal Int[x = 1 .. oo] 1/x^2 == ?A.`
 
 ## Lesson 10: an inequality, from Taylor's theorem
 
 Not every goal has a `?A`. An order goal is proved by building a fact that
 implies it. `taylor_lagrange` mints the lower or upper bound of a Taylor
 remainder, provided the last derivative you list has a known sign. `bound`
-closes the goal from that fact.
+closes the goal from that fact. The hint buttons read integrals, so on an
+order goal they answer `the goal holds no integral`.
 
 `tutorial/10-taylor.dx`:
 
@@ -382,12 +535,17 @@ goal b^2/2 <= exp b - (1 + b) @ b in [0, 1).
 
 fact h0 := exp_zero.
 
-(* Expand f = exp u at 0, valid on [0, 1), read at u = b. derivs lists
-   f', f'', f''' (here all exp u). With three listed, the polynomial
-   is order n = 1 (1 + b), and the last derivative's sign (>= 0:
-   increasing) bounds the remainder between f''(0)*b^2/2 and
-   f''(b)*b^2/2. `lower` binds the left one to hl:
-   exp 0 * b^2/2 <= exp b - (exp 0 + exp 0 * b). The goal is unchanged. *)
+(* The general rule: `of f in u from a to c at p derivs D1; ...; Dm`
+   lists f's first m derivatives. The Taylor polynomial has order
+   n = m - 2: T = f(a) + D1(a)(p - a) + ... + Dn(a)(p - a)^n/n!.
+   `increasing` says Dm >= 0 on (a, c), so D(n+1) grows, and then with
+   W = (p - a)^(n+1)/(n+1)!:
+     lower:  D(n+1)(a) * W  <=  f(p) - T
+     upper:  f(p) - T  <=  D(n+1)(p) * W
+   (`decreasing` swaps a and p.) Here f = exp u, a = 0, p = b, m = 3,
+   so n = 1, T = exp 0 + exp 0 * (b - 0) and W = (b - 0)^2/2. `lower`
+   binds hl: exp 0*((b - 0)^2/2) <= exp b - (exp 0 + exp 0*(b - 0)).
+   The goal is unchanged. *)
 taylor_lagrange hl := lower of exp u in u from 0 to 1 at b derivs exp u; exp u; exp u increasing by ring.
 
 (* bound closes an order goal from one order fact. hl says exp 0
@@ -401,17 +559,21 @@ Without `h0`, `bound` shows exactly what is missing:
 goal b^2/2 <= exp b - (1 + b) @ b in [0, 1).
 taylor_lagrange hl := lower of exp u in u from 0 to 1 at b derivs exp u; exp u; exp u increasing by ring.
 bound by field using hl.
-(* refused: bound-check-failed *)
+(* refused: bound-check-failed "(1/2)*b^2*exp 0 - (1/2)*b^2 + b*exp 0 - b + exp 0 - 1" *)
 ```
 
 The residual is `(1/2)*b^2*exp 0 - (1/2)*b^2 + b*exp 0 - b + exp 0 - 1`,
-which is `exp 0` everywhere 1 should be.
+which is `exp 0` everywhere 1 should be. No pane shows what a minted fact
+states, so the rule in the comment above is how to know.
+
+**Your turn:** `tutorial/exercises/10-taylor.dx`,
+`goal exp b - (1 + b) <= exp b * b^2/2 @ b in [0, 1).`
 
 ## Lesson 11: checking a candidate solution
 
 `verify` closes an equation with no `?A`. It differentiates every `D` node
-and checks the two sides agree. Solving a differential equation is then
-guess and check: propose y(t), and let `verify` confirm it.
+and checks the two sides agree. Solving a differential equation then
+becomes guess and check: propose y(t), and let `verify` confirm it.
 
 `tutorial/11-verify.dx`:
 
@@ -421,7 +583,8 @@ guess and check: propose y(t), and let `verify` confirm it.
 goal D[t] (y0*exp(-k*t)) == -k*(y0*exp(-k*t)) @ k > 0.
 
 (* verify differentiates every D[t] node with the rule table, then
-   checks the two sides agree by ring (or field). No ?A, no value. *)
+   checks the two sides agree by ring (or field). No ?A, no value.
+   First derivatives only: a D inside a D is refused. *)
 verify by ring.
 ```
 
@@ -433,17 +596,43 @@ rewrite exp_zero at exp(-k*0).
 verify by ring.
 ```
 
-The **Classify** box on the page reads a force F in m x″ = F and says which
-case it is: F(t) (integrate once), F(v) (separate), F(x) (multiply by
-velocity), or none, with the parameter that would fix it. Try `F0*cos(omega*t)`.
+A second derivative is refused:
+
+```dx
+goal D[t] D[t] (A*cos(w*t)) == -w^2*(A*cos(w*t)).
+verify by ring.
+(* refused: verify-nested-D "second derivatives are not built" *)
+```
+
+The **Classify** box on the page reads a force F in m x″ = F and names
+the case:
+
+- F(t): integrate once;
+- F(v): separate;
+- F(x): multiply by the velocity;
+- constant: every case applies, and integrating once is the shortest;
+- none: with each parameter that, set to zero, would reduce it to one
+  case, if there is any.
+
+Try `F0*cos(omega*t)`.
+
+**Your turn:** `tutorial/exercises/11-verify.dx`,
+`goal D[t] (y0/(1 + y0*t)) == -(y0/(1 + y0*t))^2 @ y0 > 0, t >= 0.`
 
 ## Lesson 12: reasoning from an equation of motion
 
 When the solution is not in hand, state what you know about the unknown
-function and derive from that. `functions v/1` declares v; `assuming`
-names each fact about it. Three moves read such a law, one per case the
-Classify box names: `quad_t` for F(t), `sep_autonomous` for F(v),
-`energy_integral` for F(x). Each mints a handle that `verify` then uses.
+function and derive from that. `functions v/1` declares v, and
+`assuming` names each fact about it. Three moves read such a law, one for
+each case Classify names:
+
+- `quad_t` for F(t) and a constant force;
+- `sep_autonomous` for F(v);
+- `energy_integral` for F(x).
+
+Each mints a handle that `verify` then uses. This lesson works
+`quad_t`. The other two take more clauses (`rate`, `range`, `given`,
+`kinematic`), described in `app/SCRIPT.md`.
 
 `tutorial/12-ode.dx`:
 
@@ -454,12 +643,15 @@ Classify box names: `quad_t` for F(t), `sep_autonomous` for F(v),
    (named eom) and that v is C^1 (named regv). *)
 goal v(t) == v(0) + F0*t/m @ m > 0, t >= 0 functions v/1 assuming eom: m*D[s] v(s) == F0 for s in [0, oo); regv: v in C^1 for s in [0, oo).
 
-(* A force that depends on time only (here constant): integrate once.
-   quad_t reads eom as m v' = R(s), checks your antiderivative F of
-   R/m, and binds h: v(t) == v(0) + (F(t) - F(0)). *)
+(* A constant force, the simplest case of one that depends on time
+   only: integrate once. quad_t reads eom as m v' = R(s), checks your
+   antiderivative F of R/m, and binds h: v(t) == v(0) + (F(t) - F(0)). *)
 quad_t h := eom from 0 to t in u antiderivative F0*u/m regs regv by field.
 verify by field using h.
 ```
+
+**Your turn:** `tutorial/exercises/12-ode.dx`,
+`goal v(t) == v(0) + F0*sin(w*t)/(m*w) @ m > 0, w > 0, t >= 0 functions v/1 assuming eom: m*D[s] v(s) == F0*cos(w*s) for s in [0, oo); regv: v in C^1 for s in [0, oo).`
 
 ## The moves
 
@@ -469,24 +661,34 @@ verify by field using h.
 | `close V` | names `?A`; V must be fully evaluated | 1, 2 |
 | `rewrite E at T` | replaces T by an entry | 2 |
 | `int_subst` | substitution, forward or `reverse` | 4, 5 |
-| `fact h := E` | binds an entry for `using h` | 6 |
-| `int_flip` | ∫ₐᵇ f → ∫ᵦᵃ −f | 7 |
+| `fact h := E` | binds an entry for `by field using h` | 6 |
+| `int_flip` | `Int[x = b .. a] e` → `Int[x = a .. b] -e` | 7 |
 | `int_parts` | ∫ u v′ → [u v] − ∫ u′ v | 8 |
 | `int_improper F` | `ftc` with a limit at an infinite end | 9 |
 | `taylor_lagrange` | mints a Taylor remainder bound | 10 |
 | `bound` | closes an order goal from one order fact | 10 |
 | `verify` | closes an equation by differentiating and checking | 11 |
-| `quad_t`, `sep_autonomous`, `energy_integral` | derive from a law in Γ | 12 |
+| `quad_t` | derives from a law in the assumptions | 12 |
+| `sep_autonomous`, `energy_integral` | the same for F(v) and F(x); not worked here | 12 |
 
-The full syntax, every optional clause included, is `app/SCRIPT.md`. The
-page's **Tactics** button shows a short version, and `C-c TAB` in Emacs
+The full syntax, with every optional clause, is `app/SCRIPT.md`. That
+includes `taylor_lagrange`'s `strictly` and `bound`'s `scale`, which the
+lessons do not use. The page's **Tactics** button shows a short version,
+though it leaves out `taylor_lagrange` and `bound`. In Emacs, `C-c TAB`
 expands a move name into its template.
 
 ## The entries
 
 These are everything `rewrite` and `fact` can name. Schema letters (`u`,
 `v`, `a`) are filled with `with u := T;`. Conditions after `@` become
-obligations.
+obligations: at once for `rewrite`, and for `fact` wherever it is used.
+
+A rewrite's `at T` is a subterm copied from the goal, and it replaces every
+copy written exactly the same way. When the entry's left side is a
+function applied to something, only the argument has to agree with `T`
+up to `ring`, so `exp_zero at exp(-0)` and `sqrt_sq with u := 1 at
+sqrt(0 + 1)` both work. Any other left side, such as the power
+`(cos u)^2`, must match `T` exactly.
 
 **Values**, for evaluating before `close`:
 
@@ -510,7 +712,8 @@ obligations.
 | `tanh_zero` | `tanh 0 == 0` |
 | `atanh_zero` | `atanh 0 == 0` |
 
-**Identities**, to rewrite or to hand to a check:
+**Identities**, to rewrite with or to hand to a check as a fact (all but
+`pyth`, whose left side is a sum):
 
 | Entry | States |
 |---|---|
@@ -529,7 +732,9 @@ obligations.
 | `exp_neg` | `exp(-u) == 1/exp u` |
 | `exp_ln` | `exp(ln u) == u @ u > 0` |
 
-**Signs and bounds**, usually as a `fact`:
+**Signs and bounds.** These cannot be rewritten and are not facts a check
+accepts. As a `fact`, one serves as the order fact `bound` closes from.
+The kernel also uses them itself to discharge obligations.
 
 | Entry | States |
 |---|---|
@@ -547,39 +752,67 @@ obligations.
 
 ## When you are stuck
 
-- **`?`, `??`, `???`** (`C-c C-t`): three hint levels on the current
+- **`?`, `??`, `???`** (`C-c C-t`) are three hint levels on the current
   integral: what kind of move, which technique, how for this integral.
-  **The highest level you use is what the gate measures.**
-- **The refusal** says which kind of stuck it is: nothing matches (and
-  what would), a condition failed (with the counterexample), or the
-  algebra does not close (with the residual, and often a corrected
-  sentence).
-- **The palette**, under the goal, lists moves that fit and rewrites that
-  match.
+- **The refusal** says which kind of stuck it is:
+  - nothing matches, with what would;
+  - a condition failed, with the counterexample;
+  - the algebra does not close, with the residual and often a corrected
+    sentence.
+- **The Antiderivative card** and **the palette**, under the goal, list
+  what fits the current integrand. **Factor over ℚ/ℝ** and **Partial
+  fractions** break up a quotient of polynomials, and the kernel checks
+  each result before it is shown.
 - **Parse echo** shows how a term is read.
 - **∫ Evaluate** (`C-c C-e`) asks SymPy for the value and has the kernel
-  prove it, writing the proof as a script. It needs SymPy in `python3`,
-  or `./calc --sympy PYTHON`. It gives away the whole answer, and it is
-  not counted as a hint (see below).
+  prove it, writing the proof as a script. It gives the whole answer away.
+  It needs a Python with SymPy: `python3` if that has it, otherwise
+  `./calc --sympy PYTHON` on the page. In Emacs, set `dx-calc-args` to
+  `("--lsp" "--sympy" "PYTHON")`, or set `CALC_SYMPY` in Emacs's
+  environment.
 
-## Before the gate
+More practice among the picker's problems: `stage0.S3` (∫ ln x / x),
+`consolidation.QC1` (a quarter circle by x = cos θ) and `trig.COS_SQ`.
 
-`app/GATE.md` is the test of whether this tool teaches: seventeen problems
-in a fixed order, with the highest hint level you use on each one recorded.
-It passes if the last third needs less help than the first third. To keep
-that reading honest:
+## If you will run the gate
 
-- **Work the twelve lessons first**, so that the notation is not what you are
-  learning during the gate.
-- **Don't read a gate problem's `reference_proof`** in
-  `kernel/problems/` before working it. The page never shows it.
-- **Leave `ode.P1A_SEP`, `ode.P1B_ENERGY` and `ode.P1C_QUAD` until
-  after the gate.** They are not gate problems, but their antiderivatives
-  answer `unit00.P3A_SEPARATE`, `unit00.P9A_V` and `unit00.P1C_REDUCE`.
-- **∫ Evaluate is not recorded as a hint.** The work file counts
-  evaluations, but the gate's reading uses only the hint level. Using it on
-  a gate problem would make the problem look easy without the tool having
-  taught anything.
+`app/GATE.md` is a separate experiment, not needed to use the tool. You
+work seventeen problems in a fixed order. For each problem that is worked
+and on which the recognizer names a technique (ten of the seventeen), it
+takes the highest hint level you pressed. It then compares the mean over
+the first third of those problems with the mean over the last third,
+and needs at least six of them for a verdict. None of the lessons or
+exercises is one of its problems. If you plan to run it:
 
-Other problems in the picker that are not in the gate and are safe to
-practise on: `stage1.SUB2` (a root in the divisor) and `trig.COS_SQ`.
+- **Work it on the page.** Only the page (`./calc`, without `--lsp`)
+  saves the work files `app/gate.py` reads, in `calc-work/`. A problem
+  worked in Emacs counts as not worked, and hints asked there are not
+  recorded.
+- **Only the `?` `??` `???` buttons are recorded.** Nothing else is:
+  - the palette;
+  - the Antiderivative card;
+  - Factor and Partial fractions;
+  - Classify;
+  - ∫ Evaluate;
+  - the text and suggestions of every refusal. A "No rule matches here"
+    refusal repeats the level-1 hint and lists the rewrites and moves that
+    fit.
+
+  Using these on a gate problem makes it look easier than it was.
+- **A hint button records its level even when it has nothing to say.**
+  Once `ftc` has removed the integral, pressing `???` records level 3 and
+  answers only `the goal holds no integral`.
+- **Some material contains gate answers.** Leave these until after:
+  - `ode.P1A_SEP`, which answers `unit00.P3A_SEPARATE`, `unit00.P3A_TOP`
+    and part of `unit00.P3A_HEIGHT`;
+  - `ode.P1B_ENERGY`, which answers `unit00.P9A_V`;
+  - `ode.P1C_QUAD`, which answers `unit00.P1C_REDUCE`;
+  - `kernel/GRAMMAR.md` §9, which works gate problems 1 and 2;
+  - `DESIGN.md` §11;
+  - `UNIT00.md`;
+  - `kernel/p1_expected.py`;
+  - `app/assist/gate_labels.json`;
+  - every problem file's `reference_proof`.
+- **Two gate problems state their own answer.** `unit00.P3A_TOP` and
+  `unit00.P3A_HEIGHT` end their statement, which the page shows on Start,
+  with "the course's" closed form.

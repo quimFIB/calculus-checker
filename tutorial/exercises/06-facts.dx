@@ -1,0 +1,4 @@
+(* Exercise 6, after lesson 6. Lesson 6's F again, minus 2*sqrt(x + 1). Both ends are perfect squares under the root.
+   Solution: tutorial/solutions/06-facts.dx *)
+goal Int[x = 0 .. 3] x/sqrt(x + 1) == ?A.
+

@@ -1,0 +1,4 @@
+(* Exercise 9, after lesson 9. F = -1/x. What is its limit at oo?
+   Solution: tutorial/solutions/09-improper.dx *)
+goal Int[x = 1 .. oo] 1/x^2 == ?A.
+

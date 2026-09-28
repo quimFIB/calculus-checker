@@ -1,0 +1,4 @@
+(* Exercise 11, after lesson 11. Is y = y0/(1 + y0 t) a solution of y' = -y^2?
+   Solution: tutorial/solutions/11-verify.dx *)
+goal D[t] (y0/(1 + y0*t)) == -(y0/(1 + y0*t))^2 @ y0 > 0, t >= 0.
+

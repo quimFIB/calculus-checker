@@ -1,0 +1,7 @@
+(* Exercise 2: a solution. *)
+goal Int[x = 0 .. pi/2] cos x == ?A.
+
+ftc sin x.
+rewrite sin_pi_half at sin(pi/2).
+rewrite sin_zero at sin 0.
+close 1.

@@ -1,5 +1,7 @@
 (* Lesson 7. Your own goal, with a parameter and an assumption about it.
-   Everything after @ is what you may assume. *)
+   Everything after @ is what you may assume. The kernel must know
+   which of 0 and a is the lower end before it can state anything on
+   the range; a > 0 tells it (a < 0 would too). *)
 goal Int[x = 0 .. a] x^2 == ?A @ a > 0.
 
 ftc x^3/3 by ring.

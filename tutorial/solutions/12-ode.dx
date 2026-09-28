@@ -1,0 +1,6 @@
+(* Exercise 12: a solution. *)
+goal v(t) == v(0) + F0*sin(w*t)/(m*w) @ m > 0, w > 0, t >= 0 functions v/1 assuming eom: m*D[s] v(s) == F0*cos(w*s) for s in [0, oo); regv: v in C^1 for s in [0, oo).
+
+quad_t h := eom from 0 to t in u antiderivative F0*sin(w*u)/(m*w) regs regv by field.
+fact hz := sin_zero.
+verify by field using h, hz.

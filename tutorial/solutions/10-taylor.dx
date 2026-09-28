@@ -1,0 +1,6 @@
+(* Exercise 10: a solution. *)
+goal exp b - (1 + b) <= exp b * b^2/2 @ b in [0, 1).
+
+fact h0 := exp_zero.
+taylor_lagrange hu := upper of exp u in u from 0 to 1 at b derivs exp u; exp u; exp u increasing by ring.
+bound by field using hu, h0.

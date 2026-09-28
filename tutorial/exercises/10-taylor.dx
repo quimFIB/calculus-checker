@@ -1,0 +1,4 @@
+(* Exercise 10, after lesson 10. Lesson 10's expansion, the other bound: upper reads the derivative at b.
+   Solution: tutorial/solutions/10-taylor.dx *)
+goal exp b - (1 + b) <= exp b * b^2/2 @ b in [0, 1).
+

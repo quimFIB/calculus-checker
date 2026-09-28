@@ -3,5 +3,6 @@
 goal D[t] (y0*exp(-k*t)) == -k*(y0*exp(-k*t)) @ k > 0.
 
 (* verify differentiates every D[t] node with the rule table, then
-   checks the two sides agree by ring (or field). No ?A, no value. *)
+   checks the two sides agree by ring (or field). No ?A, no value.
+   First derivatives only: a D inside a D is refused. *)
 verify by ring.

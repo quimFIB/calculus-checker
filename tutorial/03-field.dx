@@ -1,12 +1,14 @@
-(* Lesson 3. ring knows + - * and whole powers. field also knows
-   division, and every divisor it uses becomes an obligation that it
-   is nonzero. Goal: Int[x = 1 .. e_const] (ln x)/x == ?A *)
-problem stage0.S3.
+(* Lesson 3. ring treats a quotient a/d as a times an opaque 1/d, so
+   it passes when both sides hold the same quotients. When a divisor
+   has to cancel, as x*(1/x) = 1 does here, it takes field.
+   Goal: Int[x = 1 .. 2] (x + 1)/x == ?A *)
+goal Int[x = 1 .. 2] (x + 1)/x == ?A.
 
-(* D[x] (ln x)^2/2 is ln x * (1/x): a quotient, so field. The
-   obligations pane now lists x # 0 and x > 0 (ln's domain) on the
-   range, each discharged with a method. *)
-ftc (ln x)^2 / 2 by field.
-rewrite ln_e at ln e_const.
+(* F' is 1 + 1/x; the integrand is (x + 1)*(1/x). by ring leaves
+   -x*(1/x) + 1. by field cancels, and owes x # 0 on (1, 2), which
+   the obligations pane shows discharged from the range. *)
+ftc x + ln x by field.
+
+(* 2 + ln 2 - (1 + ln 1) == ?A *)
 rewrite ln_one at ln 1.
-close 1/2 by ring.
+close 1 + ln 2 by ring.

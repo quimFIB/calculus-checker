@@ -4,8 +4,8 @@
    (named eom) and that v is C^1 (named regv). *)
 goal v(t) == v(0) + F0*t/m @ m > 0, t >= 0 functions v/1 assuming eom: m*D[s] v(s) == F0 for s in [0, oo); regv: v in C^1 for s in [0, oo).
 
-(* A force that depends on time only (here constant): integrate once.
-   quad_t reads eom as m v' = R(s), checks your antiderivative F of
-   R/m, and binds h: v(t) == v(0) + (F(t) - F(0)). *)
+(* A constant force, the simplest case of one that depends on time
+   only: integrate once. quad_t reads eom as m v' = R(s), checks your
+   antiderivative F of R/m, and binds h: v(t) == v(0) + (F(t) - F(0)). *)
 quad_t h := eom from 0 to t in u antiderivative F0*u/m regs regv by field.
 verify by field using h.

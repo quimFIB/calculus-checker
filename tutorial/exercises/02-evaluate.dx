@@ -1,0 +1,4 @@
+(* Exercise 2, after lesson 2. sin is an antiderivative of cos. Two entries evaluate the ends.
+   Solution: tutorial/solutions/02-evaluate.dx *)
+goal Int[x = 0 .. pi/2] cos x == ?A.
+

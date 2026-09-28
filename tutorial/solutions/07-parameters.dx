@@ -1,0 +1,5 @@
+(* Exercise 7: a solution. *)
+goal Int[x = 0 .. a] 2*x + c == ?A @ a > 0.
+
+ftc x^2 + c*x.
+close a^2 + c*a.

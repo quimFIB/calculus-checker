@@ -1,0 +1,4 @@
+(* Exercise 7, after lesson 7. Two parameters, one assumption.
+   Solution: tutorial/solutions/07-parameters.dx *)
+goal Int[x = 0 .. a] 2*x + c == ?A @ a > 0.
+
