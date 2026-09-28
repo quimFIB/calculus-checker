@@ -93,3 +93,28 @@ prints the report; `--json` prints it as one object. `app/test_gate.py`
 builds work files in a temporary directory: a passing run, a failing run,
 too little data, a problem with no row kept out of the mean, and a file
 that does not replay.
+
+## Changes before the first reading
+
+Made 2026-09-28, the owner's "take em all", with no work file yet in
+`calc-work/`, so no reading is affected:
+
+- **`/hint` records only a rung it answered** (API.md). It used to record
+  the rung before looking for an integral. So `???` on a node with no
+  Int, such as a gate problem just after `ftc`, recorded 3 while
+  answering `no-integral`. It now records nothing on a refusal
+  (`no-integral`, `no-row`, `not-built`): a refusal is not a hint.
+- **Two statements no longer print their answer.** `unit00.P3A_TOP` and
+  `unit00.P3A_HEIGHT` ended "Evaluate it (the course's …)" with the
+  closed form, and the page shows the statement on Start. Both now end
+  "Evaluate it." Neither affected the verdict (P3A_TOP is in the middle
+  third, and P3A_HEIGHT does not fire), but a problem shown with its
+  answer is not worked.
+- **Kept as they are:** titles and statements that name a technique:
+  - P1_PARTS: "substitution, then parts";
+  - P1_2: "partial fractions";
+  - P4A_SEPARATE: "rung 3";
+  - P4A_X: "what differentiates to tanh?".
+
+  They are the course's own framing, and they fall two in the first
+  third and two in the last, so they do not tilt the comparison.

@@ -25,6 +25,24 @@ except ImportError:  # pragma: no cover
 CHROMIUM = "/opt/pw-browsers/chromium"  # when the pinned build is absent
 
 
+class Help(unittest.TestCase):
+    """The Tactics panel names every move the kernel has; no browser."""
+
+    def test_every_move_is_listed(self):
+        import api
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "page", "index.html")
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        panel = text.split('<div id="help"', 1)[1]
+        panel = panel.split('<div class="goal"', 1)[1].split(">", 1)[1]
+        panel = panel.split("</div>", 1)[0]
+        heads = {line.split()[0] for line in panel.splitlines()
+                 if line.strip() and not line.startswith("(*")}
+        moves = {m["name"] for m in api.handle("GET", "/moves", {})[1]["moves"]}
+        self.assertEqual(moves - heads, set())
+
+
 @unittest.skipIf(sync_playwright is None, "Playwright is not installed")
 class Page(unittest.TestCase):
     SERVER = server.HTTPServer
@@ -270,6 +288,13 @@ class Page(unittest.TestCase):
         p.click("#hint-2")
         p.wait_for_selector("#hint")
         self.assertIn("u = t²", p.inner_text("#hint"))
+
+    def test_parse_echo_reads_the_goals_functions(self):
+        p = self.page
+        self.start("ode.P1C_QUAD")  # declares v/1
+        p.fill("#echo-input", "v(t) + 1")
+        p.wait_for_selector("#echo-output .echo-math")
+        self.assertNotIn("D5-undeclared", p.inner_text("#echo-output"))
 
     def test_every_goal_renders_in_katex(self):
         p = self.page

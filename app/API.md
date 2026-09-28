@@ -153,7 +153,9 @@ POST /evaluate/check (same body, proposal) -> an evaluation, the kernel's half (
   entry rewrites that match (each a ready tactic sentence) and the
   antiderivative card with its matching rows marked. `/parse`'s `katex`
   is now the term's TeX (UI.md §1), and `/tree` carries the session's
-  `max_rung`, which `/hint` records.
+  `max_rung`: the highest rung `/hint` answered. A refusal
+  (`no-integral`, `no-row`, `not-built`) records nothing, since it gave no
+  hint (GATE.md, "Changes before the first reading").
 - **Persistence** is PERSIST.md: with `./calc --work DIR` (default
   `calc-work`), every change to a session is saved as a work file of moves,
   never of verdicts. `/session` takes `resume: true` to replay the saved

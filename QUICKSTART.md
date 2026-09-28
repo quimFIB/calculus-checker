@@ -106,7 +106,7 @@ refused.
 A function's argument can go without brackets. It takes in a power but
 stops at `*`, `/`, `+` and `-`. `D[x]` reads its argument the same way,
 so bracket anything longer than one factor. **Parse echo** shows how
-anything reads:
+anything reads, under the functions of the goal you have started:
 
 | You type | It reads |
 |---|---|
@@ -114,9 +114,6 @@ anything reads:
 | `sin x^2` | `sin(x^2)` |
 | `D[t] w*tanh(t)` | `D[t] w * tanh t` |
 | `D[t] (w*tanh(t))` | `D[t](w*tanh t)` |
-
-Parse echo does not know declared functions, so it refuses a term with
-lesson 12's `v(t)` in it. The kernel reads it fine.
 
 The rest of the notation:
 
@@ -674,8 +671,7 @@ verify by field using h.
 The full syntax, with every optional clause, is `app/SCRIPT.md`. That
 includes `taylor_lagrange`'s `strictly` and `bound`'s `scale`, which the
 lessons do not use. The page's **Tactics** button shows a short version,
-though it leaves out `taylor_lagrange` and `bound`. In Emacs, `C-c TAB`
-expands a move name into its template.
+and `C-c TAB` in Emacs expands a move name into its template.
 
 ## The entries
 
@@ -788,7 +784,9 @@ exercises is one of its problems. If you plan to run it:
   saves the work files `app/gate.py` reads, in `calc-work/`. A problem
   worked in Emacs counts as not worked, and hints asked there are not
   recorded.
-- **Only the `?` `??` `???` buttons are recorded.** Nothing else is:
+- **Only the `?` `??` `???` buttons are recorded**, and only when they
+  answer: a button that refuses (`the goal holds no integral`) records
+  nothing. Nothing else is recorded:
   - the palette;
   - the Antiderivative card;
   - Factor and Partial fractions;
@@ -799,9 +797,6 @@ exercises is one of its problems. If you plan to run it:
     fit.
 
   Using these on a gate problem makes it look easier than it was.
-- **A hint button records its level even when it has nothing to say.**
-  Once `ftc` has removed the integral, pressing `???` records level 3 and
-  answers only `the goal holds no integral`.
 - **Some material contains gate answers.** Leave these until after:
   - `ode.P1A_SEP`, which answers `unit00.P3A_SEPARATE`, `unit00.P3A_TOP`
     and part of `unit00.P3A_HEIGHT`;
@@ -813,6 +808,3 @@ exercises is one of its problems. If you plan to run it:
   - `kernel/p1_expected.py`;
   - `app/assist/gate_labels.json`;
   - every problem file's `reference_proof`.
-- **Two gate problems state their own answer.** `unit00.P3A_TOP` and
-  `unit00.P3A_HEIGHT` end their statement, which the page shows on Start,
-  with "the course's" closed form.

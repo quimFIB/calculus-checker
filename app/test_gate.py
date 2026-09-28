@@ -15,10 +15,12 @@ FIRES = [pid for pid, _ in gate.CORPUS]  # filtered in setUpClass
 
 def _work(pid, max_rung, proof=True):
     """A work file for pid as ./calc saves it, made through the API: a
-    session, the reference proof as tactics when `proof`, then max_rung."""
+    session, the reference proof as tactics when `proof`, and hints up to
+    max_rung asked at the start, where the goal's integral is (a hint
+    refused for want of one records nothing, API.md)."""
     code, out = api.handle("POST", "/session", {"problem": pid})
     sid = out["session"]
-    node = out["node"]
+    node = start = out["node"]
     if proof:
         p = gate._problems()[pid]
         text = ""
@@ -33,7 +35,7 @@ def _work(pid, max_rung, proof=True):
         api.handle("POST", "/script", {"session": sid, "script": text,
                                        "path": path})
     for rung in range(1, max_rung + 1):
-        api.handle("GET", "/hint", {"session": sid, "node": node,
+        api.handle("GET", "/hint", {"session": sid, "node": start,
                                     "rung": str(rung)})
 
 

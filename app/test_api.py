@@ -232,6 +232,19 @@ class Routes(Api):
         self.call("GET", "/hint", {**q, "node": "n0", "rung": "1"})
         self.assertEqual(self.call("GET", "/tree", q)["max_rung"], 2)
 
+    def test_a_refused_hint_records_nothing(self):
+        n = self.s1()
+        q = {"session": n["session"]}
+        m = self.call("POST", "/tactic", {**q, "node": "n0",
+                                           "text": "ftc x^3 + x^2."})
+        for rung in "123":  # the goal no longer holds an Int
+            s, r = api.handle("GET", "/hint",
+                              {**q, "node": m["node"], "rung": rung})
+            self.assertEqual(r["refusal"]["code"], "no-integral")
+        s, r = api.handle("GET", "/hint", {**q, "node": "n0", "rung": "4"})
+        self.assertEqual(r["refusal"]["code"], "not-built")
+        self.assertEqual(self.call("GET", "/tree", q)["max_rung"], 0)
+
     def test_hint_rungs(self):
         n = self.call("POST", "/session", {"problem": "parts.P1_PARTS"})
         q = {"session": n["session"], "node": "n0"}

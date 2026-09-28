@@ -815,8 +815,6 @@ def hint(query):
                       "built")
     if rung not in ("1", "2", "3"):
         raise _bad(f"rung is 1, 2, 3 or 4, not {rung!r}")
-    sess.max_rung = max(getattr(sess, "max_rung", 0), int(rung))
-    _save(sess)
     goal = n.state.goal
     ints = [] if goal is None else [t for t in trees(goal)
                                     if isinstance(t, Integral)]
@@ -827,6 +825,9 @@ def hint(query):
     if step is None:
         raise Refusal("no-row", f"no row of the table matches "
                       f"{_text(i.body)} in {i.var}")
+    # only an answered rung counts (API.md): a refusal gave no hint
+    sess.max_rung = max(getattr(sess, "max_rung", 0), int(rung))
+    _save(sess)
     return {"rung": int(rung), "integral": _text(i), "row": step["row"],
             "text": step[int(rung)], "cost": step["cost"]}
 

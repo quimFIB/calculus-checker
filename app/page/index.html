@@ -261,6 +261,8 @@ fact h := E [with x := T; ...].
 int_subst x := T as y from T to T [reverse T] [occurrence N] [by ...] [using ...].
 int_flip [occurrence N].
 int_parts in x with u := T; v := T [occurrence N] [by ...] [using ...].
+taylor_lagrange h := lower|upper of T in u from T to T at T derivs T; T; ... [strictly] increasing|decreasing [by ...] [using ...].
+bound [scale T] [by ...] using h, ....
 verify [by ...] [using ...].
 quad_t h := law from T to T in u antiderivative T [regs r, ...] [by ...].
 sep_autonomous h := law from T to T in u rate T antiderivative T range (a, b) [regs ...] [given ...] [by ...].
@@ -1298,7 +1300,7 @@ $("echo-input").oninput = () => {
     const text = $("echo-input").value.trim(), out = $("echo-output");
     if (!text) return out.replaceChildren();
     try {
-      const r = await api("POST", "/parse", { text });
+      const r = await api("POST", "/parse", { text, functions: sigOf() });
       out.style.color = r.refusal ? "var(--bad)" : "";
       if (r.refusal) out.textContent = `${r.refusal.code}: ${r.refusal.message}`;
       else out.replaceChildren(math(r.katex, r.term, "echo-math"));

@@ -93,7 +93,7 @@ readiness P1 from the sheet's own goal, stage 0's S1–S3, three substitution
 files, ∫₀¹ √(1 − x²) = π/4, readiness P1(1) by parts, readiness P5 and P2
 (improper integrals over infinite ranges), ∫₀^{π/2} cos²t = π/4, and
 readiness P3 part 1 (both sides of the Lagrange remainder's bound).
-`python3.12 kernel/proof_of_life.py` passes 1027 checks (`PROOF_OF_LIFE.md`).
+`python3.12 kernel/proof_of_life.py` passes 1141 checks (`PROOF_OF_LIFE.md`).
 Discharge, `int_subst`, `int_flip` and regularity are built, and so are
 §18 Q23's formers: integrals and derivatives owe their own definedness.
 
@@ -304,7 +304,8 @@ a gate problem's with the variables renamed.
 code. QUICKSTART.md's last section says what the gate does not record,
 and which files hold its answers.
 
-**Python version:** the suite passes 1027 of 1027 on Python 3.12.
+**Python version:** the suite passes 1141 of 1141 on Python 3.12, and on
+3.14 (2026-09-28).
 On 3.11 five deep-term checks fail with `RecursionError` in dataclass
 `__eq__`, so 3.12 is the floor in practice.
 

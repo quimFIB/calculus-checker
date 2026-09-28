@@ -177,7 +177,7 @@ agree` or `~ probe: … VALUE CHANGED`, always with `~` and never `✓`
 `Proved.` (or the report) `· N admissions · assisted · max rung N ·
 M rules · 0 machine-checked` (§16.4): `admissions` counts the current
 node's obligations the kernel admitted, `max rung` is the highest hint
-rung asked in the session (0 when none), `rules` the number of accepted
+rung answered in the session (0 when none; a refused hint does not count), `rules` the number of accepted
 steps on the current path. The session records the max rung, so
 `GET /hint` now changes session state (only that number); `/tree`
 returns it as `max_rung`.
