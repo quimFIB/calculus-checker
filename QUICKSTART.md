@@ -136,7 +136,9 @@ The rest of the notation:
 `ftc F` claims that F is an antiderivative of the integrand. The kernel
 differentiates F by its rule table and compares F′ with the integrand
 using `ring`, which is algebra with `+ - *` and whole powers. If they
-agree, the integral becomes F(b) − F(a). `close V` names the value.
+agree, the integral becomes F(b) − F(a). `close V` names the value;
+once the goal is only constants, `close.` with no V works it out for you
+(the arithmetic only: an entry still to apply is refused as below).
 
 `tutorial/01-ftc.dx`:
 
@@ -655,7 +657,7 @@ verify by field using h.
 | Move | Does | Lesson |
 |---|---|---|
 | `ftc F` | ∫ f → F(b) − F(a), checking F′ = f | 1 |
-| `close V` | names `?A`; V must be fully evaluated | 1, 2 |
+| `close V` | names `?A`; V must be fully evaluated. `close.` computes V from constants | 1, 2 |
 | `rewrite E at T` | replaces T by an entry | 2 |
 | `int_subst` | substitution, forward or `reverse` | 4, 5 |
 | `fact h := E` | binds an entry for `by field using h` | 6 |

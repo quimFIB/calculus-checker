@@ -48,7 +48,7 @@ USAGE = {
     "ftc": "ftc T [occurrence N] [by ring|field] [using h, ...]",
     "int_improper": "int_improper T [occurrence N] [by ring|field] "
                     "[using h, ...]",
-    "close": "close T [by ring|field] [using h, ...]",
+    "close": "close [T] [by ring|field] [using h, ...]",
     "rewrite": "rewrite E [with x := T; ...] at T [occurrence N]",
     "fact": "fact h := E [with x := T; ...]",
     "int_subst": "int_subst x := T as y from T to T [reverse T] "
@@ -230,8 +230,8 @@ def _build(move, head, cl):
         if "occurrence" in cl else {}
     if move in ("ftc", "int_improper"):
         return _checked({"F": _term(head, move), **occ}, cl)
-    if move == "close":
-        return _checked({"value": _term(head, move)}, cl)
+    if move == "close":  # no T: the app computes it (SCRIPT.md)
+        return _checked({"value": head} if head else {}, cl)
     if move == "rewrite":
         return {"entry": _name(head, "rewrite"),
                 "inst": _inst(cl.get("with", "")),
@@ -340,7 +340,8 @@ def show(move, args):
     if move in ("ftc", "int_improper"):
         s = f"{move} {args['F']}{occ}{_tail(args)}"
     elif move == "close":
-        s = f"close {args['value']}{_tail(args)}"
+        v = f" {args['value']}" if "value" in args else ""
+        s = f"close{v}{_tail(args)}"
     elif move == "rewrite":
         w = f" with {_show_inst(args['inst'])}" if args.get("inst") else ""
         s = f"rewrite {args['entry']}{w} at {args['at']}{occ}"
@@ -504,7 +505,7 @@ def layout(sentence):
         name(_trim(sentence, span[0], k))
         return _trim(sentence, k + 2, span[1])
 
-    if move in ("ftc", "int_improper", "close"):
+    if move in ("ftc", "int_improper", "close") and head[0] < head[1]:
         term(head)
     elif move == "rewrite":
         name(head)

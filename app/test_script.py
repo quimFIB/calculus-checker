@@ -122,9 +122,55 @@ class Syntax(unittest.TestCase):
                      "int_subst x := t^2 as t from 0.",
                      "int_parts in t with u := t.", "int_flip now.",
                      "ftc x occurrence one.", "ftc x by ring by field.",
-                     "close 1 using 2x."):
+                     "close 1 using 2x.", "close by magic."):
             with self.subTest(text=text), self.assertRaises(script.TacticError):
                 script.parse(text)
+
+    def test_close_without_a_value(self):
+        for text, args, shown in (
+                ("close.", {"check": "ring", "facts": []}, "close by ring."),
+                ("close by field.", {"check": "field", "facts": []},
+                 "close by field."),
+                ("close using h.", {"check": "ring",
+                                    "facts": [["handle", "h"]]},
+                 "close by ring using h.")):
+            with self.subTest(text=text):
+                self.assertEqual(script.parse(text), ("close", args))
+                self.assertEqual(script.show("close", args), shown)
+                self.assertEqual(script.layout(text)[0]["text"][:5], "close")
+
+    def close_route(self, header, steps):
+        s, n = api.handle("POST", "/session", {"header": header})
+        node, r = "n0", None
+        for text in steps:
+            s, r = api.handle("POST", "/tactic", {"session": n["session"],
+                                                  "node": node, "text": text})
+            node = r.get("node", node)
+        s, t = api.handle("GET", "/tree", {"session": n["session"]})
+        r["summary"] = t["nodes"][-1]["summary"]
+        return r
+
+    def test_close_computes_a_constant_goal(self):
+        r = self.close_route("goal Int[x = 0 .. 2] 4*x^3 - 3*x^2 + 1 == ?A.",
+                             ["ftc x^4 - x^3 + x.", "close."])
+        self.assertEqual((r["report"], r["summary"]), ("Proved.", "close ?A := 10"))
+
+    def test_close_computes_with_field_when_a_denominator_stays(self):
+        r = self.close_route("goal 1/pi + 1 == ?A.", ["close."])
+        self.assertEqual(r["report"], "Proved.")
+
+    def test_close_leaves_the_entries_to_the_learner(self):
+        r = self.close_route("goal exp(1)/2 - 1/2 == ?A.", ["close."])
+        self.assertEqual(r["refusal"]["code"], "close-not-evaluated")
+        self.assertIn("exp_one", r["refusal"]["message"])
+
+    def test_close_refuses_to_compute_what_is_not_constant(self):
+        for header in ("goal Int[x = 0 .. 1] x == ?A.",
+                       "goal D[x] x^2 == ?A."):
+            with self.subTest(header=header):
+                r = self.close_route(header, ["close."])
+                self.assertEqual(r["refusal"]["code"], "bad-tactic")
+                self.assertIn("only constants", r["refusal"]["message"])
 
     def test_route_refuses_bad_tactic_and_adds_nothing(self):
         s, n = api.handle("POST", "/session", {"problem": "stage0.S1"})

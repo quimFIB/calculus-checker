@@ -151,6 +151,18 @@ class Work(unittest.TestCase):
         r = self.resume()["resumed"]
         self.assertEqual((r["checked"], r["path"]), (1, ["n0", "n2"]))
 
+    def test_a_computed_close_matches_its_node(self):
+        s = call("POST", "/session", {"problem": "stage0.S1",
+                                      "resume": True})
+        sid = s["session"]
+        a = self.tac(sid, "n0", "ftc x^3 + x^2 by ring.")["node"]
+        b = self.tac(sid, a, "close.")["node"]
+        text = "ftc x^3 + x^2 by ring.\nclose."
+        call("POST", "/script", {"session": sid, "script": text,
+                                 "path": ["n0", a, b]})
+        r = self.resume()["resumed"]
+        self.assertEqual((r["checked"], r["path"]), (2, ["n0", a, b]))
+
     def test_a_path_into_the_dead_end_is_cut(self):
         self.build()
         self.rewrite_file(lambda d: d.update(path=["n0", "n1"]))

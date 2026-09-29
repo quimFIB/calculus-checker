@@ -20,6 +20,7 @@ import session as S
 import tex
 import untex
 import work
+from fill import filled
 from assist import palette as PL
 from assist import classify as CL
 from assist import factor as FA
@@ -160,6 +161,10 @@ def _trial(sess, at, sentences):
     state, handles = at.state, dict(at.handles)
     for text in sentences:
         move, args = script.parse(text)
+        try:
+            args = filled(move, args, state)
+        except script.TacticError:
+            return False
         r = K.step(state, move, loader.step_args(args, handles, sess.sig))
         if isinstance(r, K.Refusal):
             return False
@@ -452,6 +457,7 @@ def tactic(body):
     at = _node(sess, body)
     try:
         move, args = script.parse(_field(body, "text", str))
+        args = filled(move, args, at.state)
     except script.TacticError as e:
         r = Refusal("bad-tactic", str(e))
         _explain(r, sess, at, None, None)
@@ -602,6 +608,7 @@ def _eval_step(sig):
         state, handles = st
         try:
             move, args = script.parse(text)
+            args = filled(move, args, state)
         except script.TacticError as e:
             return None, {"code": "bad-tactic", "message": str(e),
                           "residual": None}
@@ -681,6 +688,10 @@ def _trial_at(state, handles, sig, sentences):
     handles = dict(handles)
     for text in sentences:
         move, args = script.parse(text)
+        try:
+            args = filled(move, args, state)
+        except script.TacticError:
+            return False
         r = K.step(state, move, loader.step_args(args, handles, sig))
         if isinstance(r, K.Refusal):
             return False

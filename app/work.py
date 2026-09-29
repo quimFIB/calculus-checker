@@ -16,6 +16,7 @@ import shutil
 import tempfile
 import time
 
+import fill
 import script
 import session as S
 
@@ -208,7 +209,9 @@ def checked_prefix(sess, text, path):
     for sentence, nid in zip(script.sentences(text), path[1:]):
         n = sess.nodes[nid]
         try:
-            same = script.parse(sentence) == (n.move, n.args)
+            move, args = script.parse(sentence)
+            same = (move, fill.filled(move, args, sess.nodes[n.parent].state)) \
+                == (n.move, n.args)
         except script.TacticError:
             same = False
         if not same or n.retracted:

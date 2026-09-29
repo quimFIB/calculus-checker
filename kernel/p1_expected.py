@@ -16716,6 +16716,15 @@ DECISIONS_ODE = {
             "domain true and admitted, though the goal's domain says it. "
             "Keeping a domain only adds hypotheses that hold wherever the "
             "key is read, so no key proved before becomes false.",
+    "E161": "The owner, 2026-09-29: \"when the goal just has constants, "
+            "there should be a tactic which just computes\". `close.` with "
+            "no value (app/SCRIPT.md): app/fill.py, untrusted, proposes the "
+            "goal's left side in field's normal form when that side has no "
+            "Integral, Deriv, Var or Call, and the step is then a typed "
+            "close. Not auto (DESIGN.md section 2): it does the literal "
+            "arithmetic only, so E27 still refuses a value with an entry "
+            "left to apply and names it, and the learner makes that move. "
+            "No kernel change.",
 }
 
 # Γ as data: (name, var, interval text, ('law', judgement) or ('reg', fn,
