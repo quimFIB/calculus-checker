@@ -84,7 +84,7 @@ goals window."
   "The sentence being checked.")
 
 (defconst dx-moves
-  '("ftc" "int_improper" "close" "rewrite" "fact" "int_subst" "int_flip"
+  '("ftc" "int_improper" "close" "simpl" "rewrite" "fact" "int_subst" "int_flip"
     "int_parts" "taylor_lagrange" "bound" "verify"
     "quad_t" "sep_autonomous" "energy_integral")
   "The moves, as app/SCRIPT.md names them.")
@@ -93,6 +93,7 @@ goals window."
   '(("ftc" . "ftc _ by ring.")
     ("int_improper" . "int_improper _ by field.")
     ("close" . "close _ by ring.")
+    ("simpl" . "simpl.")
     ("rewrite" . "rewrite entry at _.")
     ("fact" . "fact h := entry with a := _.")
     ("int_subst" . "int_subst x := _ as t from _ to _ by ring.")

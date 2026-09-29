@@ -151,13 +151,13 @@ class Work(unittest.TestCase):
         r = self.resume()["resumed"]
         self.assertEqual((r["checked"], r["path"]), (1, ["n0", "n2"]))
 
-    def test_a_computed_close_matches_its_node(self):
+    def test_simpl_matches_its_close_node(self):
         s = call("POST", "/session", {"problem": "stage0.S1",
                                       "resume": True})
         sid = s["session"]
         a = self.tac(sid, "n0", "ftc x^3 + x^2 by ring.")["node"]
-        b = self.tac(sid, a, "close.")["node"]
-        text = "ftc x^3 + x^2 by ring.\nclose."
+        b = self.tac(sid, a, "simpl.")["node"]
+        text = "ftc x^3 + x^2 by ring.\nsimpl."
         call("POST", "/script", {"session": sid, "script": text,
                                  "path": ["n0", a, b]})
         r = self.resume()["resumed"]

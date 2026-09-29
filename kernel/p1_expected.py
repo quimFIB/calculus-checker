@@ -16717,8 +16717,9 @@ DECISIONS_ODE = {
             "Keeping a domain only adds hypotheses that hold wherever the "
             "key is read, so no key proved before becomes false.",
     "E161": "The owner, 2026-09-29: \"when the goal just has constants, "
-            "there should be a tactic which just computes\". `close.` with "
-            "no value (app/SCRIPT.md): app/fill.py, untrusted, proposes the "
+            "there should be a tactic which just computes\", then \"call it "
+            "simpl as in simplify\". `simpl.` (app/SCRIPT.md) is an app "
+            "tactic, not a kernel move: app/fill.py, untrusted, proposes the "
             "goal's left side in field's normal form when that side has no "
             "Integral, Deriv, Var or Call, and the step is then a typed "
             "close. Not auto (DESIGN.md section 2): it does the literal "

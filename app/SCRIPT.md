@@ -25,7 +25,8 @@ fact name, `E` an entry name. `[...]` is optional.
 ```
 ftc T [occurrence N] [by C] [using h, ...].
 int_improper T [occurrence N] [by C] [using h, ...].
-close [T] [by C] [using h, ...].
+close T [by C] [using h, ...].
+simpl [by C] [using h, ...].
 rewrite E [with x := T; ...] at T [occurrence N].
 fact h := E [with x := T; ...].
 int_subst x := T as y from T to T [reverse T] [occurrence N] [by C] [using h, ...].
@@ -64,14 +65,17 @@ energy_integral h := L kinematic k from T to T in u rate T antiderivative T rang
   checked against its equation of motion this way, and an initial
   condition is the same move on a goal with no `D`.
 
-- `close` with no `T` computes it (app/fill.py, untrusted): when the
-  goal's left side is only constants (no integral, derivative, variable
-  or declared function), T is that side in field's normal form, which
-  does the literal arithmetic and collects like terms and nothing else,
-  and `by C` becomes `by field` when a denominator stays. The kernel
-  then checks it as a typed T, so E27 still refuses a value with an
-  entry left to apply (`exp 1`) and names the entry. On anything else
-  the sentence is `bad-tactic`. The node records the computed T.
+- `simpl` is `close T` with T computed (app/fill.py, untrusted;
+  p1_expected E161): when the goal's left side is only constants (no
+  integral, derivative, variable or declared function), T is that side
+  in field's normal form, which does the literal arithmetic and collects
+  like terms and nothing else, and `by C` becomes `by field` when a
+  denominator stays. The kernel then checks it as a typed `close T`, so
+  E27 still refuses a value with an entry left to apply (`exp 1`) and
+  names the entry. On anything else the sentence is `bad-tactic`. It is
+  not a kernel move: the node records `close` with the computed T.
+  Unlike Rocq's `simpl` it finishes the goal, since naming ?A is the
+  only thing left to do once the goal is constants.
 - `by C` is `by ring` or `by field`. Omitted, it is `by ring`.
 - `using h, ...` lists fact names bound earlier on the path; omitted, none.
 - `with` lists an entry's schema instantiation, `;`-separated; omitted, it

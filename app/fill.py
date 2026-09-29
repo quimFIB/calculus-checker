@@ -1,4 +1,4 @@
-"""`close` with no value (SCRIPT.md): the value the goal names, computed.
+"""`simpl` (SCRIPT.md): `close` with the value the goal names, computed.
 
 Untrusted, like the parser: the computed value is proposed as a typed one
 is, so the kernel's scope, schema, check and E27's evaluated-form test all
@@ -22,14 +22,15 @@ def _calls(t):
 
 
 def filled(move, args, state):
-    """args, with `close`'s missing value filled in from state's goal: the
-    goal's left side in field's normal form, which evaluates literal
+    """(move, args) as the kernel takes it: `simpl` becomes `close` with
+    its value computed from state's goal, and anything else is unchanged.
+    The value is the goal's left side in field's normal form, which evaluates literal
     arithmetic and collects like terms and nothing else; an entry still to
     apply (exp 1, sqrt 8) is left for E27 to name. The check becomes field
     when the value keeps a denominator ring cannot clear. Raises
     TacticError when the left side is not a constant."""
-    if move != "close" or "value" in args:
-        return args
+    if move != "simpl":
+        return move, args
     g = state.goal[0]
     lhs = g.lhs
     what = ("an integral or a derivative" if any(trees(lhs)) else
@@ -37,16 +38,17 @@ def filled(move, args, state):
             "a declared function" if _calls(lhs) else None)
     if not isinstance(g.rhs, MVar) or what:
         raise script.TacticError(
-            "close with no value computes it from a goal that is only "
-            f"constants, and this one has {what or 'no ?A to name'}; give "
-            "the value, or make the move that removes it first")
+            "simpl computes the value of a goal that is only constants, "
+            f"and this one has {what or 'no ?A to name'}; make the move "
+            "that removes it first, or name the value with close T")
     try:
         num, den, atoms = FD.field_parts(lhs)
     except Refused as r:
-        raise script.TacticError(f"close: cannot compute the value "
-                                 f"({r.message}); give it") from None
+        raise script.TacticError(f"simpl: cannot compute the value "
+                                 f"({r.message}); name it with close T") \
+            from None
     parts = SimpleNamespace(num=num, den=den, atoms=atoms)
     out = {**args, "value": show(RD.residual_term(parts))}
     if den:
         out["check"] = "field"
-    return out
+    return "close", out

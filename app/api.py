@@ -162,7 +162,7 @@ def _trial(sess, at, sentences):
     for text in sentences:
         move, args = script.parse(text)
         try:
-            args = filled(move, args, state)
+            move, args = filled(move, args, state)
         except script.TacticError:
             return False
         r = K.step(state, move, loader.step_args(args, handles, sess.sig))
@@ -457,7 +457,7 @@ def tactic(body):
     at = _node(sess, body)
     try:
         move, args = script.parse(_field(body, "text", str))
-        args = filled(move, args, at.state)
+        move, args = filled(move, args, at.state)
     except script.TacticError as e:
         r = Refusal("bad-tactic", str(e))
         _explain(r, sess, at, None, None)
@@ -608,7 +608,7 @@ def _eval_step(sig):
         state, handles = st
         try:
             move, args = script.parse(text)
-            args = filled(move, args, state)
+            move, args = filled(move, args, state)
         except script.TacticError as e:
             return None, {"code": "bad-tactic", "message": str(e),
                           "residual": None}
@@ -689,7 +689,7 @@ def _trial_at(state, handles, sig, sentences):
     for text in sentences:
         move, args = script.parse(text)
         try:
-            args = filled(move, args, state)
+            move, args = filled(move, args, state)
         except script.TacticError:
             return False
         r = K.step(state, move, loader.step_args(args, handles, sig))

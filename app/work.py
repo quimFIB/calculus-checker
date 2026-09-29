@@ -210,7 +210,7 @@ def checked_prefix(sess, text, path):
         n = sess.nodes[nid]
         try:
             move, args = script.parse(sentence)
-            same = (move, fill.filled(move, args, sess.nodes[n.parent].state)) \
+            same = fill.filled(move, args, sess.nodes[n.parent].state) \
                 == (n.move, n.args)
         except script.TacticError:
             same = False
