@@ -159,10 +159,30 @@ class Syntax(unittest.TestCase):
         r = self.close_route("goal 1/pi + 1 == ?A.", ["simpl."])
         self.assertEqual(r["report"], "Proved.")
 
+    def test_simpl_computes_under_a_function(self):
+        for header, summary in (
+                ("goal (2/3)*(1 + 1)*sqrt(1 + 1) - 2/3 == ?A.",
+                 "close ?A := (4/3)*sqrt 2 - 2/3"),
+                ("goal 4 - 2*ln(1 + 2) == ?A.", "close ?A := -2*ln 3 + 4"),
+                ("goal sqrt(1 + sqrt(1 + 1)) == ?A.",
+                 "close ?A := sqrt(sqrt 2 + 1)")):
+            with self.subTest(header=header):
+                r = self.close_route(header, ["simpl."])
+                self.assertEqual((r["report"], r["summary"]),
+                                 ("Proved.", summary))
+
+    def test_simpl_checks_with_field_when_a_denominator_stays_inside(self):
+        r = self.close_route("goal sqrt(pi/pi + 1) == ?A.", ["simpl by ring."])
+        self.assertEqual((r["report"], r["summary"]),
+                         ("Proved.", "close ?A := sqrt 2"))
+
     def test_simpl_leaves_the_entries_to_the_learner(self):
         r = self.close_route("goal exp(1)/2 - 1/2 == ?A.", ["simpl."])
         self.assertEqual(r["refusal"]["code"], "close-not-evaluated")
         self.assertIn("exp_one", r["refusal"]["message"])
+        r = self.close_route("goal sqrt(2 + 2) == ?A.", ["simpl."])
+        self.assertEqual(r["refusal"]["message"],
+                         "sqrt 4 can still be evaluated (sqrt_sq)")
 
     def test_simpl_refuses_what_is_not_constant(self):
         for header in ("goal Int[x = 0 .. 1] x == ?A.",

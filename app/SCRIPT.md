@@ -68,9 +68,10 @@ energy_integral h := L kinematic k from T to T in u rate T antiderivative T rang
 - `simpl` is `close T` with T computed (app/fill.py, untrusted;
   p1_expected E161): when the goal's left side is only constants (no
   integral, derivative, variable or declared function), T is that side
-  in field's normal form, which does the literal arithmetic and collects
+  in field's normal form, which does the literal arithmetic, inside a
+  function's argument too (`sqrt(1 + 1)` becomes `sqrt 2`), and collects
   like terms and nothing else, and `by C` becomes `by field` when a
-  denominator stays. The kernel then checks it as a typed `close T`, so
+  denominator stays, at the top or inside an argument. The kernel then checks it as a typed `close T`, so
   E27 still refuses a value with an entry left to apply (`exp 1`) and
   names the entry. On anything else the sentence is `bad-tactic`. It is
   not a kernel move: the node records `close` with the computed T.

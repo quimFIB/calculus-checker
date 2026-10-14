@@ -6,6 +6,7 @@ still run on it, and a bug here can only propose a wrong value, which the
 check refuses.
 """
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import script
@@ -13,7 +14,8 @@ import session  # noqa: F401  puts kernel/ on the path
 
 import field as FD  # noqa: E402
 import residual as RD  # noqa: E402
-from terms import Call, MVar, Refused, children, fv, show, trees  # noqa: E402
+from terms import (App, Call, MVar, RPow, Refused, children, fv, show,  # noqa: E402
+                   trees)
 
 
 def _calls(t):
@@ -21,11 +23,40 @@ def _calls(t):
                                       if hasattr(c, "__dataclass_fields__"))
 
 
+def _computed(t):
+    """(t in field's normal form, whether a denominator stayed), with the
+    argument of every function and real power in t computed first,
+    innermost first. field reads sqrt(1 + 1) as an atom keyed by its
+    argument's normal form but prints the term it first saw, so without
+    this the arithmetic under a function would come back undone. A
+    denominator staying inside an argument counts too: ring keys that
+    argument without cancelling, so the check must be field."""
+    t, inner = _args_computed(t)
+    num, den, atoms = FD.field_parts(t)
+    parts = SimpleNamespace(num=num, den=den, atoms=atoms)
+    return RD.residual_term(parts), bool(den) or inner
+
+
+def _args_computed(t):
+    """(t with each function's and real power's arguments computed,
+    whether a denominator stayed in one). Arithmetic around them is left
+    for the one normal form _computed takes of the whole."""
+    if type(t) in (App, RPow):
+        kids = {n: _computed(c) for n, c in children(t)}
+    else:
+        kids = {n: _args_computed(c) for n, c in children(t)}
+    if not kids:
+        return t, False
+    return (replace(t, **{n: c for n, (c, _) in kids.items()}),
+            any(d for _, d in kids.values()))
+
+
 def filled(move, args, state):
     """(move, args) as the kernel takes it: `simpl` becomes `close` with
     its value computed from state's goal, and anything else is unchanged.
     The value is the goal's left side in field's normal form, which evaluates literal
-    arithmetic and collects like terms and nothing else; an entry still to
+    arithmetic, inside a function's argument too (sqrt(1 + 1) is sqrt 2),
+    and collects like terms and nothing else; an entry still to
     apply (exp 1, sqrt 8) is left for E27 to name. The check becomes field
     when the value keeps a denominator ring cannot clear. Raises
     TacticError when the left side is not a constant."""
@@ -42,13 +73,12 @@ def filled(move, args, state):
             f"and this one has {what or 'no ?A to name'}; make the move "
             "that removes it first, or name the value with close T")
     try:
-        num, den, atoms = FD.field_parts(lhs)
+        value, den = _computed(lhs)
     except Refused as r:
         raise script.TacticError(f"simpl: cannot compute the value "
                                  f"({r.message}); name it with close T") \
             from None
-    parts = SimpleNamespace(num=num, den=den, atoms=atoms)
-    out = {**args, "value": show(RD.residual_term(parts))}
+    out = {**args, "value": show(value)}
     if den:
         out["check"] = "field"
     return "close", out
