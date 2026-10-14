@@ -16731,6 +16731,117 @@ DECISIONS_ODE = {
             "No kernel change.",
 }
 
+
+# -------------------------------------------------- auto-simpl and rpow (E162, E163)
+
+DECISIONS_AUTO_SIMPL = {
+    "E162": "The owner, 2026-10-14: \"allow the kernel to simpl, but make "
+            "it easily toggleable, so a user wanting to actually see all "
+            "the steps can turn it off, but a more experienced user can "
+            "just let the kernel take care of automatic things\". Settled "
+            "the same day: (scope) arithmetic and the evaluation entries, "
+            "never a technique; (trigger) a move that leaves a constants-"
+            "only goal with ?A; (toggle) `Set Auto Simpl.` / `Unset Auto "
+            "Simpl.` in the script, on by default. It is DESIGN.md "
+            "section 2's 'auto' mode for the last step of a computation, "
+            "and like everything in section 2 it is not the kernel: "
+            "app/autosimpl.py, untrusted, proposes ordinary kernel moves, "
+            "rewrite, fact and close, and the kernel checks each one as if "
+            "it were typed. It makes exactly the moves E27 would name, in "
+            "E27's order, then simpl's close, so turning it off shows the "
+            "same steps one refusal at a time. All or nothing: a refused "
+            "step, or one that adds an admission, leaves the goal as the "
+            "move left it, with the reason shown. app/AUTOSIMPL.md is the "
+            "spec. E161's simpl is unchanged when the setting is off; when "
+            "it is on, `simpl.` runs the same chain. Amends E161's 'not "
+            "auto': that was the default of a tool with no setting, and "
+            "the setting is now the learner's (section 2: 'how much of "
+            "the work you do is your choice').",
+    "E163": "The owner, 2026-10-14, bringing D17's planned successor "
+            "(GRAMMAR.md section 7) forward to land with E162, whose chain "
+            "would otherwise stop at 2^(1/2 + 1/2) with no move to name. "
+            "Three parts. (1) Grammar: `rpow` is a keyword, `rpow(u, e)` "
+            "always parses as RPow(u, e), and the printer writes an RPow "
+            "whose exponent is Num or Neg(Num) that way, at level 6, so "
+            "parse(show(t)) == t for every RPow. The RPow constructor no "
+            "longer refuses that exponent, and the refusal "
+            "'rpow-literal-exponent' is retired. (2) The entry family "
+            "rpow_int (entries.py FAMILIES): for each integer literal n, "
+            "rpow(u, n) == u^n @ u > 0, with u a schema variable and n a "
+            "literal parameter given in the same inst (`with u := 2; n := "
+            "1`); n not Num or Neg(Num) is 'bad-args'. Sound: for real "
+            "u > 0 and integer n, exp(n*ln u) is the n-fold product (its "
+            "inverse for n < 0, 1 for n = 0). Trusted, as ENTRIES is. "
+            "(3) rewrite step 3: an RPow left side matches an RPow target "
+            "when the bases and the exponents are each ring-equal, as an "
+            "App matches through its argument; the target's own formers "
+            "were charged where it entered, and the rewrite owes u > 0 as "
+            "rewrite_hyp. (4) E27 (a): rpow_int counts at an RPow whose "
+            "exponent's ring normal form is an integer constant; ahead of "
+            "(b), so 2^(1/2 + 1/2) names rpow_int. RPOW_E163 pins it. No "
+            "derivative rule for RPow is added: ftc still refuses 2^x/ln 2 "
+            "(deriv-no-rule).",
+}
+
+# E163's cases. Terms are GRAMMAR.md syntax. "printed" is show(parse(text)).
+RPOW_E163 = {
+    "round_trips": [  # (text, printed)
+        ("rpow(2, 1)", "rpow(2, 1)"),
+        ("rpow(x, -1)", "rpow(x, -1)"),
+        ("rpow(x, 0)", "rpow(x, 0)"),
+        ("rpow(x, 1/2)", "x^(1/2)"),
+        ("rpow(2, x)", "2^x"),
+        ("rpow(2, 1)^2", "rpow(2, 1)^2"),
+        ("sin(rpow(2, 1))", "sin(rpow(2, 1))"),
+        ("rpow(rpow(2, 1), 3)", "rpow(rpow(2, 1), 3)"),
+        ("2^(1)", "2^1"),
+    ],
+    "parse_refusals": [  # (text, code)
+        ("rpow(2)", "syntax"),
+        ("rpow x", "syntax"),
+        ("rpow(2, 1, 3)", "syntax"),
+        ("sin rpow(2, 1)^2", "D6-app-as-base"),
+    ],
+    # sig {"rpow": 1} is refused: rpow is reserved
+    "reserved": "rpow",
+    "substitutions": [  # (text, {var: text}, printed)
+        ("2^x", {"x": "1"}, "rpow(2, 1)"),
+        ("x^(-y)", {"y": "1"}, "rpow(x, -1)"),
+        ("2^x", {"x": "1/2"}, "2^(1/2)"),
+    ],
+    "rewrite_accepts": [  # (goal, inst, at, new goal, owed by rewrite_hyp)
+        ("rpow(2, 1) + 1 == ?A", {"u": "2", "n": "1"}, "rpow(2, 1)",
+         "2^1 + 1 == ?A", "2 > 0"),
+        ("2^(1/2 + 1/2) == ?A", {"u": "2", "n": "1"}, "2^(1/2 + 1/2)",
+         "2^1 == ?A", "2 > 0"),
+        ("rpow(x, -1) == ?A @ x > 0", {"u": "x", "n": "-1"}, "rpow(x, -1)",
+         "x^(-1) == ?A @ x > 0", "x > 0 @ x > 0"),
+        ("rpow(1 + 1, 2) == ?A", {"u": "2", "n": "2"}, "rpow(1 + 1, 2)",
+         "2^2 == ?A", "2 > 0"),
+    ],
+    "rewrite_refusals": [  # (goal, inst, at, code)
+        ("rpow(2, 1) == ?A", {"u": "2", "n": "x"}, "rpow(2, 1)", "bad-args"),
+        ("rpow(2, 1) == ?A", {"u": "2"}, "rpow(2, 1)", "bad-args"),
+        ("rpow(2, 1) == ?A", {"u": "2", "n": "1/2"}, "rpow(2, 1)", "bad-args"),
+        ("rpow(2, 1) == ?A", {"u": "2", "n": "2"}, "rpow(2, 1)",
+         "rewrite-lhs-mismatch"),
+        ("2^x == ?A @ x > 0", {"u": "2", "n": "1"}, "2^x",
+         "rewrite-lhs-mismatch"),
+    ],
+    # fact h := rpow_int with u := 2; n := 3 concludes this
+    "fact": ({"u": "2", "n": "3"}, "rpow(2, 3) == 2^3 @ 2 > 0"),
+    # (goal, close value by ring, refusal code or None for Proved, the
+    # entry E27 names or None). The last: ring keeps rpow(2, 1) an atom,
+    # so 2 is not proved equal to it until rpow_int is applied.
+    "close": [
+        ("rpow(2, 1) == ?A", "rpow(2, 1)", "close-not-evaluated", "rpow_int"),
+        ("2^(1/2 + 1/2) == ?A", "2^(1/2 + 1/2)", "close-not-evaluated",
+         "rpow_int"),
+        ("2^(1/2) == ?A", "2^(1/2)", None, None),
+        ("rpow(2, 1) == ?A", "2", "close-check-failed", None),
+    ],
+}
+
 # Γ as data: (name, var, interval text, ('law', judgement) or ('reg', fn,
 # k)). Declared functions are named in each case's sig.
 _ODE_V = {"v": 1}

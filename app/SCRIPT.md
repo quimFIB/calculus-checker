@@ -38,7 +38,20 @@ verify [by C] [using h, ...].
 quad_t h := L from T to T in u antiderivative T [regs r, ...] [by C] [using h, ...].
 sep_autonomous h := L from T to T in u rate T antiderivative T range I [regs r, ...] [given a, ...] [by C] [using h, ...].
 energy_integral h := L kinematic k from T to T in u rate T antiderivative T range I [regs r, ...] [given a, ...] [by C] [using h, ...].
+Set Auto Simpl.
+Unset Auto Simpl.
 ```
+
+- `Set Auto Simpl.` and `Unset Auto Simpl.` (p1_expected E162,
+  AUTOSIMPL.md) turn auto-simpl on and off from that point of the
+  script. They parse to the move `set` with args `{"auto_simpl": true}`
+  or `false`. That is not a kernel move: the session records a node with
+  its parent's state and the new setting. It is on when a goal is
+  installed. While it is on, a move that leaves a goal of constants with
+  `?A` is followed by the chain AUTOSIMPL.md specifies (the evaluation
+  rewrites E27 would name, then `simpl`'s close), each step checked by
+  the kernel, and `simpl.` runs that same chain. The words are matched
+  exactly, capitals included, as Rocq's `Set`/`Unset` options are.
 
 - The three ODE rules (p1_expected E149–E153) read Γ, the assumptions
   the goal was installed under (DX.md's `assuming`). `L` names the law,
@@ -76,7 +89,10 @@ energy_integral h := L kinematic k from T to T in u rate T antiderivative T rang
   names the entry. On anything else the sentence is `bad-tactic`. It is
   not a kernel move: the node records `close` with the computed T.
   Unlike Rocq's `simpl` it finishes the goal, since naming ?A is the
-  only thing left to do once the goal is constants.
+  only thing left to do once the goal is constants. This is `simpl`
+  with auto-simpl off. With it on (the default), `simpl.` is the move
+  `simpl` and runs AUTOSIMPL.md's chain, which also makes the
+  evaluation rewrites; the node records `simpl`, not `close`.
 - `by C` is `by ring` or `by field`. Omitted, it is `by ring`.
 - `using h, ...` lists fact names bound earlier on the path; omitted, none.
 - `with` lists an entry's schema instantiation, `;`-separated; omitted, it

@@ -68,9 +68,7 @@ were added, not by section.)
 
 Every refusal this file names has a code, including `shadowing`,
 `D11-bound-and-free`, `D13-unnamed-interval` and the catch-all `syntax`.
-`rpow-literal-exponent` (§7) is not a parse code: the parser never builds
-such a node, and the refusal comes from the constructor. `oo-misplaced` is
-both: the parser raises it, and so does the `Interval` constructor (§7, D18),
+`oo-misplaced` is both a parse code and a constructor's: the parser raises it, and so does the `Interval` constructor (§7, D18),
 so intervals the kernel builds are held to the same rule.
 
 ## 2. Lexical structure
@@ -100,7 +98,7 @@ An IDENT is classified in this order:
 |---|---|---|
 | constant | `pi`, `e_const` | `Const` node (§5.1) |
 | builtin function | `sin cos tan asin acos atan exp ln sqrt abs sinh cosh tanh asinh acosh atanh` | a prefix taking one operand (§4). Exactly §5.1's sixteen. |
-| keyword | `D`, `Int`, `in`, `oo`, `true` | syntax only. `C` and `omega` are keywords only straight after `in`. Elsewhere they are ordinary names. |
+| keyword | `D`, `Int`, `in`, `oo`, `true`, `rpow` | syntax only. `C` and `omega` are keywords only straight after `in`. Elsewhere they are ordinary names. `rpow` is always followed by `(` (§4, D17). |
 | deferred | `Sum`, `lim`, `conv`, `absconv`, `diverges`, `exists`, `dim` | **D2:** refused with "not supported in this kernel yet". No proof-of-life goal needs them. Their syntax is fixed now so that adding them later is additive: `Sum[n = b .. b] e` has `Int`'s shape, and `lim[x -> b] e` takes an optional `^+` or `^-` just before `]`. |
 | refused, with a hint | `e` ("write `exp(u)` for eᵘ, `e_const` for the number e"), `log`→`ln`, `sec csc cot sech`→`1/cos u` and so on, `arcsin arccos arctan`→`asin acos atan`, `arsinh arcosh artanh`→`asinh acosh atanh`, `inf infinity`→`oo` | see D3 |
 | declared function | the keys of `sig` | must be applied: `f(e, …, e)` with the declared arity |
@@ -166,10 +164,11 @@ unary     = "-" unary | power ;
 power     = atom [ "^" exponent ] | app ;            (* no second "^" *)
 app       = prefix operand ;
 prefix    = BUILTIN | "D" "[" VAR "]" ;
-operand   = app | ( NAT | VAR | CONST ) [ "^" exponent ] | "(" expr ")" | call ;
+operand   = app | ( NAT | VAR | CONST ) [ "^" exponent ] | "(" expr ")" | call | rpow ;
 exponent  = NAT | VAR | CONST | "(" expr ")" ;
-atom      = NAT | VAR | CONST | MVAR | call | "(" expr ")" ;
+atom      = NAT | VAR | CONST | MVAR | call | rpow | "(" expr ")" ;
 call      = DECLARED "(" expr { "," expr } ")" ;
+rpow      = "rpow" "(" expr "," expr ")" ;          (* always RPow (D17) *)
 endpoint  = "oo" | "-" "oo" | sum ;
 ```
 
@@ -181,7 +180,7 @@ endpoint  = "oo" | "-" "oo" | sum ;
 | 3 | `-a` | prefix |
 | 4 | application by juxtaposition, `sin u` and `D[x] u` | prefix, nests to the right |
 | 5 | `a ^ n` | none |
-| 6 | atoms: literal, name, `?A`, `f(…)`, `( … )` | none |
+| 6 | atoms: literal, name, `?A`, `f(…)`, `rpow(…, …)`, `( … )` | none |
 
 **D6: juxtaposed application takes a power as its operand, and never a
 parenthesised group raised to a power.** So `sin x^2` is `sin(x^2)`, as a
@@ -210,9 +209,11 @@ power it has from the parsed exponent (parentheses make no node):
 | `Neg(Num n)` | `Pow(a, -n)` | field operation, owes `a # 0` |
 | anything else, including `x^n` with n a variable, `x^(1/2)` and `x^(2^3)` | `RPow(a, e)` | real power, owes `a > 0` |
 
-This table is also a constructor invariant (§7, D17): no `RPow` with a
-literal integer exponent can be built by any path, so the parser's choice
-cannot be undone later by substitution.
+`^` never builds an `RPow` with a literal integer exponent. That node is
+still a term: substitution builds it (`2^x` at x := 1), and it is written
+`rpow(a, n)`, which always parses as `RPow` whatever its exponent (D17). So
+the table says what `^` means, and `rpow` is how the printer keeps a node
+`^` cannot spell.
 
 **`Pow(a, 0)` is 1 for every `a`, including 0** (E58, 2026-09-24). This is
 `ring`'s convention: an integer power is repeated multiplication, and the
@@ -291,12 +292,12 @@ could start an atom is refused with "write a*b": `x y`, `2 (x+1)`,
   (`D[x](x*z)`)[x := z] is z, while the renamed `D[z](z*z)` is 2z. In this
   milestone deriv refuses any `Deriv` subterm with x free (no §6.3 rule
   applies), so ftc's F[x := b] only ever reaches the unchanged case.
-- **Substitution and `RPow`.** Ordinary substitution rebuilds each node
-  through its constructor, so a substitution that would turn an `RPow`
-  exponent into a literal, as in (`2^x`)[x := 1], is refused with
-  `rpow-literal-exponent` (§7, D17). It is never silently turned into a
-  `Pow`: `RPow(u, n)` is defined only where u > 0 and `Pow(u, n)`
-  everywhere, so the conversion would drop the `u > 0` obligation (§5.1).
+- **Substitution and `RPow`.** A substitution that turns an `RPow`
+  exponent into a literal, as in (`2^x`)[x := 1], keeps the `RPow`: it is
+  `rpow(2, 1)` (§7, D17). It is never silently turned into a `Pow`:
+  `RPow(u, n)` is defined only where u > 0 and `Pow(u, n)` everywhere, so
+  the conversion would drop the `u > 0` obligation (§5.1). The conversion
+  is the entry `rpow_int`, which owes it.
 - fv(`Int[x = a .. b] e`) = (fv(e) − {x}) ∪ fv(a) ∪ fv(b). Constants and `?A`
   are not variables.
 - **D11: within one goal, bv(goal) ∩ fv(goal) = ∅,** with bv as defined
@@ -358,60 +359,56 @@ equivalence. The printer never renames.
 | `MVar` | `name` | in goals only (§6) |
 | `Neg`, `Add`, `Mul`, `Div` | operands | none |
 | `Pow` | `base, n: int` | any int |
-| `RPow` | `base, exp: Term` | `exp` is never `Num` or `Neg(Num)`. Constructing one that is raises the refusal `rpow-literal-exponent` (a `__post_init__` check on the frozen dataclass; D17). |
+| `RPow` | `base, exp: Term` | none since E163: a `Num` or `Neg(Num)` exponent is a term, printed `rpow(base, exp)` (D17) |
 | `App` | `fn, arg` | fn is one of the 16 builtins |
 | `Call` | `fn, args: tuple` | fn is declared with `len(args)` arguments |
 | `Deriv` | `var, body` | none |
 | `Integral` | `var, lo, hi, body` | lo and hi are a `Term`, `PosInf` or `NegInf` |
-| `Interval` | `var, lo, lo_closed, hi, hi_closed` | lo is a `Term` or `NegInf`, hi is a `Term` or `PosInf`, and an infinite end is open (D18). Constructing one that is not raises `oo-misplaced` (a `__post_init__` check, as D17 does for `RPow`). |
+| `Interval` | `var, lo, lo_closed, hi, hi_closed` | lo is a `Term` or `NegInf`, hi is a `Term` or `PosInf`, and an infinite end is open (D18). Constructing one that is not raises `oo-misplaced` (a `__post_init__` check on the frozen dataclass). |
 | `Rel`, `NonZero`, `Reg` | as §6 | the domain is a `tuple` of items; a constraint item is a `Rel`/`NonZero` with an empty domain |
 
-**D17: the `RPow` invariant is enforced where the node is built.** An
-`RPow(2, Num 1)` would print as `2^(1)` (§8: an `RPow` exponent other than a
-name is parenthesised), which re-parses as `Pow(2, 1)`, a ring operation
-with no `2 > 0` obligation. Then parse(show(t)) ≢ t and the echo shows a
-different theorem, the misprint class §15.6 exists to catch. Checking in the
-constructor covers every path at once: the parser, ordinary substitution
-(§5), `ftc`'s F[x := b], rewrite instantiation `lhs[inst]` and `rhs[inst]`,
-and `close`. A refusal, not a silent `Pow`, because `RPow(u, n)` owes
+**D17: a real power with a literal integer exponent is a term, written
+`rpow(u, n)` (revised by E163, owner, 2026-10-14).** Substitution can build
+`RPow(u, Num n)`: `2^x` at x := 1, `ftc`'s F[x := b], a rewrite's
+`lhs[inst]`, `close`. `^` cannot spell that node, since `2^(1)` re-parses
+as `Pow(2, 1)`, a ring operation with no `2 > 0` obligation (D8), and
+the echo would show a different theorem, the misprint class §15.6 exists
+to catch. Converting it silently to `Pow` is no better: `RPow(u, n)` owes
 u > 0 and `Pow(u, n)` does not (§5.1), so the conversion drops an
-obligation. This milestone needs no literal-exponent
-`RPow`. The cost is that `ftc` refuses an F containing `a^x` at literal
-endpoints until a later step adds a printed form that keeps the node (and
-changes D8's table to match).
-
-**D17's planned successor (owner, 2026-10-14; not built).** The refusal is
-right while nothing can build the node honestly, but it is a gap, not a
-rule. The plan has three parts, to land together:
+obligation. Three parts, which land together:
 
 - **A printed form that keeps the node.** `rpow(u, e)` always parses as
   `RPow(u, e)`, and the printer uses it exactly when `e` is `Num` or
-  `Neg(Num)`; every other `RPow` prints as now (`x^(1/2)`, `2^x`). Then
-  parse(show(t)) ≡ t holds for every `RPow`, both of D17's reasons for
-  refusing fall away, and the constructor check and §10's must-refuse
-  constructions go. Not `2^(1)`: `x^(-1)` already parses as `Pow`, so a bracketed
-  literal meaning a different node would be a trap.
-- **An entry that converts with its condition owed:**
-  `rpow_int : rpow(u, n) == u^n @ u > 0`, n a literal integer. A rewrite
-  turns `u > 0` into an obligation, as `sqrt_sq` does with `u >= 0`, so the
-  conversion D17 refuses to make silently becomes a checked move, and the
-  learner's (§2 of DESIGN.md).
-- **E27's reading of it:** `rpow(u, n)` counts as still evaluable by
-  `rpow_int`, so `close` names the entry rather than accepting the value.
+  `Neg(Num)`; every other `RPow` prints as before (`x^(1/2)`, `2^x`). So
+  parse(show(t)) ≡ t holds for every `RPow`. Not `2^(1)`: `x^(-1)`
+  already parses as `Pow`, so a bracketed literal meaning a different
+  node would be a trap. `rpow(x, 1/2)` is accepted too and prints as
+  `x^(1/2)`: one node, and the printer picks its spelling.
+- **An entry that converts, with its condition owed:**
+  `rpow_int : rpow(u, n) == u^n @ u > 0` for each integer literal n
+  (`entries.py`'s one family, E163). Rewriting with it makes `u > 0` an
+  obligation, as `sqrt_sq` does with `u >= 0`, so the conversion D17
+  refuses to make silently is a checked move, and the learner's (§2 of
+  DESIGN.md). `rewrite` matches a real power through the ring normal form
+  of its base and exponent, as it matches an application through its
+  argument, so `rpow_int` applies at `2^(1/2 + 1/2)` with n := 1.
+- **E27's reading of it:** an `RPow` whose exponent's ring normal form is
+  an integer counts as still evaluable by `rpow_int`, so `close` names
+  the entry rather than accepting the value.
 
 Considered and not chosen: building `Pow(u, n)` at every construction
 site and adding `u > 0` to that step's obligations. It is sound too, but
-it makes substitution return obligations at each of the paths listed
-above, where the entry needs only the rewrite machinery that exists.
+it makes substitution return obligations on each path listed above,
+where the entry needs only the rewrite machinery that exists.
 
-**When:** with the first derivative rule for a real power. Until then the
-gap is nearly unreachable: no §6.3 rule differentiates `RPow`, so `ftc`
-refuses `2^x/ln 2` (`deriv-no-rule`) before any endpoint is substituted,
-and the one live path is `simpl` computing an exponent to an integer
-(`2^(1/2 + 1/2)`), which it refuses as `bad-tactic` naming D17. **What
-would change this:** a course problem that needs `a^x` or `x^r`
-integrated before that rule is wanted, which would bring this forward on
-its own.
+**History.** Until E163 the constructor refused the node
+(`rpow-literal-exponent`), on every path at once. That was right while
+nothing could build it honestly, but it was a gap, not a rule. It was
+recorded as a plan on 2026-10-14, to be built with the first derivative
+rule for a real power, and brought forward the same day with auto-simpl
+(E162), which would otherwise have met it as its one dead end. No §6.3
+rule differentiates `RPow` yet, so `ftc` still refuses `2^x/ln 2`
+(`deriv-no-rule`).
 
 ## 8. Printer
 
@@ -426,7 +423,10 @@ node, so extra ones cannot break a round trip.
     unary `-` (R1 below then excludes a `Neg`);
   - a left operand needs its parent's own level;
   - a `Pow` or `RPow` base needs level 6;
-  - an `RPow` exponent other than a name is parenthesised.
+  - an `RPow` exponent other than a name is parenthesised;
+  - an `RPow` whose exponent is `Num` or `Neg(Num)` prints as
+    `rpow(base, exp)`, at level 6 like a call, each argument printed
+    as a whole term (D17).
 - **Integrals** print bare only as a whole term, a relation side, a call
   argument, a body or a parenthesised exponent. Anywhere else they are
   parenthesised.
@@ -477,7 +477,12 @@ prototype of this grammar.
 | `a - (-b)` | `(add a (neg (neg b)))` | `a - (-b)` |
 | `-(-x)` | `(neg (neg x))` | `-(-x)` |
 | `a*(-b)` | `(mul a (neg b))` | `a*(-b)` |
-| `e^x`, `x(x+1)`, `f(x)` (f undeclared), `sin(x)^2`, `2x`, `0.5` | refused (D3, D5, D5, D6, §2, D1) | none |
+| `rpow(2, 1)` | `(rpow 2 1)` | `rpow(2, 1)` |
+| `rpow(x, -1)` | `(rpow x (neg 1))` | `rpow(x, -1)` |
+| `rpow(x, 1/2)`, `x^(1/2)` | `(rpow x (div 1 2))` | `x^(1/2)` |
+| `rpow(2, 1)^2`, `sin(rpow(2, 1))` | `(pow (rpow 2 1) 2)`, `(sin (rpow 2 1))` | `rpow(2, 1)^2`, `sin(rpow(2, 1))` |
+| `2^(1)`, `x^(-1)` | `(pow 2 1)`, `(pow x -1)` (D8: `^` with a literal is always `Pow`) | `2^1`, `x^(-1)` |
+| `e^x`, `x(x+1)`, `f(x)` (f undeclared), `sin(x)^2`, `2x`, `0.5`, `rpow(2)`, `rpow x`, `sin rpow(2, 1)^2` | refused (D3, D5, D5, D6, §2, D1, syntax, syntax, D6) | none |
 
 **§11.1** (the substitution step's own obligations included):
 
@@ -551,7 +556,7 @@ value; §9's whitelist is what refuses it.
   goal is installed.
 - `d_pow_int`'s literal `n` and `d_chain`'s `f'` are schema notation with no
   term syntax. They are built in code, not parsed.
-- Must-refuse constructions (D17), unreachable in P1:
-  (`2^x`)[x := 1], which would build `RPow(2, Num 1)`, and
-  (`x^(-y)`)[y := 1], which would build `RPow(x, Neg(Num 1))`. Both are
-  refused with `rpow-literal-exponent`.
+- Constructions D17 refused until E163, now terms: (`2^x`)[x := 1] is
+  `rpow(2, 1)`, and (`x^(-y)`)[y := 1] is `rpow(x, -1)`. Each owes its
+  base > 0 where it enters, as any `RPow` does, and `rpow_int` converts
+  it to `Pow`.
