@@ -49,7 +49,10 @@ class Api(unittest.TestCase):
         self.assertEqual(r["error"]["code"], code, r)
 
     def s1(self):
-        return self.call("POST", "/session", {"problem": "stage0.S1"})
+        # by hand: these tests are the route's mechanics (E162 is
+        # test_autosimpl.py's)
+        return self.call("POST", "/session", {"problem": "stage0.S1",
+                                              "auto_simpl": False})
 
     def step(self, n, move, args, **kw):
         return self.call("POST", "/step", {"session": n["session"],
@@ -435,7 +438,8 @@ class ProblemFiles(Api):
 
     def _one(self, pid, p, name, steps):
         results, _ = loader.replay(p, name)
-        n = self.call("POST", "/session", {"problem": pid})
+        n = self.call("POST", "/session", {"problem": pid,
+                                           "auto_simpl": False})
         self._same(n, results[0][1])
         for s, (sid, want) in zip(steps, results[1:]):
             self.assertEqual(s["id"], sid)
@@ -509,7 +513,8 @@ class Http(unittest.TestCase):
             return e.code, json.load(e)
 
     def test_s1_over_http(self):
-        s, n = self.req("POST", "/session", {"problem": "stage0.S1"})
+        s, n = self.req("POST", "/session", {"problem": "stage0.S1",
+                                             "auto_simpl": False})
         self.assertEqual(s, 200)
         sid = n["session"]
         s, n = self.req("POST", "/step", {"session": sid, "node": "n0",

@@ -3,6 +3,10 @@
    Goal: Int[x = 0 .. 1] x*exp(x^2) == ?A *)
 problem stage0.S2.
 
+(* This lesson makes the moves auto-simpl would make after ftc, so it
+   is off. *)
+Unset Auto Simpl.
+
 (* The inner derivative is 2x, so F carries a 1/2. *)
 ftc exp(x^2)/2 by ring.
 

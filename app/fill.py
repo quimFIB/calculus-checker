@@ -51,7 +51,16 @@ def _args_computed(t):
             any(d for _, d in kids.values()))
 
 
-def filled(move, args, state):
+def not_constant(lhs):
+    """None when lhs is only constants, else what is not: an integral or
+    derivative, a variable, or a declared function. simpl's test, and
+    auto-simpl's trigger (AUTOSIMPL.md)."""
+    return ("an integral or a derivative" if any(trees(lhs)) else
+            f"the variable {', '.join(sorted(fv(lhs)))}" if fv(lhs) else
+            "a declared function" if _calls(lhs) else None)
+
+
+def filled(move, args, state, auto=False):
     """(move, args) as the kernel takes it: `simpl` becomes `close` with
     its value computed from state's goal, and anything else is unchanged.
     The value is the goal's left side in field's normal form, which evaluates literal
@@ -59,19 +68,23 @@ def filled(move, args, state):
     and collects like terms and nothing else; an entry still to
     apply (exp 1, sqrt 8) is left for E27 to name. The check becomes field
     when the value keeps a denominator ring cannot clear. Raises
-    TacticError when the left side is not a constant."""
+    TacticError when the left side is not a constant. With auto-simpl on
+    (`auto`, E162) a `simpl` whose goal passes that test stays `simpl`,
+    for the session to run AUTOSIMPL.md's chain."""
     if move != "simpl":
+        return move, args
+    if not state.goal:  # the kernel's proof-finished says it
         return move, args
     g = state.goal[0]
     lhs = g.lhs
-    what = ("an integral or a derivative" if any(trees(lhs)) else
-            f"the variable {', '.join(sorted(fv(lhs)))}" if fv(lhs) else
-            "a declared function" if _calls(lhs) else None)
+    what = not_constant(lhs)
     if not isinstance(g.rhs, MVar) or what:
         raise script.TacticError(
             "simpl computes the value of a goal that is only constants, "
             f"and this one has {what or 'no ?A to name'}; make the move "
             "that removes it first, or name the value with close T")
+    if auto:
+        return move, args
     try:
         value, den = _computed(lhs)
     except Refused as r:

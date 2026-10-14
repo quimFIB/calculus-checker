@@ -2,6 +2,10 @@
    Goal: Int[x = 0 .. 1] 3*x^2 + 2*x == ?A *)
 problem stage0.S1.
 
+(* Auto-simpl finishes a goal that is only constants by itself. It is
+   off for this lesson, so that you name the value yourself. *)
+Unset Auto Simpl.
+
 (* You propose F. The kernel differentiates it, checks F' against the
    integrand with ring, and replaces the integral by F(1) - F(0). *)
 ftc x^3 + x^2 by ring.

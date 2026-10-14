@@ -10,8 +10,7 @@ int_parts in x with u := x; v := exp x by ring.
    is the first Int, counted left to right. *)
 ftc exp x occurrence 0 by ring.
 
-(* A rewrite replaces every copy of its `at` term that is written
-   exactly the same: both exp 1 here, then both exp 0. *)
-rewrite exp_one at exp 1.
-rewrite exp_zero at exp 0.
-simpl.
+(* Only constants are left, and auto-simpl finishes: rewrite exp_one
+   at exp 1, then exp_zero at exp 0, then close 1. A rewrite replaces
+   every copy of its `at` term that is written exactly the same, so
+   each one takes both copies here. *)

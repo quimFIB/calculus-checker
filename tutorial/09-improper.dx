@@ -5,8 +5,7 @@ goal Int[x = 0 .. oo] exp(-x) == ?A.
    end and puts that limit in F(oo)'s place: here 0. *)
 int_improper -exp(-x) by ring.
 
-(* -0 - (-exp(-0)) == ?A. The `at` term is copied from the goal:
-   exp(-0). exp_zero's left side, exp 0, only has to equal it up to
-   ring, which it does. *)
-rewrite exp_zero at exp(-0).
-simpl.
+(* -0 - (-exp(-0)) == ?A, and auto-simpl finishes: rewrite exp_zero at
+   exp(-0), then close 1. The `at` term is the goal's own, exp(-0);
+   exp_zero's left side, exp 0, only has to equal it up to ring, which
+   it does. *)

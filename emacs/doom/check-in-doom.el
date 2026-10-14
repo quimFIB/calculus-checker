@@ -44,7 +44,7 @@
 
 (defun dxt-run ()
   (with-temp-file (expand-file-name "s1.dx" dxt-work)
-    (insert "(* readiness S1 *)\nproblem stage0.S1.\n\nftc x^3 + x^2 by ring.\nclose 2.\n"))
+    (insert "(* readiness S1 *)\nproblem stage0.S1. Unset Auto Simpl.\n\nftc x^3 + x^2 by ring.\nclose 2.\n"))
   (condition-case err
       (progn
         (dxt "module enabled" (modulep! :lang dx))

@@ -57,8 +57,13 @@ def document(sess):
             "path": list(getattr(sess, "path", ["n0"])),
             "max_rung": getattr(sess, "max_rung", 0),
             "evaluations": list(getattr(sess, "evaluations", [])),
+            "auto_simpl": sess.root().auto_simpl,
             "nodes": [{"node": n.id, "parent": n.parent, "move": n.move,
-                       "args": n.args, "retracted": n.retracted}
+                       "args": n.args, "retracted": n.retracted,
+                       **({"auto": [{"move": m, "args": a}
+                                    for m, a in n.auto]} if n.auto else {}),
+                       **({"auto_stopped": n.auto_stopped}
+                          if n.auto_stopped else {})}
                       for n in sess.nodes.values() if n.parent is not None],
             "saved": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
 
@@ -149,15 +154,24 @@ def replay(doc, sid, goal, sig, problem, assume=()):
     Replay). `goal`, `sig` and `problem` are the caller's: for a problem,
     its own file's, never the document's copy. Returns (session, resumed)
     where resumed is PERSIST.md's object. Raises session.Refusal when the
-    goal itself does not install."""
-    sess = S.Session(sid, goal, sig, problem, assume)
+    goal itself does not install.
+
+    E162: the session's auto-simpl setting is the document's
+    `auto_simpl`, and a document without one predates E162 and replays
+    with it off. Each node's recorded chain is applied exactly, never
+    recomputed (AUTOSIMPL.md)."""
+    sess = S.Session(sid, goal, sig, problem, assume,
+                     auto_simpl=doc.get("auto_simpl") is True)
     ids, dropped = {"n0": "n0"}, []
     retracted = []
     for n in doc.get("nodes", []):
         old, parent = n.get("node"), n.get("parent")
         move, args = n.get("move"), n.get("args")
+        auto = _auto(n.get("auto", []))
+        stopped = n.get("auto_stopped")
         if not (_is(old, str) and _is(parent, str) and _is(move, str)
-                and _is(args, dict)) or old in ids:
+                and _is(args, dict)) or old in ids or auto is None or not (
+                stopped is None or _is(stopped, str)):
             dropped.append({"node": old if _is(old, str) else None,
                             "move": move if _is(move, str) else None,
                             "code": "bad-node",
@@ -168,7 +182,7 @@ def replay(doc, sid, goal, sig, problem, assume=()):
                             "message": f"its parent {parent} did not replay"})
             continue
         try:
-            new = sess.step(ids[parent], move, args)
+            new = sess.step(ids[parent], move, args, auto, stopped)
         except S.Refusal as r:
             dropped.append({"node": old, "move": move, "code": r.code,
                             "message": r.message})
@@ -201,6 +215,15 @@ def replay(doc, sid, goal, sig, problem, assume=()):
                   "max_rung": sess.max_rung}
 
 
+def _auto(v):
+    """A node's recorded chain as [(move, args)], or None if malformed."""
+    if not _is(v, list) or not all(
+            _is(x, dict) and _is(x.get("move"), str)
+            and _is(x.get("args"), dict) for x in v):
+        return None
+    return [(x["move"], x["args"]) for x in v]
+
+
 def checked_prefix(sess, text, path):
     """The longest k such that sentence i of the script parses to node
     path[i+1]'s move and args, for every i < k, and none of those nodes is
@@ -210,8 +233,9 @@ def checked_prefix(sess, text, path):
         n = sess.nodes[nid]
         try:
             move, args = script.parse(sentence)
-            same = fill.filled(move, args, sess.nodes[n.parent].state) \
-                == (n.move, n.args)
+            parent = sess.nodes[n.parent]
+            same = fill.filled(move, args, parent.state,
+                               parent.auto_simpl) == (n.move, n.args)
         except script.TacticError:
             same = False
         if not same or n.retracted:

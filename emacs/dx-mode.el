@@ -413,6 +413,13 @@ fits the goals window; indented two spaces."
      (format "\nTheorem\n%s\n"
              (dx--term-block (plist-get n :theorem)
                              (plist-get n :theorem_2d))))
+   ;; AUTOSIMPL.md: the moves auto-simpl made after this one
+   (when (> (length (plist-get n :auto)) 0)
+     (format "\nAuto-simpl\n%s\n"
+             (mapconcat (lambda (s) (concat "  " s))
+                        (append (plist-get n :auto) nil) "\n")))
+   (when (stringp (plist-get n :auto_stopped))
+     (format "\nAuto-simpl stopped: %s\n" (plist-get n :auto_stopped)))
    (when (> (length (plist-get n :handles)) 0)
      (format "\nFacts: %s\n"
              (string-join (append (plist-get n :handles) nil) ", ")))
@@ -461,6 +468,7 @@ fits the goals window; indented two spaces."
   `((,(regexp-opt '("problem" "goal" "functions" "assuming") 'symbols)
      . font-lock-preprocessor-face)
     (,(regexp-opt dx-moves 'symbols) . font-lock-keyword-face)
+    ("\\_<\\(?:Uns\\|S\\)et Auto Simpl\\_>" . font-lock-keyword-face)
     (,(regexp-opt '("by" "using" "with" "at" "occurrence" "as" "from" "to"
                     "reverse" "in" "derivs" "increasing" "decreasing" "strictly" "scale"
                     "kinematic" "rate" "antiderivative" "range" "regs" "given"

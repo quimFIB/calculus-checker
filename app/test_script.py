@@ -36,7 +36,8 @@ class RoundTrip(unittest.TestCase):
                     results, _ = loader.replay(p, name)
                     want = K.report(results[-1][1]) \
                         if not isinstance(results[-1][1], K.Refusal) else None
-                    s, n = api.handle("POST", "/session", {"problem": pid})
+                    s, n = api.handle("POST", "/session", {
+                        "problem": pid, "auto_simpl": False})
                     for st in steps:
                         s, n = api.handle("POST", "/tactic", {
                             "session": n["session"], "node": n["node"],
@@ -140,7 +141,9 @@ class Syntax(unittest.TestCase):
                 self.assertEqual(script.show("simpl", args), shown)
 
     def close_route(self, header, steps):
-        s, n = api.handle("POST", "/session", {"header": header})
+        """E161's simpl: by hand, with auto-simpl off at n0 (E162)."""
+        s, n = api.handle("POST", "/session", {"header": header,
+                                               "auto_simpl": False})
         node, r = "n0", None
         for text in steps:
             s, r = api.handle("POST", "/tactic", {"session": n["session"],
@@ -193,7 +196,8 @@ class Syntax(unittest.TestCase):
                 self.assertIn("only constants", r["refusal"]["message"])
 
     def test_route_refuses_bad_tactic_and_adds_nothing(self):
-        s, n = api.handle("POST", "/session", {"problem": "stage0.S1"})
+        s, n = api.handle("POST", "/session", {"problem": "stage0.S1",
+                                               "auto_simpl": False})
         s, r = api.handle("POST", "/tactic", {"session": n["session"],
                                               "node": "n0", "text": "ftc."})
         self.assertEqual((s, r["refusal"]["code"]), (200, "bad-tactic"))

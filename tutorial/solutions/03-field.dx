@@ -2,4 +2,3 @@
 goal Int[x = 1 .. 2] (x^2 + 1)/x^2 == ?A.
 
 ftc x - 1/x by field.
-simpl.

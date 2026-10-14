@@ -198,15 +198,26 @@ def strip_sentence(text):
     return text
 
 
+# E162 (AUTOSIMPL.md): the setting's two sentences, matched exactly, and
+# the move `set` they parse to, which the session handles without a kernel
+SETTINGS = {"Set Auto Simpl": True, "Unset Auto Simpl": False}
+
+
 def parse(text):
     """One sentence -> (move, args). Raises TacticError."""
     text = strip_sentence(text)
     if not text:
         raise TacticError("an empty sentence")
+    if " ".join(text.split()) in SETTINGS:
+        return "set", {"auto_simpl": SETTINGS[" ".join(text.split())]}
     move, _, rest = text.partition(" ")
+    if move in ("Set", "Unset"):
+        raise TacticError(f"{move}: the one setting is Auto Simpl "
+                          f"(`{move} Auto Simpl.`)")
     if move not in FORMS:
         raise TacticError(f"{move!r} is not a move; the moves are "
-                          + ", ".join(FORMS))
+                          + ", ".join(FORMS)
+                          + ", and the sentences Set/Unset Auto Simpl")
     allowed, required = FORMS[move]
     try:
         head, cl = _clauses(rest.strip(), allowed)
@@ -345,6 +356,8 @@ def show(move, args):
     """(move, args) -> the canonical sentence, with its final '.'."""
     occ = (f" occurrence {args['occurrence']}"
            if "occurrence" in args else "")
+    if move == "set":
+        return ("Set" if args["auto_simpl"] else "Unset") + " Auto Simpl."
     if move in ("ftc", "int_improper"):
         s = f"{move} {args['F']}{occ}{_tail(args)}"
     elif move == "close":

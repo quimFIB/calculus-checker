@@ -2,4 +2,3 @@
 goal Int[x = 1 .. oo] 1/x^2 == ?A.
 
 int_improper -1/x by field.
-simpl.

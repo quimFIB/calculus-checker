@@ -103,6 +103,12 @@ Write roots with `sqrt`. `x^(1/2)` parses, but no rule differentiates a
 fractional power, so an antiderivative written that way is always
 refused.
 
+A real power whose exponent becomes a whole number, such as `2^x` at
+x = 1, prints as `rpow(2, 1)`, not `2^1`. The two differ: `rpow(2, 1)`
+is only defined because 2 > 0, while `2^1` is plain multiplication. The
+entry `rpow_int` turns one into the other and owes that condition.
+Auto-simpl applies it for you.
+
 A function's argument can go without brackets. It takes in a power but
 stops at `*`, `/`, `+` and `-`. `D[x]` reads its argument the same way,
 so bracket anything longer than one factor. **Parse echo** shows how
@@ -137,6 +143,7 @@ The rest of the notation:
 differentiates F by its rule table and compares F′ with the integrand
 using `ring`, which is algebra with `+ - *` and whole powers. If they
 agree, the integral becomes F(b) − F(a). `close V` names the value.
+This lesson turns **auto-simpl** off first, so that you name it.
 
 `tutorial/01-ftc.dx`:
 
@@ -144,6 +151,10 @@ agree, the integral becomes F(b) − F(a). `close V` names the value.
 (* Lesson 1. The whole loop: an integral, an antiderivative, a value.
    Goal: Int[x = 0 .. 1] 3*x^2 + 2*x == ?A *)
 problem stage0.S1.
+
+(* Auto-simpl finishes a goal that is only constants by itself. It is
+   off for this lesson, so that you name the value yourself. *)
+Unset Auto Simpl.
 
 (* You propose F. The kernel differentiates it, checks F' against the
    integrand with ring, and replaces the integral by F(1) - F(0). *)
@@ -153,13 +164,31 @@ ftc x^3 + x^2 by ring.
 close 2 by ring.
 ```
 
-Once the goal is only constants, as it is after `ftc` here, `simpl.`
-does the arithmetic for you and closes with the result, `?A := 2`. It
-is still a `close`: the computed value is checked as a typed one is.
-Later lessons finish with it whenever the goal ends as constants.
+Once the goal is only constants, as it is after `ftc` here, nothing is
+left but evaluating it. **Auto-simpl**, which is on unless you turn it
+off, does that by itself. So with it on, the proof is the `ftc` alone:
 
 ```dx
 problem stage0.S1.
+ftc x^3 + x^2 by ring.
+```
+
+The status pane lists what auto-simpl did, here `close 2 by ring.` It
+does the arithmetic, and applies the entries of lesson 2 that a value
+still needs, but never chooses a technique. Each of those steps is an
+ordinary move the kernel checks as if you had typed it, and if one
+fails, the goal is left as `ftc` left it. `Unset Auto Simpl.` turns it
+off from that point of the script, and `Set Auto Simpl.` turns it back
+on. Lessons 2 and 6 turn it off, because the moves it would make are
+what they teach.
+
+With it off, `simpl.` does the arithmetic when you ask, and closes with
+the result, `?A := 2`. It is still a `close`: the computed value is
+checked as a typed one is.
+
+```dx
+problem stage0.S1.
+Unset Auto Simpl.
 ftc x^3 + x^2 by ring.
 simpl.
 ```
@@ -214,6 +243,10 @@ known facts that take you there: `rewrite E at T` replaces the subterm
    Goal: Int[x = 0 .. 1] x*exp(x^2) == ?A *)
 problem stage0.S2.
 
+(* This lesson makes the moves auto-simpl would make after ftc, so it
+   is off. *)
+Unset Auto Simpl.
+
 (* The inner derivative is 2x, so F carries a 1/2. *)
 ftc exp(x^2)/2 by ring.
 
@@ -229,22 +262,28 @@ rewrite exp_zero at exp(0^2).
 simpl.
 ```
 
+With auto-simpl on, `ftc exp(x^2)/2.` alone proves this: auto-simpl
+makes these two rewrites and the `close` itself. They are the moves
+the refusals below would name, in the same order.
+
 Closing too early names the entry still to use:
 
 ```dx
 problem stage0.S2.
+Unset Auto Simpl.
 ftc exp(x^2)/2.
 close (exp 1 - exp 0)/2.
 (* refused: close-not-evaluated "exp 1 can still be evaluated (exp_one)" *)
 ```
 
-The response reads `exp 1 can still be evaluated (exp_one)`. `simpl` is
-no way round it. It does the literal arithmetic, inside a function's
-argument too, and nothing else: applying an entry is your move, and it
-names the one left the same way.
+The response reads `exp 1 can still be evaluated (exp_one)`. With
+auto-simpl off, `simpl` is no way round it. It does the literal
+arithmetic, inside a function's argument too, and nothing else: applying
+an entry is your move, and it names the one left the same way.
 
 ```dx
 problem stage0.S2.
+Unset Auto Simpl.
 ftc exp(x^2)/2.
 simpl.
 (* refused: close-not-evaluated "exp 1 can still be evaluated (exp_one)" *)
@@ -299,10 +338,9 @@ goal Int[x = 1 .. 2] (x + 1)/x == ?A.
    the obligations pane shows discharged from the range. *)
 ftc x + ln x by field.
 
-(* 2 + ln 2 - (1 + ln 1) == ?A. ln 1 is an entry's to evaluate;
-   after it simpl computes ln 2 + 1. *)
-rewrite ln_one at ln 1.
-simpl.
+(* That leaves 2 + ln 2 - (1 + ln 1) == ?A, only constants, and
+   auto-simpl finishes: it rewrites ln 1 by the entry ln_one, then
+   closes with ln 2 + 1. The status pane lists both moves. *)
 ```
 
 **Your turn:** `tutorial/exercises/03-field.dx`,
@@ -331,11 +369,9 @@ problem stage1.S2R.
    checks x*exp(x^2) == exp(x^2)/2 * 2x, that is f(u(x)) * u'(x). *)
 int_subst x := x^2 as u from 0 to 1 reverse exp(u)/2 by ring.
 
-(* Int[u = 0 .. 1] exp(u)/2 == ?A *)
+(* Int[u = 0 .. 1] exp(u)/2 == ?A. After ftc, auto-simpl makes
+   lesson 2's two rewrites and closes. *)
 ftc exp(u)/2 by ring.
-rewrite exp_one at exp 1.
-rewrite exp_zero at exp 0.
-simpl.
 ```
 
 **Your turn:** `tutorial/exercises/04-subst-reverse.dx`,
@@ -370,8 +406,7 @@ rewrite sqrt_sq with u := t at sqrt(1 - (1 - t^2)).
 (* The integrand is now (1 - t^2)*t*(-2t) = 2t^4 - 2t^2. *)
 ftc (2/5)*t^5 - (2/3)*t^3 by ring.
 
-(* Only constants left: simpl computes 4/15. *)
-simpl.
+(* Only constants left: auto-simpl computes 4/15 and closes. *)
 ```
 
 An entry with a condition (`sqrt_sq`: `sqrt(u^2) == u @ u >= 0`) is
@@ -416,6 +451,9 @@ and check by field using it.`
 (* Lesson 6. Facts: a known identity bound to a name and handed to a
    check. Goal: Int[x = 0 .. 1] sqrt(x + 1) == ?A *)
 goal Int[x = 0 .. 1] sqrt(x + 1) == ?A.
+
+(* The last two moves are ones auto-simpl would make, so it is off. *)
+Unset Auto Simpl.
 
 (* F = (2/3)(x + 1)^(3/2), written with sqrt. Its derivative has
    1/(2*sqrt(x + 1)) in it; clearing that divisor, field meets
@@ -477,7 +515,8 @@ close a^3/3 by ring.
 ```
 
 `simpl` computes only constants, so a value with a parameter in it is
-named with `close`:
+named with `close`. Auto-simpl, for the same reason, leaves this goal to
+you:
 
 ```dx
 goal Int[x = 0 .. a] x^2 == ?A @ a > 0.
@@ -500,8 +539,9 @@ A reversed range is legal. `int_flip` turns `Int[x = b .. a] e` into
 goal Int[x = 1 .. 0] 2*x == ?A.
 int_flip.
 ftc -(x^2).
-close -1.
 ```
+
+Auto-simpl closes it with `?A := -1`.
 
 **Your turn:** `tutorial/exercises/07-parameters.dx`,
 `goal Int[x = 0 .. a] 2*x + c == ?A @ a > 0.`
@@ -523,11 +563,10 @@ int_parts in x with u := x; v := exp x by ring.
    is the first Int, counted left to right. *)
 ftc exp x occurrence 0 by ring.
 
-(* A rewrite replaces every copy of its `at` term that is written
-   exactly the same: both exp 1 here, then both exp 0. *)
-rewrite exp_one at exp 1.
-rewrite exp_zero at exp 0.
-simpl.
+(* Only constants are left, and auto-simpl finishes: rewrite exp_one
+   at exp 1, then exp_zero at exp 0, then close 1. A rewrite replaces
+   every copy of its `at` term that is written exactly the same, so
+   each one takes both copies here. *)
 ```
 
 `occurrence N` works the same way wherever a move could apply at more than
@@ -549,11 +588,10 @@ goal Int[x = 0 .. oo] exp(-x) == ?A.
    end and puts that limit in F(oo)'s place: here 0. *)
 int_improper -exp(-x) by ring.
 
-(* -0 - (-exp(-0)) == ?A. The `at` term is copied from the goal:
-   exp(-0). exp_zero's left side, exp 0, only has to equal it up to
-   ring, which it does. *)
-rewrite exp_zero at exp(-0).
-simpl.
+(* -0 - (-exp(-0)) == ?A, and auto-simpl finishes: rewrite exp_zero at
+   exp(-0), then close 1. The `at` term is the goal's own, exp(-0);
+   exp_zero's left side, exp 0, only has to equal it up to ring, which
+   it does. *)
 ```
 
 **Your turn:** `tutorial/exercises/09-improper.dx`,
@@ -700,7 +738,8 @@ verify by field using h.
 |---|---|---|
 | `ftc F` | ∫ f → F(b) − F(a), checking F′ = f | 1 |
 | `close V` | names `?A`; V must be fully evaluated | 1, 2, 7 |
-| `simpl` | `close V` with V computed, once the goal is only constants | 1, 2, 6 |
+| `simpl` | `close V` with V computed, once the goal is only constants; with auto-simpl on, also the entries a value still needs | 1, 2, 6 |
+| `Set Auto Simpl`, `Unset Auto Simpl` | turn auto-simpl on (the default) or off: after a move that leaves only constants, it makes the evaluation moves and closes, each checked by the kernel | 1, 2, 6 |
 | `rewrite E at T` | replaces T by an entry | 2 |
 | `int_subst` | substitution, forward or `reverse` | 4, 5 |
 | `fact h := E` | binds an entry for `by field using h` | 6 |
@@ -728,8 +767,9 @@ A rewrite's `at T` is a subterm copied from the goal, and it replaces every
 copy written exactly the same way. When the entry's left side is a
 function applied to something, only the argument has to agree with `T`
 up to `ring`, so `exp_zero at exp(-0)` and `sqrt_sq with u := 1 at
-sqrt(0 + 1)` both work. Any other left side, such as the power
-`(cos u)^2`, must match `T` exactly.
+sqrt(0 + 1)` both work. A real power's base and exponent are matched the
+same way. Any other left side, such as the power `(cos u)^2`, must match
+`T` exactly.
 
 **Values**, for evaluating before `close`:
 
@@ -752,6 +792,11 @@ sqrt(0 + 1)` both work. Any other left side, such as the power
 | `cosh_zero` | `cosh 0 == 1` |
 | `tanh_zero` | `tanh 0 == 0` |
 | `atanh_zero` | `atanh 0 == 0` |
+
+**One family**, written with a whole number for `n`: `rpow_int` states
+`rpow(u, n) == u^n @ u > 0` for each n, as in `rewrite rpow_int with
+u := 2; n := 1 at rpow(2, 1)`. It turns a real power with a whole
+exponent into plain multiplication, and owes `u > 0`.
 
 **Identities**, to rewrite with or to hand to a check as a fact (all but
 `pyth`, whose left side is a sum):

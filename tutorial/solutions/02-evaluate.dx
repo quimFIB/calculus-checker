@@ -1,6 +1,8 @@
 (* Exercise 2: a solution. *)
 goal Int[x = 0 .. pi/2] cos x == ?A.
 
+(* By hand, as lesson 2: the evaluation is the exercise. *)
+Unset Auto Simpl.
 ftc sin x.
 rewrite sin_pi_half at sin(pi/2).
 rewrite sin_zero at sin 0.

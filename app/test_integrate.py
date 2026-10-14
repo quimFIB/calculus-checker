@@ -67,6 +67,17 @@ class Checker(unittest.TestCase):
                        {"status": "ok", "shapes": ["x^3 + x^2"],
                         "value": "2"})
         self.assertEqual((r["status"], r["value"]), ("proved", "2"))
+        # auto-simpl, on in a fresh script, closes the goal after ftc, so
+        # the evaluation moves are left out (AUTOSIMPL.md, E162)
+        self.assertEqual(r["sentences"], ["ftc x^3 + x^2 by ring."])
+
+    def test_by_hand_the_evaluation_moves_are_kept(self):
+        s = api.handle("POST", "/session", {"problem": "stage0.S1",
+                                            "auto_simpl": False})[1]
+        r = api.handle("POST", "/evaluate/check", {
+            "session": s["session"], "node": "n0",
+            "proposal": {"status": "ok", "shapes": ["x^3 + x^2"],
+                         "value": "2"}})[1]
         self.assertEqual(r["sentences"], ["ftc x^3 + x^2 by ring.",
                                           "close 2 by ring."])
 
@@ -138,7 +149,7 @@ class Checker(unittest.TestCase):
             self.assertEqual(t["evaluations"][0]["status"], "proved")
             doc = work.read(api.WORK_DIR, s["key"])
             self.assertEqual(doc["evaluations"][0]["sentences"],
-                             ["ftc x^3 + x^2 by ring.", "close 2 by ring."])
+                             ["ftc x^3 + x^2 by ring."])
             # nothing was added to the tree
             self.assertEqual(len(t["nodes"]), 1)
         finally:
@@ -224,7 +235,11 @@ class WithSympy(unittest.TestCase):
                                  ("proved", value), r)
                 self.assertEqual(replay(term + " == ?A", r["sentences"]),
                                  "Proved.")
-        r = ev({"term": "Int[x = 0 .. 1] 1/(1 + x^3)"})
+        # the planner's rewrites, by hand (auto-simpl would make them)
+        s = api.handle("POST", "/session", {
+            "goal": "Int[x = 0 .. 1] 1/(1 + x^3) == ?A", "functions": {},
+            "auto_simpl": False})[1]
+        r = ev({"session": s["session"], "node": "n0"})
         self.assertIn("rewrite atan_odd with u := -((2*0 - 1)/sqrt 3) at "
                       "atan((2*0 - 1)/sqrt 3).", r["sentences"])
 

@@ -224,6 +224,8 @@ class Entries(unittest.TestCase):
         self.assertEqual(set(names), set(entries.STATEMENTS))
         for name, stmt in rows:
             self.assertEqual(stmt, entries.STATEMENTS[name][0], name)
+        for name in entries.FAMILIES:  # E163, in prose: a family per n
+            self.assertIn(f"`{name}`", sec)
 
 
 class Gate(unittest.TestCase):

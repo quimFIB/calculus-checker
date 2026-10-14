@@ -9,8 +9,6 @@ problem stage1.S2R.
    checks x*exp(x^2) == exp(x^2)/2 * 2x, that is f(u(x)) * u'(x). *)
 int_subst x := x^2 as u from 0 to 1 reverse exp(u)/2 by ring.
 
-(* Int[u = 0 .. 1] exp(u)/2 == ?A *)
+(* Int[u = 0 .. 1] exp(u)/2 == ?A. After ftc, auto-simpl makes
+   lesson 2's two rewrites and closes. *)
 ftc exp(u)/2 by ring.
-rewrite exp_one at exp 1.
-rewrite exp_zero at exp 0.
-simpl.

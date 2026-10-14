@@ -18,7 +18,8 @@ def _work(pid, max_rung, proof=True):
     session, the reference proof as tactics when `proof`, and hints up to
     max_rung asked at the start, where the goal's integral is (a hint
     refused for want of one records nothing, API.md)."""
-    code, out = api.handle("POST", "/session", {"problem": pid})
+    code, out = api.handle("POST", "/session", {"problem": pid,
+                                                "auto_simpl": False})
     sid = out["session"]
     node = start = out["node"]
     if proof:

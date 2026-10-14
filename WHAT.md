@@ -298,6 +298,24 @@ the page quotes from each refusal. It also parses the terms tables, pins
 the entries tables to the kernel's, and refuses any example whose goal is
 a gate problem's with the variables renamed.
 
+**Auto-simpl finishes a constant goal** (`app/AUTOSIMPL.md`, p1_expected
+E162, 2026-10-14, the owner's ask: "a user wanting to actually see all
+the steps can turn it off"). After a move leaves only constants and
+`?A`, the app makes the evaluation rewrites E27 would name, in E27's
+order, mints the `field` facts that only the arithmetic exposes, and
+closes. Each step is an ordinary kernel move, listed under the goal. It
+is all or nothing and never adds an admission. It is on by default;
+`Unset Auto Simpl.` and `Set Auto Simpl.` in the script toggle it, and
+work files saved before it replay with it off. Lessons 1, 2 and 6 turn it
+off because they teach those moves. It never picks a technique, so the
+hint ladder and the gate's rung measure are unchanged, but the gate's
+problems would now be worked with it on unless a script turns it off.
+**D17's successor is built** (E163, the same day, to give auto-simpl no
+dead end). A real power whose exponent becomes a whole number is the
+term `rpow(u, n)`, and the entry family `rpow_int`, `rpow(u, n) == u^n @
+u > 0`, converts it, owing u > 0. `rewrite` matches a real power up to
+ring.
+
 **Next,** per §17: stage 1's lists are done (2026-09-25). The gate
 (`app/GATE.md`): work its seventeen problems in order on the page, then
 `python3 app/gate.py`. That is the owner's to run; nothing in it is

@@ -2,6 +2,9 @@
    check. Goal: Int[x = 0 .. 1] sqrt(x + 1) == ?A *)
 goal Int[x = 0 .. 1] sqrt(x + 1) == ?A.
 
+(* The last two moves are ones auto-simpl would make, so it is off. *)
+Unset Auto Simpl.
+
 (* F = (2/3)(x + 1)^(3/2), written with sqrt. Its derivative has
    1/(2*sqrt(x + 1)) in it; clearing that divisor, field meets
    (sqrt(x + 1))^2, an opaque square, so the check needs

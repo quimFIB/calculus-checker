@@ -13,6 +13,7 @@ import os
 import re
 import secrets
 
+import autosimpl
 import dx
 import pretty2d
 import script
@@ -112,9 +113,11 @@ def _assist(fn, *args):
 
 
 def _steps_to(sess, n):
+    """The rules on the path to n: every move, never a `set` (E162)."""
     k = 0
     while n.parent is not None:
-        n, k = sess.nodes[n.parent], k + 1
+        k += n.move != "set"
+        n = sess.nodes[n.parent]
     return k
 
 
@@ -142,7 +145,10 @@ def render(sess, n):
             "stuck": None if parent is None else _assist(
                 stuck.admitted, obs),
             "occurrences": st.last.occurrences,
-            "handles": sorted(n.handles), "retracted": n.retracted}
+            "handles": sorted(n.handles), "retracted": n.retracted,
+            "auto_simpl": n.auto_simpl,
+            "auto": autosimpl.sentences(n.auto),
+            "auto_stopped": n.auto_stopped}
 
 
 def refusal(r):
@@ -161,6 +167,8 @@ def _trial(sess, at, sentences):
     state, handles = at.state, dict(at.handles)
     for text in sentences:
         move, args = script.parse(text)
+        if move == "set":  # no kernel move (E162)
+            continue
         try:
             move, args = filled(move, args, state)
         except script.TacticError:
@@ -282,6 +290,7 @@ def _goal_of(body):
 def new_session(body):
     goal, sig, pid, assume = _goal_of(body)
     resume = _field(body, "resume", bool, optional=True) or False
+    auto = _field(body, "auto_simpl", bool, optional=True)  # E162: at n0
     k = work.key(pid, goal, sig, assume)
     sid = secrets.token_hex(8)
     resumed, old, unreadable = None, None, False
@@ -297,7 +306,8 @@ def new_session(body):
     if resume and old is not None:
         sess, resumed = work.replay(old, sid, goal, sig, pid, assume)
     else:
-        sess = S.Session(sid, goal, sig, pid, assume)
+        sess = S.Session(sid, goal, sig, pid, assume,
+                         auto_simpl=auto is not False)
         if old is not None:  # Start fresh: keep the old file, and its rung
             _aside(k, "prev")
             sess.max_rung = max(0, old.get("max_rung", 0))
@@ -457,7 +467,7 @@ def tactic(body):
     at = _node(sess, body)
     try:
         move, args = script.parse(_field(body, "text", str))
-        move, args = filled(move, args, at.state)
+        move, args = filled(move, args, at.state, at.auto_simpl)
     except script.TacticError as e:
         r = Refusal("bad-tactic", str(e))
         _explain(r, sess, at, None, None)
@@ -612,6 +622,8 @@ def _eval_step(sig):
         except script.TacticError as e:
             return None, {"code": "bad-tactic", "message": str(e),
                           "residual": None}
+        if move == "set":  # no kernel move (E162)
+            return (state, handles), None
         try:
             r = K.step(state, move, loader.step_args(args, handles, sig))
         except Refused as e:
@@ -688,6 +700,8 @@ def _trial_at(state, handles, sig, sentences):
     handles = dict(handles)
     for text in sentences:
         move, args = script.parse(text)
+        if move == "set":  # no kernel move (E162)
+            continue
         try:
             move, args = filled(move, args, state)
         except script.TacticError:
@@ -717,6 +731,27 @@ def _numeric(goal):
     finally:
         probe.TOL = old
     return {"value": v, "digits": probe.digits(v, w)}
+
+
+def _auto_cut(state, handles, sig, sentences):
+    """EVAL's sentences as the script should take them with auto-simpl on
+    (AUTOSIMPL.md): cut after the move whose chain closes the goal, since
+    the evaluation moves after it would be refused proof-finished. A
+    chain that stops keeps them all, as the goal is then left as is."""
+    for i, text in enumerate(sentences):
+        try:
+            move, args = filled(*script.parse(text), state)
+            new, handles = S.feed(state, handles, move, args, sig)
+        except (script.TacticError, Refusal):
+            return sentences
+        if S.Session._triggers(state, new):
+            try:
+                autosimpl.run(new, handles, lambda *a: S.feed(*a, sig))
+                return sentences[:i + 1]
+            except autosimpl.Stopped:
+                pass
+        state = new
+    return sentences
 
 
 def evaluate_check(body):
@@ -749,6 +784,9 @@ def evaluate_check(body):
                        message="SymPy's answer did not parse as a term")
         else:
             out.update(built)
+            if built["status"] == "proved" and n.auto_simpl:
+                out["sentences"] = _auto_cut(state, handles, sig,
+                                             built["sentences"])
             if built["status"] == "proved":
                 out["message"] = "Proved by the kernel."
             else:

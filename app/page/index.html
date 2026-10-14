@@ -1044,6 +1044,12 @@ async function showNode(id, viewing = false) {
   parts.push(el("div", { class: "report" + (n.report === "Proved." ? " proved" : ""), id: "report" }, n.report));
   if (n.goal) parts.push(el("label", {}, "Goal"), math(n.goal_tex, n.goal, "goal"));
   if (n.theorem) parts.push(el("label", {}, "Theorem"), math(n.theorem_tex, n.theorem, "theorem"));
+  // AUTOSIMPL.md: the moves auto-simpl made after this one, each kernel-checked
+  if (n.auto && n.auto.length)
+    parts.push(el("label", {}, "Auto-simpl"), el("div", { class: "mono", id: "auto" },
+      ...n.auto.map((s) => el("div", {}, s))));
+  if (n.auto_stopped)
+    parts.push(el("div", { class: "muted", id: "auto-stopped" }, `Auto-simpl stopped: ${n.auto_stopped}`));
   if (n.progress) {
     const good = ["finishable", "rule now matches", "technique named", "closed"].includes(n.progress.signal);
     parts.push(el("div", { class: "progress", id: "progress", title: "a heuristic, never a judgement about the proof" },
@@ -1090,6 +1096,7 @@ function paintStatus() {
   $("status-line").replaceChildren(`${S.title ?? ""} · ${n.node} · `,
     el("b", { id: "status-report" }, n.report),
     ` · ${n.admissions} admission${n.admissions === 1 ? "" : "s"} · assisted · ` +
+    `auto-simpl ${n.auto_simpl === false ? "off" : "on"} · ` +
     `max rung ${S.maxRung ?? 0} · ${n.steps} rule${n.steps === 1 ? "" : "s"} · `,
     el("b", {}, "0 machine-checked"),
     S.saved ? el("span", { id: "saved", class: S.saved.error ? "unsaved" : "" },

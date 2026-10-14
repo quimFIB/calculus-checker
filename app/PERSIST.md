@@ -33,8 +33,12 @@ app/page/index.html   Export, Import, Start fresh; saved state on the status lin
   "path": [str],                      -- node ids: the checked path, from n0
   "max_rung": int,
   "evaluations": [{ "node", "status", "value", "sentences" }],  -- EVAL.md
+  "auto_simpl": bool,                 -- the setting at n0 (E162); absent: off
   "nodes": [{ "node": str, "parent": str, "move": str, "args": {...},
-              "retracted": bool }],   -- every node but n0, parents first
+              "retracted": bool,
+              "auto": [{ "move", "args" }],   -- only when auto-simpl ran
+              "auto_stopped": str }],         -- only when it stopped
+                                      -- every node but n0, parents first
   "saved": str }                      -- ISO 8601 UTC, information only
 ```
 

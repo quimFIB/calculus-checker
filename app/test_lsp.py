@@ -22,7 +22,9 @@ from assist import integrate  # noqa: E402
 from session import loader  # noqa: E402
 
 URI = "file:///work/a.dx"
-S1 = "problem stage0.S1.\nftc x^3 + x^2 by ring.\nclose 2.\n"
+# by hand (E162), on the header's line so every position stays put
+S1 = ("problem stage0.S1. Unset Auto Simpl.\nftc x^3 + x^2 by ring.\n"
+      "close 2.\n")
 SLOW = ("close pi*sqrt 3/9 + (x + y + z + w + 1)^24 "
         "- (x + y + z + w + 1)^24.")
 
@@ -189,9 +191,11 @@ class Lsp(unittest.TestCase):
                          {"line": 2, "character": 8})
         g = c.goals(3)
         self.assertEqual((g["report"], g["checked"]), ("Proved.", True))
-        # inside the first tactic: the header's goal, still unproved
+        # inside the first tactic: the header's goal, still unproved, at
+        # the node of the header line's `Unset Auto Simpl.` (E162)
         g = c.goals(1, 3)
-        self.assertEqual(g["node"], "n0")
+        self.assertEqual((g["node"], g["move"], g["report"]),
+                         ("n1", "set", "Open: Int[x = 0 .. 1] 3*x^2 + 2*x == ?A"))
         self.assertEqual(c.close(), 0)
 
     def test_a_refusal_is_an_error_and_its_code_action_fixes_it(self):
@@ -359,7 +363,7 @@ class Lsp(unittest.TestCase):
         h = c.ask("dx/hint", {"textDocument": {"uri": URI},
                               "position": {"line": 1, "character": 0},
                               "rung": 1})
-        self.assertEqual(h["node"], "n0")
+        self.assertEqual(h["node"], "n1")  # the header line's Unset (E162)
         self.assertNotIn("error", h)
 
     @unittest.skipIf(integrate.find_python() is None, "no SymPy")
@@ -370,7 +374,7 @@ class Lsp(unittest.TestCase):
         r = c.ask("dx/evaluate", {"textDocument": {"uri": URI},
                                   "position": {"line": 1, "character": 0}})
         self.assertEqual((r["status"], r["value"], r["node"]),
-                         ("proved", "2", "n0"))
+                         ("proved", "2", "n1"))  # the header line's Unset
         r = c.ask("dx/evaluate", {"textDocument": {"uri": URI},
                                   "term": "Int[x = 0 .. pi] sin x"})
         self.assertEqual((r["status"], r["value"]), ("proved", "2"))

@@ -57,8 +57,18 @@ without `?A` (order goals, `verify`).
 
 **A typed `simpl.`** With the setting **on**, it runs the same chain from
 its own node, with no move before it, and the node records the move
-`simpl` (not `close`). With the setting **off**, `simpl.` is E161's,
-unchanged: the arithmetic, then a typed `close` that E27 checks.
+`simpl` (not `close`). Facts it names with `using h` are added to the
+chain's `close`, which is then `by field`. If the chain cannot close, the
+sentence is refused `simpl-stopped` with the reason, and adds nothing.
+With the setting **off**, `simpl.` is E161's, unchanged: the arithmetic,
+then a typed `close` that E27 checks.
+
+**For clients.** `POST /session` takes `auto_simpl: false` to install
+with the setting off at `n0`, for clients that replay moves by hand (the
+test suites, the gate's replays). It is the same setting a pre-E162
+document gets. **EVAL's Insert** (EVAL.md) leaves out the moves after the
+one whose chain closes the goal at that node, since with the setting on
+they would be refused `proof-finished`.
 
 ## The chain
 
@@ -100,7 +110,8 @@ name not already bound on the path.
 minted, `using` them, or when a denominator stays, as for `simpl`.
 
 **Bounds.** At most 32 rewrites and 8 facts. Past either, the chain stops
-with "gave up".
+with "gave up". Any exception inside the chain (the normaliser's
+`power-too-large`, say) stops it too, so the move before it stands (E164).
 
 ### All or nothing
 
@@ -128,9 +139,13 @@ stops.
   still matches the script sentence by sentence.
 - **Work document.** Each node saves `"auto": [{"move", "args"}, ...]` and
   `"auto_stopped"` when they are set. Replay applies the recorded steps
-  after the move, **never recomputing them**. A recorded chain that no
-  longer replays drops its node with code `auto-replay`, as a refused move
-  is dropped.
+  after the move, **never recomputing them**, and holds them to the rules
+  a live chain keeps (E164): only `rewrite`, `fact` and `close`; no
+  admission added; the goal closed at the end; a chain only where the
+  setting is on and the trigger holds; a `simpl` node never without one.
+  A chain that breaks any of these, or no longer replays, drops its node
+  with code `auto-replay`, as a refused move is dropped. So a work file
+  cannot put a chain on the page that auto-simpl would not have run.
 - **API.** `render` adds:
   - `auto_simpl`: true or false;
   - `auto`: the steps as script sentences (`script.show`);
@@ -141,8 +156,9 @@ stops.
 - **Emacs.** The goals buffer shows the same lines (`dx-mode.el`), and
   `Set` and `Unset` are highlighted as moves.
 - **A sentence after the goal was closed.** The kernel refuses it
-  `proof-finished`, as before. When auto-simpl closed the goal, the
-  message adds: "auto-simpl closed this goal after the previous move; put
+  `proof-finished`, as before; so is a `Set`, `Unset` or `simpl`
+  sentence there (E164). When auto-simpl closed the goal after a move
+  (not a typed `simpl`), the message adds: "auto-simpl closed this goal after the previous move; put
   `Unset Auto Simpl.` before that move to make these moves yourself".
 
 ## Limits, stated

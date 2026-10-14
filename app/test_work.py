@@ -34,9 +34,10 @@ class Work(unittest.TestCase):
                                         "text": text})
 
     def build(self):
-        """S1 with a dead end, a fact, a hint and a script."""
+        """S1 with a dead end, a fact, a hint and a script, by hand
+        (auto-simpl off at n0, E162)."""
         s = call("POST", "/session", {"problem": "stage0.S1",
-                                      "resume": True})
+                                      "resume": True, "auto_simpl": False})
         sid = s["session"]
         dead = self.tac(sid, "n0", "ftc x^3 + x^2 by ring.")["node"]
         call("POST", "/retract", {"session": sid, "node": dead})
@@ -88,7 +89,7 @@ class Work(unittest.TestCase):
         self.assertEqual(set(doc), {"format", "version", "problem", "goal",
                                     "functions", "script", "path",
                                     "max_rung", "evaluations", "nodes",
-                                    "saved"})
+                                    "saved", "auto_simpl"})
         for n in doc["nodes"]:
             self.assertEqual(set(n), {"node", "parent", "move", "args",
                                       "retracted"})
@@ -153,7 +154,7 @@ class Work(unittest.TestCase):
 
     def test_simpl_matches_its_close_node(self):
         s = call("POST", "/session", {"problem": "stage0.S1",
-                                      "resume": True})
+                                      "resume": True, "auto_simpl": False})
         sid = s["session"]
         a = self.tac(sid, "n0", "ftc x^3 + x^2 by ring.")["node"]
         b = self.tac(sid, a, "simpl.")["node"]

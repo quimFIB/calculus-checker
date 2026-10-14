@@ -3,8 +3,3 @@ goal Int[x = 0 .. pi] x*sin x == ?A.
 
 int_parts in x with u := x; v := -cos x.
 ftc -sin x occurrence 0.
-rewrite cos_pi at cos pi.
-rewrite cos_zero at cos 0.
-rewrite sin_pi at sin pi.
-rewrite sin_zero at sin 0.
-simpl.

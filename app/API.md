@@ -95,6 +95,19 @@ back as refusals). A problem's Γ is its file's. `/session` and `/import`
 answer with `assumptions`, one line per item, which a client shows beside
 the goal: the theorem is the goal under them.
 
+Every form also takes `auto_simpl: false`, which installs the goal with
+auto-simpl off at `n0` (AUTOSIMPL.md, p1_expected E162). It is on
+otherwise. A learner turns it on and off with the script's `Set` and
+`Unset Auto Simpl.`; the field is for clients that replay moves by hand,
+such as the test suites and the gate. Every rendered node carries
+`auto_simpl` (the setting after it), `auto` (the moves auto-simpl made
+after its move, as script sentences) and `auto_stopped` (why a chain
+that ran did not close the goal, or null). `/step` takes the move `set`,
+args `{auto_simpl: bool}`, as `/tactic` takes the sentences. With the
+setting on, a typed `simpl` whose chain cannot close is refused
+`simpl-stopped`. `/evaluate`'s `sentences` leave out the evaluation
+moves that auto-simpl would make at that node.
+
 ```
 POST /step     {session, node, move, args}               -> the new node | refusal
 POST /retract  {session, node}         -> the parent node
