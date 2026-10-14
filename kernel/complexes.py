@@ -16,7 +16,7 @@ field keys by w's own split.
 
 from terms import (Add, App, Branch, Call, Const, CVar, Deriv, Div, Integral,
                    Interval, MVar, Mul, Neg, NonZero, Num, Pow, Refused, Reg,
-                   Rel, RPow, Term, Var, children, sort_of)
+                   Rel, RPow, Term, Var, children, sort_of, statable, trees)
 
 I = Const("i")
 _COMPLEX_APPS = frozenset(("re", "im", "conj"))
@@ -107,7 +107,22 @@ def _zero(t):
 def split(t):
     """(re, im) of a term of either sort, each a real Term or None for
     zero (E167). Raises Refused 'complex-unsplit' on a node no K1 rule
-    covers, which check_goal's sort rules keep from arising."""
+    covers, which check_goal's sort rules keep from arising.
+
+    E182 (the K2 review): an unstatable Int (an infinite limit, or a limit
+    holding an Int or D) is refused 'Int-or-D-not-normalisable' here,
+    before anything is split, because a part that re, im or a factor i
+    discards would otherwise take it out of sight of field's E26 (b)
+    check: im(Int[x = 0 .. oo] 1) == 0 proved."""
+    for node in trees(t):
+        if isinstance(node, Integral) and not statable(node):
+            raise Refused("Int-or-D-not-normalisable", "an improper "
+                          "integral is not a value the kernel can split "
+                          "(E26 (b), E182)")
+    return _split(t)
+
+
+def _split(t):
     k = type(t)
     if k is Const and t.name == "i":
         return (None, Num(1))
@@ -116,29 +131,36 @@ def split(t):
     if not has_complex(t):
         return (t, None)
     if k is Neg:
-        a, b = split(t.a)
+        a, b = _split(t.a)
         return (_neg(a), _neg(b))
     if k is Add:
-        (a, b), (c, d) = split(t.a), split(t.b)
+        (a, b), (c, d) = _split(t.a), _split(t.b)
         return (_add(a, c), _add(b, d))
     if k is Mul:
-        return _pmul(split(t.a), split(t.b))
+        return _pmul(_split(t.a), _split(t.b))
     if k is Div:
-        return _pdiv(split(t.a), split(t.b))
+        return _pdiv(_split(t.a), _split(t.b))
     if k is Pow:
-        x = split(t.base)
+        x = _split(t.base)
         if t.n == 0:
             return (Num(1), None)
         if t.n > 0:
             return _ppow(x, t.n)
         return _pdiv((Num(1), None), _ppow(x, -t.n))
     if k is RPow:  # base Real (D20); a Complex exponent: exp(e*ln b)
-        return split(App("exp", Mul(t.exp, App("ln", t.base))))
+        return _split(App("exp", Mul(t.exp, App("ln", t.base))))
     if k is App:
         return _split_app(t)
     if k is Branch:
         return _split_branch(t)
-    if k in (Call, Integral, Deriv, MVar, Var, Num, Const):
+    if k is Integral:  # E176: linearity, for the Real variable
+        a, b = _split(t.body)
+        return tuple(None if p is None else Integral(t.var, t.lo, t.hi, p)
+                     for p in (a, b))
+    if k is Deriv:  # E176: D[x] of each part, x Real
+        a, b = _split(t.body)
+        return tuple(None if p is None else Deriv(t.var, p) for p in (a, b))
+    if k in (Call, MVar, Var, Num, Const):
         raise Refused("complex-unsplit", f"no K1 rule splits {type(t).__name__}")
     raise Refused("complex-unsplit", f"not a term: {t!r}")
 
@@ -146,13 +168,13 @@ def split(t):
 def _split_app(t):
     fn = t.fn
     if fn == "re":
-        return (_real(split(t.arg)[0]), None)
+        return (_real(_split(t.arg)[0]), None)
     if fn == "im":
-        return (_real(split(t.arg)[1]), None)
+        return (_real(_split(t.arg)[1]), None)
     if fn == "conj":
-        a, b = split(t.arg)
+        a, b = _split(t.arg)
         return (a, _neg(b))
-    a, b = split(t.arg)
+    a, b = _split(t.arg)
     if b is None:  # a real argument holding complex structure: re z, abs z
         return (App(fn, _real(a)), None)
     if fn == "abs":  # the modulus
@@ -186,10 +208,10 @@ def _split_branch(t):
     if t.fn == "arg":  # an opaque real atom
         return (t, None)
     if t.fn == "log":  # ln(a^2 + b^2)/2 + i arg[theta] w
-        return (Div(App("ln", _norm2(split(t.arg))), Num(2)),
+        return (Div(App("ln", _norm2(_split(t.arg))), Num(2)),
                 Branch("arg", t.theta, t.arg))
     # sqrt[theta] w = exp(log[theta](w)/2)
-    return split(App("exp", Div(Branch("log", t.theta, t.arg), Num(2))))
+    return _split(App("exp", Div(Branch("log", t.theta, t.arg), Num(2))))
 
 
 def join(pair):
@@ -212,7 +234,7 @@ def realify(t):
     if sort_of(t) != "R":
         raise Refused("complex-key", "a complex term where a real one is "
                       "needed")
-    return _real(split(t)[0])
+    return _real(_split(t)[0])
 
 
 # -- judgements (E168): every key and domain the kernel decides is real
@@ -225,17 +247,20 @@ def realify_judgement(j):
     dom = realify_dom(j.dom)
     if isinstance(j, Rel):
         if j.op == "==" and "C" in (sort_of(j.lhs), sort_of(j.rhs)):
-            (a, b), (c, d) = split(j.lhs), split(j.rhs)
+            (a, b), (c, d) = _split(j.lhs), _split(j.rhs)
             return (Rel("==", _real(a), _real(c), dom),
                     Rel("==", _real(b), _real(d), dom))
         return (Rel(j.op, realify(j.lhs), realify(j.rhs), dom),)
     if isinstance(j, NonZero):
         if sort_of(j.e) == "C":
-            a, b = split(j.e)
+            a, b = _split(j.e)
             return (NonZero(_real(_norm2((a, b))) if b is not None
                             else _real(a), dom),)
         return (NonZero(realify(j.e), dom),)
     if isinstance(j, Reg):
+        if sort_of(j.e) == "C":  # E178: both parts C^k
+            a, b = _split(j.e)
+            return (Reg(_real(a), j.k, dom), Reg(_real(b), j.k, dom))
         return (Reg(realify(j.e), j.k, dom),)
     raise Refused("complex-key", f"not a judgement: {j!r}")
 

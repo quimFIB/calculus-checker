@@ -47,7 +47,10 @@ from dataclasses import dataclass
 from types import MappingProxyType
 
 from terms import (Add, App, Div, Mul, Neg, NonZero, Num, Pow, Refused, Rel,
-                   Var, fv, lit, show, trees, with_domain)
+                   Var, fv, lit, show, sort_of, trees, with_domain)
+
+# E177: the builtins whose rules hold for a complex-valued u(x), x Real
+HOLOMORPHIC = frozenset(("exp", "sin", "cos", "tan", "sinh", "cosh", "tanh"))
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,6 +199,13 @@ def deriv(F, x, dom):
         if isinstance(t, Pow) and t.n != 0:
             fire("d_pow_int", t, (NonZero(t.base),) if t.n < 0 else ())
             return Mul(Mul(lit(t.n), Pow(t.base, t.n - 1)), walk(t.base))
+        if isinstance(t, App) and t.fn in ("re", "im", "conj"):
+            fire("d_" + t.fn, t)  # E177: they commute with D[x], x Real
+            return App(t.fn, walk(t.arg))
+        if isinstance(t, App) and t.fn not in HOLOMORPHIC and \
+                sort_of(t.arg) == "C":  # E177: a real-only rule, complex u
+            raise Refused("deriv-no-rule", f"{t.fn} of a complex argument "
+                          "is not differentiated here (COMPLEX.md)")
         rule = APP_RULES.get(t.fn) if isinstance(t, App) else None
         if rule is not None:
             slot = len(trace)

@@ -513,11 +513,12 @@ def sort_of(t):
         if "C" in [sort_of(x) for x in t.args]:
             raise Refused("sort-real-only", f"{t.fn} takes real arguments")
         return "R"
-    if k in (Integral, Deriv):  # D20: nothing complex inside, until K2
-        if not _complex_free(t):
-            raise Refused("complex-calculus-not-built", "calculus on complex "
-                          "terms is stage K2 (COMPLEX.md)")
-        return "R"
+    if k in (Integral, Deriv):  # E176: a Real variable; limits Real, body any
+        for e in _finite(*((t.lo, t.hi) if k is Integral else ())):
+            if sort_of(e) == "C" or not _complex_free(e):
+                raise Refused("complex-calculus-not-built", "an integral's "
+                              "limits are real")
+        return sort_of(t.body)
     return "R"
 
 
@@ -556,10 +557,8 @@ def check_sorts(j):
                           "terms: write re, im or abs of a complex one")
     elif isinstance(j, NonZero):
         sort_of(j.e)
-    elif isinstance(j, Reg):
-        if sort_of(j.e) == "C" or not _complex_free(j.e):
-            raise Refused("complex-calculus-not-built", "regularity of a "
-                          "complex term is stage K2 (COMPLEX.md)")
+    elif isinstance(j, Reg):  # E176/E178: a complex term's parts are C^k
+        sort_of(j.e)
     for it in j.dom:
         if isinstance(it, Interval):
             for e in _finite(it.lo, it.hi):
@@ -623,6 +622,8 @@ def _var_sorts(x):
             cplx.add(t.name)
         elif isinstance(t, Var):
             real.add(t.name)
+        elif isinstance(t, (Integral, Deriv, Interval)):  # binders are Real
+            real.add(t.var)
         todo.extend(_kids(t))
     return real, cplx
 
@@ -1036,6 +1037,9 @@ class _Parser:
         if tok[1] != "D":
             return App(tok[1], self.operand())
         self.expect("[")
+        if self.is_kind("cvar"):  # E176: D[z] is K3's
+            self.fail("complex-calculus-not-built", f"D[{self.peek()[1]}] "
+                      "in a complex variable is stage K3 (COMPLEX.md)")
         v = self.var()[1]
         self.expect("]")
         return Deriv(v, self.operand())

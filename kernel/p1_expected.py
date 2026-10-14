@@ -17190,8 +17190,10 @@ K1_CASES = {
         ("log[x] z", "branch-not-constant"),
         ("log[i] z", "branch-not-constant"),
         ("log z", "reserved-hint"),
-        ("Int[x = 0 .. 1] exp(i*x)", "complex-calculus-not-built"),
-        ("D[x] (i*x)", "complex-calculus-not-built"),
+        # complex inside Int and D[x] was refused here until K2 (E176
+        # lifts it; K2_CASES has the calculus); D[z] stays refused (K3)
+        ("Int[x = 0 .. abs(i)] x", "complex-calculus-not-built"),
+        ("D[z] z", "complex-calculus-not-built"),
     ],
     # (goal, sentences, report or refusal code); sentences in SCRIPT.md
     # syntax, by hand (auto-simpl off)
@@ -17230,8 +17232,10 @@ K1_CASES = {
         ("tanh(1)*0 == ?A", ["close 0 by ring"], "Proved."),
         ("x == ?A @ x in [0, abs z]", [], "complex-calculus-not-built"),
         ("log[abs(i)] z == ?A", [], "branch-not-constant"),
+        # E176 lifted this K1 refusal: a complex integrand in a real
+        # variable is K2's, so the goal installs
         ("Int[x = 0 .. 1] re(exp(i*x)) == ?A", [],
-         "complex-calculus-not-built"),
+         "Open: Int[x = 0 .. 1] re(exp(i*x)) == ?A"),
     ],
     # split checked numerically: each pair at 200 random points of each
     # variable, |split(t) - (Re t, Im t)| < 1e-9 relative
@@ -17262,7 +17266,10 @@ DECISIONS_COMPLEX_K2 = {
             "d_mul, d_inv, route_div, d_pow_int, and the App rules for "
             "exp, sin, cos, tan, sinh, cosh and tanh, which are "
             "holomorphic and compose with u by the chain rule; their side "
-            "conditions are realified where they are emitted (E168). New: "
+            "conditions are realified where they are emitted (E168). "
+            "(E182: tan has no rule in APP_RULES yet, so D[x] of a tan is "
+            "refused deriv-no-rule; a rule, when added, owes cos u # 0.) "
+            "New: "
             "d_re, d_im, d_conj, D[x] re u == re(D[x] u) and so on. Every "
             "other App rule (ln, sqrt, abs, asin, ...) on a Complex "
             "argument is refused deriv-no-rule (abs of a Complex u is the "
@@ -17278,16 +17285,45 @@ DECISIONS_COMPLEX_K2 = {
             "(re G)^2 + (im G)^2 -> 0 then G -> 0. The sum of squares may "
             "first be reduced by field with pyth_cos at each cos atom "
             "(the entry, so the reduction is a proved equality), and the "
-            "existing evaluator reads the result. Sums, negation, and "
-            "products or quotients by an x-free factor combine finite "
-            "limits. int_improper uses it for an F holding complex "
-            "structure; an infinite part refuses as before.",
+            "existing evaluator reads the result. Sums, negation, "
+            "products and quotients (owing the divisor's limit # 0) "
+            "combine finite limits, as over R. int_improper uses it for "
+            "an F holding complex structure; a part with an infinite "
+            "limit makes F's limit infinite, refused "
+            "int-improper-diverges as over R (E182).",
     "E180": "K2's cases (K2_CASES): an Int of exp(i*t), of exp(2*i*x) "
             "over a period, the improper Int of exp((-1+i)*x), and "
             "Int_0^oo exp(-x)*sin x through im of it, which closes "
             "WHAT.md's open gap ('e^-x sin x needs a squeeze law'); verify "
-            "on exp(i*w*t) and on re of a complex solution of x'' + x = 0 "
-            "(unit 06 P2's ker L).",
+            "on exp(i*w*t), and on exp(i*t) as a solution of x' = i*x with "
+            "its real part (E182: the second-order x'' + x = 0 first "
+            "written here is out of verify's reach, which refuses a D "
+            "inside a D, verify-nested-D; first-order cases replace it).",
+    "E181": "Periodicity, found by K2's own case: the integral of "
+            "exp(2*i*x) over [0, 2*pi] was proved but left as sin(4*pi) "
+            "and cos(4*pi), which no entry evaluated. The general fix, "
+            "not a value entry: the families sin_period and cos_period, "
+            "sin(u + 2*pi*k) == sin u and cos(u + 2*pi*k) == cos u for an "
+            "integer literal k, true for every u, Real or Complex. E27 (a) "
+            "counts one at sin or cos of q*pi with q rational outside "
+            "(-1, 1] (schema.period_shift), and auto-simpl rewrites it to "
+            "u := (q - 2k)*pi in that interval, where sin_zero, sin_pi and "
+            "the rest finish.",
+    "E182": "The K2 review (2026-10-14), folded in. Blocking, from K1: "
+            "split dropped the part re, im or a factor i discards, so an "
+            "unstatable improper Int inside one vanished before field's "
+            "E26 (b) check, and im(Int[x = 0 .. oo] 1) == 0 proved with "
+            "no admission (likewise re(Int[x = 0 .. oo] i*exp(x)) == 0). "
+            "split now refuses an unstatable Int at its entry. Should-fix: "
+            "a part with an infinite limit makes a complex limit infinite "
+            "(int-improper-diverges, as over R); E177's tan and E179's "
+            "products are stated as built; K2_CASES' two second-order "
+            "verify cases, changed after the spec was committed because "
+            "verify refuses a nested D, are recorded in E180. Minor: "
+            "period_shift declines a k past MAX_FAMILY_LITERAL, "
+            "auto-simpl writes u := 0 or pi plainly, the D[t] refusal "
+            "names its variable, and _reduced owes its divisors on both "
+            "paths. K2_CASES' review list pins the blocker and the gaps.",
 }
 
 K2_SIG = {"z": "complex"}
@@ -17295,9 +17331,9 @@ K2_CASES = {
     # kernel-only, by hand: (goal, sentences, report or refusal code)
     "proofs": [
         ("D[t] exp(i*w*t) == i*w*exp(i*w*t)", ["verify by ring"], "Proved."),
-        ("D[t](D[t] exp(i*t)) + exp(i*t) == 0", ["verify by ring"],
-         "Proved."),
-        ("D[t](D[t] re(exp(i*t))) + re(exp(i*t)) == 0", ["verify by field"],
+        # first order: verify takes no D inside a D (verify-nested-D)
+        ("D[t] exp(i*t) - i*exp(i*t) == 0", ["verify by ring"], "Proved."),
+        ("D[t] re(exp(i*t)) + im(exp(i*t)) == 0", ["verify by ring"],
          "Proved."),
         ("D[t] conj(exp(i*t)) == -(i*conj(exp(i*t)))", ["verify by ring"],
          "Proved."),
@@ -17316,6 +17352,19 @@ K2_CASES = {
         ("exp((-2 + 3*i)*x) + 1/x", "x", 1, "0"),
         ("exp(i*x)", "x", 1, "NoLimit"),
         ("i + 1/x", "x", 1, "i"),
+    ],
+    # E182: the review's cases, (goal, sentences, report or code)
+    "review": [
+        ("im(Int[x = 0 .. oo] 1) == 0", ["verify by ring"],
+         "Int-or-D-not-normalisable"),
+        ("re(Int[x = 0 .. oo] i*exp(x)) == ?A", ["close 0 by ring"],
+         "Int-or-D-not-normalisable"),
+        ("im(Int[x = 0 .. oo] sin x) + 1 == ?A", ["close 1 by ring"],
+         "Int-or-D-not-normalisable"),
+        ("Int[t = -1 .. 1] 1/(t^2 + i*t) == ?A", ["ftc t by field"],
+         "obligation-decided-false"),
+        ("Int[x = 0 .. oo] exp(x)*i == ?A",
+         ["int_improper exp(x)*i by ring"], "int-improper-diverges"),
     ],
     # through the app, auto-simpl closing: (goal, first move, value)
     "integrals": [

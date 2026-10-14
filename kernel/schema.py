@@ -112,6 +112,8 @@ def evaluated_offence(value):
                 return "a", s, e.name
         if rpow_int_exponent(s) is not None:
             return "a", s, "rpow_int"
+        if period_shift(s) is not None:  # E181
+            return "a", s, f"{s.fn}_period"
     for s, _ in nodes:
         if not fv(s) and not complexes.real_form(s) and not _rect(s):
             return "c", s, "parts"
@@ -218,6 +220,29 @@ def rpow_int_exponent(s):
         return None
     q = p.get((), Fraction(0))
     return int(q) if q.denominator == 1 else None
+
+
+def period_shift(s):
+    """E181: (q, k) when s is sin or cos of q*pi, q rational outside
+    (-1, 1], and k the integer that brings q - 2k into (-1, 1]; else
+    None. sin_period or cos_period at u := (q - 2k)*pi then applies."""
+    if type(s) is not App or s.fn not in ("sin", "cos"):
+        return None
+    try:
+        (p,), atoms = _ring(s.arg)
+    except Refused:
+        return None
+    if len(p) != 1:
+        return None
+    (mono, q), = p.items()
+    if len(mono) != 1 or mono[0][1] != 1 or atoms[mono[0][0]] != Const("pi"):
+        return None
+    if -1 < q <= 1:
+        return None
+    k = -((-(q - 1)) // 2)  # the least k with q - 2k <= 1
+    if abs(k) > entries.MAX_FAMILY_LITERAL:  # a k no rewrite would take
+        return None
+    return q, int(k)
 
 
 def _tree_match(pat, t, schema, bound):

@@ -20,8 +20,10 @@ lim(t, x, s, sign) -> (value, sides)
   in sides. Raises NoLimit when no rule applies. Never guesses.
 """
 
+import complexes
+import field as FD
 from terms import (Add, App, Const, Div, Mul, Neg, NonZero, Num, Pow, Rel,
-                   Term, Var, fv, lit, trees)
+                   Term, Var, fv, lit, sort_of, trees)
 from field import rational_value, ring_equal
 
 POS, NEG = "+oo", "-oo"
@@ -72,7 +74,7 @@ def lim(t, x, s, sign):
     if not isinstance(t, Term) or any(True for _ in trees(t)):
         raise NoLimit("an Int or D node")
     ctx = _Ctx(x, s, sign)
-    value = _lim(t, ctx)
+    value = _lim_c(t, ctx) if complexes.has_complex(t) else _lim(t, ctx)
     return value, tuple(ctx.sides)
 
 
@@ -241,3 +243,123 @@ def _app(fn, a, ctx):
         ctx.sides.append(Rel(">=", a, Num(0)))
         return App(fn, a)
     raise NoLimit(f"no limit law for {fn}")
+
+
+# ---------------------------------------------------------------- over C
+#
+# p1_expected E179. The real evaluator never sees complex structure: it
+# would read i as an unknown real constant. Every law below is a textbook
+# limit law over C, for a finite limit; an infinite part is NoLimit.
+
+def _zero(v):
+    try:
+        return FD.ring_is_zero(v)
+    except Exception:  # noqa: BLE001 -- not known zero: kept as it is
+        return False
+
+
+def _finite(v):
+    if _inf(v):
+        raise NoLimit("a complex limit that is not finite")
+    return v
+
+
+def _lim_c(t, ctx):
+    if ctx.free(t):
+        return t
+    if complexes.real_form(t):
+        return _lim(t, ctx)
+    if sort_of(t) == "C" and isinstance(t, (Add, Neg, Mul, Div)):
+        mark = len(ctx.sides)
+        try:  # the laws that combine finite limits first
+            return _combine(t, ctx)
+        except NoLimit:  # then the parts (an infinite part diverges) or
+            del ctx.sides[mark:]  # the modulus, with only their own sides
+            return _lim_parts_or_modulus(t, ctx)
+    return _combine(t, ctx)
+
+
+def _combine(t, ctx):
+    # Each combination folds a zero, by an identity: 0 + b = b, 0*b = 0,
+    # 0/b = 0 (b # 0 still owed), re 0 = im 0 = conj 0 = 0, and re, conj of
+    # a Real value are the value, im of one is 0.
+    if isinstance(t, App) and t.fn in ("re", "im", "conj"):  # they commute
+        a = _finite(_lim_c(t.arg, ctx))
+        if _zero(a) or t.fn == "im" and sort_of(a) == "R":
+            return Num(0)
+        return a if sort_of(a) == "R" else App(t.fn, a)
+    if isinstance(t, Neg):
+        a = _finite(_lim_c(t.a, ctx))
+        return Num(0) if _zero(a) else Neg(a)
+    if isinstance(t, Add):
+        a, b = _finite(_lim_c(t.a, ctx)), _finite(_lim_c(t.b, ctx))
+        return b if _zero(a) else a if _zero(b) else Add(a, b)
+    if isinstance(t, Mul):
+        a, b = _finite(_lim_c(t.a, ctx)), _finite(_lim_c(t.b, ctx))
+        return Num(0) if _zero(a) or _zero(b) else Mul(a, b)
+    if isinstance(t, Div):
+        a, b = _finite(_lim_c(t.a, ctx)), _finite(_lim_c(t.b, ctx))
+        ctx.sides.append(NonZero(b))  # realified where it is emitted
+        return Num(0) if _zero(a) else Div(a, b)
+    if sort_of(t) == "C":
+        return _lim_parts_or_modulus(t, ctx)
+    raise NoLimit(f"no limit law over C for {type(t).__name__}")
+
+
+def _lim_parts_or_modulus(t, ctx):
+    """Both parts' limits when both are finite; else modulus_to_zero:
+    (re G)^2 + (im G)^2 -> 0 gives G -> 0 (E179)."""
+    a, b = (complexes._real(p) for p in complexes.split(t))
+    try:
+        va, vb = _lim(a, ctx), _lim(b, ctx)
+        if _inf(va) or _inf(vb):  # E182: a part diverges, so G does
+            return POS
+        return complexes.join((va, vb))
+    except NoLimit:
+        pass
+    g = Add(Pow(a, 2), Pow(b, 2))
+    r = _reduced(g, ctx)
+    v = _lim(r, ctx)
+    if _inf(v) or not FD.ring_is_zero(v):
+        raise NoLimit("neither the parts nor the modulus has a limit law")
+    return Num(0)
+
+
+def _reduced(g, ctx):
+    """g reduced by field with pyth_cos, (cos u)^2 == 1 - (sin u)^2, at
+    each cos atom: the reduction is an offer, kept only when the trusted
+    field proves it equal to g, its divisors then owed as sides."""
+    import entries
+    from terms import subst
+    st = entries.ENTRIES["pyth_cos"].statement
+    atoms = {}
+    for n in _nodes(g):
+        if isinstance(n, App) and n.fn == "cos":
+            atoms.setdefault(n.arg, None)
+    facts = [(subst(st.lhs, {"u": u}), subst(st.rhs, {"u": u}))
+             for u in atoms]
+    try:
+        ok = FD.field(g, Num(0), facts)
+        ctx.sides.extend(NonZero(d) for d in ok.divisors)
+        return Num(0)
+    except FD.NotEqual as e:
+        import residual
+        r = residual.residual_term(e.residual)
+    except Exception:  # noqa: BLE001 -- no reduction: read g itself
+        return g
+    try:
+        ok = FD.field(g, r, facts)
+    except Exception:  # noqa: BLE001 -- an offer field cannot prove
+        return g
+    ctx.sides.extend(NonZero(d) for d in ok.divisors)
+    return r
+
+
+def _nodes(t):
+    todo = [t]
+    while todo:
+        n = todo.pop()
+        yield n
+        if isinstance(n, Term):
+            from terms import children
+            todo.extend(k for _, k in children(n) if isinstance(k, Term))

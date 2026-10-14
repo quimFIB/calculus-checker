@@ -115,7 +115,8 @@ each spec-first and then reviewed by an independent skeptic:
 **Deliberately not built yet:**
 - the `diverges` judgement, and integrands singular at a FINITE end (unit
   00 P7);
-- `int_improper` for trig integrands (e^-x sin x needs a squeeze law);
+- `int_improper` for trig integrands by a squeeze law (e^-x sin x is
+  reached through complex numbers instead: COMPLEX.md K2, E179);
 - the cycle case of `int_parts` (E74), hyperbolic atoms in `trig_norm`;
 - Sturm sequences, for exact sign decisions on irrational poles (not in
   the mechanics course).
@@ -325,7 +326,11 @@ header), `re`, `im`, `conj`, `abs` as the modulus, and the branches
 equation over ℂ is two real checks, and every obligation is real before
 discharge sees it. `rewrite parts at T` is the conversion to `a + b*i`,
 and auto-simpl uses it: `(1 + i)^8`, `e^{iπ}` and `Log(-1)` each close in
-one `simpl.`. Calculus on complex terms is K2, next.
+one `simpl.`. **K2, calculus in a real variable on complex values, is built
+too** (E176–E181): `deriv`, `ftc`, `verify` and regularity work part by
+part, and limits over ℂ have one new law, |G| → 0 ⇒ G → 0. So
+∫₀^∞ e^{−x} sin x = 1/2 now proves, through e^{(−1+i)x}, and sin and cos of
+any multiple of π evaluate (periodicity families). `D[z]` is K3, next.
 
 **Next,** per §17: stage 1's lists are done (2026-09-25). The gate
 (`app/GATE.md`): work its seventeen problems in order on the page, then

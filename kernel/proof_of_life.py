@@ -6282,6 +6282,13 @@ def _k1_move(text, sig):
     if m:
         return "close", {"value": T.parse_term(m[1], sig), "check": m[2],
                          "facts": []}
+    m = _re.fullmatch(r"(ftc|int_improper) (.+) by (ring|field)", text)
+    if m:
+        return m[1], {"F": T.parse_term(m[2], sig), "check": m[3],
+                      "facts": []}
+    m = _re.fullmatch(r"verify by (ring|field)", text)
+    if m:
+        return "verify", {"check": m[1], "facts": []}
     m = _re.fullmatch(r"fact (\w+) := (\w+)(?: with (.+))?", text)
     if m:
         inst = {}
@@ -6359,7 +6366,10 @@ def k1_problems(part):
             except T.Refused as r:
                 if r.code != code:
                     out.append(f"{text}: {r.code}, want {code}")
-    elif part in ("proofs", "review"):
+    elif part in ("proofs", "review", "k2_proofs", "k2_review"):
+        if part.startswith("k2_"):
+            C = {part: X.K2_CASES[part[3:]]}
+            S = X.K2_SIG
         for goal_text, sentences, want in C[part]:
             try:
                 st = K.install(T.parse_goal(goal_text, S))
@@ -6378,6 +6388,17 @@ def k1_problems(part):
             got = got or K.report(st)
             if got != want:
                 out.append(f"{goal_text}: {got}, want {want}")
+    elif part == "k2_limits":
+        import limits as LM
+        for text, x, s, want in X.K2_CASES["limits"]:
+            try:
+                v, _ = LM.lim(T.parse_term(text, X.K2_SIG), x, s,
+                              lambda c: None)
+                got = T.show(v)
+            except LM.NoLimit:
+                got = "NoLimit"
+            if got != want:
+                out.append(f"lim {text}: {got}, want {want}")
     elif part == "split":
         rng = random.Random(162)
         for text in C["split_numeric"]:
@@ -6413,6 +6434,14 @@ def k1_checks(suite):
                 "minted facts and rewrite hypotheses sort-checked, complex "
                 "tanh's former, D19 and D20 as written (E175)",
                 lambda: k1_problems("review"))
+    suite.check("Z", f"K2 proofs ({len(X.K2_CASES['proofs'])}): deriv and "
+                "verify over C in a real variable, refusals (E176-E178)",
+                lambda: k1_problems("k2_proofs"))
+    suite.check("Z", f"K2 review attacks ({len(X.K2_CASES['review'])}): an "
+                "improper Int inside re/im, a complex pole on the range, a "
+                "diverging part (E182)", lambda: k1_problems("k2_review"))
+    suite.check("Z", f"K2 limits ({len(X.K2_CASES['limits'])}): over C, "
+                "modulus_to_zero (E179)", lambda: k1_problems("k2_limits"))
     suite.check("Z", f"split agrees with complex evaluation on "
                 f"{len(X.K1_CASES['split_numeric'])} terms at 200 points "
                 "each (E167)", lambda: k1_problems("split"))

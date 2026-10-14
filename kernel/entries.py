@@ -166,6 +166,9 @@ MAX_FAMILY_LITERAL = 10 ** 6
 # same as a power's exponent), "angle" a closed real constant (D19).
 FAMILIES = MappingProxyType({
     "rpow_int": ("rpow(u, {n}) == u^{p} @ u > 0", ("u",), {"n": "int"}),
+    # E181: periodicity, so sin and cos of any multiple of pi evaluate
+    "sin_period": ("sin(u + 2*pi*{k}) == sin u", ("u",), {"k": "int"}),
+    "cos_period": ("cos(u + 2*pi*{k}) == cos u", ("u",), {"k": "int"}),
     # E172: one branch's argument from the principal one, 2*pi*k apart
     "arg_branch": ("arg[{theta}] w == Arg w + 2*pi*{k} @ "
                    "{theta} - 2*pi < Arg w + 2*pi*{k}, "

@@ -101,6 +101,25 @@ class Simpl(unittest.TestCase):
         self.assertEqual(r["refusal"]["code"], "close-check-failed")
 
 
+class RealVariable(unittest.TestCase):
+    """K2 (E176-E181): integrals of complex-valued functions of a real
+    variable, closed by auto-simpl."""
+
+    def test_integrals(self):
+        import p1_expected as X
+        for goal, move, value in X.K2_CASES["integrals"]:
+            with self.subTest(goal=goal):
+                r = run(f"goal {goal}.", [move])
+                self.assertEqual(r["report"], "Proved.", r)
+                self.assertEqual(r["auto"][-1], f"close {value} by ring.")
+                self.assertEqual(r["admissions"], 0)
+
+    def test_periodicity(self):
+        r = run("goal sin(4*pi) + cos(-3*pi) == ?A.", ["simpl."])
+        self.assertEqual((r["report"], r["auto"][-1]),
+                         ("Proved.", "close -1 by ring."))
+
+
 class TeX(unittest.TestCase):
     def test_round_trips(self):
         sig = {"z": "complex"}

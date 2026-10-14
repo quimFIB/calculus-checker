@@ -1440,3 +1440,20 @@ gained:
 
 The suite's item Z (`k1_checks`) reads K1_CASES. `split` is checked
 against complex evaluation at 200 random points per term.
+
+**Stage K2 (E176–E181)**, a real variable:
+
+- `sort_of` gives an Int or D its body's sort, with limits Real and
+  complex-free.
+- `split` reads Int and D componentwise, and a complex Reg realifies to
+  two.
+- `deriv` adds `d_re`, `d_im` and `d_conj`, and refuses a real-only rule
+  (`HOLOMORPHIC` lists the rest) on a complex argument.
+- `limits.lim` routes complex structure to `_lim_c`. There, re, im and
+  conj commute with the limit, finite limits combine with zeros folded by
+  identities, and a complex term takes its parts' limits or
+  `modulus_to_zero`. In the modulus case, `(re G)^2 + (im G)^2` is
+  reduced by field with `pyth_cos`, and the reduction is kept only when
+  field proves it.
+- `entries.py` adds the `sin_period` and `cos_period` families, and
+  `schema.period_shift` counts them in E27.

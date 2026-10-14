@@ -17,7 +17,7 @@ import entries  # noqa: E402
 import field as FD  # noqa: E402
 import residual as RD  # noqa: E402
 import schema as SC  # noqa: E402
-from terms import MVar, Neg, Num, fv, lit, show, subst  # noqa: E402
+from terms import Const, MVar, Mul, Neg, Num, fv, lit, show, subst  # noqa: E402
 
 MAX_REWRITES, MAX_FACTS = 32, 8
 
@@ -95,6 +95,14 @@ def redexes(side):
                 insts = _insts(e, s)
                 if insts:
                     yield e.name, s, insts
+        per = SC.period_shift(s)  # E181: sin, cos of a multiple of pi
+        if per is not None:
+            q, k = per
+            c = q - 2 * k
+            yield f"{s.fn}_period", s, [{
+                "u": Num(0) if c == 0 else Const("pi") if c == 1
+                else Mul(lit(c), Const("pi")),
+                "k": Num(k) if k >= 0 else Neg(Num(-k))}]
         n = SC.rpow_int_exponent(s)
         if n is not None:
             yield "rpow_int", s, [{"u": s.base, "n": Num(n) if n >= 0

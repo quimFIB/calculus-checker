@@ -780,8 +780,20 @@ close (1 + i)^8.
 
 There is no order on complex numbers, so `z < 1` is refused: compare
 `re z`, `im z` or `abs z` instead. `ln z` and `sqrt z` are refused too,
-because those are the real functions: write `Log z` and `Sqrt z`. Calculus
-on complex terms is not built yet (COMPLEX.md, stage K2).
+because those are the real functions: write `Log z` and `Sqrt z`.
+
+Calculus in a real variable works on complex values, part by part, and
+that is often the short way to a real integral. ∫₀^∞ e^{−x} sin x dx is
+the imaginary part of ∫₀^∞ e^{(−1+i)x} dx, and the limit at `oo` comes from
+the modulus: |e^{(−1+i)x}| = e^{−x} → 0.
+
+```dx
+goal Int[x = 0 .. oo] exp(-x)*sin x == ?A.
+int_improper im(exp((-1 + i)*x)/(-1 + i)) by field.
+```
+
+Calculus in a complex variable, `D[z]`, is the next stage (COMPLEX.md,
+K3).
 
 ## The moves
 
@@ -859,6 +871,10 @@ exponent into plain multiplication, and owes `u > 0`.
 | `arg_i_pos` | `Arg(i*u) == pi/2 @ u > 0` |
 | `arg_i_neg` | `Arg(i*u) == -pi/2 @ u < 0` |
 | `arg_right` | `Arg(u + i*v) == atan(v/u) @ u > 0` |
+
+**Periodicity**, `sin_period` and `cos_period`: `sin(u + 2*pi*k) == sin u`
+and the same for cos, k a whole number, written `with u := 0; k := 2`.
+They bring sin and cos of any multiple of π back to the values above.
 
 **One more family**, `arg_branch`, moves between cuts:
 `arg[θ] w == Arg w + 2*pi*k` when the right side lies in (θ − 2π, θ],
