@@ -560,3 +560,83 @@ value; §9's whitelist is what refuses it.
   `rpow(2, 1)`, and (`x^(-y)`)[y := 1] is `rpow(x, -1)`. Each owes its
   base > 0 where it enters, as any `RPow` does, and `rpow_int` converts
   it to `Pow`.
+
+## 11. Complex terms (stage K1, p1_expected E165–E174)
+
+COMPLEX.md is the design; this section is the grammar it needs for
+arithmetic. Calculus over ℂ (K2–K4) adds to it later.
+
+**The imaginary unit.** `i` is a constant, `Const("i")`, beside `pi` and
+`e_const`, and is no longer a variable name (COMPLEX.md Z4). `i^2` parses
+as `Pow(i, 2)`, an ordinary power.
+
+**Complex variables are declared** (Z3). A `sig` entry whose value is the
+string `"complex"` declares a complex variable: `parse_term("z + 1",
+{"z": "complex"})`. The name must match §3's variable pattern; anything
+else is refused `D5-sig-collision`. The parser builds `CVar(name)`, a
+subclass of `Var`, so free variables, substitution and the printer treat
+it as a variable, and exact-type checks (the `closed` whitelist) see a
+different node. Every undeclared variable stays real.
+
+**New builtins:** `re`, `im` and `conj`, prefixes like `sin` (§4's
+`app`). Builtins are now nineteen.
+
+**Branches.** `log[T] u`, `arg[T] u` and `sqrt[T] u` build
+`Branch(fn, theta, arg)`, a logarithm, an argument and a square root with
+their cut along the ray at angle T (COMPLEX.md Z6). `Log u`, `Arg u` and
+`Sqrt u` are the principal branches, T = `pi`. `pow[T](a, b)` is notation,
+parsed to `exp(b*log[T] a)`; no node is built for it. Bare `log` keeps its
+hint (`reserved-hint`: "write ln x, or log[θ] for a complex branch"), and
+`sqrt` without `[` is the real square root, unchanged.
+
+```
+branch    = BRANCH "[" expr "]" operand | PRINCIPAL operand
+BRANCH    = "log" | "arg" | "sqrt" ;      (* followed by "[" *)
+PRINCIPAL = "Log" | "Arg" | "Sqrt" ;
+pow       = "pow" "[" expr "]" "(" expr "," expr ")" ;
+```
+
+`branch` and `pow` sit where `app` does in §4 (level 4), and take an
+operand as an application does (D6). **D19: θ is a closed real
+constant:** no variable, no `?A`, no `i`, no Int or D. Anything else is
+refused `branch-not-constant`. Then the ray is fixed, and every cut
+obligation is a real condition with constant coefficients.
+
+**The printer** writes a Branch with θ ≡ `pi` as `Log u`, `Arg u`, `Sqrt
+u`, and any other as `log[θ] u` with θ printed as a whole term; the
+operand follows §8's application rule. `i` prints as `i`, and `CVar` as
+its name. parse(show(t), sig) ≡ t holds under the same `sig`.
+
+**D20: sorts.** Every term is Real or Complex, decided from the term
+alone (Z2):
+
+| Node | Sort |
+|---|---|
+| `Num`, `pi`, `e_const`, `Var` | Real |
+| `i`, `CVar` | Complex |
+| `+ - * /`, `Pow`, `Neg` | Complex if any operand is |
+| `sin cos tan exp sinh cosh tanh conj` | the argument's sort |
+| `re im abs` | Real, of either sort |
+| `arg[θ]` | Real, of either sort |
+| `log[θ]`, `sqrt[θ]` | Complex, of either sort |
+| `ln sqrt asin acos atan asinh acosh atanh` | Real, and the argument must be Real |
+| `RPow(b, e)` | b must be Real; Complex if e is |
+| `Call(f, …)` | Real, and every argument must be Real |
+| `Int`, `D`, `Reg`, `Interval` | Real, and everything inside must be Real (until K2) |
+
+The judgements: an order (`<`, `<=`, `>`, `>=`) needs Real sides; `==`
+and `# 0` take either. check_goal checks every judgement of a goal, its
+domain included, and every node built by a move goes through it.
+
+| Code | Refusal |
+|---|---|
+| `sort-order-on-complex` | an order judgement with a Complex side, `z < 1`, `i^2 >= 0` |
+| `sort-real-only` | a Real-only builtin, `RPow` base or declared function applied to a Complex term: `ln z` (write `Log z`), `sqrt(i)` (write `Sqrt i`) |
+| `complex-calculus-not-built` | a Complex term inside `Int`, `D`, `Reg` or an interval; K2 builds it |
+| `branch-not-constant` | a branch angle that is not a closed real constant (D19) |
+
+**Semantics** (COMPLEX.md §3.2). `log[θ] w` is `ln(abs w) + i*arg[θ] w`,
+with `arg[θ] w` in (θ − 2π, θ]. Both are defined for every w ≠ 0, and
+owe `w # 0`. `sqrt[θ] w` is `exp(log[θ](w)/2)` and owes `w # 0`, so
+`Sqrt 0` is not a term the kernel evaluates. `abs w` of a Complex w is
+the modulus, `sqrt((re w)^2 + (im w)^2)`. `conj`, `re` and `im` are total.

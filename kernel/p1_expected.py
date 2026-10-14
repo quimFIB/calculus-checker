@@ -17030,3 +17030,171 @@ ODE_INSTALL_REFUSALS = [
                                   ("law", "D[s] v(s) == 2"))), _ODE_V,
      "v(t) == v(0) + t @ t >= 0", "assume-shape"),
 ]
+
+
+# -------------------------------------------------- complex, stage K1 (E165-E174)
+
+DECISIONS_COMPLEX_K1 = {
+    "E165": "The owner, 2026-10-14, on COMPLEX.md revision 2: \"get to "
+            "work implementing the proposal\", then \"build now, the gate "
+            "can wait\". COMPLEX.md's recommended options are taken for "
+            "Z1-Z9 (the seven give-ups, i reserved, complex variables "
+            "declared, log[theta] with theta a closed real constant, the "
+            "Cauchy-residue and argument-principle rules, Sum to be "
+            "sort-polymorphic), and the build runs K1 to K4 now, before "
+            "the gate (app/GATE.md), which waits. K1 is arithmetic.",
+    "E166": "Sorts (GRAMMAR.md section 11, D20). Real and Complex, decided "
+            "from the term alone by terms.sort_of: i and CVar are Complex, "
+            "arithmetic and the polymorphic builtins take the sort of "
+            "their operands, re/im/abs/arg[theta] are Real, log[theta] and "
+            "sqrt[theta] are Complex. check_goal refuses an order "
+            "judgement with a Complex side (sort-order-on-complex), a "
+            "Real-only builtin, RPow base or declared function on a "
+            "Complex term (sort-real-only), and Complex inside Int, D, "
+            "Reg or an interval (complex-calculus-not-built, until K2). "
+            "CVar subclasses Var, so fv, subst and show treat it as a "
+            "variable, and exact-type checks see a different node.",
+    "E167": "split (kernel/complexes.py, trusted). A total map from a "
+            "term of either sort to its real and imaginary parts, each a "
+            "Real term with no Complex subterm: i is (0, 1); CVar z is "
+            "(re z, im z), two real atoms; Num, Const pi/e_const, Var are "
+            "(t, 0); sums, negation and products are the textbook "
+            "formulas; Pow(w, n) is repeated product for n >= 0 and "
+            "1/w^|n| for n < 0; a/b is a*conj(b)/((re b)^2 + (im b)^2); "
+            "conj is (a, -b); re, im are the parts; abs w is "
+            "(sqrt(a^2 + b^2), 0); exp(a + i b) is (exp a cos b, exp a sin "
+            "b), with exp a read as 1 when a is ring-zero; sin, cos, sinh, "
+            "cosh by their addition formulas over a + i b (cosh, sinh of "
+            "b); tan and tanh as quotients; log[theta] w is "
+            "(ln(a^2 + b^2)/2, arg[theta] w); arg[theta] w is (itself, 0), "
+            "an opaque real atom; sqrt[theta] w is split(exp(log[theta](w)/2)); "
+            "RPow(b, e) with e Complex is split(exp(e*ln b)); a Real term "
+            "with no Complex subterm is (t, 0) unchanged. Its identities "
+            "hold wherever the term is defined, which the term's own "
+            "formers owe.",
+    "E168": "Obligations stay real. kernel._emit realifies every key "
+            "before anything decides it: an == between Complex sides "
+            "becomes two == of their parts; a NonZero of a Complex e "
+            "becomes NonZero(a^2 + b^2); a Real side holding a Complex "
+            "subterm is replaced by its real part; domain items likewise. "
+            "install realifies the goal's domain in place, so every later "
+            "reader sees real items. Invariant, checked in _emit: no key "
+            "holds i, a CVar outside re/im, or a Complex subterm, else "
+            "the step is refused complex-key (an internal guard no move "
+            "should reach). field's normaliser refuses i and CVar "
+            "(complex-unsplit), so no path that forgets to split can read "
+            "i as a real atom.",
+    "E169": "Equality over C. kernel._check splits both sides when either "
+            "is Complex and checks the real parts and the imaginary parts "
+            "each by ring or field, emitting both checks' divisors; the "
+            "residual shown is re + i*im of the two. A fact holding a "
+            "Complex term is refused field-fact-shape (K1). "
+            "field.ring_equal and ring_is_zero split Complex terms, so "
+            "rewrite's step 3 matches a Complex argument up to ring and "
+            "E25 tests a Complex divisor.",
+    "E170": "The conversion `parts`. `rewrite parts at T` replaces T, a "
+            "term holding a Complex subterm, by re T + i*im T. The kernel "
+            "computes split(T), an untrusted simplifier proposes the two "
+            "parts in field's normal form, and the trusted field checks "
+            "each against split's part before the rewrite is accepted "
+            "(else split's raw parts are used). It owes nothing beyond "
+            "what T owed where it entered, and the rhs's formers are "
+            "charged as any rewrite's. Sound by E167: re T + i*im T == T "
+            "wherever T is defined.",
+    "E171": "Complex formers. Div and negative Pow owe NonZero of their "
+            "divisor, realified by E168. log[theta], arg[theta] and "
+            "sqrt[theta] owe NonZero(w). tan's cos w # 0 holds for "
+            "Complex w by the same realification. re, im, conj, abs, exp, "
+            "sin, cos, sinh, cosh are total.",
+    "E172": "Complex entries (entries.py). arg values, principal branch: "
+            "arg_pos  arg[pi](u) == 0 @ u > 0; arg_neg  arg[pi](u) == pi "
+            "@ u < 0; arg_i_pos  arg[pi](i*u) == pi/2 @ u > 0; arg_i_neg  "
+            "arg[pi](i*u) == -pi/2 @ u < 0; arg_right  arg[pi](u + i*v) "
+            "== atan(v/u) @ u > 0. The family arg_branch: arg[theta](w) "
+            "== arg[pi](w) + 2*pi*k @ theta - 2*pi < arg[pi](w) + 2*pi*k, "
+            "arg[pi](w) + 2*pi*k <= theta, for theta a closed real "
+            "constant and k an integer literal (inst `theta := T; k := "
+            "K`). Each order hypothesis forces its variables Real, so no "
+            "entry is instantiated outside its truth. The existing "
+            "ENTRIES are sort-safe: each one false for Complex u has an "
+            "order hypothesis or conclusion, which check_goal refuses.",
+    "E173": "E27 over C (schema.py, untrusted). (c) a closed subterm "
+            "holding complex structure (i, re, im, conj, abs of a Complex "
+            "term, log[theta], sqrt[theta]) and not in rectangular form "
+            "counts, naming `parts`. Rectangular: a Real term with no "
+            "Complex subterm, an imaginary term (i, r*i, i*r, i/r, -m "
+            "for m imaginary), or r + m, m + r, r - m with r Real-free "
+            "and m imaginary. arg[theta] of a closed value is left to (a)'s "
+            "entries, since split does not change it. (c) is tried after "
+            "(a) and before (b). The closed whitelist admits i, CVar, "
+            "Branch and the three new builtins.",
+    "E174": "The app (K1). A .dx header and a problem file declare complex "
+            "variables (`complex z, w` / \"complex\": [...]), which reach "
+            "every parse as sig entries \"complex\"; POST /session takes "
+            "\"complex\": [...] with a goal. simpl computes a Complex "
+            "value as its two parts in field's normal form, written "
+            "re + im*i. Auto-simpl names `parts` where E27 (c) does. The "
+            "TeX, 2-D and untex forms know i, re, im, conj and the "
+            "branches.",
+}
+
+# K1's cases. sig {"z": "complex", "w": "complex"} unless a case says.
+K1_SIG = {"z": "complex", "w": "complex"}
+K1_CASES = {
+    "round_trips": [  # (text, printed)
+        ("3 + 4*i", "3 + 4*i"),
+        ("i^2", "i^2"),
+        ("re z + im w", "re z + im w"),
+        ("conj(z - 1)", "conj(z - 1)"),
+        ("abs(z - 1)", "abs(z - 1)"),
+        ("Log z", "Log z"),
+        ("log[pi] z", "Log z"),
+        ("log[2*pi](z + 1)", "log[2*pi](z + 1)"),
+        ("Arg(-1)", "Arg(-1)"),
+        ("Sqrt z", "Sqrt z"),
+        ("pow[pi](z, i)", "exp(i*Log z)"),
+    ],
+    "refusals": [  # (text, code); parsed as judgements when they hold one
+        ("z < 1", "sort-order-on-complex"),
+        ("i^2 >= 0", "sort-order-on-complex"),
+        ("ln z", "sort-real-only"),
+        ("sqrt(i)", "sort-real-only"),
+        ("2^z + z^(1/2)", "sort-real-only"),
+        ("log[x] z", "branch-not-constant"),
+        ("log[i] z", "branch-not-constant"),
+        ("log z", "reserved-hint"),
+        ("Int[x = 0 .. 1] exp(i*x)", "complex-calculus-not-built"),
+        ("D[x] (i*x)", "complex-calculus-not-built"),
+    ],
+    # (goal, sentences, report or refusal code); sentences in SCRIPT.md
+    # syntax, by hand (auto-simpl off)
+    "proofs": [
+        ("(1 + i)^8 == ?A", ["close 16 by ring"], "Proved."),
+        ("(1 + i)/(1 - i) == ?A", ["close i by field"], "Proved."),
+        ("(1 + i)^8 == ?A", ["close 17 by ring"], "close-check-failed"),
+        ("(1 + i)^8 == ?A", ["close (1 + i)^8 by ring"],
+         "close-not-evaluated"),
+        ("re((2 + i)*(1 - 3*i)) == ?A", ["close 5 by ring"], "Proved."),
+        ("exp(i*pi) == ?A",
+         ["rewrite parts at exp(i*pi)", "rewrite cos_pi at cos pi",
+          "rewrite sin_pi at sin pi", "close -1 by ring"], "Proved."),
+        ("Log(-1) == ?A",
+         ["rewrite parts at Log(-1)", "rewrite ln_one at ln 1",
+          "rewrite arg_neg with u := -1 at Arg(-1)", "close i*pi by ring"],
+         "Proved."),
+        ("(z + conj z)/2 == ?A", ["close re z by ring"], "Proved."),
+        ("z*conj z == ?A", ["close (re z)^2 + (im z)^2 by ring"], "Proved."),
+        ("z^2 == ?A", ["close abs(z)^2 by ring"], "close-check-failed"),
+        ("1/z == ?A @ z # 0",
+         ["close conj(z)/((re z)^2 + (im z)^2) by field"], "Proved."),
+        ("sin(-z) == ?A", ["rewrite sin_odd with u := z at sin(-z)",
+                           "close -sin z by ring"], "Proved."),
+    ],
+    # split checked numerically: each pair at 200 random points of each
+    # variable, |split(t) - (Re t, Im t)| < 1e-9 relative
+    "split_numeric": [
+        "z*w", "z/w", "conj(z)*z", "exp(z)", "sin(z)", "cos(z)", "tan(z)",
+        "sinh(z)", "cosh(z)", "tanh(z)", "Log z", "log[2*pi] z",
+        "Sqrt z", "abs(z - w)", "2^z", "(z + i)^3", "(z - i)^(-2)",
+    ],
+}
