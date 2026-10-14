@@ -13,4 +13,4 @@ int_subst x := x^2 as u from 0 to 1 reverse exp(u)/2 by ring.
 ftc exp(u)/2 by ring.
 rewrite exp_one at exp 1.
 rewrite exp_zero at exp 0.
-close (e_const - 1)/2 by ring.
+simpl.

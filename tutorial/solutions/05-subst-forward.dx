@@ -5,4 +5,4 @@ int_subst x := t^2 as t from 0 to 2 by ring.
 rewrite sqrt_sq with u := t at sqrt(t^2).
 ftc 2*t - 2*ln(1 + t) by field.
 rewrite ln_one at ln(1 + 0).
-close 4 - 2*ln 3 by ring.
+simpl.

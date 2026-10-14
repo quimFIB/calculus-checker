@@ -10,4 +10,9 @@ ftc exp(x^2)/2 by ring.
    exp 1 == e_const; `at` names the subterm to rewrite. *)
 rewrite exp_one at exp(1^2).
 rewrite exp_zero at exp(0^2).
-close (e_const - 1)/2 by ring.
+
+(* e_const/2 - 1/2 == ?A: only constants, and only arithmetic left.
+   simpl does it and closes, here with ?A := (1/2)*e_const - 1/2.
+   close (e_const - 1)/2 would do as well: any form of the value
+   passes, as long as it is evaluated. *)
+simpl.

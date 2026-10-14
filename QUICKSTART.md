@@ -136,9 +136,7 @@ The rest of the notation:
 `ftc F` claims that F is an antiderivative of the integrand. The kernel
 differentiates F by its rule table and compares F′ with the integrand
 using `ring`, which is algebra with `+ - *` and whole powers. If they
-agree, the integral becomes F(b) − F(a). `close V` names the value;
-once the goal is only constants, `simpl.` works it out for you (the
-arithmetic only: an entry still to apply is refused as below).
+agree, the integral becomes F(b) − F(a). `close V` names the value.
 
 `tutorial/01-ftc.dx`:
 
@@ -153,6 +151,17 @@ ftc x^3 + x^2 by ring.
 
 (* The goal is now 1^3 + 1^2 - (0^3 + 0^2) == ?A. Name the value. *)
 close 2 by ring.
+```
+
+Once the goal is only constants, as it is after `ftc` here, `simpl.`
+does the arithmetic for you and closes with the result, `?A := 2`. It
+is still a `close`: the computed value is checked as a typed one is.
+Later lessons finish with it whenever the goal ends as constants.
+
+```dx
+problem stage0.S1.
+ftc x^3 + x^2 by ring.
+simpl.
 ```
 
 Get it wrong and the kernel says by how much (press Start fresh first):
@@ -212,7 +221,12 @@ ftc exp(x^2)/2 by ring.
    exp 1 == e_const; `at` names the subterm to rewrite. *)
 rewrite exp_one at exp(1^2).
 rewrite exp_zero at exp(0^2).
-close (e_const - 1)/2 by ring.
+
+(* e_const/2 - 1/2 == ?A: only constants, and only arithmetic left.
+   simpl does it and closes, here with ?A := (1/2)*e_const - 1/2.
+   close (e_const - 1)/2 would do as well: any form of the value
+   passes, as long as it is evaluated. *)
+simpl.
 ```
 
 Closing too early names the entry still to use:
@@ -224,10 +238,21 @@ close (exp 1 - exp 0)/2.
 (* refused: close-not-evaluated "exp 1 can still be evaluated (exp_one)" *)
 ```
 
-The response reads `exp 1 can still be evaluated (exp_one)`. And when an
-antiderivative is off by a constant factor, the refusal carries a
-corrected sentence. On the page, **Use this** puts it in place of yours;
-in Emacs it is `C-c C-a`.
+The response reads `exp 1 can still be evaluated (exp_one)`. `simpl` is
+no way round it. It does the literal arithmetic, inside a function's
+argument too, and nothing else: applying an entry is your move, and it
+names the one left the same way.
+
+```dx
+problem stage0.S2.
+ftc exp(x^2)/2.
+simpl.
+(* refused: close-not-evaluated "exp 1 can still be evaluated (exp_one)" *)
+```
+
+When an antiderivative is off by a constant factor, the refusal carries
+a corrected sentence. On the page, **Use this** puts it in place of
+yours; in Emacs it is `C-c C-a`.
 
 ```dx
 problem stage0.S2.
@@ -274,9 +299,10 @@ goal Int[x = 1 .. 2] (x + 1)/x == ?A.
    the obligations pane shows discharged from the range. *)
 ftc x + ln x by field.
 
-(* 2 + ln 2 - (1 + ln 1) == ?A *)
+(* 2 + ln 2 - (1 + ln 1) == ?A. ln 1 is an entry's to evaluate;
+   after it simpl computes ln 2 + 1. *)
 rewrite ln_one at ln 1.
-close 1 + ln 2 by ring.
+simpl.
 ```
 
 **Your turn:** `tutorial/exercises/03-field.dx`,
@@ -309,7 +335,7 @@ int_subst x := x^2 as u from 0 to 1 reverse exp(u)/2 by ring.
 ftc exp(u)/2 by ring.
 rewrite exp_one at exp 1.
 rewrite exp_zero at exp 0.
-close (e_const - 1)/2 by ring.
+simpl.
 ```
 
 **Your turn:** `tutorial/exercises/04-subst-reverse.dx`,
@@ -343,7 +369,9 @@ rewrite sqrt_sq with u := t at sqrt(1 - (1 - t^2)).
 
 (* The integrand is now (1 - t^2)*t*(-2t) = 2t^4 - 2t^2. *)
 ftc (2/5)*t^5 - (2/3)*t^3 by ring.
-close 4/15 by ring.
+
+(* Only constants left: simpl computes 4/15. *)
+simpl.
 ```
 
 An entry with a condition (`sqrt_sq`: `sqrt(u^2) == u @ u >= 0`) is
@@ -400,11 +428,15 @@ fact h := sqrt_sq_val with a := x + 1.
 ftc (2/3)*(x + 1)*sqrt(x + 1) by field using h.
 
 (* (2/3)*(1 + 1)*sqrt(1 + 1) - (2/3)*(0 + 1)*sqrt(0 + 1) == ?A.
-   sqrt 2 is already a closed form; sqrt(0 + 1) is not. sqrt_sq's
-   left side, sqrt(u^2) with u := 1, is sqrt(1^2), equal to
-   sqrt(0 + 1) up to ring, so it applies there. *)
+   simpl does arithmetic, inside sqrt too, so sqrt(1 + 1) would come
+   out as sqrt 2, a closed form. sqrt(0 + 1) would come out as
+   sqrt 1, which an entry still evaluates, and that move is yours.
+   sqrt_sq's left side, sqrt(u^2) with u := 1, is sqrt(1^2), equal
+   to sqrt(0 + 1) up to ring, so it applies there. *)
 rewrite sqrt_sq with u := 1 at sqrt(0 + 1).
-close (4/3)*sqrt 2 - 2/3 by ring.
+
+(* Now simpl computes (4/3)*sqrt 2 - 2/3. *)
+simpl.
 ```
 
 With `using` but no `by field`:
@@ -442,6 +474,16 @@ goal Int[x = 0 .. a] x^2 == ?A @ a > 0.
 
 ftc x^3/3 by ring.
 close a^3/3 by ring.
+```
+
+`simpl` computes only constants, so a value with a parameter in it is
+named with `close`:
+
+```dx
+goal Int[x = 0 .. a] x^2 == ?A @ a > 0.
+ftc x^3/3 by ring.
+simpl.
+(* refused: bad-tactic "simpl computes the value of a goal that is only constants, and this one has the variable a" *)
 ```
 
 Without an assumption that orders the ends, the goal itself is refused:
@@ -485,7 +527,7 @@ ftc exp x occurrence 0 by ring.
    exactly the same: both exp 1 here, then both exp 0. *)
 rewrite exp_one at exp 1.
 rewrite exp_zero at exp 0.
-close 1 by ring.
+simpl.
 ```
 
 `occurrence N` works the same way wherever a move could apply at more than
@@ -511,7 +553,7 @@ int_improper -exp(-x) by ring.
    exp(-0). exp_zero's left side, exp 0, only has to equal it up to
    ring, which it does. *)
 rewrite exp_zero at exp(-0).
-close 1 by ring.
+simpl.
 ```
 
 **Your turn:** `tutorial/exercises/09-improper.dx`,
@@ -657,8 +699,8 @@ verify by field using h.
 | Move | Does | Lesson |
 |---|---|---|
 | `ftc F` | ∫ f → F(b) − F(a), checking F′ = f | 1 |
-| `close V` | names `?A`; V must be fully evaluated | 1, 2 |
-| `simpl` | `close V` with V computed, once the goal is only constants | 1, 2 |
+| `close V` | names `?A`; V must be fully evaluated | 1, 2, 7 |
+| `simpl` | `close V` with V computed, once the goal is only constants | 1, 2, 6 |
 | `rewrite E at T` | replaces T by an entry | 2 |
 | `int_subst` | substitution, forward or `reverse` | 4, 5 |
 | `fact h := E` | binds an entry for `by field using h` | 6 |

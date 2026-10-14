@@ -18,4 +18,6 @@ rewrite sqrt_sq with u := t at sqrt(1 - (1 - t^2)).
 
 (* The integrand is now (1 - t^2)*t*(-2t) = 2t^4 - 2t^2. *)
 ftc (2/5)*t^5 - (2/3)*t^3 by ring.
-close 4/15 by ring.
+
+(* Only constants left: simpl computes 4/15. *)
+simpl.

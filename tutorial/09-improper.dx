@@ -9,4 +9,4 @@ int_improper -exp(-x) by ring.
    exp(-0). exp_zero's left side, exp 0, only has to equal it up to
    ring, which it does. *)
 rewrite exp_zero at exp(-0).
-close 1 by ring.
+simpl.

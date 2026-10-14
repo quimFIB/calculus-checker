@@ -9,6 +9,7 @@ goal Int[x = 1 .. 2] (x + 1)/x == ?A.
    the obligations pane shows discharged from the range. *)
 ftc x + ln x by field.
 
-(* 2 + ln 2 - (1 + ln 1) == ?A *)
+(* 2 + ln 2 - (1 + ln 1) == ?A. ln 1 is an entry's to evaluate;
+   after it simpl computes ln 2 + 1. *)
 rewrite ln_one at ln 1.
-close 1 + ln 2 by ring.
+simpl.

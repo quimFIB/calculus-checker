@@ -13,8 +13,12 @@ fact h := sqrt_sq_val with a := x + 1.
 ftc (2/3)*(x + 1)*sqrt(x + 1) by field using h.
 
 (* (2/3)*(1 + 1)*sqrt(1 + 1) - (2/3)*(0 + 1)*sqrt(0 + 1) == ?A.
-   sqrt 2 is already a closed form; sqrt(0 + 1) is not. sqrt_sq's
-   left side, sqrt(u^2) with u := 1, is sqrt(1^2), equal to
-   sqrt(0 + 1) up to ring, so it applies there. *)
+   simpl does arithmetic, inside sqrt too, so sqrt(1 + 1) would come
+   out as sqrt 2, a closed form. sqrt(0 + 1) would come out as
+   sqrt 1, which an entry still evaluates, and that move is yours.
+   sqrt_sq's left side, sqrt(u^2) with u := 1, is sqrt(1^2), equal
+   to sqrt(0 + 1) up to ring, so it applies there. *)
 rewrite sqrt_sq with u := 1 at sqrt(0 + 1).
-close (4/3)*sqrt 2 - 2/3 by ring.
+
+(* Now simpl computes (4/3)*sqrt 2 - 2/3. *)
+simpl.

@@ -14,4 +14,4 @@ ftc exp x occurrence 0 by ring.
    exactly the same: both exp 1 here, then both exp 0. *)
 rewrite exp_one at exp 1.
 rewrite exp_zero at exp 0.
-close 1 by ring.
+simpl.
