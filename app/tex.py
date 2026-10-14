@@ -13,8 +13,8 @@ import re
 from session import KERNEL  # noqa: F401  (puts kernel/ on the path)
 from terms import (Add, App, Call, Const, Deriv, Div, Integral, Interval,
                    Judgement, MVar, Mul, Neg, NegInf, NonZero, Num, PosInf,
-                   Pow, Reg, Rel, RPow, Term, Var, _d13_free, parse_goal,
-                   parse_judgement, parse_term)
+                   Pow, Reg, Rel, RPow, Term, Var, _d13_free, _literal_rpow,
+                   parse_goal, parse_judgement, parse_term)
 
 GREEK = ("alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu "
          "nu xi rho sigma tau upsilon phi chi psi omega").split()
@@ -31,7 +31,7 @@ _LEVEL = {Integral: 0, Add: 1, Mul: 2, Neg: 3, App: 4, Deriv: 4,
 
 
 def _level(t):
-    if type(t) is App and t.fn in ("sqrt", "abs"):
+    if type(t) is App and t.fn in ("sqrt", "abs") or _literal_rpow(t):
         return 6
     return _LEVEL.get(type(t), 6)
 
@@ -77,6 +77,9 @@ def _t(t, need=0, left=True):
         return r"\frac{" + _t(t.a) + "}{" + _t(t.b) + "}"
     if k is Neg:
         return "-" + _t(t.a, 4, False)
+    if _literal_rpow(t):  # D17: never drawn as the Pow it is not
+        return (r"\operatorname{rpow}"
+                + _paren(_t(t.base) + ", " + _t(t.exp)))
     if k in (Pow, RPow):
         base = (_paren(_t(t.base)) if type(t.base) in (Div, App)
                 else _t(t.base, 6, False))

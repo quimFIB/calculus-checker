@@ -9,16 +9,16 @@ Nodes are frozen dataclasses, so `==` is plain tree identity with bound names
 compared literally (GRAMMAR.md §7) and every node is hashable, which is what
 obligation keys rely on (p1_expected E8). They are slotted too, so a node has
 no `__dict__`: `vars(node)` raises, and only a deliberate `object.__setattr__`
-can change one. Four invariants are enforced where a node is built. A `Num`
+can change one. Three invariants are enforced where a node is built. A `Num`
 holds a natural-number int, a negative literal being Neg(Num). A `Pow`
-exponent is an int (so no float reaches norm_num). An `RPow` never has a
-literal integer exponent (D17). An `Interval`'s infinite ends are open and
-on their own side (D18). A node built round its constructor, with
-`object.__new__`, skips them, so check_goal runs each constructor's check
+exponent is an int (so no float reaches norm_num). An `Interval`'s infinite
+ends are open and on their own side (D18). An `RPow` with a literal integer
+exponent is a term since E163, printed `rpow(u, n)` (D17). A node built
+round its constructor, with `object.__new__`, skips them, so check_goal runs each constructor's check
 again on every node it is given.
 
 Every refusal raises `Refused` with a stable code: GRAMMAR.md §1's table,
-`rpow-literal-exponent`, `subst-under-D`, or `close-no-mvar` from
+`subst-under-D`, or `close-no-mvar` from
 instantiate. The three parse functions raise its subclass `ParseError`, which
 also carries the offending character offset.
 """
@@ -128,14 +128,7 @@ class Pow(Term):
 @dataclass(frozen=True, slots=True)
 class RPow(Term):
     base: Term  # owes base > 0
-    exp: Term
-
-    def __post_init__(self):
-        e = self.exp
-        if isinstance(e, Num) or (isinstance(e, Neg) and isinstance(e.a, Num)):
-            raise Refused("rpow-literal-exponent",
-                          "a real power with a literal integer exponent is "
-                          "Pow, and converting would drop base > 0 (D17)")
+    exp: Term  # any term; a Num or Neg(Num) prints as rpow(base, exp) (D17)
 
 
 @dataclass(frozen=True, slots=True)
@@ -345,9 +338,9 @@ def subst(x, mapping):
     x may be a Term, a Judgement (its sides and domain items) or an
     Interval (its endpoints; its var names the constrained variable and is
     left alone).
-    Every node is rebuilt through its constructor, so a substitution that
-    would make an RPow exponent literal raises Refused
-    'rpow-literal-exponent' (D17).
+    Every node is rebuilt through its constructor. A substitution that
+    makes an RPow exponent literal keeps the RPow (D17, E163): (2^x)[x :=
+    1] is rpow(2, 1), never a Pow, which would drop 2 > 0.
 
     Under Integral[v = a .. b] e, a and b are substituted, and e is too,
     unless v is itself mapped. If v is free in a replacement, v is renamed
@@ -461,7 +454,7 @@ def check_goal(goal):
     Const is pi or e_const; an App's function a builtin; a Call's a name §3
     does not reserve, with a tuple of arguments; within the goal, a called
     name has one arity and is never a variable (check_names). Every node's
-    constructor check (Num, Pow, RPow, Interval) is run again, since a node
+    constructor check (Num, Pow, Interval) is run again, since a node
     built with object.__new__ skipped it, and such a node with a slot left
     unset is refused before the slot is read. Infinities are matched by
     exact type, like every other leaf. Without these, show() could print
@@ -665,7 +658,7 @@ def _lex(s):
 
 # ---------------------------------------------------------------- names (§3)
 
-KEYWORDS = frozenset(("D", "Int", "in", "oo", "true"))
+KEYWORDS = frozenset(("D", "Int", "in", "oo", "true", "rpow"))
 _CLASS = {**dict.fromkeys(CONSTANTS, "const"),
           **dict.fromkeys(BUILTINS, "builtin"),
           **dict.fromkeys(KEYWORDS, "kw")}
@@ -860,6 +853,8 @@ class _Parser:
             return self.app()
         if self.is_kind("declared"):
             return self.call()
+        if self.at("rpow"):  # like a call: no ^ here, so power refuses one
+            return self.rpow()
         grouped = self.at("(")
         t = self.atom()
         if self.at("^") and grouped:
@@ -873,7 +868,7 @@ class _Parser:
         self.take()
         if self.at("-"):
             self.fail("D8-neg-exponent", "write x^(-1), not x^-1 (D8)")
-        if self.at("D") or self.is_kind("builtin", "declared"):
+        if self.at("D", "rpow") or self.is_kind("builtin", "declared"):
             self.syntax("an exponent: a number, a name or (...)")
         e = self.atom()
         if self.at("^"):
@@ -896,6 +891,8 @@ class _Parser:
             t = self.expr()
             self.expect(")")
             return t
+        if _is(tok, "rpow"):
+            return self.rpow()
         k = self.kind() if tok[0] == "id" else None
         if k in ("const", "var"):
             return (Const if k == "const" else Var)(self.take()[1])
@@ -922,6 +919,17 @@ class _Parser:
             self.fail("D5-arity", f"{f[1]} takes {self.sig[f[1]]} arguments "
                       f"(D5)", f)
         return Call(f[1], tuple(args))
+
+    def rpow(self):
+        """D17: rpow(u, e) is RPow(u, e) whatever e parses to, the one
+        spelling of a real power with a literal integer exponent."""
+        self.take()
+        self.expect("(")
+        base = self.expr()
+        self.expect(",")
+        e = self.expr()
+        self.expect(")")
+        return RPow(base, e)
 
     # judgements and domains
 
@@ -1129,8 +1137,16 @@ def _show(t, need, left):
     return result
 
 
+def _literal_rpow(t):
+    """An RPow ^ cannot spell (D8), printed rpow(base, exp) (D17)."""
+    e = getattr(t, "exp", None)
+    return isinstance(t, RPow) and (isinstance(e, Num) or isinstance(
+        e, Neg) and isinstance(e.a, Num))
+
+
 def _show_steps(t, need, left):
-    if _LEVEL.get(type(t), 6) < need or isinstance(t, Neg) and not left:
+    level = 6 if _literal_rpow(t) else _LEVEL.get(type(t), 6)
+    if level < need or isinstance(t, Neg) and not left:
         inner = (yield t, 0, True)[0]
         return f"({inner})", False
     if isinstance(t, Num):
@@ -1156,6 +1172,10 @@ def _show_steps(t, need, left):
     if isinstance(t, Neg):
         a, tail = yield t.a, 4, False
         return "-" + a, tail
+    if _literal_rpow(t):
+        base = (yield t.base, 0, True)[0]
+        exp = (yield t.exp, 0, True)[0]
+        return f"rpow({base}, {exp})", False
     if isinstance(t, (Pow, RPow)):
         base = (yield t.base, 6, False)[0]
         if isinstance(t, Pow):

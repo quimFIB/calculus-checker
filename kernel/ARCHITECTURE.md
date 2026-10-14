@@ -289,7 +289,8 @@ proceeds as follows, with refusals given in the order they are tested:
 - **`rewrite`** takes `{"entry": str, "inst": {var: Term}, "at": Term}` and
   optionally `"occurrence": int`. It follows REWRITE_RULE steps 1–11. The
   refusals, in order: an unknown or non-equation entry, or inst keys that are
-  not the schema (`bad-args`); instantiation (`rpow-literal-exponent`); step 2
+  not the schema, or a family's parameter that is not an integer literal
+  (`bad-args`; `entries.resolve`, E163); step 2
   (`rewrite-target-not-found`); step 2a, E57 as E66 (3) narrows it
   (`Int-or-D-not-normalisable` when an inst value or the target holds an
   unstatable Int, on every match branch: `kernel._no_trees_erased`, a
@@ -418,8 +419,8 @@ proceeds as follows, with refusals given in the order they are tested:
   `Int-or-D-not-normalisable` when the selected Int's limits or lo and hi
   hold an Int or D node (SECOND_REVIEW_RULE);
   `int-subst-not-fresh`; `int-subst-scope`; rewrite's
-  `rewrite-under-D-needs-open-domain`; `subst-under-D` and
-  `rpow-literal-exponent` from `terms.subst`; E56's
+  `rewrite-under-D-needs-open-domain`; `subst-under-D` from
+  `terms.subst`; E56's
   `orientation-undecided` (the old range's in reverse mode, then the new
   range's); decided-false formers (E33);
   deriv's refusals; reverse mode's `int-subst-check-failed` (residual body −
@@ -583,8 +584,9 @@ p1_expected's REFUSAL_CODES are used verbatim, E26's
 `Int-or-D-not-normalisable` among them (raised by field's normaliser,
 norm_num and deriv's d_const guard; none of those modules formats it
 differently). `install` also returns the
-GRAMMAR.md §1 codes that `check_goal` raises, and constructors can raise
-`rpow-literal-exponent` and `oo-misplaced`. Beyond those, there are
+GRAMMAR.md §1 codes that `check_goal` raises, and the `Interval`
+constructor can raise `oo-misplaced` (`rpow-literal-exponent` was retired by
+E163). Beyond those, there are
 **kernel-local codes, none reachable in any P1 run**: `state-not-minted`,
 `proof-finished`, `bad-move`, `bad-args`, `goal-shape`, `ftc-no-integral`,
 `close-no-mvar`, `field-fact-shape` and `power-too-large`
@@ -1367,3 +1369,34 @@ problem file's optional `assume` list (E155) and the rules' `law`, `kin`,
 `regs`, `using` and `range` args; `problems/ode/` holds P1(a)–(c) with
 their Γ (E160), outside the gate's corpus. Item O runs ODE_PROOFS (unit 00 P1(a)–(c), each `Proved.`),
 ODE_BAD_MOVES and ODE_INSTALL_REFUSALS.
+
+## 15. `rpow` and `rpow_int` (p1_expected E163)
+
+GRAMMAR.md D17 as revised. Four changes, all in the trusted base:
+
+- **`terms.py`.** `RPow` has no constructor check: a `Num` or `Neg(Num)`
+  exponent is a term. `rpow` is a keyword, and `rpow(u, e)` parses to
+  `RPow(u, e)` whatever `e` is. The printer writes exactly the
+  literal-exponent `RPow`s that way (`_literal_rpow`), at level 6, so
+  parse(show(t)) ≡ t for every `RPow`. Substitution keeps the node:
+  (`2^x`)[x := 1] is `rpow(2, 1)`.
+- **`entries.py`.** `FAMILIES` holds `rpow_int`, a template over the
+  integer literal n: `rpow(u, n) == u^n @ u > 0`. `resolve(name, inst)` is
+  how `rewrite` and `fact` read an entry. An ENTRIES name comes back
+  unchanged. A family name is parsed for the literal its inst gives, with
+  the parameter dropped from the inst, so the rest of the move sees an
+  ordinary entry with schema `(u,)`. A missing or non-literal n is
+  `bad-args`. Nothing iterates FAMILIES (the cite library, exact values,
+  the tagger and the search read ENTRIES only), so `rpow_int` is reached
+  by name and nowhere else.
+- **`kernel._rewrite` step 3.** An `RPow` left side matches an `RPow`
+  target whose base and exponent are each `ring_equal` to its own, as an
+  `App` matches through its argument. That is the same seam
+  (`field.ring_equal`), so BACKSTOPS' lax patch covers it too.
+- **`schema.py` (untrusted).** E27 (a) tries `rpow_int` after the
+  ENTRIES at each node: it counts at an `RPow` whose exponent's ring
+  normal form is an integer (`rpow_int_exponent`).
+
+The suite's item R (`rpow_checks`) reads RPOW_E163. D17's two
+must-refuse constructions left DIRECT_REFUSALS: they are terms now, and
+item R checks what they print.

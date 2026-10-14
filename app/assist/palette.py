@@ -11,6 +11,7 @@ marked.
 from assist import recognizer as R
 from assist.shapes import subterms, summands
 from entries import ENTRIES
+from schema import rpow_int_exponent
 import field as FD
 from assist import factor as FA
 from assist import probe
@@ -117,6 +118,13 @@ def rewrites(goal):
                     f"{k} := {show(v)}" for k, v in inst.items()))
                 out.append({"entry": name, "at": show(t),
                             "sentence": f"rewrite {name}{w} at {show(t)}."})
+            n = rpow_int_exponent(t)  # the one FAMILIES entry (E163)
+            if n is not None and ("rpow_int", t) not in seen:
+                seen.add(("rpow_int", t))
+                out.append({"entry": "rpow_int", "at": show(t),
+                            "sentence": f"rewrite rpow_int with u := "
+                                        f"{show(t.base)}; n := {n} at "
+                                        f"{show(t)}."})
     return out
 
 

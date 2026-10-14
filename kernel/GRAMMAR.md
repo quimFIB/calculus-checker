@@ -482,7 +482,7 @@ prototype of this grammar.
 | `rpow(x, 1/2)`, `x^(1/2)` | `(rpow x (div 1 2))` | `x^(1/2)` |
 | `rpow(2, 1)^2`, `sin(rpow(2, 1))` | `(pow (rpow 2 1) 2)`, `(sin (rpow 2 1))` | `rpow(2, 1)^2`, `sin(rpow(2, 1))` |
 | `2^(1)`, `x^(-1)` | `(pow 2 1)`, `(pow x -1)` (D8: `^` with a literal is always `Pow`) | `2^1`, `x^(-1)` |
-| `e^x`, `x(x+1)`, `f(x)` (f undeclared), `sin(x)^2`, `2x`, `0.5`, `rpow(2)`, `rpow x`, `sin rpow(2, 1)^2` | refused (D3, D5, D5, D6, §2, D1, syntax, syntax, D6) | none |
+| `e^x`, `x(x+1)`, `f(x)` (f undeclared), `sin(x)^2`, `2x`, `0.5`, `rpow(2)`, `rpow x`, `sin rpow(2, 1)^2`, `x^rpow(2, 1)` | refused (D3, D5, D5, D6, §2, D1, syntax, syntax, D6, and D8's exponent rule: write `x^(rpow(2, 1))`) | none |
 
 **§11.1** (the substitution step's own obligations included):
 

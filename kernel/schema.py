@@ -28,7 +28,9 @@ comparison with a canonical form:
       summands or factors.
 
 (a) is searched over the whole value first, in pre-order (terms.children),
-trying the entries in ENTRIES order at each node; only if nothing counts is
+trying the entries in ENTRIES order at each node, then the FAMILIES member
+rpow_int (E163: an RPow whose exponent's ring normal form is an integer);
+only if nothing counts is
 (b) searched, in pre-order, trying b1 to b4 at each node. The first
 offender is carried as the refusal's residual. To test (a) and (b) this
 module reads ring normal forms (field.ring_polys, a predicate and never a
@@ -102,6 +104,8 @@ def evaluated_offence(value):
         for e in eqs:
             if _counts(e, s):
                 return "a", s, e.name
+        if rpow_int_exponent(s) is not None:
+            return "a", s, "rpow_int"
     for s, parent in nodes:
         for clause, test in _B_TESTS:
             if test(s, parent):
@@ -149,6 +153,19 @@ def _counts(e, s):
     # variables matching any subterm, the same one at each occurrence; E1
     # step 3 then accepts at that inst, since L[inst] is s itself.
     return _tree_match(L, s, frozenset(e.schema), {})
+
+
+def rpow_int_exponent(s):
+    """E163: the integer n when s is an RPow whose exponent's ring normal
+    form is the constant n, so that rpow_int with that n rewrites it
+    (rewrite matches a real power up to ring); else None."""
+    if type(s) is not RPow:
+        return None
+    (p,), _ = _ring(s.exp)
+    if set(p) - {()}:
+        return None
+    q = p.get((), Fraction(0))
+    return int(q) if q.denominator == 1 else None
 
 
 def _tree_match(pat, t, schema, bound):

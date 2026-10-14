@@ -46,12 +46,22 @@ value: each has a schema variable.
 ENTRIES is read-only: writing to it would extend the trusted cite library
 (§15.2 item 7) for the whole process, and it is not one of
 kernel/ARCHITECTURE.md §7's seams, so nothing needs it mutable.
+
+FAMILIES (p1_expected E163) holds the one entry no single statement can
+state: `rpow_int : rpow(u, n) == u^n @ u > 0` for each integer literal n.
+`u^n` with n a schema variable would parse as a real power (GRAMMAR.md
+D8), so the family is a template, instantiated for the n an inst gives and
+parsed by the trusted parser like every other statement. `resolve` is the
+one way the kernel reads an entry by name: an ENTRIES entry unchanged, or a
+family's member for the literal its inst carries. Sound for every integer
+n: where u > 0, u^n as a real power, exp(n*ln u), is the n-fold product
+(its inverse for n < 0, and 1 for n = 0).
 """
 
 from dataclasses import dataclass
 from types import MappingProxyType
 
-from terms import NonZero, Rel, fv, parse_judgement
+from terms import Neg, Num, NonZero, Refused, Rel, fv, parse_judgement
 
 STATEMENTS = {
     # name: (statement, schema)
@@ -137,3 +147,41 @@ def _load():
     return entries
 
 ENTRIES = MappingProxyType(_load())
+
+
+# A family's literal is printed into its template, so it is bounded: a
+# literal with thousands of digits would crash the printer, not refuse.
+MAX_FAMILY_LITERAL = 10 ** 6
+
+# name: (template over {n}, schema, the literal parameter's name)
+FAMILIES = MappingProxyType({
+    "rpow_int": ("rpow(u, {n}) == u^{p} @ u > 0", ("u",), "n"),
+})
+
+
+def resolve(name, inst):
+    """(Entry, inst) for the entry `name` under `inst`, or None when no
+    entry has that name. An ENTRIES entry comes back as it is, with inst
+    unchanged. A FAMILIES member is built for the integer literal inst
+    gives its parameter, Num or Neg(Num), and the parameter is dropped from
+    the inst returned, so the caller sees an ordinary entry whose schema
+    is the family's. A missing or non-literal parameter raises Refused
+    'bad-args'."""
+    if name in ENTRIES:
+        return ENTRIES[name], inst
+    if name not in FAMILIES:
+        return None
+    text, schema, param = FAMILIES[name]
+    lit = inst.get(param)
+    if type(lit) is Num:
+        k = lit.n
+    elif type(lit) is Neg and type(lit.a) is Num:
+        k = -lit.a.n
+    else:
+        raise Refused("bad-args", f"{name} takes {param} := an integer "
+                      f"literal, such as 2 or -1")
+    if abs(k) > MAX_FAMILY_LITERAL:  # field would refuse the power anyway
+        raise Refused("power-too-large", f"{name}: {param} is too large")
+    st = parse_judgement(text.format(n=k, p=k if k >= 0 else f"({k})"))
+    return (Entry(name, st, schema),
+            {v: t for v, t in inst.items() if v != param})

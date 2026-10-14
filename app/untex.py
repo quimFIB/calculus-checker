@@ -271,6 +271,10 @@ class _Reader:
             g = NAMED.get(g, g)
             if g in BUILTIN:
                 return self._apply(g)
+            if g == "rpow":  # GRAMMAR.md D17: the parser checks its two args
+                if self.peek() not in ("(", r"\left"):
+                    raise TexError("rpow is applied: rpow(u, n)")
+                return self._call(g), "atom"
             if g in self.sig:
                 if self.peek() not in ("(", r"\left"):
                     raise TexError(f"{g} is a declared function: apply it, "

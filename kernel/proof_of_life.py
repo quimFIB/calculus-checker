@@ -3288,8 +3288,6 @@ HOSTILE_TREES = [
     ("a Num holding -3, which prints as Neg(Num 3)",
      lambda: hostile(T.Pow(forged_num(-3), 2))),
     ("a Num holding True, which prints as a name", lambda: hostile(forged_num(True))),
-    ("an RPow with a literal exponent, which reparses as Pow (D17)",
-     lambda: hostile(forged(T.RPow, base=_x, exp=T.Num(2)))),
     ("an Interval with a closed -oo end (D18)",
      lambda: hostile(T.Div(_x, _x), (forged(T.Interval, var="x", lo=T.NEG_INF,
                                             lo_closed=True, hi=T.Num(1),
@@ -3354,10 +3352,6 @@ DIRECT_REFUSALS = [
      "subst-under-D"),
     ("(D[x](x*z))[x := z]", lambda: T.subst(term("D[x](x*z)"), {"x": T.Var("z")}),
      "subst-under-D"),
-    ("(2^x)[x := 1], never silently a Pow (GRAMMAR §5, §10)",
-     lambda: T.subst(term("2^x"), {"x": T.Num(1)}), "rpow-literal-exponent"),
-    ("(x^(-y))[y := 1]", lambda: T.subst(term("x^(-y)"), {"y": T.Num(1)}),
-     "rpow-literal-exponent"),
     ("install Int[x = -1 .. 1] x^(-2) == ?A @ x > 5 built by hand: without "
      "D11, ftc and close prove it == -2 on an empty domain",
      lambda: K.install((T.Rel("==", hand_int("x", term("-1"), T.Num(1), term("x^(-2)")),
@@ -6210,6 +6204,76 @@ def ode_checks(suite):
                 else ["dropped"])
 
 
+def _rpow_args(inst, at):
+    return {"entry": "rpow_int", "at": term(at),
+            "inst": {k: term(v) for k, v in inst.items()}}
+
+
+def rpow_problems():
+    """RPOW_E163: rpow(u, e)'s round trips, refusals and substitutions,
+    rpow_int's rewrites and fact, and E27 naming it."""
+    R, out = X.RPOW_E163, []
+    for text, printed in R["round_trips"]:
+        t = term(text)
+        if T.show(t) != printed or term(printed) != t:
+            out.append(f"{text}: prints {T.show(t)}, want {printed}")
+    for text, code in R["parse_refusals"]:
+        try:
+            term(text)
+            out.append(f"{text}: accepted")
+        except T.Refused as r:
+            if r.code != code:
+                out.append(f"{text}: {r.code}, want {code}")
+    try:
+        T.parse_term("x", {R["reserved"]: 1})
+        out.append("rpow accepted as a declared function")
+    except T.Refused as r:
+        if r.code != "D5-sig-collision":
+            out.append(f"sig rpow: {r.code}")
+    for text, m, printed in R["substitutions"]:
+        got = T.show(T.subst(term(text), {k: term(v) for k, v in m.items()}))
+        if got != printed:
+            out.append(f"{text}{m}: {got}, want {printed}")
+    for g, inst, at, new, owed in R["rewrite_accepts"]:
+        r = K.step(K.install(goal(g)), "rewrite", _rpow_args(inst, at))
+        if isinstance(r, K.Refusal):
+            out.append(f"{g}: refused {r.code}")
+            continue
+        keys = {T.show(ob.key) for ob in r.obligations()
+                if "rewrite_hyp" in ob.sources}
+        if T.show_goal(r.goal) != new or keys != {owed}:
+            out.append(f"{g}: {T.show_goal(r.goal)} owing {keys}, want "
+                       f"{new} owing {owed}")
+    for g, inst, at, code in R["rewrite_refusals"]:
+        r = K.step(K.install(goal(g)), "rewrite", _rpow_args(inst, at))
+        if getattr(r, "code", None) != code:
+            out.append(f"{g} {inst}: {getattr(r, 'code', 'accepted')}, want {code}")
+    inst, want = R["fact"]
+    r = K.step(K.install(goal("rpow(2, 3) == ?A")), "fact", {
+        "entry": "rpow_int", "bind": "h",
+        "inst": {k: term(v) for k, v in inst.items()}})
+    if isinstance(r, K.Refusal) or K._MINTED[r.last.handle.id].conclusion \
+            != T.parse_judgement(want):
+        out.append(f"fact rpow_int: {getattr(r, 'code', 'wrong conclusion')}")
+    for g, value, code, entry in R["close"]:
+        r = K.step(K.install(goal(g)), "close", {
+            "value": term(value), "check": "ring", "facts": []})
+        got = getattr(r, "code", None)
+        if got != code or entry and f"({entry})" not in r.message:
+            out.append(f"close {value} on {g}: {got} "
+                       f"{getattr(r, 'message', '')}, want {code} {entry}")
+    return out
+
+
+def rpow_checks(suite):
+    suite.check("R", f"RPOW_E163: {len(X.RPOW_E163['round_trips'])} round "
+                "trips, the parse refusals, substitution keeping RPow, "
+                "rpow_int's rewrites, refusals and fact, and E27 naming it "
+                "(E163)", rpow_problems)
+    suite.check("R", "rpow-literal-exponent is retired (E163)", lambda: [
+        c for c in ("rpow-literal-exponent",) if c in X.REFUSAL_CODES])
+
+
 def _trig_forgery(kind):
     """A replacement for trig_norm.propose, per TRIG_NORM_FORGERIES."""
     import trig_norm as TN
@@ -7144,7 +7208,7 @@ def main():
     suite.check(5, "every REFUSAL_CODES code, every kernel-local code and every "
                 "GRAMMAR.md §1 code is asserted", refusal_coverage_problems)
     suite.check(5, f"{len(DIRECT_REFUSALS)} refusals called directly: subst under D "
-                "and into RPow, and check_goal's scope guards on hand-built goals",
+                "and check_goal's scope guards on hand-built goals",
                 direct_refusal_problems)
     suite.check(5, "state-not-minted and proof-finished, by direct calls",
                 unminted_finished_problems)
@@ -7277,6 +7341,10 @@ def main():
     print("\nassumptions and the ODE rules (item O; p1_expected section 30)")
     if K is not None:
         ode_checks(suite)
+
+    print("\nrpow and rpow_int (item R; p1_expected E163)")
+    if K is not None:
+        rpow_checks(suite)
 
     print("\nPlanted bugs (each in a child process)")
     suite.check(3, "control: the child, unpatched, finds nothing", control_problems)

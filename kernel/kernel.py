@@ -112,6 +112,7 @@ import schema
 import search
 import tagger
 import trig_norm
+import entries
 from entries import ENTRIES
 from terms import (NEG_INF, POS_INF, Add, App, Call, Deriv, Div, Integral, Mul,
                    Interval, MVar, Neg, NegInf, NonZero, Num, PosInf, Pow,
@@ -1421,7 +1422,8 @@ def _rewrite(state, args, minted, buf):
     field.ring_equal and _no_trees_erased seams (ARCHITECTURE.md §7,
     BACKSTOPS), so call it only as written here.
     Returns (new goal, None, occurrences)."""
-    e, inst, at = ENTRIES.get(args["entry"]), args["inst"], args["at"]
+    at = args["at"]
+    e, inst = entries.resolve(args["entry"], args["inst"]) or (None, None)
     if e is None or e.statement.op != "==" or set(inst) != set(e.schema):
         raise Refused("bad-args", "rewrite takes an equation entry and "
                       "exactly its schema's variables")
@@ -1442,6 +1444,9 @@ def _rewrite(state, args, minted, buf):
     if isinstance(lhs, App):  # steps 3-5: congruence up to ring_nf
         ok = (isinstance(at, App) and at.fn == lhs.fn
               and FD.ring_equal(lhs.arg, at.arg))
+    elif isinstance(lhs, RPow):  # E163: a real power, through both fields
+        ok = (isinstance(at, RPow) and FD.ring_equal(lhs.base, at.base)
+              and FD.ring_equal(lhs.exp, at.exp))
     else:
         ok = lhs == at
     if not ok:
@@ -1498,7 +1503,7 @@ def _fact(state, args, minted, buf):
     The statement's own formers are not re-charged: over schema variables
     each is the entry's hypothesis or always true, and the library
     statement is trusted (§6.8)."""
-    e, inst = ENTRIES.get(args["entry"]), args["inst"]
+    e, inst = entries.resolve(args["entry"], args["inst"]) or (None, None)
     if e is None or set(inst) != set(e.schema):
         raise Refused("bad-args", "fact takes an entry and exactly its "
                       "schema's variables")

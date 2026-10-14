@@ -2309,9 +2309,7 @@ REFUSAL_CODES = {
     "ftc-infinite-endpoint": "§5.1, §6.4 (E9)",
     "range-same-infinity": "E4: Int[v = oo .. oo] or Int[v = -oo .. -oo] "
                            "has an empty range; unreachable in P1",
-    "rpow-literal-exponent": "GRAMMAR.md §7 D17: an RPow constructed with a "
-                             "Num or Neg(Num) exponent, by substitution or "
-                             "instantiation; unreachable in P1 (no RPow)",
+    # 'rpow-literal-exponent' (D17) was retired by E163: the node is a term.
     "close-check-failed": "§9 (carries a residual)",
     # Added by user decision 2026-09-24 (evaluated answers), E27.
     "close-not-evaluated": "§9, §6.8, E27: the value was proved equal to "
@@ -5138,7 +5136,7 @@ DECISIONS = {
            "variable may not occur in its own endpoints). f[x := sub] is "
            "built by terms.subst, trusted and capture-avoiding, before "
            "anything is emitted, so D10's refusal ('subst-under-D') and "
-           "D17's ('rpow-literal-exponent') come first. check_goal on the "
+           "D17's ('rpow-literal-exponent', retired by E163) came first. check_goal on the "
            "new goal is the backstop (D11, shadowing). Freshness is "
            "stricter than soundness needs, since capture-avoiding "
            "substitution and check_goal already make a clash harmless or "
@@ -9388,7 +9386,7 @@ INT_SUBST_RULE = (
 
     "7. Syntax, before anything is emitted, each by terms.subst (trusted, "
     "capture-avoiding; its refusals 'subst-under-D' (D10) and "
-    "'rpow-literal-exponent' (D17) come here). Forward: F := body[var := "
+    "'rpow-literal-exponent' (D17, retired by E163) came here). Forward: F := body[var := "
     "sub], and the images sub[new_var := lo] and sub[new_var := hi]. "
     "Reverse: Fg := f[new_var := sub], and the images sub[var := a] and "
     "sub[var := b].",
@@ -16781,6 +16779,25 @@ DECISIONS_AUTO_SIMPL = {
             "(b), so 2^(1/2 + 1/2) names rpow_int. RPOW_E163 pins it. No "
             "derivative rule for RPow is added: ftc still refuses 2^x/ln 2 "
             "(deriv-no-rule).",
+    "E164": "The E162/E163 review (2026-10-14), folded in. No false "
+            "theorem and no unchecked Proved was found: 30,000 fuzzed RPow "
+            "terms round-trip, and resolve, rewrite's RPow match and "
+            "check_goal held against forged and odd input. Fixed: (1) an "
+            "exception inside the chain (power-too-large from the "
+            "untrusted normaliser) escaped as a 500 and lost an accepted "
+            "move; any exception now stops the chain. (2) Replay applied "
+            "any recorded chain, so a work file could show an admitted, "
+            "false pi - 4 >= 0 as auto-simpl's; replay now holds a chain "
+            "to the live rules (rewrite, fact, close only; no admission "
+            "added; the goal closed; only where the setting and trigger "
+            "allow one) or drops the node 'auto-replay'. (3) /step's "
+            "simpl skipped simpl's own constant-goal and args checks. (4) "
+            "The proof-finished hint misfired after a typed simpl; set and "
+            "simpl on a closed goal now get proof-finished. (5) x^rpow(2, "
+            "1) parsed although GRAMMAR's exponent rule refuses it. (6) A "
+            "family literal of thousands of digits crashed the printer; "
+            "resolve refuses past 10^6 'power-too-large'. (7) untex reads "
+            "rpow and the palette offers rpow_int.",
 }
 
 # E163's cases. Terms are GRAMMAR.md syntax. "printed" is show(parse(text)).
@@ -16801,6 +16818,7 @@ RPOW_E163 = {
         ("rpow x", "syntax"),
         ("rpow(2, 1, 3)", "syntax"),
         ("sin rpow(2, 1)^2", "D6-app-as-base"),
+        ("x^rpow(2, 1)", "syntax"),  # E164: write x^(rpow(2, 1))
     ],
     # sig {"rpow": 1} is refused: rpow is reserved
     "reserved": "rpow",
@@ -16827,6 +16845,11 @@ RPOW_E163 = {
          "rewrite-lhs-mismatch"),
         ("2^x == ?A @ x > 0", {"u": "2", "n": "1"}, "2^x",
          "rewrite-lhs-mismatch"),
+        # E164: the base is matched too, not only the exponent
+        ("rpow(3, 1) == ?A", {"u": "2", "n": "1"}, "rpow(3, 1)",
+         "rewrite-lhs-mismatch"),
+        ("rpow(2, 1) == ?A", {"u": "2", "n": str(10 ** 7)}, "rpow(2, 1)",
+         "power-too-large"),
     ],
     # fact h := rpow_int with u := 2; n := 3 concludes this
     "fact": ({"u": "2", "n": "3"}, "rpow(2, 3) == 2^3 @ 2 > 0"),
