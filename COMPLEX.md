@@ -1,8 +1,9 @@
 # Complex analysis: a design (proposal, revision 2, 2026-10-14)
 
-**Status:** a proposal, not built and not yet a spec. It answers DESIGN.md
-§18 Q8 ("complex numbers as a sort"), which revision 10 deferred until the
-course reached unit 06. Nothing in this file changes the kernel.
+**Status:** the design, being built. **K1 (arithmetic) is built**
+(2026-10-14, p1_expected E165–E174, GRAMMAR.md §11, ARCHITECTURE.md
+§16); K2–K4 are not. It answers DESIGN.md §18 Q8 ("complex numbers as a
+sort"), which revision 10 deferred until the course reached unit 06.
 
 **Revision 2** follows the owner's brief on revision 1: *implement it
 once*. Revision 1 was sized to the course: a residue rule for rational

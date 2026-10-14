@@ -819,12 +819,13 @@ def entries_problems():
             *X.TRIG_NORM_SWITCH["ENTRIES_append"],  # E87: 31
             *X.TAYLOR_ENTRIES_APPEND,  # E103: 32
             *X.UNIT00_ENTRIES_APPEND,  # E117: 39
-            *X.G8_ENTRIES_APPEND]  # E133: 42
+            *X.G8_ENTRIES_APPEND,  # E133: 42
+            *X.K1_ENTRIES_APPEND]  # E172: 47
     if names[-len(tail):] != tail:
         out.append(f"cos_zero, sqrt_nonneg and CONSOLIDATION_ENTRIES are not "
                    f"last, in that order: {names}")
-    if len(names) != 42:
-        out.append(f"ENTRIES has {len(names)} entries, expected 42")
+    if len(names) != 47:
+        out.append(f"ENTRIES has {len(names)} entries, expected 47")
     for name, e in {**X.SQRT_NONNEG_ENTRY, **X.CONSOLIDATION_ENTRIES,
                     **X.UNIT00_ENTRIES, **X.G8_ENTRIES}.items():
         got = ENTRIES.get(name)

@@ -13,6 +13,7 @@ import re
 from session import KERNEL  # noqa: F401  (puts kernel/ on the path)
 from terms import (Add, App, Call, Const, Deriv, Div, Integral, Interval,
                    Judgement, MVar, Mul, Neg, NegInf, NonZero, Num, PosInf,
+                   Branch, CVar,
                    Pow, Reg, Rel, RPow, Term, Var, _d13_free, _literal_rpow,
                    parse_goal, parse_judgement, parse_term)
 
@@ -22,12 +23,13 @@ FNS = {"sin": r"\sin", "cos": r"\cos", "tan": r"\tan", "exp": r"\exp",
        "ln": r"\ln", "asin": r"\arcsin", "acos": r"\arccos",
        "atan": r"\arctan", "sinh": r"\sinh", "cosh": r"\cosh",
        "tanh": r"\tanh", "asinh": r"\operatorname{arsinh}",
-       "acosh": r"\operatorname{arcosh}", "atanh": r"\operatorname{artanh}"}
+       "acosh": r"\operatorname{arcosh}", "atanh": r"\operatorname{artanh}",
+       "re": r"\operatorname{Re}", "im": r"\operatorname{Im}"}  # E174
 RELS = {"==": "=", "<=": r"\le", "<": "<", ">=": r"\ge", ">": ">"}
 
 # show's levels; Div is 6 here, since \frac groups itself
 _LEVEL = {Integral: 0, Add: 1, Mul: 2, Neg: 3, App: 4, Deriv: 4,
-          Pow: 5, RPow: 5}
+          Branch: 4, Pow: 5, RPow: 5}
 
 
 def _level(t):
@@ -61,10 +63,10 @@ def _t(t, need=0, left=True):
     k = type(t)
     if k is Num:
         return str(t.n)
-    if k is Var:
+    if k in (Var, CVar):
         return _name(t.name)
     if k is Const:
-        return r"\pi" if t.name == "pi" else r"\mathrm{e}"
+        return {"pi": r"\pi", "e_const": r"\mathrm{e}", "i": "i"}[t.name]
     if k is MVar:
         return "?" + t.name
     if k is Add:
@@ -85,6 +87,16 @@ def _t(t, need=0, left=True):
                 else _t(t.base, 6, False))
         exp = str(t.n) if k is Pow else _t(t.exp)
         return base + "^{" + exp + "}"
+    if k is App and t.fn == "conj":  # E174: the bar
+        return r"\overline{" + _t(t.arg) + "}"
+    if k is Branch:  # E174: Log z, or log with its cut's angle
+        head = (r"\operatorname{" + {"log": "Log", "arg": "Arg",
+                                       "sqrt": "Sqrt"}[t.fn] + "}"
+                if t.theta == Const("pi") else
+                r"\operatorname{" + t.fn + "}_{[" + _t(t.theta) + "]}")
+        if type(t.arg) in (Num, Var, Const, CVar):
+            return head + " " + _t(t.arg)
+        return head + _paren(_t(t.arg))
     if k is App:
         if t.fn == "sqrt":
             return r"\sqrt{" + _t(t.arg) + "}"

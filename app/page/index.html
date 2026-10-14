@@ -207,8 +207,8 @@ details.card tr.match td { background: var(--sel); font-weight: 600; }
       <summary>Your own goal</summary>
       <label for="own-goal">Goal</label>
       <input id="own-goal" class="term" placeholder="Int[x = 0 .. 1] x^2 == ?A">
-      <label for="own-functions">Functions (name/arity, comma separated)</label>
-      <input id="own-functions" class="term" placeholder="f/1">
+      <label for="own-functions">Functions (name/arity) and complex variables (name/complex), comma separated</label>
+      <input id="own-functions" class="term" placeholder="f/1, z/complex">
       <label for="own-assuming">Assuming (one per line: name: J for s in I)</label>
       <textarea id="own-assuming" class="term" rows="3" spellcheck="false"
         placeholder="eom: m*D[s] v(s) == -(m*g) - b*v(s) for s in [0, oo)&#10;regv: v in C^1 for s in [0, oo)"></textarea>
@@ -1293,7 +1293,8 @@ $("start-own").onclick = () => {
   const functions = {};
   for (const part of $("own-functions").value.split(",").map((s) => s.trim()).filter(Boolean)) {
     const [name, arity] = part.split("/");
-    functions[name.trim()] = parseInt(arity, 10);
+    // E174: name/complex declares a complex variable
+    functions[name.trim()] = arity.trim() === "complex" ? "complex" : parseInt(arity, 10);
   }
   const assuming = $("own-assuming").value.trim();
   start({ goal: $("own-goal").value, functions, ...(assuming ? { assuming } : {}),

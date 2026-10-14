@@ -12,11 +12,12 @@ from types import SimpleNamespace
 import fill
 import session  # noqa: F401  puts kernel/ on the path
 
+import complexes as CX  # noqa: E402
 import entries  # noqa: E402
 import field as FD  # noqa: E402
 import residual as RD  # noqa: E402
 import schema as SC  # noqa: E402
-from terms import MVar, Neg, Num, show, subst  # noqa: E402
+from terms import MVar, Neg, Num, fv, lit, show, subst  # noqa: E402
 
 MAX_REWRITES, MAX_FACTS = 32, 8
 
@@ -69,6 +70,11 @@ def _insts(e, s):
         return [{"u": c}, {"u": _nf(Neg(c))}]
     if e.name in _ODD:
         return [{"u": _nf(Neg(s.arg))}]
+    p = SC.arg_parts(s)  # E172: the parts of a principal Arg's argument
+    if p is not None and e.name.startswith("arg_"):
+        a, b = (lit(x) for x in p)
+        return [{"u": a, "v": b} if e.name == "arg_right" else
+                {"u": b if e.name.startswith("arg_i") else a}]
     bound = {}
     if SC._tree_match(e.statement.lhs, s, frozenset(e.schema), bound):
         return [bound]
@@ -80,9 +86,12 @@ def redexes(side):
     (a) counts and a rewrite can take, in E27's order: pre-order, and at
     each node the ENTRIES equations in order, then rpow_int (E163)."""
     eqs = [e for e in entries.ENTRIES.values() if e.statement.op == "=="]
-    for s, _ in SC._preorder(side):
+    nodes = list(SC._preorder(side))
+    for s, _ in nodes:
+        if not CX.real_form(s):  # (a) reads real-form subterms (E173)
+            continue
         for e in eqs:
-            if SC._counts(e, s):
+            if SC._counts_safe(e, s):
                 insts = _insts(e, s)
                 if insts:
                     yield e.name, s, insts
@@ -90,6 +99,9 @@ def redexes(side):
         if n is not None:
             yield "rpow_int", s, [{"u": s.base, "n": Num(n) if n >= 0
                                    else Neg(Num(-n))}]
+    for s, _ in nodes:  # (c): a closed complex term not yet rectangular
+        if not fv(s) and not CX.real_form(s) and not SC._rect(s):
+            yield "parts", s, [{}]
 
 
 def _value(lhs, pairs):
@@ -151,21 +163,26 @@ def _run(state, handles, feed, facts=()):
         steps.append((move, args))
         return None
 
-    # 1. rewrites, on the goal
+    # 1. rewrites, on the goal: the first redex, in E27's order, whose
+    # rewrite the kernel accepts; a refused candidate yields to the next
     for _ in range(MAX_REWRITES + 1):
-        found = next(redexes(state.goal[0].lhs), None)
-        if found is None:
-            break
-        if len(steps) == MAX_REWRITES:
-            raise Stopped(f"gave up after {MAX_REWRITES} rewrites")
-        name, at, insts = found
-        for inst in insts:
-            why = try_step("rewrite", {"entry": name, "inst": _text(inst),
-                                       "at": show(at)})
-            if why is None:
+        first, done = None, False
+        for name, at, insts in redexes(state.goal[0].lhs):
+            if len(steps) == MAX_REWRITES:
+                raise Stopped(f"gave up after {MAX_REWRITES} rewrites")
+            for inst in insts:
+                why = try_step("rewrite", {"entry": name, "inst": _text(inst),
+                                           "at": show(at)})
+                if why is None:
+                    done = True
+                    break
+                first = first or why
+            if done:
                 break
-        else:
-            raise _stopped(why)
+        if not done:
+            if first is not None:
+                raise _stopped(first)
+            break
     # 2. facts, on the value
     pairs, binds = [], []
     for _ in range(MAX_FACTS + 1):

@@ -30,8 +30,18 @@ from fractions import Fraction
 
 BUILTINS = frozenset((
     "sin", "cos", "tan", "asin", "acos", "atan", "exp", "ln", "sqrt", "abs",
-    "sinh", "cosh", "tanh", "asinh", "acosh", "atanh"))
-CONSTANTS = frozenset(("pi", "e_const"))
+    "sinh", "cosh", "tanh", "asinh", "acosh", "atanh",
+    "re", "im", "conj"))  # the last three: GRAMMAR.md §11 (E166)
+CONSTANTS = frozenset(("pi", "e_const", "i"))  # i: GRAMMAR.md §11, Z4
+
+# GRAMMAR.md §11, D20: the sorts. Real-only builtins take a Real argument;
+# the polymorphic ones return their argument's sort; the rest are Real.
+REAL_ONLY = frozenset(("ln", "sqrt", "asin", "acos", "atan", "asinh",
+                       "acosh", "atanh"))
+POLYMORPHIC = frozenset(("sin", "cos", "tan", "exp", "sinh", "cosh", "tanh",
+                         "conj"))
+BRANCHES = frozenset(("log", "arg", "sqrt"))  # Branch.fn
+PRINCIPAL = {"Log": "log", "Arg": "arg", "Sqrt": "sqrt"}  # theta = pi
 RELS = ("==", "<=", "<", ">=", ">")
 
 
@@ -88,6 +98,13 @@ class Var(Term):
 
 
 @dataclass(frozen=True, slots=True)
+class CVar(Var):
+    """A complex variable (GRAMMAR.md §11, E166): declared in sig as
+    "complex". A Var to fv, subst and show; another node to exact-type
+    checks and to ==."""
+
+
+@dataclass(frozen=True, slots=True)
 class MVar(Term):
     name: str  # "A" for ?A; in goals only, the whole rhs of one == (D15)
 
@@ -134,6 +151,17 @@ class RPow(Term):
 @dataclass(frozen=True, slots=True)
 class App(Term):
     fn: str  # one of BUILTINS
+    arg: Term
+
+
+@dataclass(frozen=True, slots=True)
+class Branch(Term):
+    """log[theta] arg, arg[theta] arg or sqrt[theta] arg (GRAMMAR.md §11,
+    Z6): a branch with its cut along the ray at angle theta, a closed real
+    constant (D19). theta is a child, so its formers are charged and its
+    sort checked like any term's."""
+    fn: str  # one of BRANCHES
+    theta: Term
     arg: Term
 
 
@@ -233,10 +261,11 @@ def lit(q):
 # children. Leaves, infinities and anything else have none.
 _CHILDREN = {Neg: ("a",), Add: ("a", "b"), Mul: ("a", "b"), Div: ("a", "b"),
              Pow: ("base",), RPow: ("base", "exp"), App: ("arg",),
+             Branch: ("theta", "arg"),
              Call: ("args",), Deriv: ("body",), Integral: ("lo", "hi", "body"),
              Interval: ("lo", "hi"), Rel: ("lhs", "rhs", "dom"),
              NonZero: ("e", "dom"), Reg: ("e", "dom")}
-_TERMS = frozenset((Num, Const, Var, MVar)) | {c for c in _CHILDREN
+_TERMS = frozenset((Num, Const, Var, CVar, MVar)) | {c for c in _CHILDREN
                                                 if issubclass(c, Term)}
 
 
@@ -437,6 +466,110 @@ def with_domain(prop, dom):
     return replace(prop, dom=tuple(dom) if fv(prop) or _calls(prop) else ())
 
 
+# ---------------------------------------------------------------- sorts
+#
+# GRAMMAR.md §11, D19 and D20 (p1_expected E166): every term is Real ("R")
+# or Complex ("C"), decided from the term alone. Trusted: an order on a
+# Complex side, or a Real-only head on a Complex argument, would be read as
+# real by every decision procedure the kernel has.
+
+_ORDERS = ("<", "<=", ">", ">=")
+
+
+def sort_of(t):
+    """'R' or 'C' for a term, raising Refused with a D20 code when a
+    Real-only position holds a Complex term, or D19's when a branch angle
+    is not a closed real constant. ?A, which takes the sort of its value,
+    reads as 'R'."""
+    k = type(t)
+    if isinstance(t, CVar) or k is Const and t.name == "i":
+        return "C"
+    if k in (Num, Const, Var, MVar):
+        return "R"
+    if k in (Neg, Add, Mul, Div, Pow):  # every operand checked, not the first C
+        return "C" if "C" in [sort_of(x) for x in _kids(t)] else "R"
+    if k is RPow:
+        if sort_of(t.base) == "C":
+            raise Refused("sort-real-only", f"the base of a real power is "
+                          f"real: write exp(e*Log b) for {_shown_or(t)}")
+        return sort_of(t.exp)
+    if k is App:
+        s = sort_of(t.arg)
+        if t.fn in REAL_ONLY and s == "C":
+            hint = {"ln": " (write Log)", "sqrt": " (write Sqrt)"}.get(t.fn, "")
+            raise Refused("sort-real-only", f"{t.fn} takes a real argument"
+                          f"{hint}")
+        return s if t.fn in POLYMORPHIC else "R"
+    if k is Branch:
+        th = t.theta
+        if not isinstance(th, Term) or fv(th) or next(trees(th), None) \
+                or _holds_mvar(th) or sort_of(th) == "C" \
+                or not _complex_free(th):  # D19: no i, re, im, conj, branch
+            raise Refused("branch-not-constant", "a branch angle is a closed "
+                          "real constant, such as pi or 2*pi (D19)")
+        sort_of(t.arg)
+        return "R" if t.fn == "arg" else "C"
+    if k is Call:
+        if "C" in [sort_of(x) for x in t.args]:
+            raise Refused("sort-real-only", f"{t.fn} takes real arguments")
+        return "R"
+    if k in (Integral, Deriv):  # D20: nothing complex inside, until K2
+        if not _complex_free(t):
+            raise Refused("complex-calculus-not-built", "calculus on complex "
+                          "terms is stage K2 (COMPLEX.md)")
+        return "R"
+    return "R"
+
+
+def _complex_free(x):
+    """No complex structure anywhere in x: no i, CVar, Branch, re, im or
+    conj (D19, D20)."""
+    todo = [x]
+    while todo:
+        t = todo.pop()
+        if isinstance(t, (CVar, Branch)) or type(t) is Const and \
+                t.name == "i" or type(t) is App and t.fn in ("re", "im",
+                                                             "conj"):
+            return False
+        todo.extend(_kids(t))
+    return True
+
+
+def _holds_mvar(t):
+    return isinstance(t, MVar) or any(_holds_mvar(k) for k in _kids(t))
+
+
+def _shown_or(t):
+    try:
+        return show(t)
+    except Exception:  # noqa: BLE001 -- a message only
+        return "it"
+
+
+def check_sorts(j):
+    """D20 for a judgement, its domain items included."""
+    if isinstance(j, Rel):
+        sides = [x for x in (j.lhs, j.rhs) if not isinstance(x, MVar)]
+        sorts = [sort_of(x) for x in sides]
+        if j.op in _ORDERS and "C" in sorts:
+            raise Refused("sort-order-on-complex", "an order compares real "
+                          "terms: write re, im or abs of a complex one")
+    elif isinstance(j, NonZero):
+        sort_of(j.e)
+    elif isinstance(j, Reg):
+        if sort_of(j.e) == "C" or not _complex_free(j.e):
+            raise Refused("complex-calculus-not-built", "regularity of a "
+                          "complex term is stage K2 (COMPLEX.md)")
+    for it in j.dom:
+        if isinstance(it, Interval):
+            for e in _finite(it.lo, it.hi):
+                if sort_of(e) == "C" or not _complex_free(e):
+                    raise Refused("complex-calculus-not-built",
+                                  "an interval's ends are real")
+        else:
+            check_sorts(it)
+
+
 def check_goal(goal):
     """Raise Refused unless `goal` is a well-formed goal tree, whatever built it.
 
@@ -473,6 +606,25 @@ def check_goal(goal):
         raise Refused("D11-bound-and-free", f"{', '.join(sorted(clash))} is "
                       f"both bound and free in the goal (D11)")
     check_names(goal)
+    for j in goal:
+        check_sorts(j)
+    real, cplx = _var_sorts(goal)
+    if real & cplx:  # one name, two sorts: fv and ring atoms would merge them
+        raise Refused("syntax", f"{', '.join(sorted(real & cplx))} is both a "
+                      "real and a complex variable")
+
+
+def _var_sorts(x):
+    """(names of real Vars, names of CVars) anywhere in x."""
+    real, cplx, todo = set(), set(), [x]
+    while todo:
+        t = todo.pop()
+        if isinstance(t, CVar):
+            cplx.add(t.name)
+        elif isinstance(t, Var):
+            real.add(t.name)
+        todo.extend(_kids(t))
+    return real, cplx
 
 
 def _calls(x):
@@ -545,6 +697,8 @@ def _leaves_ok(t):
             t, Const) else _NAME.fullmatch(t.name) is not None)
     if isinstance(t, App):
         return type(t.fn) is str and t.fn in BUILTINS
+    if isinstance(t, Branch):
+        return type(t.fn) is str and t.fn in BRANCHES
     if isinstance(t, Call):  # install has no sig: its shape only
         return (type(t.fn) is str and _NAME.fullmatch(t.fn) is not None
                 and t.fn not in RESERVED and type(t.args) is tuple
@@ -659,10 +813,14 @@ def _lex(s):
 # ---------------------------------------------------------------- names (§3)
 
 KEYWORDS = frozenset(("D", "Int", "in", "oo", "true", "rpow"))
+# GRAMMAR.md §11: names that start a branch (arg, pow, Log, Arg, Sqrt; log
+# and sqrt start one only before "[")
+_BRANCH_WORDS = frozenset(("arg", "pow")) | frozenset(PRINCIPAL)
 _CLASS = {**dict.fromkeys(CONSTANTS, "const"),
           **dict.fromkeys(BUILTINS, "builtin"),
-          **dict.fromkeys(KEYWORDS, "kw")}
-_HINTS = {"log": "ln", "sec": "1/cos u", "csc": "1/sin u",
+          **dict.fromkeys(KEYWORDS, "kw"),
+          **dict.fromkeys(_BRANCH_WORDS, "branch")}
+_HINTS = {"log": "ln x, or log[θ] for a complex branch", "sec": "1/cos u", "csc": "1/sin u",
           "cot": "cos u/sin u", "sech": "1/cosh u", "arcsin": "asin",
           "arccos": "acos", "arctan": "atan", "arsinh": "asinh",
           "arcosh": "acosh", "artanh": "atanh", "inf": "oo", "infinity": "oo"}
@@ -689,6 +847,12 @@ def _check_sig(sig):
             raise ParseError("syntax", f"sig: {f!r} is not a name", None)
         if f in RESERVED:
             raise ParseError("D5-sig-collision", f"sig: {f} is reserved", None)
+        if n == "complex":  # GRAMMAR.md §11: a complex variable
+            if not _VARIABLE.fullmatch(f):
+                raise ParseError("D5-sig-collision", f"sig: {f} is not a "
+                                 "variable name, so it cannot be complex",
+                                 None)
+            continue
         if type(n) is not int or n < 1:
             raise ParseError("D5-sig-arity0", f"sig: {f} needs arity >= 1; "
                              f"declare a constant as a variable", None)
@@ -744,7 +908,7 @@ class _Parser:
         if w in _REFUSED:
             self.fail(*_REFUSED[w])
         if w in self.sig:
-            return "declared"
+            return "cvar" if self.sig[w] == "complex" else "declared"
         if _is(self.peek(1), "("):
             self.fail("D5-undeclared", f"{w} is not a declared function "
                       f"symbol; write {w}*(...) (D5)")
@@ -824,7 +988,40 @@ class _Parser:
             self.fail("implicit-mul", "no implicit multiplication: write a*b")
         return t
 
+    def at_branch(self):
+        """GRAMMAR.md §11: log[, arg[, sqrt[, pow[, Log, Arg or Sqrt."""
+        tok = self.peek()
+        if tok[0] != "id":
+            return False
+        if tok[1] in PRINCIPAL:
+            return True
+        return tok[1] in ("log", "arg", "sqrt", "pow") and _is(
+            self.peek(1), "[")
+
+    def branch(self):
+        """A branch with its operand, or pow[T](a, b) as exp(b*log[T] a)."""
+        name = self.take()[1]
+        if name in PRINCIPAL:
+            return Branch(PRINCIPAL[name], Const("pi"), self.operand())
+        self.expect("[")
+        theta = self.expr()
+        self.expect("]")
+        if name != "pow":
+            return Branch(name, theta, self.operand())
+        self.expect("(")
+        a = self.expr()
+        self.expect(",")
+        b = self.expr()
+        self.expect(")")
+        return App("exp", Mul(b, Branch("log", theta, a)))
+
     def power(self):
+        if self.at_branch():
+            t = self.branch()
+            if self.at("^"):
+                self.fail("D6-app-as-base", "an application is not a power "
+                          "base: write (Log z)^2 (D6)")
+            return t
         if not (self.at("D") or self.is_kind("builtin")):
             base = self.atom()
             return self.raise_to(base) if self.at("^") else base
@@ -849,6 +1046,8 @@ class _Parser:
         refuses one."""
         if self.at("-"):
             self.fail("D6-neg-operand", "write sin(-x), not sin -x (D6)")
+        if self.at_branch():
+            return self.branch()
         if self.at("D") or self.is_kind("builtin"):
             return self.app()
         if self.is_kind("declared"):
@@ -894,8 +1093,9 @@ class _Parser:
         if _is(tok, "rpow"):
             return self.rpow()
         k = self.kind() if tok[0] == "id" else None
-        if k in ("const", "var"):
-            return (Const if k == "const" else Var)(self.take()[1])
+        if k in ("const", "var", "cvar"):
+            return {"const": Const, "var": Var, "cvar": CVar}[k](
+                self.take()[1])
         if k == "declared":
             return self.call()
         if _is(tok, "Int"):
@@ -1067,6 +1267,13 @@ def _parse(s, sig, goal, rule):
                          "parse", 0) from None
     if p.peek()[0] != "end":
         p.syntax("end of input")
+    try:  # GRAMMAR.md §11, D19-D20; parse_goal's check_goal does goals
+        if isinstance(x, Term):
+            sort_of(x)
+        elif isinstance(x, Judgement):
+            check_sorts(x)
+    except Refused as r:
+        raise ParseError(r.code, r.message, None) from None
     return x
 
 
@@ -1116,7 +1323,7 @@ def parse_goal(s, sig=None):
 # `tail` whether the text ends in a bare application (R3).
 
 _LEVEL = {Integral: 0, Add: 1, Mul: 2, Div: 2, Neg: 3, App: 4, Deriv: 4,
-          Pow: 5, RPow: 5}
+          Branch: 4, Pow: 5, RPow: 5}
 
 
 def _show(t, need, left):
@@ -1184,6 +1391,16 @@ def _show_steps(t, need, left):
             return base + "^" + t.exp.name, False
         exp = (yield t.exp, 0, True)[0]
         return base + "^" + f"({exp})", False
+    if isinstance(t, Branch):  # GRAMMAR.md §11: Log u, or log[theta] u
+        if t.theta == Const("pi"):
+            head = {v: k for k, v in PRINCIPAL.items()}[t.fn]
+        else:
+            head = f"{t.fn}[{(yield t.theta, 0, True)[0]}]"
+        if isinstance(t.arg, (Num, Var, Const)):
+            a = (yield t.arg, 6, True)[0]
+            return f"{head} {a}", True
+        a = (yield t.arg, 0, True)[0]
+        return f"{head}({a})", False
     if isinstance(t, (App, Deriv)):
         head, arg = (t.fn, t.arg) if isinstance(t, App) else (
             f"D[{t.var}]", t.body)

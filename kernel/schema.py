@@ -43,12 +43,14 @@ from math import gcd, isqrt
 import entries
 import field as FD
 import poly as P
-from terms import (Add, App, BUILTINS, Call, Const, Div, Mul, Neg, Num, Pow,
-                   RPow, Refused, Rel, Var, children, fv, show)
+import complexes
+from terms import (Add, App, BUILTINS, Branch, Call, Const, CVar, Div, Mul,
+                   Neg, Num, Pow, RPow, Refused, Rel, Var, children, fv, show)
 
 # Admitted node kinds (E23). Refused: Call, Deriv, Integral, MVar, and anything
-# else. App is admitted only over the sixteen builtins.
-WHITELIST = (Num, Const, Var, Neg, Add, Mul, Div, Pow, RPow, App)
+# else. App is admitted only over the builtins; E173 adds i (a Const), CVar
+# and Branch.
+WHITELIST = (Num, Const, Var, CVar, Neg, Add, Mul, Div, Pow, RPow, App, Branch)
 
 
 def closed_ok(value, extensions=()):
@@ -75,6 +77,7 @@ NOT_EVALUATED = "close-not-evaluated"  # p1_expected REFUSAL_CODES
 MESSAGES = {
     "a": "{term} can still be evaluated ({entry})",
     "b": "{term} is unreduced literal arithmetic",
+    "c": "{term} can still be evaluated (parts)",
 }
 
 
@@ -98,19 +101,65 @@ def evaluated_offence(value):
     `value`, or None. clause is 'a', or 'b1' to 'b4'. (a) over the whole
     value comes before (b)."""
     nodes = list(_preorder(value))
+    # E173: (a) and (b) read real-form subterms only (field refuses the
+    # rest unsplit); the complex structure around them is (c)'s
+    real = [(s, p) for s, p in nodes if complexes.real_form(s)]
     eqs = [e for e in entries.ENTRIES.values()
            if isinstance(e.statement, Rel) and e.statement.op == "=="]
-    for s, _ in nodes:
+    for s, _ in real:
         for e in eqs:
-            if _counts(e, s):
+            if _counts_safe(e, s):
                 return "a", s, e.name
         if rpow_int_exponent(s) is not None:
             return "a", s, "rpow_int"
-    for s, parent in nodes:
+    for s, _ in nodes:
+        if not fv(s) and not complexes.real_form(s) and not _rect(s):
+            return "c", s, "parts"
+    for s, parent in real:
         for clause, test in _B_TESTS:
             if test(s, parent):
                 return clause, s, None
     return None
+
+
+def _counts_safe(e, s):
+    try:
+        return _counts(e, s)
+    except Refused:  # a subterm field cannot read counts for nothing
+        return False
+
+
+# -- (c): rectangular form over C (E173)
+
+def _imag(t):
+    """i, r*i, i*r, m/r or -m, with r real-form and m imaginary."""
+    k = type(t)
+    if k is Const and t.name == "i":
+        return True
+    if k is Mul:
+        return (_is_i(t.b) and complexes.real_form(t.a)
+                or _is_i(t.a) and complexes.real_form(t.b))
+    if k is Div:
+        return _imag(t.a) and complexes.real_form(t.b)
+    if k is Neg:
+        return _imag(t.a)
+    return False
+
+
+def _is_i(t):
+    return type(t) is Const and t.name == "i"
+
+
+def _rect(t):
+    """Rectangular: real-form, imaginary, or a real-form term plus or
+    minus an imaginary one, in either order."""
+    if complexes.real_form(t) or _imag(t):
+        return True
+    if type(t) is Add:
+        a, b = t.a, t.b.a if type(t.b) is Neg else t.b
+        return (complexes.real_form(a) and _imag(b)
+                or _imag(a) and complexes.real_form(b))
+    return False
 
 
 def _preorder(t, parent=None):
@@ -161,7 +210,10 @@ def rpow_int_exponent(s):
     (rewrite matches a real power up to ring); else None."""
     if type(s) is not RPow:
         return None
-    (p,), _ = _ring(s.exp)
+    try:
+        (p,), _ = _ring(s.exp)
+    except Refused:  # a complex exponent (E175, S2): not an integer
+        return None
     if set(p) - {()}:
         return None
     q = p.get((), Fraction(0))
@@ -180,7 +232,7 @@ def _tree_match(pat, t, schema, bound):
         return pat == t
     if type(pat) is Pow and pat.n != t.n:
         return False
-    if type(pat) in (App, Call) and pat.fn != t.fn:
+    if type(pat) in (App, Call, Branch) and pat.fn != t.fn:
         return False
     kp, kt = children(pat), children(t)
     return len(kp) == len(kt) and all(
@@ -239,7 +291,34 @@ def _never(s):
 # E89: the addition formulas and tan_def expand an atom and evaluate
 # nothing, so they never count, as pyth_cos never does; sin_odd and
 # cos_even count as atan_odd does.
-_READINGS = {"sqrt_sq": _sqrt_sq, "atan_odd": _atan_odd,
+def arg_parts(s):
+    """(re, im) of a principal Arg's closed argument as Fractions, or
+    None: E172's entries count by where the argument lies (E173)."""
+    if type(s) is not Branch or s.fn != "arg" or s.theta != Const("pi") \
+            or fv(s.arg):
+        return None
+    try:
+        re, im = complexes.split(s.arg)
+        vals = [Fraction(0) if x is None else FD.rational_value(x)
+                for x in (re, im)]
+    except Refused:
+        return None
+    return None if None in vals else tuple(vals)
+
+
+def _arg_reading(test):
+    def reading(s):
+        p = arg_parts(s)
+        return p is not None and test(*p)
+    return reading
+
+
+_READINGS = {"arg_pos": _arg_reading(lambda a, b: b == 0 and a > 0),
+             "arg_neg": _arg_reading(lambda a, b: b == 0 and a < 0),
+             "arg_i_pos": _arg_reading(lambda a, b: a == 0 and b > 0),
+             "arg_i_neg": _arg_reading(lambda a, b: a == 0 and b < 0),
+             "arg_right": _arg_reading(lambda a, b: a > 0 and b != 0),
+             "sqrt_sq": _sqrt_sq, "atan_odd": _atan_odd,
              "sqrt_sq_val": _sqrt_sq_val, "pyth_cos": _never,
              "sin_add": _never, "cos_add": _never, "tan_def": _never,
              "sin_odd": _odd_reading("sin"), "cos_even": _odd_reading("cos")}

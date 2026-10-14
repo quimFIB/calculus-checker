@@ -6,7 +6,7 @@ roots grouping themselves), so a drawing groups exactly as the TeX does.
 """
 
 from session import KERNEL  # noqa: F401  (puts kernel/ on the path)
-from terms import (Add, App, Call, Const, Deriv, Div, Integral, Interval,
+from terms import (show, Branch, CVar, Add, App, Call, Const, Deriv, Div, Integral, Interval,
                    Judgement, MVar, Mul, Neg, NegInf, NonZero, Num, PosInf,
                    Pow, Reg, Rel, RPow, Term, Var, _d13_free)
 from tex import _level
@@ -112,10 +112,10 @@ def _t(t, need=0, left=True):
     k = type(t)
     if k is Num:
         return text(str(t.n))
-    if k is Var:
+    if k in (Var, CVar):
         return text(_name(t.name))
     if k is Const:
-        return text("π" if t.name == "pi" else "e")
+        return text({"pi": "π", "e_const": "e", "i": "i"}[t.name])
     if k is MVar:
         return text("?" + t.name)
     if k is Add:
@@ -139,6 +139,13 @@ def _t(t, need=0, left=True):
             return Box([r + (s if i == 0 else " " * len(s))
                         for i, r in enumerate(base.rows)], base.base)
         return sup(base, _t(t.exp))
+    if k is App and t.fn == "conj":  # E174
+        return hcat(text("conj"), paren(_t(t.arg)))
+    if k is Branch:  # E174: Log z, or log[θ](z)
+        head = ({"log": "Log", "arg": "Arg", "sqrt": "Sqrt"}[t.fn]
+                if t.theta == Const("pi") else
+                t.fn + "[" + show(t.theta) + "]")  # θ flat, as typed
+        return hcat(text(head), paren(_t(t.arg)))
     if k is App:
         if t.fn == "sqrt":
             return sqrt(_t(t.arg))

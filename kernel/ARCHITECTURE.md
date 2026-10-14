@@ -1400,3 +1400,43 @@ GRAMMAR.md D17 as revised. Four changes, all in the trusted base:
 The suite's item R (`rpow_checks`) reads RPOW_E163. D17's two
 must-refuse constructions left DIRECT_REFUSALS: they are terms now, and
 item R checks what they print.
+
+## 16. Complex arithmetic, stage K1 (p1_expected E165–E174)
+
+COMPLEX.md is the design and GRAMMAR.md §11 the grammar. What the kernel
+gained:
+
+- **`terms.py`.** `Const("i")`; `CVar(Var)`, built by the parser for a
+  name `sig` maps to `"complex"`; `re`, `im`, `conj` as builtins; the node
+  `Branch(fn, theta, arg)` for `log`, `arg` and `sqrt` with a cut, θ a
+  child. `sort_of` and `check_sorts` (D19, D20) run at the end of every
+  parse and inside `check_goal`, which also refuses a name that is both a
+  `Var` and a `CVar` in one goal.
+- **`complexes.py` (trusted, new).** `split(t)` is the map to (real
+  part, imaginary part), with `None` for a part known to be zero, so a
+  term with no complex structure splits to itself. `realify_judgement`
+  turns a judgement into real judgements. `real_form` is the invariant:
+  the only complex structure a real term may hold is `re`/`im` of a
+  `CVar` and `arg[θ](w)` atoms.
+- **`field.py`.** The normaliser refuses `i`, a `CVar`, `conj`, `log` and
+  `sqrt[θ]`, and `re`/`im` of anything but a `CVar` (`complex-unsplit`).
+  It keys `re z` and `im z` by the name and `arg[θ](w)` by θ and w's
+  split. `ring_equal` and `ring_is_zero` split a complex term first.
+- **`kernel.py`.**
+  - `install` realifies the goal's domain in place.
+  - `_emit` realifies every key, refusing `complex-key` if anything
+    complex remains.
+  - `_check` compares complex sides part by part (`_check_complex`).
+  - `_owed` gives each `Branch` the obligation `w # 0`.
+  - `rewrite` takes `parts` (`_parts`: split, an untrusted offer in
+    field's normal form, the trusted `field` checking it) and matches a
+    `Branch` through its argument.
+- **`entries.py`.** Five `arg` values, and the family `arg_branch`.
+  `resolve` now takes several parameters of two kinds (an integer
+  literal, or a closed real angle).
+- **`schema.py` (untrusted).** E27 (c) names `parts` at a closed term
+  that is not in rectangular form. (a) and (b) read real-form subterms
+  only. The `arg` entries have readings by where the argument lies.
+
+The suite's item Z (`k1_checks`) reads K1_CASES. `split` is checked
+against complex evaluation at 200 random points per term.

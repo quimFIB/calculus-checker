@@ -112,13 +112,14 @@ import schema
 import search
 import tagger
 import trig_norm
+import complexes
 import entries
 from entries import ENTRIES
-from terms import (NEG_INF, POS_INF, Add, App, Call, Deriv, Div, Integral, Mul,
+from terms import (NEG_INF, POS_INF, Add, App, Branch, Call, Deriv, Div, Integral, Mul,
                    Interval, MVar, Neg, NegInf, NonZero, Num, PosInf, Pow,
                    Refused, Reg, Rel, RPow, Term, Var, _shown, bv, check_goal,
                    check_names, children, fv, instantiate, parse_term,
-                   show, show_goal, statable, subst, trees, with_domain)
+                   show, show_goal, statable, subst, trees, with_domain, check_sorts, sort_of)
 
 # §15.3: "say which is in force". Both are, one per kind of object. Fact
 # slots take handles, accepted only by identity with the kernel's record
@@ -223,6 +224,13 @@ class _Minted:
     conclusion: object  # the Judgement statement[inst], hypotheses as its dom
     entry: str  # the ENTRIES name, cited in tags ("sqrt_sq_val")
     inst: tuple = ()  # the inst values, whose formers each use of the fact charges
+
+    def __post_init__(self):
+        """E175 (the K1 review's B1): a minted conclusion is sort-checked
+        where every move mints one, so no handle states an order on a
+        complex term (exp_pos at u := i*pi minted exp(i*pi) > 0, and
+        bound read it to prove 0 > 1)."""
+        check_sorts(self.conclusion)
 
 
 _MINTED = {}  # handle id -> _Minted
@@ -398,6 +406,11 @@ def install(goal, assumptions=()):
         if type(goal) is not tuple or len(goal) != 1:
             raise Refused("goal-shape", "a goal here is exactly one judgement")
         check_goal(goal)
+        # E168: the goal's domain is realified in place, so every later
+        # reader of it (discharge's Γ, keys' domains) sees real items only
+        if complexes.has_complex(goal[0].dom):
+            goal = (replace(goal[0], dom=complexes.realify_dom(goal[0].dom)),)
+            check_goal(goal)
         g = goal[0]
         if not (isinstance(g, Rel) and (g.op == "==" or g.op in ORDERINGS)):
             raise Refused("goal-shape", "the moves here prove an equation "
@@ -1008,6 +1021,12 @@ def _emit(buf, key, source, goal_dom, discharged_by=None, divisor=True):
     'Int-or-D-not-normalisable' (E26 (b)); (4)-(7) _discharge. gamma,
     TAG_RULES' Γ, is the goal's own domain when the key kept its domain,
     else ()."""
+    if complexes.has_complex(key):  # E168: every key decided is real
+        for k in complexes.realify_judgement(key):
+            if not complexes.real_form(k):
+                raise Refused("complex-key", f"{show(k)} is not real")
+            _emit(buf, k, source, goal_dom, discharged_by, divisor)
+        return
     if key in buf:
         buf[key] = replace(buf[key], sources=buf[key].sources | {source})
         return
@@ -1173,6 +1192,11 @@ def _owed(s):
         return ((NonZero(s.base), True),)
     if isinstance(s, RPow):
         return ((Rel(">", s.base, Num(0)), False),)
+    if isinstance(s, Branch):  # E171: log, arg and sqrt[theta] owe w # 0
+        return ((NonZero(s.arg), False),)
+    if isinstance(s, App) and s.fn == "tanh" and sort_of(s.arg) == "C":
+        # E175 (B2): over C, tanh w = sinh w / cosh w owes cosh w # 0
+        return ((NonZero(App("cosh", s.arg)), False),)
     table = domains.NATURAL_DOMAINS
     if isinstance(s, App) and s.fn in table:
         return tuple((p, False) for p in table[s.fn](s.arg))
@@ -1312,6 +1336,9 @@ def _check(check, lhs, rhs, minted, dom, goal_dom, buf, code, trig=False):
         if not (isinstance(c, Rel) and c.op == "=="):
             raise Refused("field-fact-shape", f"{show(c)} is not an equation")
         facts.append((c.lhs, c.rhs))
+    if complexes.has_complex((lhs, rhs)):
+        return _check_complex(check, lhs, rhs, minted, facts, dom, goal_dom,
+                              buf, code)
     extra = ()
     try:
         done = FD.ring(lhs, rhs) if check == "ring" else FD.field(lhs, rhs,
@@ -1345,6 +1372,38 @@ def _check(check, lhs, rhs, minted, dom, goal_dom, buf, code, trig=False):
         for h in c.dom:
             _emit(buf, with_domain(h, dom), S_TRIG, goal_dom)
     return tuple(dict.fromkeys(name for name, _, _ in extra))
+
+
+def _check_complex(check, lhs, rhs, minted, facts, dom, goal_dom, buf, code):
+    """E169: lhs == rhs over C is the real parts equal and the imaginary
+    parts equal, each by ring or field; both checks' divisors are emitted.
+    A fact holding a Complex term is refused (K1); a real fact is used on
+    both parts. The residual is re + i*im of the parts' residuals."""
+    if complexes.has_complex(tuple(x for f in facts for x in f)):
+        raise Refused("field-fact-shape", "a fact about complex terms is "
+                      "not read by field yet (K1)")
+    (a, b), (c, d) = complexes.split(lhs), complexes.split(rhs)
+    R = complexes._real
+    done, residuals = [], []
+    for x, y in ((R(a), R(c)), (R(b), R(d))):
+        try:
+            done.append(FD.ring(x, y) if check == "ring" else
+                        FD.field(x, y, facts))
+            residuals.append(None)
+        except FD.NotEqual as e:
+            residuals.append(residual.residual_term(e.residual))
+    if any(r is not None for r in residuals):
+        res = complexes.join(tuple(residuals))
+        raise Refused(code, f"{check} leaves lhs - rhs = {_brief(res)}", res)
+    for ok in done:
+        for dv in ok.divisors:
+            _emit(buf, with_domain(NonZero(dv), dom), "field_div", goal_dom)
+    for rec in minted:
+        for v in rec.inst:
+            _charge_formers(buf, v, dom, goal_dom)
+        for h in rec.conclusion.dom:
+            _emit(buf, with_domain(h, dom), "fact_hyp", goal_dom)
+    return ()
 
 
 # ---------------------------------------------------------------- moves
@@ -1423,13 +1482,21 @@ def _rewrite(state, args, minted, buf):
     BACKSTOPS), so call it only as written here.
     Returns (new goal, None, occurrences)."""
     at = args["at"]
-    e, inst = entries.resolve(args["entry"], args["inst"]) or (None, None)
-    if e is None or e.statement.op != "==" or set(inst) != set(e.schema):
-        raise Refused("bad-args", "rewrite takes an equation entry and "
-                      "exactly its schema's variables")
-    st = e.statement  # a Rel (entries._load); pi_pos is not an equation
-    lhs, rhs = subst(st.lhs, inst), subst(st.rhs, inst)  # step 1
-    hyps = [subst(h, inst) for h in e.hyps]
+    if args["entry"] == "parts":  # E170: T -> re T + i*im T, checked
+        if args["inst"]:
+            raise Refused("bad-args", "parts takes no instantiation")
+        inst = {}
+        lhs, (rhs, hyps) = at, _parts(at)
+    else:
+        e, inst = entries.resolve(args["entry"], args["inst"]) or (None, None)
+        if e is None or e.statement.op != "==" or set(inst) != set(e.schema):
+            raise Refused("bad-args", "rewrite takes an equation entry and "
+                          "exactly its schema's variables")
+        st = e.statement  # a Rel (entries._load); pi_pos is not an equation
+        lhs, rhs = subst(st.lhs, inst), subst(st.rhs, inst)  # step 1
+        hyps = [subst(h, inst) for h in e.hyps]
+        for h in hyps:  # E175: a complex inst in an order hypothesis
+            check_sorts(h)
     g = state.goal[0]
     sides = _sides(g)
     found = [(i, p, d, a) for i, side in enumerate(sides)  # step 2
@@ -1447,6 +1514,9 @@ def _rewrite(state, args, minted, buf):
     elif isinstance(lhs, RPow):  # E163: a real power, through both fields
         ok = (isinstance(at, RPow) and FD.ring_equal(lhs.base, at.base)
               and FD.ring_equal(lhs.exp, at.exp))
+    elif isinstance(lhs, Branch):  # E172: a branch, through its argument
+        ok = (isinstance(at, Branch) and at.fn == lhs.fn
+              and at.theta == lhs.theta and FD.ring_equal(lhs.arg, at.arg))
     else:
         ok = lhs == at
     if not ok:
@@ -1493,6 +1563,57 @@ def _rewrite(state, args, minted, buf):
     goal = (replace(g, lhs=new[0], rhs=new[1] if len(new) > 1 else g.rhs),)
     check_goal(goal)
     return goal, None, {"occurrences": len(found)}
+
+
+def _parts(at):
+    """E170: (re T + i*im T, the hypotheses it owes) for `rewrite parts at
+    T`. split is trusted; the two parts are offered in field's normal form
+    by the untrusted residual printer, and each offer is kept only when
+    the trusted field proves it equal to split's part, its divisors then
+    owed as hypotheses. An offer that fails falls back to split's raw
+    part, which owes nothing beyond T's own formers."""
+    if not complexes.has_complex(at):
+        raise Refused("bad-args", f"parts: {show(at)} holds no complex term")
+    raw = complexes.split(at)
+    parts, hyps = [], []
+    for x in raw:
+        if x is None:
+            parts.append(None)
+            continue
+        try:
+            num, den, atoms = FD.field_parts(_tidy(x))
+            offer = residual.residual_term(_Parts(num, den, atoms))
+            ok = FD.field(x, offer)
+            parts.append(offer)
+            hyps.extend(NonZero(d) for d in ok.divisors)
+        except (FD.NotEqual, Refused, RecursionError):
+            parts.append(x)
+    parts = [None if p is not None and FD.ring_is_zero(p) else p
+             for p in parts]
+    return complexes.join(tuple(parts)), list(dict.fromkeys(hyps))
+
+
+def _tidy(t):
+    """t with each function's argument in field's normal form, innermost
+    first, so that an offer reads cos pi, not cos(1*pi). Untrusted: the
+    offer it shapes is checked by field (_parts)."""
+    if isinstance(t, (App, Branch)):
+        try:
+            num, den, atoms = FD.field_parts(_tidy(t.arg))
+            return replace(t, arg=residual.residual_term(_Parts(num, den,
+                                                                atoms)))
+        except (Refused, RecursionError):
+            return t
+    kids = {n: _tidy(c) for n, c in children(t) if isinstance(c, Term)}
+    return replace(t, **kids) if kids and not isinstance(t, Call) else t
+
+
+class _Parts:
+    """field_parts' triple, read by residual.residual_term."""
+    __slots__ = ("num", "den", "atoms")
+
+    def __init__(self, num, den, atoms):
+        self.num, self.den, self.atoms = num, den, atoms
 
 
 def _fact(state, args, minted, buf):

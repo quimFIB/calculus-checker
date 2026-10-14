@@ -12,10 +12,11 @@ from types import SimpleNamespace
 import script
 import session  # noqa: F401  puts kernel/ on the path
 
+import complexes as CX  # noqa: E402
 import field as FD  # noqa: E402
 import residual as RD  # noqa: E402
-from terms import (App, Call, MVar, RPow, Refused, children, fv, show,  # noqa: E402
-                   trees)
+from terms import (App, Call, MVar, Num, RPow, Refused, children, fv,  # noqa: E402
+                   show, trees)
 
 
 def _calls(t):
@@ -31,6 +32,16 @@ def _computed(t):
     this the arithmetic under a function would come back undone. A
     denominator staying inside an argument counts too: ring keys that
     argument without cancelling, so the check must be field."""
+    if CX.has_complex(t):  # E174: a complex value as its two parts
+        out, dens = [], False
+        for x in CX.split(t):
+            if x is None:
+                out.append(None)
+                continue
+            v, d = _computed(x)
+            out.append(None if v == Num(0) else v)
+            dens = dens or d
+        return CX.join(tuple(out)), dens
     t, inner = _args_computed(t)
     num, den, atoms = FD.field_parts(t)
     parts = SimpleNamespace(num=num, den=den, atoms=atoms)

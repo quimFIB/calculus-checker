@@ -18,9 +18,10 @@ FNS = {r"\sin": "sin", r"\cos": "cos", r"\tan": "tan", r"\exp": "exp",
        r"\ln": "ln", r"\arcsin": "asin", r"\arccos": "acos",
        r"\arctan": "atan", r"\sinh": "sinh", r"\cosh": "cosh",
        r"\tanh": "tanh", r"\log": "ln"}
-BUILTIN = ("sin cos tan asin acos atan exp ln sqrt abs sinh cosh tanh asinh "
+BUILTIN = ("re im conj sin cos tan asin acos atan exp ln sqrt abs sinh cosh tanh asinh "
            "acosh atanh").split()
-NAMED = {"arsinh": "asinh", "arcosh": "acosh", "artanh": "atanh",
+NAMED = {"Re": "re", "Im": "im",  # E174
+         "arsinh": "asinh", "arcosh": "acosh", "artanh": "atanh",
          "arcsinh": "asinh", "arccosh": "acosh", "arctanh": "atanh",
          "arcsin": "asin", "arccos": "acos", "arctan": "atan"}
 SKIP = {r"\,", r"\;", r"\:", r"\!", r"\ ", r"\quad", r"\qquad",
@@ -181,7 +182,7 @@ class _Reader:
         """A name right before an open group: a call if declared (D5)."""
         opens = self.peek() == "(" or (self.peek() == r"\left"
                                         and self.peek(1) == "(")
-        if opens and name in self.sig:
+        if opens and type(self.sig.get(name)) is int:
             return self._call(name)
         if opens:
             raise TexError(f"{name} is not a declared function symbol: "
@@ -258,6 +259,9 @@ class _Reader:
             return "sqrt" + _p(self.arg()), "atom"
         if tok == r"\int":
             return self._int(), "atom"
+        if tok == r"\overline":  # E174: the conjugate
+            self.take()
+            return "conj" + _p(self.arg()), "atom"
         if tok in FNS:
             self.take()
             return self._apply(FNS[tok])
@@ -269,13 +273,19 @@ class _Reader:
                 return ("e", "e") if self.peek() == "^" \
                     else ("e_const", "atom")
             g = NAMED.get(g, g)
+            if g in ("log", "arg", "sqrt") and self.peek() == "_":
+                self.take("_")  # E174: log_{[theta]}: a cut's angle, before
+                theta = self.arg()  # sqrt is read as the real builtin
+                return self._apply(f"{g}[{theta}]")
             if g in BUILTIN:
+                return self._apply(g)
+            if g in ("Log", "Arg", "Sqrt"):  # E174: principal branches
                 return self._apply(g)
             if g == "rpow":  # GRAMMAR.md D17: the parser checks its two args
                 if self.peek() not in ("(", r"\left"):
                     raise TexError("rpow is applied: rpow(u, n)")
                 return self._call(g), "atom"
-            if g in self.sig:
+            if type(self.sig.get(g)) is int:
                 if self.peek() not in ("(", r"\left"):
                     raise TexError(f"{g} is a declared function: apply it, "
                                    f"{g}(…)")

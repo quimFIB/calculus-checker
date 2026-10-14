@@ -62,6 +62,9 @@ def assumption(text):
     return item
 
 
+_VAR_NAME = re.compile(r"[A-Za-z][0-9]*(?:_[A-Za-z0-9]+)*\Z")
+
+
 def header(sentence):
     """{"problem": id} or {"goal": g, "functions": {name: arity}}."""
     text = script.strip_sentence(sentence)
@@ -90,6 +93,14 @@ def header(sentence):
                                       "name/arity")
                 fns[m.group(1)] = int(m.group(2))
             rest = rest[:k].strip()
+        c = _last_functions(rest, "complex")  # E174: complex z, w
+        if c > 0:
+            names = [n.strip() for n in rest[c + len("complex"):].split(",")]
+            if not names or not all(_VAR_NAME.fullmatch(n) for n in names):
+                raise HeaderError("complex: a comma-separated list of "
+                                  "variable names")
+            fns.update(dict.fromkeys(names, "complex"))
+            rest = rest[:c].strip()
         if not rest:
             raise HeaderError("goal: the goal is missing")
         out = {"goal": rest, "functions": fns}
@@ -102,9 +113,12 @@ def show_header(h):
     """The header sentence for h, with its final '.'."""
     if "problem" in h:
         return f"problem {h['problem']}."
-    fns = ", ".join(f"{k}/{v}" for k, v in h.get("functions", {}).items())
+    decl = h.get("functions", {})
+    fns = ", ".join(f"{k}/{v}" for k, v in decl.items() if v != "complex")
+    cplx = ", ".join(k for k, v in decl.items() if v == "complex")
     items = "; ".join(show_assumption(a) for a in h.get("assume", ()))
-    return (f"goal {h['goal']}" + (f" functions {fns}" if fns else "")
+    return (f"goal {h['goal']}" + (f" complex {cplx}" if cplx else "")
+            + (f" functions {fns}" if fns else "")
             + (f" assuming {items}" if items else "") + ".")
 
 

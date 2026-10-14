@@ -4590,7 +4590,7 @@ def discharge_checks(suite):
         return
     suite.check("D", "DISCHARGE_NEW_ENTRIES pinned (sqrt_zero immediately before "
                 "sqrt_sq, cos_zero after exp_one, sqrt_nonneg after it, "
-                "CONSOLIDATION_ENTRIES, atan_zero, trig_norm's seven, exp_pos, unit 00's seven, then G8's three: 42), and EXACT_VALUE_ENTRIES is "
+                "CONSOLIDATION_ENTRIES, atan_zero, trig_norm's seven, exp_pos, unit 00's seven, G8's three, then K1's five: 47), and EXACT_VALUE_ENTRIES is "
                 "ENTRIES' exact values", TD.entries_problems)
     for row in TD.expected_certificates():
         where, _, tag, spec = row
@@ -6274,6 +6274,167 @@ def rpow_checks(suite):
         c for c in ("rpow-literal-exponent",) if c in X.REFUSAL_CODES])
 
 
+def _k1_move(text, sig):
+    """K1_CASES' two sentence forms as kernel args: `close V by C` and
+    `rewrite E [with v := T; ...] at T` (app/SCRIPT.md's syntax)."""
+    import re as _re
+    m = _re.fullmatch(r"close (.+) by (ring|field)", text)
+    if m:
+        return "close", {"value": T.parse_term(m[1], sig), "check": m[2],
+                         "facts": []}
+    m = _re.fullmatch(r"fact (\w+) := (\w+)(?: with (.+))?", text)
+    if m:
+        inst = {}
+        for pair in (m[3] or "").split(";"):
+            if pair.strip():
+                v, t = pair.split(":=")
+                inst[v.strip()] = T.parse_term(t.strip(), sig)
+        return "fact", {"entry": m[2], "inst": inst, "bind": m[1]}
+    m = _re.fullmatch(r"rewrite (\w+)(?: with (.+?))? at (.+)", text)
+    inst = {}
+    for pair in (m[2] or "").split(";"):
+        if pair.strip():
+            v, t = pair.split(":=")
+            inst[v.strip()] = T.parse_term(t.strip(), sig)
+    return "rewrite", {"entry": m[1], "inst": inst,
+                       "at": T.parse_term(m[3], sig)}
+
+
+def _k1_eval(t, env):
+    """A term's value at complex points, for split's numeric check."""
+    import cmath
+    k = type(t)
+    if k is T.Num:
+        return t.n
+    if k is T.Const:
+        return {"pi": cmath.pi, "e_const": cmath.e, "i": 1j}[t.name]
+    if isinstance(t, T.Var):
+        return env[t.name]
+    if k is T.Neg:
+        return -_k1_eval(t.a, env)
+    if k in (T.Add, T.Mul, T.Div):
+        a, b = _k1_eval(t.a, env), _k1_eval(t.b, env)
+        return a + b if k is T.Add else a * b if k is T.Mul else a / b
+    if k is T.Pow:
+        return _k1_eval(t.base, env) ** t.n
+    if k is T.RPow:
+        return _k1_eval(t.base, env) ** _k1_eval(t.exp, env)
+    if k is T.App:
+        a = complex(_k1_eval(t.arg, env))
+        return {"re": lambda x: x.real, "im": lambda x: x.imag,
+                "conj": lambda x: x.conjugate(), "abs": abs,
+                "ln": cmath.log}.get(t.fn, getattr(cmath, t.fn, None))(a)
+    if k is T.Branch:
+        th = _k1_eval(t.theta, env).real
+        w = complex(_k1_eval(t.arg, env))
+        a = cmath.phase(w)
+        while a > th:
+            a -= 2 * cmath.pi
+        while a <= th - 2 * cmath.pi:
+            a += 2 * cmath.pi
+        if t.fn == "arg":
+            return a
+        lg = cmath.log(abs(w)) + 1j * a
+        return lg if t.fn == "log" else cmath.exp(lg / 2)
+    raise TypeError(t)
+
+
+def k1_problems(part):
+    """K1_CASES (E166-E173): one part of the table."""
+    import random
+    import complexes as CX
+    C, S, out = X.K1_CASES, X.K1_SIG, []
+    if part == "round_trips":
+        for text, printed in C["round_trips"]:
+            t = T.parse_term(text, S)
+            if T.show(t) != printed or T.parse_term(printed, S) != t:
+                out.append(f"{text}: prints {T.show(t)}")
+    elif part == "refusals":
+        for text, code in C["refusals"]:
+            parse = T.parse_judgement if any(o in text for o in "<>") \
+                else T.parse_term
+            try:
+                parse(text, S)
+                out.append(f"{text}: accepted")
+            except T.Refused as r:
+                if r.code != code:
+                    out.append(f"{text}: {r.code}, want {code}")
+    elif part in ("proofs", "review"):
+        for goal_text, sentences, want in C[part]:
+            try:
+                st = K.install(T.parse_goal(goal_text, S))
+            except T.Refused as r:  # a parse refusal is the case's answer
+                if r.code != want:
+                    out.append(f"{goal_text}: {r.code}, want {want}")
+                continue
+            got = st.code if isinstance(st, K.Refusal) else None
+            for text in sentences if got is None else ():
+                move, args = _k1_move(text, S)
+                r = K.step(st, move, args)
+                if isinstance(r, K.Refusal):
+                    got = r.code
+                    break
+                st = r
+            got = got or K.report(st)
+            if got != want:
+                out.append(f"{goal_text}: {got}, want {want}")
+    elif part == "split":
+        rng = random.Random(162)
+        for text in C["split_numeric"]:
+            t = T.parse_term(text, S)
+            re, im = CX.split(t)
+            if not CX.real_form((CX._real(re), CX._real(im))):
+                out.append(f"{text}: split leaves complex structure")
+                continue
+            for _ in range(200):
+                env = {v: complex(rng.uniform(-3, 3), rng.uniform(-3, 3))
+                       for v in S}
+                try:
+                    want = complex(_k1_eval(t, env))
+                    got = (complex(_k1_eval(CX._real(re), env))
+                           + 1j * complex(_k1_eval(CX._real(im), env)))
+                except (ZeroDivisionError, ValueError, OverflowError):
+                    continue
+                if abs(got - want) > 1e-8 * max(1, abs(want)):
+                    out.append(f"{text}: {got} at {env}, want {want}")
+                    break
+    return out
+
+
+def k1_checks(suite):
+    suite.check("Z", f"K1 round trips ({len(X.K1_CASES['round_trips'])}), "
+                "GRAMMAR.md §11", lambda: k1_problems("round_trips"))
+    suite.check("Z", f"K1 refusals ({len(X.K1_CASES['refusals'])}): D19, "
+                "D20", lambda: k1_problems("refusals"))
+    suite.check("Z", f"K1 proofs ({len(X.K1_CASES['proofs'])}): equality "
+                "over C, parts, arg entries (E169-E172)",
+                lambda: k1_problems("proofs"))
+    suite.check("Z", f"K1 review attacks ({len(X.K1_CASES['review'])}): "
+                "minted facts and rewrite hypotheses sort-checked, complex "
+                "tanh's former, D19 and D20 as written (E175)",
+                lambda: k1_problems("review"))
+    suite.check("Z", f"split agrees with complex evaluation on "
+                f"{len(X.K1_CASES['split_numeric'])} terms at 200 points "
+                "each (E167)", lambda: k1_problems("split"))
+    suite.check("Z", "field refuses i and CVar unsplit (E168)", lambda: [
+        t for t in ("i*i", "z + 1") if not _refuses(
+            lambda t=t: FD.ring(T.parse_term(t, X.K1_SIG), T.Num(0)),
+            "complex-unsplit")])
+    suite.check("Z", "a complex goal domain is realified at install (E168)",
+                lambda: [] if K.install(T.parse_goal(
+                    "1/z == ?A @ z # 0", X.K1_SIG)).goal[0].dom == (
+                    T.parse_judgement("(re z)^2 + (im z)^2 # 0",
+                                      X.K1_SIG),) else ["not realified"])
+
+
+def _refuses(thunk, code):
+    try:
+        thunk()
+    except T.Refused as r:
+        return r.code == code
+    return False
+
+
 def _trig_forgery(kind):
     """A replacement for trig_norm.propose, per TRIG_NORM_FORGERIES."""
     import trig_norm as TN
@@ -6449,7 +6610,8 @@ def consolidation_entries_problems():
         X.TRIG_NORM_SWITCH["ENTRIES_append"]) + list(  # and trig_norm's (E87)
         X.TAYLOR_ENTRIES_APPEND) + list(  # and exp_pos (E103)
         X.UNIT00_ENTRIES_APPEND) + list(  # and unit 00's seven (E117)
-        X.G8_ENTRIES_APPEND)  # and G8's three (E133)
+        X.G8_ENTRIES_APPEND) + list(  # and G8's three (E133)
+        X.K1_ENTRIES_APPEND)  # and K1's five (E172)
     if "sqrt_nonneg" not in names or \
             names[names.index("sqrt_nonneg") + 1:] != want:
         out.append(f"not appended after sqrt_nonneg in order: {names}")
@@ -7345,6 +7507,10 @@ def main():
     print("\nrpow and rpow_int (item R; p1_expected E163)")
     if K is not None:
         rpow_checks(suite)
+
+    print("\ncomplex arithmetic (item Z; p1_expected E165-E174)")
+    if K is not None:
+        k1_checks(suite)
 
     print("\nPlanted bugs (each in a child process)")
     suite.check(3, "control: the child, unpatched, finds nothing", control_problems)

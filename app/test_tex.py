@@ -48,7 +48,9 @@ def gen(rng, depth, bound=()):
             e = Var("n")
         return RPow(gen(rng, d, bound), e)
     if c in (7, 8):
-        return App(rng.choice(sorted(BUILTINS)), gen(rng, d, bound))
+        # the real builtins: complex terms round-trip in test_complex.py
+        return App(rng.choice(sorted(BUILTINS - {"re", "im", "conj"})),
+                   gen(rng, d, bound))
     if c == 9:
         return Deriv(rng.choice(["x", "t"]), gen(rng, d, bound))
     if c == 10:

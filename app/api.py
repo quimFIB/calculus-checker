@@ -230,11 +230,19 @@ def _field(body, name, kind, optional=False):
 
 
 def _sig(body):
-    fns = _field(body, "functions", dict, optional=True) or {}
-    if not all(isinstance(k, str) and type(v) is int and v > 0
+    """The parser's sig: `functions` maps names to positive arities, or
+    to "complex" for a complex variable (E174), and `complex` lists more
+    complex variables."""
+    fns = dict(_field(body, "functions", dict, optional=True) or {})
+    if not all(isinstance(k, str) and (type(v) is int and v > 0
+                                       or v == "complex")
                for k, v in fns.items()):
-        raise _bad("functions maps names to positive arities")
-    return fns
+        raise _bad("functions maps names to positive arities, or to "
+                   "\"complex\"")
+    cplx = _field(body, "complex", list, optional=True) or []
+    if not all(isinstance(c, str) for c in cplx):
+        raise _bad("complex is a list of names")
+    return {**fns, **dict.fromkeys(cplx, "complex")}
 
 
 def _session(args):
@@ -437,7 +445,8 @@ def import_(body):
         goal, sig, assume = p.goal_text, p.sig, list(p.assume)
     else:
         fns = doc.get("functions", {})
-        if not all(isinstance(k, str) and type(v) is int and v > 0
+        if not all(isinstance(k, str) and (type(v) is int and v > 0
+                                           or v == "complex")
                    for k, v in fns.items()):
             raise ApiError(400, "bad-document",
                            "functions maps names to positive arities")

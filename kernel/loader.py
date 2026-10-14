@@ -41,7 +41,7 @@ KEYS = frozenset(("format", "id", "title", "source", "statement", "goal",
 OPTIONAL = frozenset(("alternative_proofs", "notes", "assume"))
 STEP_KEYS = frozenset(("id", "move", "args"))
 ALT_KEYS = frozenset(("why", "steps"))
-DECL_KEYS = frozenset(("functions",))
+DECL_KEYS = frozenset(("functions", "complex"))  # complex: E174, optional
 REFERENCE = "reference"  # the name `proofs` gives reference_proof
 # The type of each args value step_args reads (ARCHITECTURE.md §4). Any
 # other key passes through, for the kernel to refuse 'bad-args'.
@@ -155,11 +155,16 @@ def _problem(raw):
     if not (isinstance(raw.get("notes", []), list)
             and all(_is(n, str) for n in raw.get("notes", []))):
         raise ValueError("notes is not a list of strings")
-    fns = _obj(raw["declarations"], DECL_KEYS, frozenset(),
-               "declarations")["functions"]
+    decl = _obj(raw["declarations"], DECL_KEYS, frozenset(("complex",)),
+                "declarations")
+    fns = decl["functions"]
     if not (isinstance(fns, dict)
             and all(_is(a, int) and a > 0 for a in fns.values())):
         raise ValueError("declarations.functions maps names to arities")
+    cplx = decl.get("complex", [])  # E174: complex variables, in the sig
+    if not (isinstance(cplx, list) and all(_is(c, str) for c in cplx)):
+        raise ValueError("declarations.complex is a list of names")
+    fns = {**fns, **dict.fromkeys(cplx, "complex")}
     proofs = {REFERENCE: _steps(raw["reference_proof"], "reference_proof")}
     alts = raw.get("alternative_proofs", {})
     if not isinstance(alts, dict):

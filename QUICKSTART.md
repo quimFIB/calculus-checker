@@ -732,6 +732,57 @@ verify by field using h.
 **Your turn:** `tutorial/exercises/12-ode.dx`,
 `goal v(t) == v(0) + F0*sin(w*t)/(m*w) @ m > 0, w > 0, t >= 0 functions v/1 assuming eom: m*D[s] v(s) == F0*cos(w*s) for s in [0, oo); regv: v in C^1 for s in [0, oo).`
 
+## Complex numbers
+
+`i` is the imaginary unit. A complex variable is declared in the header,
+`complex z, w`, after the goal (and before `functions`); every other letter
+is real. `re`, `im`, `conj` and `abs` are what they say. `Log`, `Arg` and
+`Sqrt` are the principal branches. `log[θ]`, `arg[θ]` and `sqrt[θ]` cut
+along the ray at angle θ instead, and θ must be a number like `2*pi`.
+
+An equation between complex terms holds when the real parts agree and the
+imaginary parts agree, and the kernel checks exactly that:
+
+```dx
+goal z*conj z == ?A complex z.
+close (re z)^2 + (im z)^2.
+```
+
+A complex constant is evaluated when it is in the form `a + b*i`, with a
+and b real and evaluated. `rewrite parts at T` turns T into that form, and
+the real entries finish it. Auto-simpl makes those moves itself, so a
+constant goal is one `simpl.`:
+
+```dx
+goal (1 + i)^8 == ?A.
+simpl.
+```
+
+By hand, with the values of `ln` and `Arg` at the end:
+
+```dx
+goal Log(-1) == ?A.
+Unset Auto Simpl.
+rewrite parts at Log(-1).
+rewrite ln_one at ln 1.
+rewrite arg_neg with u := -1 at Arg(-1).
+close i*pi.
+```
+
+Closing too early names `parts`:
+
+```dx
+goal (1 + i)^8 == ?A.
+Unset Auto Simpl.
+close (1 + i)^8.
+(* refused: close-not-evaluated "(1 + i)^8 can still be evaluated (parts)" *)
+```
+
+There is no order on complex numbers, so `z < 1` is refused: compare
+`re z`, `im z` or `abs z` instead. `ln z` and `sqrt z` are refused too,
+because those are the real functions: write `Log z` and `Sqrt z`. Calculus
+on complex terms is not built yet (COMPLEX.md, stage K2).
+
 ## The moves
 
 | Move | Does | Lesson |
@@ -741,6 +792,7 @@ verify by field using h.
 | `simpl` | `close V` with V computed, once the goal is only constants; with auto-simpl on, also the entries a value still needs | 1, 2, 6 |
 | `Set Auto Simpl`, `Unset Auto Simpl` | turn auto-simpl on (the default) or off: after a move that leaves only constants, it makes the evaluation moves and closes, each checked by the kernel | 1, 2, 6 |
 | `rewrite E at T` | replaces T by an entry | 2 |
+| `rewrite parts at T` | replaces a complex T by `re T + i*im T` | Complex numbers |
 | `int_subst` | substitution, forward or `reverse` | 4, 5 |
 | `fact h := E` | binds an entry for `by field using h` | 6 |
 | `int_flip` | `Int[x = b .. a] e` → `Int[x = a .. b] -e` | 7 |
@@ -797,6 +849,20 @@ same way. Any other left side, such as the power `(cos u)^2`, must match
 `rpow(u, n) == u^n @ u > 0` for each n, as in `rewrite rpow_int with
 u := 2; n := 1 at rpow(2, 1)`. It turns a real power with a whole
 exponent into plain multiplication, and owes `u > 0`.
+
+**The argument**, `Arg` of a value on an axis or to the right of 0:
+
+| Entry | States |
+|---|---|
+| `arg_pos` | `Arg u == 0 @ u > 0` |
+| `arg_neg` | `Arg u == pi @ u < 0` |
+| `arg_i_pos` | `Arg(i*u) == pi/2 @ u > 0` |
+| `arg_i_neg` | `Arg(i*u) == -pi/2 @ u < 0` |
+| `arg_right` | `Arg(u + i*v) == atan(v/u) @ u > 0` |
+
+**One more family**, `arg_branch`, moves between cuts:
+`arg[θ] w == Arg w + 2*pi*k` when the right side lies in (θ − 2π, θ],
+written `with w := T; theta := 2*pi; k := 1`.
 
 **Identities**, to rewrite with or to hand to a check as a fact (all but
 `pyth`, whose left side is a sum):

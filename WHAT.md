@@ -316,6 +316,17 @@ term `rpow(u, n)`, and the entry family `rpow_int`, `rpow(u, n) == u^n @
 u > 0`, converts it, owing u > 0. `rewrite` matches a real power up to
 ring.
 
+**Complex arithmetic is built** (stage K1 of `COMPLEX.md`, p1_expected
+E165–E174, 2026-10-14; the owner chose to build the complex design now
+and run the gate after). `i`, declared complex variables (`complex z` in a
+header), `re`, `im`, `conj`, `abs` as the modulus, and the branches
+`Log`, `Arg`, `Sqrt` and `log[θ]`. One trusted map, `kernel/complexes.py`'s
+`split`, takes every complex term to its real and imaginary parts, so an
+equation over ℂ is two real checks, and every obligation is real before
+discharge sees it. `rewrite parts at T` is the conversion to `a + b*i`,
+and auto-simpl uses it: `(1 + i)^8`, `e^{iπ}` and `Log(-1)` each close in
+one `simpl.`. Calculus on complex terms is K2, next.
+
 **Next,** per §17: stage 1's lists are done (2026-09-25). The gate
 (`app/GATE.md`): work its seventeen problems in order on the page, then
 `python3 app/gate.py`. That is the owner's to run; nothing in it is

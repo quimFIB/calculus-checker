@@ -83,11 +83,12 @@ from dataclasses import dataclass
 from fractions import Fraction
 
 import poly as P
-from terms import (Add, App, Call, Const, Deriv, Div, Integral, Mul, Neg,
-                   NonZero, Num, Pow, Refused, Rel, RPow, Var, show, statable,
-                   trees)
+from terms import (Add, App, Branch, Call, Const, CVar, Deriv, Div, Integral,
+                   Mul, Neg, NonZero, Num, Pow, Refused, Rel, RPow, Var, show,
+                   statable, trees)
 
 TREE_CODE = "Int-or-D-not-normalisable"  # p1_expected E26 (b)
+COMPLEX_CODE = "complex-unsplit"  # p1_expected E168: split before ring/field
 
 # The literal powers ring, field and norm_num expand, bounded so that no
 # input makes them compute without end (x := t^1000000000 at t = 3) or
@@ -294,6 +295,9 @@ class _Normaliser:
         k = type(t)
         if k is Num:
             return _Frac(P.const(t.n), {})
+        if k is Const and t.name == "i" or k is CVar:  # E168: split first
+            raise Refused(COMPLEX_CODE, f"{show(t)} is complex: the kernel "
+                          "splits it into real parts before ring or field")
         if k is Var or k is Const:
             return self.atom(t, t)
         if k is Add:
@@ -315,8 +319,22 @@ class _Normaliser:
             return self.pow(base, n)
         if k is RPow:
             return self.atom(("rpow", self.key(t.base), self.key(t.exp)), t)
+        if k is App and t.fn in ("re", "im"):  # E168: a part of a CVar
+            if type(t.arg) is not CVar:
+                raise Refused(COMPLEX_CODE, f"{show(t)} is not split")
+            return self.atom(("app", t.fn, ("cvar", t.arg.name)), t)
+        if k is App and t.fn == "conj":
+            raise Refused(COMPLEX_CODE, f"{show(t)} is not split")
         if k is App:
             return self.atom(("app", t.fn, self.key(t.arg)), t)
+        if k is Branch:  # E167: arg[theta](w) is a real atom, keyed by w's parts
+            if t.fn != "arg":
+                raise Refused(COMPLEX_CODE, f"{show(t)} is not split")
+            import complexes
+            re, im = complexes.split(t.arg)
+            return self.atom(("arg", self.key(t.theta),
+                              self.key(complexes._real(re)),
+                              self.key(complexes._real(im))), t)
         if k is Call:
             return self.atom(("call", t.fn, tuple(map(self.key, t.args))), t)
         if k is Deriv or k is Integral:
@@ -460,6 +478,11 @@ def ring_equal(a, b):
     A seam (kernel/ARCHITECTURE.md §7): kernel's rewrite calls it by this
     name, and the suite's BACKSTOPS case rewrite_closing_check_goal
     replaces it in a child process. Keep the name and signature."""
+    import complexes
+    if complexes.has_complex(a) or complexes.has_complex(b):  # E169
+        (p, q), (r, s) = complexes.split(a), complexes.split(b)
+        return all(ring_equal(complexes._real(x), complexes._real(y))
+                   for x, y in ((p, r), (q, s)))
     nz = _Normaliser(False)
     return nz.norm(a).num == nz.norm(b).num
 
@@ -468,7 +491,11 @@ def ring_is_zero(t):
     """True when t's ring normal form is the zero polynomial. E25's
     charge-time test for a divisor d (E6, route_div). A zero divisor inside t
     raises Refused 'divisor-normalises-to-zero'. That is the refusal the
-    caller would give anyway, so it may let it propagate."""
+    caller would give anyway, so it may let it propagate. A Complex t is
+    zero when both its parts are (E169)."""
+    import complexes
+    if complexes.has_complex(t):
+        return all(x is None or ring_is_zero(x) for x in complexes.split(t))
     return not _Normaliser(False).norm(t).num
 
 

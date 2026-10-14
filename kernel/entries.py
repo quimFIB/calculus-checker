@@ -61,7 +61,8 @@ n: where u > 0, u^n as a real power, exp(n*ln u), is the n-fold product
 from dataclasses import dataclass
 from types import MappingProxyType
 
-from terms import Neg, Num, NonZero, Refused, Rel, fv, parse_judgement
+from terms import (Neg, Num, NonZero, Refused, Rel, Term, fv,
+                   parse_judgement, show, sort_of, trees)
 
 STATEMENTS = {
     # name: (statement, schema)
@@ -115,6 +116,13 @@ STATEMENTS = {
     "exp_neg": ("exp(-u) == 1/exp u", ("u",)),
     "exp_ln": ("exp(ln u) == u @ u > 0", ("u",)),
     "ln1p_pos": ("ln(1 + u) > 0 @ u > 0", ("u",)),
+    # K1's (p1_expected E172): the principal argument's values. Each order
+    # hypothesis forces its variables Real (GRAMMAR.md §11, D20)
+    "arg_pos": ("Arg u == 0 @ u > 0", ("u",)),
+    "arg_neg": ("Arg u == pi @ u < 0", ("u",)),
+    "arg_i_pos": ("Arg(i*u) == pi/2 @ u > 0", ("u",)),
+    "arg_i_neg": ("Arg(i*u) == -pi/2 @ u < 0", ("u",)),
+    "arg_right": ("Arg(u + i*v) == atan(v/u) @ u > 0", ("u", "v")),
 }
 
 
@@ -153,35 +161,54 @@ ENTRIES = MappingProxyType(_load())
 # literal with thousands of digits would crash the printer, not refuse.
 MAX_FAMILY_LITERAL = 10 ** 6
 
-# name: (template over {n}, schema, the literal parameter's name)
+# name: (template, schema, {parameter: kind}). A parameter's value is
+# printed into the template: "int" an integer literal ({n}, and {p} the
+# same as a power's exponent), "angle" a closed real constant (D19).
 FAMILIES = MappingProxyType({
-    "rpow_int": ("rpow(u, {n}) == u^{p} @ u > 0", ("u",), "n"),
+    "rpow_int": ("rpow(u, {n}) == u^{p} @ u > 0", ("u",), {"n": "int"}),
+    # E172: one branch's argument from the principal one, 2*pi*k apart
+    "arg_branch": ("arg[{theta}] w == Arg w + 2*pi*{k} @ "
+                   "{theta} - 2*pi < Arg w + 2*pi*{k}, "
+                   "Arg w + 2*pi*{k} <= {theta}", ("w",),
+                   {"theta": "angle", "k": "int"}),
 })
 
 
 def resolve(name, inst):
     """(Entry, inst) for the entry `name` under `inst`, or None when no
     entry has that name. An ENTRIES entry comes back as it is, with inst
-    unchanged. A FAMILIES member is built for the integer literal inst
-    gives its parameter, Num or Neg(Num), and the parameter is dropped from
-    the inst returned, so the caller sees an ordinary entry whose schema
-    is the family's. A missing or non-literal parameter raises Refused
-    'bad-args'."""
+    unchanged. A FAMILIES member is built for the values inst gives its
+    parameters, each checked for its kind and printed into the template,
+    and the parameters are dropped from the inst returned, so the caller
+    sees an ordinary entry whose schema is the family's. A missing or
+    ill-kinded parameter raises Refused 'bad-args'."""
     if name in ENTRIES:
         return ENTRIES[name], inst
     if name not in FAMILIES:
         return None
-    text, schema, param = FAMILIES[name]
-    lit = inst.get(param)
-    if type(lit) is Num:
-        k = lit.n
-    elif type(lit) is Neg and type(lit.a) is Num:
-        k = -lit.a.n
-    else:
-        raise Refused("bad-args", f"{name} takes {param} := an integer "
-                      f"literal, such as 2 or -1")
-    if abs(k) > MAX_FAMILY_LITERAL:  # field would refuse the power anyway
-        raise Refused("power-too-large", f"{name}: {param} is too large")
-    st = parse_judgement(text.format(n=k, p=k if k >= 0 else f"({k})"))
+    text, schema, params = FAMILIES[name]
+    fill = {}
+    for param, kind in params.items():
+        v = inst.get(param)
+        if kind == "int":
+            if type(v) is Num:
+                k = v.n
+            elif type(v) is Neg and type(v.a) is Num:
+                k = -v.a.n
+            else:
+                raise Refused("bad-args", f"{name} takes {param} := an "
+                              "integer literal, such as 2 or -1")
+            if abs(k) > MAX_FAMILY_LITERAL:  # field would refuse it anyway
+                raise Refused("power-too-large", f"{name}: {param} is too "
+                              "large")
+            fill[param] = str(k)
+            fill["p"] = str(k) if k >= 0 else f"({k})"
+        else:  # "angle": a closed real constant, as a branch's (D19)
+            if not isinstance(v, Term) or fv(v) or sort_of(v) != "R" or \
+                    next(trees(v), None) is not None:
+                raise Refused("bad-args", f"{name} takes {param} := a closed "
+                              "real constant, such as pi or 2*pi")
+            fill[param] = f"({show(v)})"
+    st = parse_judgement(text.format(**fill))
     return (Entry(name, st, schema),
-            {v: t for v, t in inst.items() if v != param})
+            {v: t for v, t in inst.items() if v not in params})

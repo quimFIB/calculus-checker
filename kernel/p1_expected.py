@@ -17136,7 +17136,34 @@ DECISIONS_COMPLEX_K1 = {
             "re + im*i. Auto-simpl names `parts` where E27 (c) does. The "
             "TeX, 2-D and untex forms know i, re, im, conj and the "
             "branches.",
+    "E175": "The K1 review (2026-10-14), folded in. Blocking: (B1) a "
+            "minted fact's conclusion was never sort-checked, so fact "
+            "exp_pos at u := i*pi minted exp(i*pi) > 0, and bound, with "
+            "the cos pi and sin pi facts, proved 0 > 1; likewise cosh_pos "
+            "at i*x proved cos x > 0. Every handle's conclusion is now "
+            "sort-checked where it is minted (_Minted), and rewrite "
+            "sort-checks its instantiated hypotheses, so E172's claim "
+            "holds for facts too. (B2) complex tanh owed nothing, though "
+            "cosh(i*pi/2) = 0: over C, tanh w owes cosh w # 0 (E171 "
+            "amended; real tanh is unchanged). Should-fix: interval ends "
+            "are realified (the internal complex-key guard was reachable); "
+            "D19 and D20 are enforced as written, no complex structure at "
+            "all inside a branch angle, Int, D, Reg or interval end; "
+            "rpow_int_exponent reads a complex exponent as no integer (the "
+            "palette answered 500); TeX parenthesises a branch as a power "
+            "base, untex reads sqrt[theta], and the 2-D form prints theta "
+            "flat. K1_REVIEW pins each.",
 }
+
+# E172's entries, pinned, appended after G8's three: ENTRIES 42 -> 47
+K1_ENTRIES = {
+    "arg_pos": ("Arg u == 0 @ u > 0", ("u",)),
+    "arg_neg": ("Arg u == pi @ u < 0", ("u",)),
+    "arg_i_pos": ("Arg(i*u) == pi/2 @ u > 0", ("u",)),
+    "arg_i_neg": ("Arg(i*u) == -pi/2 @ u < 0", ("u",)),
+    "arg_right": ("Arg(u + i*v) == atan(v/u) @ u > 0", ("u", "v")),
+}
+K1_ENTRIES_APPEND = tuple(K1_ENTRIES)
 
 # K1's cases. sig {"z": "complex", "w": "complex"} unless a case says.
 K1_SIG = {"z": "complex", "w": "complex"}
@@ -17184,11 +17211,27 @@ K1_CASES = {
          "Proved."),
         ("(z + conj z)/2 == ?A", ["close re z by ring"], "Proved."),
         ("z*conj z == ?A", ["close (re z)^2 + (im z)^2 by ring"], "Proved."),
-        ("z^2 == ?A", ["close abs(z)^2 by ring"], "close-check-failed"),
+        ("z^2 == ?A", ["close (abs z)^2 by ring"], "close-check-failed"),
         ("1/z == ?A @ z # 0",
          ["close conj(z)/((re z)^2 + (im z)^2) by field"], "Proved."),
         ("sin(-z) == ?A", ["rewrite sin_odd with u := z at sin(-z)",
                            "close -sin z by ring"], "Proved."),
+    ],
+    # E175: the review's attacks, as (goal, sentences, report or code)
+    "review": [
+        ("0 > 1", ["fact h := exp_pos with u := i*pi"],
+         "sort-order-on-complex"),
+        ("cos x > 0", ["fact h := cosh_pos with u := i*x"],
+         "sort-order-on-complex"),
+        ("Arg z == ?A", ["rewrite arg_pos with u := z at Arg z"],
+         "sort-order-on-complex"),
+        ("tanh(i*pi/2)*0 == ?A", ["close 0 by ring"],
+         "obligation-decided-false"),
+        ("tanh(1)*0 == ?A", ["close 0 by ring"], "Proved."),
+        ("x == ?A @ x in [0, abs z]", [], "complex-calculus-not-built"),
+        ("log[abs(i)] z == ?A", [], "branch-not-constant"),
+        ("Int[x = 0 .. 1] re(exp(i*x)) == ?A", [],
+         "complex-calculus-not-built"),
     ],
     # split checked numerically: each pair at 200 random points of each
     # variable, |split(t) - (Re t, Im t)| < 1e-9 relative

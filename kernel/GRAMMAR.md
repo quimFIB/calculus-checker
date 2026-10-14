@@ -639,4 +639,5 @@ domain included, and every node built by a move goes through it.
 with `arg[θ] w` in (θ − 2π, θ]. Both are defined for every w ≠ 0, and
 owe `w # 0`. `sqrt[θ] w` is `exp(log[θ](w)/2)` and owes `w # 0`, so
 `Sqrt 0` is not a term the kernel evaluates. `abs w` of a Complex w is
-the modulus, `sqrt((re w)^2 + (im w)^2)`. `conj`, `re` and `im` are total.
+the modulus, `sqrt((re w)^2 + (im w)^2)`. `conj`, `re` and `im` are total. Over ℂ, `tan w` owes `cos w # 0` as over
+ℝ, and `tanh w` owes `cosh w # 0`, which over ℝ is always true (E175).
