@@ -330,7 +330,11 @@ one `simpl.`. **K2, calculus in a real variable on complex values, is built
 too** (E176–E181): `deriv`, `ftc`, `verify` and regularity work part by
 part, and limits over ℂ have one new law, |G| → 0 ⇒ G → 0. So
 ∫₀^∞ e^{−x} sin x = 1/2 now proves, through e^{(−1+i)x}, and sin and cos of
-any multiple of π evaluate (periodicity families). `D[z]` is K3, next.
+any multiple of π evaluate (periodicity families). **K3, calculus in a
+complex variable, is built** (E183–E188): `D[z]` with the holomorphic rule
+table, branches differentiated off their cut (an off-cut condition is one
+real judgement), and Cauchy–Riemann by `verify`. Contours and residues
+are K4, next.
 
 **Next,** per §17: stage 1's lists are done (2026-09-25). The gate
 (`app/GATE.md`): work its seventeen problems in order on the page, then

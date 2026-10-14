@@ -1457,3 +1457,18 @@ against complex evaluation at 200 random points per term.
   field proves it.
 - `entries.py` adds the `sin_period` and `cos_period` families, and
   `schema.period_shift` counts them in E27.
+
+**Stage K3 (E183–E188)**, a complex variable:
+
+- **The parser** takes `D[z]`. A `D`'s variable is complex when its
+  body holds that CVar.
+- **`deriv`** detects that and refuses non-holomorphic heads
+  (`deriv-not-holomorphic`). It adds `d_log_branch` and `d_sqrt_branch`
+  (both variables) and `d_arg` (a real variable), each owing
+  `complexes.off_cut`.
+- **`_d_former`** gives `D[z]` holomorphy's side conditions in place of
+  `Reg(e, 1)`.
+- **`complexes`** realifies a complex `# 0` factor by factor, and builds
+  a divisor's |b|^2 multiplicatively.
+- **Regularity** (`discharge._reg_rule` and `tagger.reg_rule`) reads `re`
+  and `im` of a CVar as parameters, and `arg[theta](u)` by rule `arg`.

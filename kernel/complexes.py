@@ -95,6 +95,32 @@ def _pdiv(x, y):
     return (None if re is None else Div(re, d), None if im is None else Div(im, d))
 
 
+def _complex_var(d):
+    """A D node whose variable is a CVar of its body (E183)."""
+    todo = [d.body]
+    while todo:
+        n = todo.pop()
+        if type(n) is CVar and n.name == d.var:
+            return True
+        if isinstance(n, Term):
+            todo.extend(k for _, k in children(n))
+    return False
+
+
+def _norm2_of(t):
+    """|t|^2 as a term, through products, powers and negation:
+    |a*b|^2 == |a|^2*|b|^2 and |a^n|^2 == (|a|^2)^n, so a divisor's
+    factors stay visible to discharge (E187)."""
+    k = type(t)
+    if k is Mul:
+        return Mul(_norm2_of(t.a), _norm2_of(t.b))
+    if k is Pow and t.n > 0:
+        return Pow(_norm2_of(t.base), t.n)
+    if k is Neg:
+        return _norm2_of(t.a)
+    return _real(_norm2(_split(t)))
+
+
 def _zero(t):
     """t is ring-zero: the trusted field, read lazily (field imports this
     module)."""
@@ -138,8 +164,15 @@ def _split(t):
         return (_add(a, c), _add(b, d))
     if k is Mul:
         return _pmul(_split(t.a), _split(t.b))
-    if k is Div:
-        return _pdiv(_split(t.a), _split(t.b))
+    if k is Div:  # E187: |b|^2 built multiplicatively, an identity
+        (p, q), (r, s) = _split(t.a), _split(t.b)
+        if s is None:
+            return _pdiv((p, q), (r, s))
+        d = _norm2_of(t.b)
+        re = _add(_mul(p, r), _mul(q, s))
+        im = _sub(_mul(q, r), _mul(p, s))
+        return (None if re is None else Div(re, d),
+                None if im is None else Div(im, d))
     if k is Pow:
         x = _split(t.base)
         if t.n == 0:
@@ -157,6 +190,8 @@ def _split(t):
         a, b = _split(t.body)
         return tuple(None if p is None else Integral(t.var, t.lo, t.hi, p)
                      for p in (a, b))
+    if k is Deriv and _complex_var(t):  # E189: D[z] splits to opaque atoms
+        return (App("re", t), App("im", t))
     if k is Deriv:  # E176: D[x] of each part, x Real
         a, b = _split(t.body)
         return tuple(None if p is None else Deriv(t.var, p) for p in (a, b))
@@ -234,7 +269,7 @@ def realify(t):
     if sort_of(t) != "R":
         raise Refused("complex-key", "a complex term where a real one is "
                       "needed")
-    return _real(_split(t)[0])
+    return _real(split(t)[0])
 
 
 # -- judgements (E168): every key and domain the kernel decides is real
@@ -247,22 +282,83 @@ def realify_judgement(j):
     dom = realify_dom(j.dom)
     if isinstance(j, Rel):
         if j.op == "==" and "C" in (sort_of(j.lhs), sort_of(j.rhs)):
-            (a, b), (c, d) = _split(j.lhs), _split(j.rhs)
+            (a, b), (c, d) = split(j.lhs), split(j.rhs)
             return (Rel("==", _real(a), _real(c), dom),
                     Rel("==", _real(b), _real(d), dom))
         return (Rel(j.op, realify(j.lhs), realify(j.rhs), dom),)
     if isinstance(j, NonZero):
-        if sort_of(j.e) == "C":
-            a, b = _split(j.e)
-            return (NonZero(_real(_norm2((a, b))) if b is not None
-                            else _real(a), dom),)
+        if sort_of(j.e) == "C":  # E187: C has no zero divisors, so a
+            out = []             # product is # 0 when each factor is
+            for f in _factors(j.e):
+                a, b = split(f)
+                p = NonZero(_real(_norm2((a, b))) if b is not None
+                            else _real(a), dom)
+                if p not in out:
+                    out.append(p)
+            return tuple(out)
         return (NonZero(realify(j.e), dom),)
     if isinstance(j, Reg):
         if sort_of(j.e) == "C":  # E178: both parts C^k
-            a, b = _split(j.e)
+            a, b = split(j.e)
             return (Reg(_real(a), j.k, dom), Reg(_real(b), j.k, dom))
         return (Reg(realify(j.e), j.k, dom),)
     raise Refused("complex-key", f"not a judgement: {j!r}")
+
+
+def _factors(e):
+    """e's factors through products, powers, negation and quotients (both
+    sides of one: a/b # 0 asks b # 0 too, which its definedness owes
+    anyway, so the conjunction is never weaker than e # 0)."""
+    t = type(e)
+    if t is Mul or t is Div:
+        return _factors(e.a) + _factors(e.b)
+    if t is Pow and e.n != 0:
+        return _factors(e.base)
+    if t is Neg:
+        return _factors(e.a)
+    return [e]
+
+
+def _trig_of(theta):
+    """(cos theta, sin theta) exactly, as integers, when theta is q*pi
+    with 2q an integer (E187); else None."""
+    import field as FD
+    try:
+        (p,), atoms = FD.ring_polys([theta])
+    except Refused:
+        return None
+    if not p:
+        q = 0
+    else:
+        if len(p) != 1:
+            return None
+        (mono, q), = p.items()
+        if len(mono) != 1 or mono[0][1] != 1 or atoms[mono[0][0]] != \
+                Const("pi"):
+            return None
+    if (2 * q).denominator != 1:
+        return None
+    return {0: (1, 0), 1: (0, 1), 2: (-1, 0), 3: (0, -1)}[int(2 * q) % 4]
+
+
+def off_cut(w, theta):
+    """E185: w off the ray at angle theta, as one real judgement: abs w -
+    re(w*exp(-(i*theta))) > 0, written in w's parts a and b as
+    sqrt(a^2 + b^2) - (a*cos theta + b*sin theta) > 0, with cos theta and
+    sin theta exact at multiples of pi/2 (the principal cut reads
+    sqrt(a^2 + b^2) + a > 0)."""
+    a, b = split(w)
+    a = _real(a)
+    cs = _trig_of(theta)
+    if cs is None:
+        rot = Add(Mul(a, App("cos", theta)),
+                  Mul(_real(b), App("sin", theta)))
+    else:
+        terms = [x if k == 1 else Neg(x)
+                 for x, k in ((a, cs[0]), (_real(b), cs[1])) if k]
+        rot = terms[0] if len(terms) == 1 else Add(terms[0], terms[1])
+    return Rel(">", Add(App("sqrt", _real(_norm2((a, b)))), Neg(rot)),
+               Num(0))
 
 
 def realify_dom(items):
@@ -288,6 +384,9 @@ def real_form(x):
             todo.extend(t)
             continue
         if type(t) is App and t.fn in ("re", "im") and type(t.arg) is CVar:
+            continue
+        if type(t) is App and t.fn in ("re", "im") and type(t.arg) is \
+                Deriv and _complex_var(t.arg):  # E189: a part of D[z] e
             continue
         if type(t) is Branch and t.fn == "arg":
             continue

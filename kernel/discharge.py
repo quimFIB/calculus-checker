@@ -58,7 +58,7 @@ import field as FD
 import poly as P
 from entries import ENTRIES
 import domains
-from terms import (Add, App, BUILTINS, Const, Div, Interval, Mul, Neg, NonZero,
+from terms import (Branch, CVar, Add, App, BUILTINS, Const, Div, Interval, Mul, Neg, NonZero,
                    Num, Pow, RPow, Refused, Reg, Rel, Term, Var, _kids,
                    check_goal, fv, lit, subst, trees, with_domain)
 from terms import _fields as _node_fields
@@ -795,6 +795,10 @@ def _reg_rule(t, node):
         return "const"
     if k is Var:
         return "var"
+    if k is App and t.fn in ("re", "im") and type(t.arg) is CVar:
+        return "var"  # E187: a part of a complex parameter
+    if k is Branch and t.fn == "arg":
+        return "arg"  # E187: C^k where its argument's parts are, off the cut
     if k is Pow:
         return "pow" if t.n >= 0 else "pow_neg"
     if k is App and t.fn in BUILTINS:
@@ -806,6 +810,9 @@ def _reg_kids(t, rule):
     """The term's children the rule consumes, in GRAMMAR.md §7's order."""
     if rule in ("const", "var"):
         return ()
+    if rule == "arg":  # E187: the argument's two real parts
+        import complexes
+        return tuple(complexes._real(p) for p in complexes.split(t.arg))
     if rule == "neg":
         return (t.a,)
     if rule in ("add", "mul", "div"):
@@ -834,6 +841,9 @@ def _reg_sides(t, rule, k):
         return (NonZero(t.base),)
     if rule == "rpow":
         return (Rel(">", t.base, ZERO),)
+    if rule == "arg":  # E187: off its cut, at every class
+        import complexes
+        return (complexes.off_cut(t.arg, t.theta),)
     if rule in BUILTINS:
         row = domains.NATURAL_DOMAINS.get(rule)
         props = row(t.arg) if row else ()

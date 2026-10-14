@@ -115,7 +115,7 @@ import trig_norm
 import complexes
 import entries
 from entries import ENTRIES
-from terms import (NEG_INF, POS_INF, Add, App, Branch, Call, Deriv, Div, Integral, Mul,
+from terms import (NEG_INF, POS_INF, Add, App, Branch, Call, CVar, Deriv, Div, Integral, Mul,
                    Interval, MVar, Neg, NegInf, NonZero, Num, PosInf, Pow,
                    Refused, Reg, Rel, RPow, Term, Var, _shown, bv, check_goal,
                    check_names, children, fv, instantiate, parse_term,
@@ -1263,8 +1263,13 @@ def _int_former(buf, it, body_dom, body_anc, goal_dom):
 
 def _d_former(buf, dx, dom, anc, goal_dom):
     """D[x] e owes Reg(e, 1) at the node's own position domain P: e is C^1
-    near every point of P, so D[x] e denotes there (E64). A seam
-    (ARCHITECTURE.md §7)."""
+    near every point of P, so D[x] e denotes there (E64). D[z] for a CVar
+    z owes deriv's own side conditions instead, holomorphy's (E186). A
+    seam (ARCHITECTURE.md §7)."""
+    if any(type(n) is CVar and n.name == dx.var for n in DV._nodes(dx.body)):
+        for key, _ in DV.deriv(dx.body, dx.var, ()).emissions:
+            _emit_at(buf, key, dom, anc, "former", goal_dom)
+        return
     _emit_at(buf, Reg(dx.body, 1), dom, anc, "former", goal_dom)
 
 

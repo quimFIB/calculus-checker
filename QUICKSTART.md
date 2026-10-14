@@ -792,8 +792,17 @@ goal Int[x = 0 .. oo] exp(-x)*sin x == ?A.
 int_improper im(exp((-1 + i)*x)/(-1 + i)) by field.
 ```
 
-Calculus in a complex variable, `D[z]`, is the next stage (COMPLEX.md,
-K3).
+`D[z]` is the complex derivative. It takes only what is holomorphic:
+`D[z] conj z` is refused `deriv-not-holomorphic`, and so are `re`, `im`,
+`abs` and `Arg`. `Log` and `Sqrt` differentiate where their argument is off
+the cut, which they owe:
+
+```dx
+goal D[z] Log z == 1/z @ re z > 0 complex z.
+verify by field.
+```
+
+Contour integrals and residues are the next stage (COMPLEX.md, K4).
 
 ## The moves
 

@@ -6366,10 +6366,14 @@ def k1_problems(part):
             except T.Refused as r:
                 if r.code != code:
                     out.append(f"{text}: {r.code}, want {code}")
-    elif part in ("proofs", "review", "k2_proofs", "k2_review"):
+    elif part in ("proofs", "review", "k2_proofs", "k2_review", "k3_proofs",
+                  "k3_review"):
         if part.startswith("k2_"):
             C = {part: X.K2_CASES[part[3:]]}
             S = X.K2_SIG
+        if part.startswith("k3_"):
+            C = {part: X.K3_CASES[part[3:]]}
+            S = X.K3_SIG
         for goal_text, sentences, want in C[part]:
             try:
                 st = K.install(T.parse_goal(goal_text, S))
@@ -6440,6 +6444,12 @@ def k1_checks(suite):
     suite.check("Z", f"K2 review attacks ({len(X.K2_CASES['review'])}): an "
                 "improper Int inside re/im, a complex pole on the range, a "
                 "diverging part (E182)", lambda: k1_problems("k2_review"))
+    suite.check("Z", f"K3 proofs ({len(X.K3_CASES['proofs'])}): D[z], the "
+                "branch rules and their cuts, deriv-not-holomorphic "
+                "(E183-E188)", lambda: k1_problems("k3_proofs"))
+    suite.check("Z", f"K3 review rows ({len(X.K3_CASES['review'])}): cuts "
+                "never proved, branches, D[z] split as atoms (E189)",
+                lambda: k1_problems("k3_review"))
     suite.check("Z", f"K2 limits ({len(X.K2_CASES['limits'])}): over C, "
                 "modulus_to_zero (E179)", lambda: k1_problems("k2_limits"))
     suite.check("Z", f"split agrees with complex evaluation on "

@@ -73,7 +73,7 @@ import field as FD
 import poly as P
 import residual
 from entries import ENTRIES
-from terms import (Add, App, Const, Div, Mul, Neg, NonZero, Num, Pow, RPow, Refused,
+from terms import (Branch, CVar, Add, App, Const, Div, Mul, Neg, NonZero, Num, Pow, RPow, Refused,
                    Reg, Rel, Term, Var, subst, with_domain)
 
 # Constant name -> (entry name, sign fact). Read at call time. It is a seam:
@@ -151,6 +151,10 @@ def reg_rule(t):
         return "const"
     if k is Var:
         return "var"
+    if k is App and t.fn in ("re", "im") and type(t.arg) is CVar:
+        return "var"  # E187, as discharge._reg_rule
+    if k is Branch and t.fn == "arg":
+        return "arg"
     if k is Pow:
         return "pow" if t.n >= 0 else "pow_neg"
     if k is RPow:
@@ -163,6 +167,9 @@ def reg_rule(t):
 def reg_children(t, rule):
     if rule in ("const", "var"):
         return ()
+    if rule == "arg":
+        import complexes
+        return tuple(complexes._real(p) for p in complexes.split(t.arg))
     if rule == "neg":
         return (t.a,)
     if rule in ("add", "mul", "div"):
@@ -184,6 +191,9 @@ def reg_sides(t, rule, k):
         return (NonZero(t.base),)
     if rule == "rpow":
         return (Rel(">", t.base, ZERO),)
+    if rule == "arg":
+        import complexes
+        return (complexes.off_cut(t.arg, t.theta),)
     if type(t) is not App:
         return ()
     row = domains.NATURAL_DOMAINS.get(t.fn)

@@ -1,8 +1,8 @@
 # Complex analysis: a design (proposal, revision 2, 2026-10-14)
 
-**Status:** the design, being built. **K1 (arithmetic) and K2 (a real
-variable) are built** (2026-10-14, p1_expected E165–E181, GRAMMAR.md §11,
-ARCHITECTURE.md §16); K3 and K4 are not. It answers DESIGN.md §18 Q8 ("complex numbers as a
+**Status:** the design, being built. **K1 (arithmetic), K2 (a real
+variable) and K3 (a complex variable) are built** (2026-10-14,
+p1_expected E165–E188, GRAMMAR.md §11, ARCHITECTURE.md §16); K4 is not. It answers DESIGN.md §18 Q8 ("complex numbers as a
 sort"), which revision 10 deferred until the course reached unit 06.
 
 **Revision 2** follows the owner's brief on revision 1: *implement it

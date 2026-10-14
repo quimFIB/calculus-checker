@@ -120,6 +120,17 @@ class RealVariable(unittest.TestCase):
                          ("Proved.", "close -1 by ring."))
 
 
+class ComplexVariable(unittest.TestCase):
+    """K3 (E183-E189) through the app."""
+
+    def test_d_z_verifies_and_refuses_what_is_not_holomorphic(self):
+        r = run("goal D[z] Log z == 1/z @ re z > 0 complex z.",
+                ["verify by field."])
+        self.assertEqual(r["report"], "Proved.")
+        r = run("goal D[z] conj z == 1 complex z.", [])
+        self.assertEqual(r["refusal"]["code"], "deriv-not-holomorphic")
+
+
 class TeX(unittest.TestCase):
     def test_round_trips(self):
         sig = {"z": "complex"}

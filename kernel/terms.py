@@ -536,6 +536,19 @@ def _complex_free(x):
     return True
 
 
+def _nodes_of(t):
+    """Every node of t, domains and interval ends included, as a list."""
+    out, todo = [], [t]
+    while todo:
+        n = todo.pop()
+        out.append(n)
+        if isinstance(n, Interval):
+            todo.extend(e for e in (n.lo, n.hi) if isinstance(e, Term))
+        else:
+            todo.extend(_kids(n))
+    return out
+
+
 def _holds_mvar(t):
     return isinstance(t, MVar) or any(_holds_mvar(k) for k in _kids(t))
 
@@ -614,17 +627,18 @@ def check_goal(goal):
 
 
 def _var_sorts(x):
-    """(names of real Vars, names of CVars) anywhere in x."""
-    real, cplx, todo = set(), set(), [x]
-    while todo:
-        t = todo.pop()
-        if isinstance(t, CVar):
-            cplx.add(t.name)
-        elif isinstance(t, Var):
-            real.add(t.name)
-        elif isinstance(t, (Integral, Deriv, Interval)):  # binders are Real
-            real.add(t.var)
-        todo.extend(_kids(t))
+    """(names of real Vars, names of CVars) anywhere in x. A D's variable
+    takes the sort its name has anywhere in x: complex when a CVar of that
+    name occurs (E183, E189: a z-free D[z] body is no clash), else Real,
+    as Int's and an interval's always are."""
+    nodes = _nodes_of(x) if not isinstance(x, tuple) else [
+        n for j in x for n in _nodes_of(j)]
+    cplx = {t.name for t in nodes if isinstance(t, CVar)}
+    real = {t.name for t in nodes if isinstance(t, Var)
+            and not isinstance(t, CVar)}
+    real |= {t.var for t in nodes if isinstance(t, (Integral, Interval))}
+    real |= {t.var for t in nodes if isinstance(t, Deriv)
+             and t.var not in cplx}
     return real, cplx
 
 
@@ -1037,9 +1051,10 @@ class _Parser:
         if tok[1] != "D":
             return App(tok[1], self.operand())
         self.expect("[")
-        if self.is_kind("cvar"):  # E176: D[z] is K3's
-            self.fail("complex-calculus-not-built", f"D[{self.peek()[1]}] "
-                      "in a complex variable is stage K3 (COMPLEX.md)")
+        if self.is_kind("cvar"):  # E183: D[z], the complex derivative
+            v = self.take()[1]
+            self.expect("]")
+            return Deriv(v, self.operand())
         v = self.var()[1]
         self.expect("]")
         return Deriv(v, self.operand())

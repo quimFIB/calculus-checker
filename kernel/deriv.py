@@ -46,8 +46,24 @@ rules they reach. So `-(2*t*cos t)` gives ("route_neg", that term) and then
 from dataclasses import dataclass
 from types import MappingProxyType
 
-from terms import (Add, App, Div, Mul, Neg, NonZero, Num, Pow, Refused, Rel,
-                   Var, fv, lit, show, sort_of, trees, with_domain)
+from terms import (Add, App, Branch, Const, CVar, Div, Mul, Neg, NonZero, Num,
+                   Pow, Refused, Rel, Term, Var, children, fv, lit, show,
+                   sort_of, trees, with_domain)
+
+
+def off_cut(w, theta):
+    """E185, built in w's real parts (complexes.off_cut)."""
+    import complexes
+    return complexes.off_cut(w, theta)
+
+
+def _nodes(t):
+    todo = [t]
+    while todo:
+        n = todo.pop()
+        yield n
+        if isinstance(n, Term):
+            todo.extend(k for _, k in children(n) if isinstance(k, Term))
 
 # E177: the builtins whose rules hold for a complex-valued u(x), x Real
 HOLOMORPHIC = frozenset(("exp", "sin", "cos", "tan", "sinh", "cosh", "tanh"))
@@ -161,6 +177,8 @@ def deriv(F, x, dom):
     'Int-or-D-not-normalisable' from const_guard.
     """
     trace = []
+    # E183: D[z] when F holds the CVar z; then only holomorphic heads
+    cx = any(type(n) is CVar and n.name == x for n in _nodes(F))
 
     def fire(rule, t, props=(), slot=None):
         # Record one firing, its sides already on dom. `slot` is the trace
@@ -177,7 +195,7 @@ def deriv(F, x, dom):
             const_guard(t)
             fire("d_const", t)
             return Num(0)
-        if t == Var(x):
+        if isinstance(t, Var) and t.name == x:  # a Var, or a CVar for D[z]
             fire("d_var", t)
             return Num(1)
         if isinstance(t, Add):
@@ -199,6 +217,10 @@ def deriv(F, x, dom):
         if isinstance(t, Pow) and t.n != 0:
             fire("d_pow_int", t, (NonZero(t.base),) if t.n < 0 else ())
             return Mul(Mul(lit(t.n), Pow(t.base, t.n - 1)), walk(t.base))
+        if cx and (isinstance(t, App) and t.fn not in HOLOMORPHIC or
+                   isinstance(t, Branch) and t.fn == "arg"):
+            raise Refused("deriv-not-holomorphic", f"{show(t)} is not "
+                          f"holomorphic in {x} (E184)")
         if isinstance(t, App) and t.fn in ("re", "im", "conj"):
             fire("d_" + t.fn, t)  # E177: they commute with D[x], x Real
             return App(t.fn, walk(t.arg))
@@ -206,6 +228,19 @@ def deriv(F, x, dom):
                 sort_of(t.arg) == "C":  # E177: a real-only rule, complex u
             raise Refused("deriv-no-rule", f"{t.fn} of a complex argument "
                           "is not differentiated here (COMPLEX.md)")
+        if isinstance(t, Branch):  # E184: off the cut, owed (E185)
+            slot = len(trace)
+            trace.append(None)
+            du = walk(t.arg)
+            cut = (off_cut(t.arg, t.theta),)
+            if t.fn == "log":
+                fire("d_log_branch", t, cut, slot)
+                return Div(du, t.arg)
+            if t.fn == "sqrt":
+                fire("d_sqrt_branch", t, cut, slot)
+                return Div(du, Mul(Num(2), t))
+            fire("d_arg", t, cut, slot)  # arg: a real variable only
+            return App("im", Div(du, t.arg))
         rule = APP_RULES.get(t.fn) if isinstance(t, App) else None
         if rule is not None:
             slot = len(trace)

@@ -320,6 +320,10 @@ class _Normaliser:
         if k is RPow:
             return self.atom(("rpow", self.key(t.base), self.key(t.exp)), t)
         if k is App and t.fn in ("re", "im"):  # E168: a part of a CVar
+            if type(t.arg) is Deriv:  # E189: a part of D[z] e, by its tree
+                import complexes
+                if complexes._complex_var(t.arg):
+                    return self.atom(("app", t.fn, ("tree", t.arg)), t)
             if type(t.arg) is not CVar:
                 raise Refused(COMPLEX_CODE, f"{show(t)} is not split")
             return self.atom(("app", t.fn, ("cvar", t.arg.name)), t)

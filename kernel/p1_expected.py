@@ -17193,7 +17193,7 @@ K1_CASES = {
         # complex inside Int and D[x] was refused here until K2 (E176
         # lifts it; K2_CASES has the calculus); D[z] stays refused (K3)
         ("Int[x = 0 .. abs(i)] x", "complex-calculus-not-built"),
-        ("Int[x = 0 .. 1] x + abs(z)*Int[t = 0 .. re z] t", "complex-calculus-not-built"),
+        ("Int[t = 0 .. re z] t", "complex-calculus-not-built"),
     ],
     # (goal, sentences, report or refusal code); sentences in SCRIPT.md
     # syntax, by hand (auto-simpl off)
@@ -17338,12 +17338,14 @@ K2_CASES = {
         ("D[t] conj(exp(i*t)) == -(i*conj(exp(i*t)))", ["verify by ring"],
          "Proved."),
         ("D[t] abs(exp(i*t)) == 0", ["verify by ring"], "deriv-no-rule"),
-        # K3 lifts this (E184): see K3_CASES
+        # K3 lifts this (E184): derived now, owing sqrt(t^2 + 1) + t > 0
+        # (the cut, and inside Arg's C^1 side), which discharge does not
+        # prove without a domain; K3_CASES has it with t > 0
         ("D[t] Log(t + i) == 1/(t + i)", ["verify by field"],
-         "Proved modulo 1 admissions"),
+         "Proved modulo 2 admissions"),
         ("Int[t = 0 .. 1] 1/(t - i) == ?A", [],
          "Open: Int[t = 0 .. 1] 1/(t - i) == ?A"),
-        ("D[z] z^2 == 2*z", [], "Open: D[z] z^2 == 2*z"),  # K3 (E183)
+        ("D[z] z^2 == 2*z", [], "Open: D[z](z^2) == 2*z"),  # K3 (E183)
     ],
     # limits.lim: (term, variable, +1 for oo, value printed, or NoLimit)
     "limits": [
@@ -17417,6 +17419,44 @@ DECISIONS_COMPLEX_K3 = {
             "a body deriv refuses (not holomorphic, no rule) refuses the "
             "term.",
     "E187": "K3's cases (K3_CASES).",
+    "E188": "Found while building K3, folded in. (1) E182's own fix had a "
+            "hole: making split's recursion call an unchecked _split also "
+            "rewrote realify and realify_judgement, so obligation keys "
+            "bypassed the improper-Int check E182 added; every use outside "
+            "the recursion goes through split again. (2) The cut is built "
+            "in w's real parts, sqrt(a^2 + b^2) - (a*cos theta + b*sin "
+            "theta) > 0, with cos and sin exact at multiples of pi/2, so "
+            "the principal cut reads sqrt(a^2 + b^2) + a > 0 and "
+            "discharge proves it from re w > 0. (3) A complex # 0 "
+            "realifies factor by factor (C has no zero divisors; a "
+            "quotient asks both sides), and split builds a complex "
+            "divisor's |b|^2 multiplicatively (|a*b|^2 == |a|^2*|b|^2, "
+            "|a^n|^2 == (|a|^2)^n), so 1/z^2 owes what z # 0 gives. (4) "
+            "Regularity: re and im of a CVar are parameters (rule var), "
+            "and arg[theta](u) is C^k where u's parts are and u is off its "
+            "cut (rule arg), in the trusted checker and the proposer "
+            "alike. (5) Two case typos (D6) and a printed form corrected; "
+            "K2's no-domain D[t] Log(t + i) owes sqrt(t^2 + 1) + t > 0 "
+            "twice, which discharge cannot prove linearly, so it reads "
+            "modulo 2 admissions.",
+    "E189": "The K3 review (2026-10-14), folded in; no false theorem was "
+            "found. (1) split read a D[z] as a real derivative, putting re "
+            "and im inside a complex derivative (keys like Reg(D[z](x*(re "
+            "z*re z - ...)))); a D whose variable is a CVar of its body now "
+            "splits to the opaque real atoms re(D[z] e) and im(D[z] e), "
+            "keyed by the D node's tree. (2) The one-sort-per-name rule "
+            "read a z-free D[z] as a real binder and refused D[z] z + D[z] "
+            "w == 1; a D's variable now takes the sort its name has "
+            "anywhere in the goal. (3) E186 amended: tanh's pole under "
+            "D[z] is charged by its own former (E175), not by D[z]'s. (4) "
+            "K3_CASES' review rows pin d_sqrt_branch, non-principal cuts, "
+            "goals with z on the cut (each left modulo an admission, never "
+            "proved), _factors on a quotient with mixed factors, tanh's pole "
+            "and Arg and im under D[z], and E188 (1)'s regression. Two true "
+            "goals stay admitted: log[2*pi] with im z > 0 and log[3*pi/2] "
+            "with re z > 0 owe sqrt(a^2 + b^2) > a for b # 0, which is not "
+            "linear, so discharge does not prove it; incompleteness, "
+            "stated.",
 }
 
 K3_SIG = {"z": "complex", "w": "complex"}
@@ -17429,12 +17469,40 @@ K3_CASES = {
         ("D[z] Log z == 1/z @ re z > 0", ["verify by field"], "Proved."),
         ("D[z] conj z == 1", ["verify by ring"], "deriv-not-holomorphic"),
         ("D[z] re z == 1", ["verify by ring"], "deriv-not-holomorphic"),
-        ("D[z] abs(z)^2 == 0", ["verify by ring"], "deriv-not-holomorphic"),
+        ("D[z](abs z * abs z) == 0", ["verify by ring"],
+         "deriv-not-holomorphic"),
         ("D[t] Log(t + i) == 1/(t + i) @ t > 0", ["verify by field"],
          "Proved."),
         ("D[t] Arg(t + i) == -1/(t^2 + 1) @ t > 0", ["verify by field"],
          "Proved."),
         ("D[x](x^3 - 3*x*y^2) == D[y](3*x^2*y - y^3)", ["verify by ring"],
          "Proved."),
+    ],
+    # E189: the review's rows
+    "review": [
+        ("D[z] Sqrt z == 1/(2*Sqrt z) @ re z > 0", ["verify by field"],
+         "Proved modulo 2 admissions"),
+        # z on the cut somewhere in the domain: never proved
+        ("D[z] Log z == 1/z @ re z < 0", ["verify by field"],
+         "Proved modulo 1 admissions"),
+        ("D[z] Log(-z) == 1/z @ re z > 0", ["verify by field"],
+         "Proved modulo 1 admissions"),
+        ("D[z] log[2*pi](z) == 1/z @ re z > 0", ["verify by field"],
+         "Proved modulo 1 admissions"),
+        ("D[z] log[3*pi/2](z) == 1/z @ im z < 0", ["verify by field"],
+         "Proved modulo 1 admissions"),
+        # off the cut, true, and admitted: sqrt(a^2 + b^2) > a is not linear
+        ("D[z] log[2*pi](z) == 1/z @ im z > 0", ["verify by field"],
+         "Proved modulo 1 admissions"),
+        ("D[z] tanh(z) == 1 - (tanh z)^2", ["verify by field"],
+         "Proved modulo 1 admissions"),
+        ("D[z] Arg z == 0", ["verify by ring"], "deriv-not-holomorphic"),
+        ("D[z] im z == 0", ["verify by ring"], "deriv-not-holomorphic"),
+        ("x/(1 + im(Int[t = 0 .. oo] 1)) == x", [],
+         "Int-or-D-not-normalisable"),
+        ("D[z] z + D[z] w == 1 + D[w] w - 1", [],
+         "Open: D[z] z + D[z] w == 1 + D[w] w - 1"),
+        ("Int[x = 0 .. 1] D[z](x*z^2) == ?A", [],
+         "Open: Int[x = 0 .. 1] D[z](x*z^2) == ?A"),
     ],
 }
