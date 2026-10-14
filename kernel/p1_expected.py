@@ -17193,7 +17193,7 @@ K1_CASES = {
         # complex inside Int and D[x] was refused here until K2 (E176
         # lifts it; K2_CASES has the calculus); D[z] stays refused (K3)
         ("Int[x = 0 .. abs(i)] x", "complex-calculus-not-built"),
-        ("D[z] z", "complex-calculus-not-built"),
+        ("Int[x = 0 .. 1] x + abs(z)*Int[t = 0 .. re z] t", "complex-calculus-not-built"),
     ],
     # (goal, sentences, report or refusal code); sentences in SCRIPT.md
     # syntax, by hand (auto-simpl off)
@@ -17338,11 +17338,12 @@ K2_CASES = {
         ("D[t] conj(exp(i*t)) == -(i*conj(exp(i*t)))", ["verify by ring"],
          "Proved."),
         ("D[t] abs(exp(i*t)) == 0", ["verify by ring"], "deriv-no-rule"),
+        # K3 lifts this (E184): see K3_CASES
         ("D[t] Log(t + i) == 1/(t + i)", ["verify by field"],
-         "deriv-no-rule"),
+         "Proved modulo 1 admissions"),
         ("Int[t = 0 .. 1] 1/(t - i) == ?A", [],
          "Open: Int[t = 0 .. 1] 1/(t - i) == ?A"),
-        ("D[z] z^2 == 2*z", [], "complex-calculus-not-built"),
+        ("D[z] z^2 == 2*z", [], "Open: D[z] z^2 == 2*z"),  # K3 (E183)
     ],
     # limits.lim: (term, variable, +1 for oo, value printed, or NoLimit)
     "limits": [
@@ -17376,5 +17377,64 @@ K2_CASES = {
          "int_improper exp((-1 + i)*x)/(-1 + i) by field.", "1/2 + (1/2)*i"),
         ("Int[x = 0 .. oo] exp(-x)*sin x == ?A",
          "int_improper im(exp((-1 + i)*x)/(-1 + i)) by field.", "1/2"),
+    ],
+}
+
+
+# -------------------------------------------------- complex, stage K3 (E183-E187)
+
+DECISIONS_COMPLEX_K3 = {
+    "E183": "K3 is calculus in a complex variable (COMPLEX.md section "
+            "5.2). D[z] for a CVar z is the complex derivative; the parser "
+            "takes it (E176's refusal is lifted). A D's variable is "
+            "Complex exactly when its body holds that CVar (a z-free body "
+            "differentiates to 0 either way), so check_goal's one-sort-per-"
+            "name rule reads it so, and D[z] takes its body's sort. "
+            "Holomorphy as a stated judgement (COMPLEX.md's H(U)) is a "
+            "premise of K4's residue theorem and is built there.",
+    "E184": "deriv's rules under D[z]: deriv's own for the holomorphic "
+            "heads, d_const, d_var (now reading a CVar of the variable's "
+            "name), d_add, route_neg, d_mul, d_inv, route_div, d_pow_int "
+            "and the App rules for exp, sin, cos, sinh, cosh, tanh, true "
+            "over C by the same algebra. re, im, conj, abs, arg[theta] and "
+            "the real-only heads are refused deriv-not-holomorphic. New, "
+            "for a real or a complex variable: d_log_branch, D log[theta] "
+            "u == D u / u, and d_sqrt_branch, D sqrt[theta] u == D u / "
+            "(2*sqrt[theta] u); for a real variable only, d_arg, D[t] "
+            "arg[theta] u == im(D[t] u / u). Each owes u off its cut "
+            "(E185). They lift two K2 refusals: D[t] Log(t + i) is now "
+            "derived (K2_CASES' deriv-no-rule rows become K3's).",
+    "E185": "Off the cut, as one real judgement (COMPLEX.md Z6): w is on "
+            "the ray at angle theta exactly when abs(w) == re(w*exp(-(i*"
+            "theta))), since abs w >= re(w e^{-i theta}) with equality "
+            "only there. So the side owed is abs(w) - re(w*exp(-(i*theta)))"
+            " > 0, realified like any key: no disjunction, and for the "
+            "principal branch it reads sqrt((re w)^2 + (im w)^2) + re w "
+            "> 0.",
+    "E186": "D[z] e's former is not Reg(e, 1), which reads a real "
+            "variable: it is deriv's own side conditions for e at the "
+            "node's position (the divisors and cuts holomorphy owes), and "
+            "a body deriv refuses (not holomorphic, no rule) refuses the "
+            "term.",
+    "E187": "K3's cases (K3_CASES).",
+}
+
+K3_SIG = {"z": "complex", "w": "complex"}
+K3_CASES = {
+    "proofs": [  # (goal, sentences, report or code)
+        ("D[z] z^2 == 2*z", ["verify by ring"], "Proved."),
+        ("D[z] exp(i*z) == i*exp(i*z)", ["verify by ring"], "Proved."),
+        ("D[z] (1/z) == -1/z^2 @ z # 0", ["verify by field"], "Proved."),
+        ("D[z] sin(z)*w == cos(z)*w", ["verify by ring"], "Proved."),
+        ("D[z] Log z == 1/z @ re z > 0", ["verify by field"], "Proved."),
+        ("D[z] conj z == 1", ["verify by ring"], "deriv-not-holomorphic"),
+        ("D[z] re z == 1", ["verify by ring"], "deriv-not-holomorphic"),
+        ("D[z] abs(z)^2 == 0", ["verify by ring"], "deriv-not-holomorphic"),
+        ("D[t] Log(t + i) == 1/(t + i) @ t > 0", ["verify by field"],
+         "Proved."),
+        ("D[t] Arg(t + i) == -1/(t^2 + 1) @ t > 0", ["verify by field"],
+         "Proved."),
+        ("D[x](x^3 - 3*x*y^2) == D[y](3*x^2*y - y^3)", ["verify by ring"],
+         "Proved."),
     ],
 }

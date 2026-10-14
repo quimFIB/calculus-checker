@@ -648,3 +648,7 @@ Complex, since `Int`'s and `D`'s variables are Real, and `Int` and `D`
 take their body's sort. An `Int`'s limits and an interval's ends stay
 Real and free of complex structure. `D[z]` for a CVar z is still refused
 `complex-calculus-not-built` (K3).
+
+**Stage K3 (p1_expected E183–E187):** `D[z]` for a CVar z is the complex
+derivative, and the parser takes it. A `D`'s variable is Complex exactly
+when its body holds that CVar.
