@@ -5,7 +5,7 @@
 ;;; Commentary:
 
 ;; A .dx file is a tactic script (app/SCRIPT.md) whose first sentence names
-;; the goal: `problem ID.' or `goal G [functions f/1, ...].'.  As coq-lsp
+;; the goal: `problem ID.' or `goal G [complex z, ...] [functions f/1, ...].'.  As coq-lsp
 ;; does for Rocq, the checker's language server (`./calc --lsp') checks
 ;; the whole buffer as you type: the checked prefix is shaded, a refused
 ;; sentence is a flymake error, and *dx-goals* shows the goal at point.
@@ -465,7 +465,8 @@ fits the goals window; indented two spaces."
   "Syntax table for `dx-mode'.")
 
 (defconst dx-font-lock-keywords
-  `((,(regexp-opt '("problem" "goal" "functions" "assuming") 'symbols)
+  `((,(regexp-opt '("problem" "goal" "functions" "complex" "assuming")
+                  'symbols)
      . font-lock-preprocessor-face)
     (,(regexp-opt dx-moves 'symbols) . font-lock-keyword-face)
     ("\\_<\\(?:Uns\\|S\\)et Auto Simpl\\_>" . font-lock-keyword-face)
@@ -481,7 +482,10 @@ fits the goals window; indented two spaces."
      1 font-lock-function-name-face)
     (,(regexp-opt '("Int" "D" "sqrt" "sin" "cos" "tan" "asin" "acos" "atan"
                     "exp" "ln" "abs" "sinh" "cosh" "tanh" "asinh" "acosh"
-                    "atanh" "pi" "oo" "e_const")
+                    "atanh" "pi" "oo" "e_const"
+                    ;; complex (COMPLEX.md): i, the parts, the branches
+                    "i" "re" "im" "conj" "Log" "Arg" "Sqrt" "log" "arg"
+                    "rpow")
                   'symbols)
      . font-lock-type-face))
   "Highlighting for `dx-mode'.")

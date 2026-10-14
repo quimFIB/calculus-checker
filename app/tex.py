@@ -103,7 +103,7 @@ def _t(t, need=0, left=True):
         if t.fn == "abs":
             return r"\left|" + _t(t.arg) + r"\right|"
         head = FNS[t.fn]
-        if type(t.arg) in (Num, Var, Const):
+        if type(t.arg) in (Num, Var, CVar, Const):
             return head + " " + _t(t.arg)
         return head + _paren(_t(t.arg))
     if k is Deriv:

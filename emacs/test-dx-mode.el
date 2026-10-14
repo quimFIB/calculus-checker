@@ -69,6 +69,19 @@
     (dx-test--goals-at (1+ (dx-test--end-of "stage0.S1.")) "Open")
     (should (string-match-p "Int\\[x = 0 \\.\\. 1\\]" (dx-test--goals)))))
 
+(ert-deftest dx-complex-file-checks-and-highlights ()
+  "COMPLEX.md: a header declaring z proves, the goals show its parts,
+and the header word `complex' is highlighted like `functions'."
+  (dx-test--visit "c1.dx"
+    (dx-test--settled-at (dx-test--end-of "(im z)^2."))
+    (dx-test--goals-at (point-max) "Proved.")
+    (should (string-match-p "re z" (dx-test--goals)))
+    (font-lock-ensure)
+    (goto-char (point-min))
+    (search-forward "complex")
+    (should (eq (get-text-property (match-beginning 0) 'face)
+                'font-lock-preprocessor-face))))
+
 (ert-deftest dx-goals-drawn-in-2d-or-one-line ()
   (dx-test--visit "s1.dx"
     (dx-test--settled-at (dx-test--end-of "close 2."))

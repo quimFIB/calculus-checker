@@ -22,6 +22,11 @@ from assist import integrate  # noqa: E402
 from session import loader  # noqa: E402
 
 URI = "file:///work/a.dx"
+# complex (COMPLEX.md): a header declaring z, and a constant goal over C
+C1 = ("goal z*conj z == ?A complex z.\n"
+      "close (re z)^2 + (im z)^2.\n")
+C2 = "goal (1 + i)^8 == ?A.\nsimpl.\n"
+
 # by hand (E162), on the header's line so every position stays put
 S1 = ("problem stage0.S1. Unset Auto Simpl.\nftc x^3 + x^2 by ring.\n"
       "close 2.\n")
@@ -197,6 +202,17 @@ class Lsp(unittest.TestCase):
         self.assertEqual((g["node"], g["move"], g["report"]),
                          ("n1", "set", "Open: Int[x = 0 .. 1] 3*x^2 + 2*x == ?A"))
         self.assertEqual(c.close(), 0)
+
+    def test_complex_files_check_to_proved(self):
+        """A complex header reaches /session as it is, and both kinds of
+        complex goal prove through the server (E174)."""
+        for text in (C1, C2):
+            with self.subTest(text=text):
+                c = self.client()
+                c.open(text)
+                self.assertEqual(c.settled(), [])
+                self.assertEqual(c.goals(2)["report"], "Proved.")
+                self.assertEqual(c.close(), 0)
 
     def test_a_refusal_is_an_error_and_its_code_action_fixes_it(self):
         c = self.client()
@@ -384,7 +400,8 @@ class Lsp(unittest.TestCase):
 class Emacs(unittest.TestCase):
     def test_ert_suite(self):
         d = tempfile.mkdtemp()
-        for name, text in (("s1.dx", S1), ("p3.dx", p3_text())):
+        for name, text in (("s1.dx", S1), ("p3.dx", p3_text()),
+                           ("c1.dx", C1)):
             with open(os.path.join(d, name), "w") as f:
                 f.write(text)
         env = dict(os.environ, DX_DIR=d)

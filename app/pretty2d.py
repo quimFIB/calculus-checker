@@ -151,7 +151,7 @@ def _t(t, need=0, left=True):
             return sqrt(_t(t.arg))
         if t.fn == "abs":
             return paren(_t(t.arg), "│", "│")
-        if type(t.arg) in (Num, Var, Const):
+        if type(t.arg) in (Num, Var, CVar, Const):
             return hcat(text(t.fn + " "), _t(t.arg))
         return hcat(text(t.fn), paren(_t(t.arg)))
     if k is Deriv:
