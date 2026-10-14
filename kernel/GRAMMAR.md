@@ -380,6 +380,39 @@ obligation. This milestone needs no literal-exponent
 endpoints until a later step adds a printed form that keeps the node (and
 changes D8's table to match).
 
+**D17's planned successor (owner, 2026-10-14; not built).** The refusal is
+right while nothing can build the node honestly, but it is a gap, not a
+rule. The plan has three parts, to land together:
+
+- **A printed form that keeps the node.** `rpow(u, e)` always parses as
+  `RPow(u, e)`, and the printer uses it exactly when `e` is `Num` or
+  `Neg(Num)`; every other `RPow` prints as now (`x^(1/2)`, `2^x`). Then
+  parse(show(t)) ≡ t holds for every `RPow`, both of D17's reasons for
+  refusing fall away, and the constructor check and §10's must-refuse
+  constructions go. Not `2^(1)`: `x^(-1)` already parses as `Pow`, so a bracketed
+  literal meaning a different node would be a trap.
+- **An entry that converts with its condition owed:**
+  `rpow_int : rpow(u, n) == u^n @ u > 0`, n a literal integer. A rewrite
+  turns `u > 0` into an obligation, as `sqrt_sq` does with `u >= 0`, so the
+  conversion D17 refuses to make silently becomes a checked move, and the
+  learner's (§2 of DESIGN.md).
+- **E27's reading of it:** `rpow(u, n)` counts as still evaluable by
+  `rpow_int`, so `close` names the entry rather than accepting the value.
+
+Considered and not chosen: building `Pow(u, n)` at every construction
+site and adding `u > 0` to that step's obligations. It is sound too, but
+it makes substitution return obligations at each of the paths listed
+above, where the entry needs only the rewrite machinery that exists.
+
+**When:** with the first derivative rule for a real power. Until then the
+gap is nearly unreachable: no §6.3 rule differentiates `RPow`, so `ftc`
+refuses `2^x/ln 2` (`deriv-no-rule`) before any endpoint is substituted,
+and the one live path is `simpl` computing an exponent to an integer
+(`2^(1/2 + 1/2)`), which it refuses as `bad-tactic` naming D17. **What
+would change this:** a course problem that needs `a^x` or `x^r`
+integrated before that rule is wanted, which would bring this forward on
+its own.
+
 ## 8. Printer
 
 The printer writes ASCII only. It uses the fewest parentheses that round-trip,
