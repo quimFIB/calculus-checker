@@ -652,3 +652,25 @@ Real and free of complex structure. `D[z]` for a CVar z is still refused
 **Stage K3 (p1_expected E183–E187):** `D[z]` for a CVar z is the complex
 derivative, and the parser takes it. A `D`'s variable is Complex exactly
 when its body holds that CVar.
+
+**Stage K4a (p1_expected E190–E194): paths and contour integrals.**
+
+```
+cint      = "CInt" "[" VAR "on" path "]" expr ;     (* VAR bound, Complex *)
+path      = patom { "++" patom } ;                  (* left-associative *)
+patom     = "rev" patom | "(" path ")"
+          | "seg" "(" expr "," expr ")"
+          | "arc" "(" expr "," expr "," expr "," expr ")"
+          | "circle" "(" expr "," expr ")"
+          | "path" "[" VAR "=" expr ".." expr "]" expr ;
+```
+
+- **Where `CInt` sits:** at level 0, like `Int`, and parenthesised inside
+  arithmetic (D7).
+- **Reserved names:** `seg`, `arc`, `circle`, `path`, `rev`, `CInt` and
+  `on` are keywords.
+- **Printing:** `circle(c, r)` is `arc(c, r, 0, 2*pi)`, and the printer
+  writes the shorter form.
+- **Sorts:** an `arc`'s radius and angles, and `path`'s bounds, are Real
+  and free of complex structure (`sort-real-only` otherwise). A `CInt`
+  is Complex.

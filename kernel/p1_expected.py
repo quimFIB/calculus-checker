@@ -17506,3 +17506,80 @@ K3_CASES = {
          "Open: Int[x = 0 .. 1] D[z](x*z^2) == ?A"),
     ],
 }
+
+
+# -------------------------------------------------- complex, stage K4a (E190-E194)
+
+DECISIONS_COMPLEX_K4A = {
+    "E190": "K4 is contours (COMPLEX.md section 5.4), built in three "
+            "parts: K4a paths and contour integrals, K4b winding numbers, "
+            "holomorphy and the Cauchy-residue rule, K4c estimates, the "
+            "argument principle and the contour tactics. K4a's grammar "
+            "(GRAMMAR.md section 11): a Path sort, built by seg(a, b), "
+            "arc(c, r, t1, t2), circle(c, r) (arc(c, r, 0, 2*pi)), "
+            "path[t = a .. b] phi, joined by ++ (left-associative) and "
+            "reversed by rev; and the binder CInt[z on g] f, the integral "
+            "of f along g in dz. z is bound in f, Complex, and must not be "
+            "free elsewhere in the goal (D11); seg's ends and arc's centre "
+            "take either sort, while arc's r, t1, t2 and path's t, a, b "
+            "are Real and free of complex structure, and phi takes either "
+            "sort.",
+    "E191": "A contour integral's definition is its parametrisation "
+            "(Z7). The move cint_param, optional occurrence, replaces the "
+            "selected CInt by its pieces' integrals, each Int[t = lo .. "
+            "hi] f[z := phi(t)] * D[t] phi(t) with t fresh: seg(a, b) is "
+            "phi = a + t*(b - a) on [0, 1], with phi' = b - a; arc(c, r, "
+            "t1, t2) is phi = c + r*exp(i*t) on [t1, t2], with phi' = "
+            "i*r*exp(i*t); path[t = a .. b] phi is phi on [a, b], with "
+            "phi' by deriv and phi in C^1 on [a, b] owed; g1 ++ g2 is the "
+            "sum, owing that g1's end equals g2's start (a decided "
+            "equation); rev g is the negation. The new integrals' formers "
+            "are charged as any new term's, so f's continuity along the "
+            "path is owed by E64 on each piece. Sound: this is the "
+            "definition of the integral along a piecewise C^1 path.",
+    "E192": "Until it is parametrised, a CInt is opaque: trees() yields "
+            "it and statable() is false, so field, split, deriv's const "
+            "guard and the limit evaluator refuse it (E26 (b)), and the "
+            "kernel's position walk does not descend into it, so the "
+            "bound z never reaches an obligation key. It owes nothing at "
+            "install; its pieces owe their continuity once it is "
+            "parametrised.",
+    "E193": "E27 and the closed whitelist do not admit a CInt or a path, "
+            "so a value is never an unevaluated contour integral.",
+    "E194": "K4a's cases (K4A_CASES).",
+}
+
+K4A_SIG = {"z": "complex"}
+K4A_CASES = {
+    "round_trips": [  # (text, printed)
+        ("CInt[z on circle(0, 1)] 1/z", "CInt[z on circle(0, 1)] 1/z"),
+        ("CInt[z on seg(0, 1 + i) ++ seg(1 + i, 2)] z",
+         "CInt[z on seg(0, 1 + i) ++ seg(1 + i, 2)] z"),
+        ("CInt[z on rev arc(0, 2, 0, pi)] z^2",
+         "CInt[z on rev arc(0, 2, 0, pi)] z^2"),
+        ("CInt[z on path[t = 0 .. 1] t + i*t^2] z",
+         "CInt[z on path[t = 0 .. 1] t + i*t^2] z"),
+    ],
+    "refusals": [  # (text, code)
+        ("CInt[z on arc(0, i, 0, pi)] z", "sort-real-only"),
+        ("CInt[z on seg(0, 1)] z + z", "D11-bound-and-free"),
+    ],
+    # through the app, auto-simpl closing: (goal, sentences, value)
+    "integrals": [
+        ("CInt[w on circle(0, 1)] 1/w == ?A",
+         ["cint_param.", "ftc i*t by field."], "2*pi*i"),
+        ("CInt[w on circle(0, 1)] conj(w) == ?A",
+         ["cint_param.", "ftc i*t by field."], "2*pi*i"),
+        ("CInt[w on seg(0, 1 + i)] w == ?A",
+         ["cint_param.", "ftc (1 + i)^2*t^2/2 by field."], "i"),
+        ("CInt[w on path[s = 0 .. 1] s + i*s^2] w == ?A",
+         ["cint_param.", "ftc (t + i*t^2)^2/2 by field."], "i"),
+    ],
+    # (goal, sentence, code)
+    "move_refusals": [
+        ("CInt[w on circle(0, 1)] 1/w == ?A", "close 2*pi*i by field",
+         "Int-or-D-not-normalisable"),
+        ("CInt[w on seg(0, 1) ++ seg(2, 3)] w == ?A", "cint_param",
+         "obligation-decided-false"),
+    ],
+}
