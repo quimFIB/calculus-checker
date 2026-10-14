@@ -17241,3 +17241,91 @@ K1_CASES = {
         "Sqrt z", "abs(z - w)", "2^z", "(z + i)^3", "(z - i)^(-2)",
     ],
 }
+
+
+# -------------------------------------------------- complex, stage K2 (E176-E180)
+
+DECISIONS_COMPLEX_K2 = {
+    "E176": "K2 is complex-valued functions of a real variable "
+            "(COMPLEX.md section 5.1). D20 is relaxed: an Int's body, a "
+            "D[x] body and a Reg's term may be Complex, since Int's and "
+            "D's variables are Real (D[z] for a CVar z stays refused, "
+            "K3); Int and D take their body's sort. An Int's limits and "
+            "an interval's ends stay Real and free of complex structure. "
+            "split reads an Int and a D[x] componentwise (linearity: "
+            "Int f == Int re f + i*Int im f, D[x] f == D[x] re f + "
+            "i*D[x] im f, for x Real), each part's definedness owed where "
+            "the term entered.",
+    "E177": "deriv over C (deriv.py, trusted). For x Real and u(x) "
+            "Complex-valued, the existing rules hold as stated: d_const "
+            "(i, a CVar and anything x-free), d_var, d_add, route_neg, "
+            "d_mul, d_inv, route_div, d_pow_int, and the App rules for "
+            "exp, sin, cos, tan, sinh, cosh and tanh, which are "
+            "holomorphic and compose with u by the chain rule; their side "
+            "conditions are realified where they are emitted (E168). New: "
+            "d_re, d_im, d_conj, D[x] re u == re(D[x] u) and so on. Every "
+            "other App rule (ln, sqrt, abs, asin, ...) on a Complex "
+            "argument is refused deriv-no-rule (abs of a Complex u is the "
+            "modulus, not differentiated here), and so is a Branch with x "
+            "free (K3 owes its cut).",
+    "E178": "Regularity over C. e in C^k(D) for a Complex e is re e and "
+            "im e in C^k(D): realify_judgement splits it into two Regs, "
+            "each decided by the existing regularity rules.",
+    "E179": "Limits over C (limits.py, trusted). lim of a term holding "
+            "complex structure: re, im and conj commute with the limit; a "
+            "Complex term's limit is the pair of its parts' limits when "
+            "both are finite; else modulus_to_zero, the one new law: if "
+            "(re G)^2 + (im G)^2 -> 0 then G -> 0. The sum of squares may "
+            "first be reduced by field with pyth_cos at each cos atom "
+            "(the entry, so the reduction is a proved equality), and the "
+            "existing evaluator reads the result. Sums, negation, and "
+            "products or quotients by an x-free factor combine finite "
+            "limits. int_improper uses it for an F holding complex "
+            "structure; an infinite part refuses as before.",
+    "E180": "K2's cases (K2_CASES): an Int of exp(i*t), of exp(2*i*x) "
+            "over a period, the improper Int of exp((-1+i)*x), and "
+            "Int_0^oo exp(-x)*sin x through im of it, which closes "
+            "WHAT.md's open gap ('e^-x sin x needs a squeeze law'); verify "
+            "on exp(i*w*t) and on re of a complex solution of x'' + x = 0 "
+            "(unit 06 P2's ker L).",
+}
+
+K2_SIG = {"z": "complex"}
+K2_CASES = {
+    # kernel-only, by hand: (goal, sentences, report or refusal code)
+    "proofs": [
+        ("D[t] exp(i*w*t) == i*w*exp(i*w*t)", ["verify by ring"], "Proved."),
+        ("D[t](D[t] exp(i*t)) + exp(i*t) == 0", ["verify by ring"],
+         "Proved."),
+        ("D[t](D[t] re(exp(i*t))) + re(exp(i*t)) == 0", ["verify by field"],
+         "Proved."),
+        ("D[t] conj(exp(i*t)) == -(i*conj(exp(i*t)))", ["verify by ring"],
+         "Proved."),
+        ("D[t] abs(exp(i*t)) == 0", ["verify by ring"], "deriv-no-rule"),
+        ("D[t] Log(t + i) == 1/(t + i)", ["verify by field"],
+         "deriv-no-rule"),
+        ("Int[t = 0 .. 1] 1/(t - i) == ?A", [],
+         "Open: Int[t = 0 .. 1] 1/(t - i) == ?A"),
+        ("D[z] z^2 == 2*z", [], "complex-calculus-not-built"),
+    ],
+    # limits.lim: (term, variable, +1 for oo, value printed, or NoLimit)
+    "limits": [
+        ("exp((-1 + i)*x)/(-1 + i)", "x", 1, "0"),
+        ("im(exp((-1 + i)*x)/(-1 + i))", "x", 1, "0"),
+        ("re(exp((-1 + i)*x))", "x", 1, "0"),
+        ("exp((-2 + 3*i)*x) + 1/x", "x", 1, "0"),
+        ("exp(i*x)", "x", 1, "NoLimit"),
+        ("i + 1/x", "x", 1, "i"),
+    ],
+    # through the app, auto-simpl closing: (goal, first move, value)
+    "integrals": [
+        ("Int[t = 0 .. pi] exp(i*t) == ?A", "ftc exp(i*t)/i by field.",
+         "2*i"),
+        ("Int[x = 0 .. 2*pi] exp(2*i*x) == ?A",
+         "ftc exp(2*i*x)/(2*i) by field.", "0"),
+        ("Int[x = 0 .. oo] exp((-1 + i)*x) == ?A",
+         "int_improper exp((-1 + i)*x)/(-1 + i) by field.", "1/2 + (1/2)*i"),
+        ("Int[x = 0 .. oo] exp(-x)*sin x == ?A",
+         "int_improper im(exp((-1 + i)*x)/(-1 + i)) by field.", "1/2"),
+    ],
+}

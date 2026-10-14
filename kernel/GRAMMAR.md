@@ -641,3 +641,10 @@ owe `w # 0`. `sqrt[θ] w` is `exp(log[θ](w)/2)` and owes `w # 0`, so
 `Sqrt 0` is not a term the kernel evaluates. `abs w` of a Complex w is
 the modulus, `sqrt((re w)^2 + (im w)^2)`. `conj`, `re` and `im` are total. Over ℂ, `tan w` owes `cos w # 0` as over
 ℝ, and `tanh w` owes `cosh w # 0`, which over ℝ is always true (E175).
+
+**Stage K2 (p1_expected E176–E180)** relaxes D20 for calculus in a real
+variable. An `Int`'s body, a `D[x]` body and a `Reg`'s term may be
+Complex, since `Int`'s and `D`'s variables are Real, and `Int` and `D`
+take their body's sort. An `Int`'s limits and an interval's ends stay
+Real and free of complex structure. `D[z]` for a CVar z is still refused
+`complex-calculus-not-built` (K3).
