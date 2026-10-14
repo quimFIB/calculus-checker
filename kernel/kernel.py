@@ -115,7 +115,7 @@ import trig_norm
 import complexes
 import entries
 from entries import ENTRIES
-from terms import (NEG_INF, POS_INF, Add, App, Branch, Call, CVar, Deriv, Div, Integral, Mul,
+from terms import (Arc, CInt, Join, PathP, Rev, Seg, Const, NEG_INF, POS_INF, Add, App, Branch, Call, CVar, Deriv, Div, Integral, Mul,
                    Interval, MVar, Neg, NegInf, NonZero, Num, PosInf, Pow,
                    Refused, Reg, Rel, RPow, Term, Var, _shown, bv, check_goal,
                    check_names, children, fv, instantiate, parse_term,
@@ -142,7 +142,7 @@ DECIDED_FALSE = "obligation-decided-false"  # E33
 VERDICT = "Proved modulo {n} admissions"
 MOVES = ("rewrite", "fact", "ftc", "close", "int_subst", "int_flip",
          "int_parts", "int_improper", "taylor_lagrange", "bound", "verify",
-         "quad_t", "sep_autonomous", "energy_integral")
+         "quad_t", "sep_autonomous", "energy_integral", "cint_param")
 # E96: the moves an order goal takes; `bound` takes nothing else. The ODE
 # rules (E149) mint a handle and leave any goal as it is.
 ORDER_MOVES = ("rewrite", "fact", "taylor_lagrange", "bound", "quad_t",
@@ -628,7 +628,8 @@ _ARGS = {"rewrite": ("entry", "inst", "at"), "fact": ("entry", "inst", "bind"),
          "sep_autonomous": ("bind", "law", "regs", "lo", "hi", "var", "f",
                             "F", "range", "using", "check", "facts"),
          "energy_integral": ("bind", "law", "kin", "regs", "lo", "hi", "var",
-                             "f", "F", "range", "using", "check", "facts")}
+                             "f", "F", "range", "using", "check", "facts"),
+         "cint_param": ()}  # E191
 _TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f", "u", "v", "scale")
 
 
@@ -679,7 +680,8 @@ def _check_args(move, args, goal):
     terms must pass check_names as one statement."""
     need = set(_ARGS[move])
     optional = ({"occurrence"} if move in ("rewrite", "int_flip", "ftc",
-                                           "int_parts", "int_improper")
+                                           "int_parts", "int_improper",
+                                           "cint_param")
                 else {"scale"} if move == "bound" else set())
     if move == "int_subst":  # INT_SUBST_RULE step 1 (E36, E45, E48)
         optional = {"mode", "occurrence"}
@@ -698,7 +700,8 @@ def _check_args(move, args, goal):
         ok = (type(args["check"]) is str and args["check"] in ("ring", "field")
               and type(facts) in (list, tuple)
               and not (args["check"] == "ring" and facts))
-    if ok and move in ("int_flip", "ftc", "int_improper"):  # E51, E73
+    if ok and move in ("int_flip", "ftc", "int_improper",
+                       "cint_param"):  # E51, E73, E191
         ok = args.get("occurrence", 0) >= 0
     if ok and move == "int_parts":  # INT_PARTS_RULE step 1
         ok = args.get("occurrence", 0) >= 0 and _names_variable(args["var"])
@@ -976,6 +979,8 @@ def _positions(t, dom, anc=(), path=()):
     order. rewrite (REWRITE_RULE steps 2, 6, 7, 9), int_subst's and
     int_flip's selectors and former charging (E6) all use it."""
     yield path, t, dom, anc
+    if isinstance(t, CInt):  # E192: opaque; its bound variable stays inside
+        return
     inner_dom, inner_anc = dom, anc + ((t,) if isinstance(t, Deriv) else ())
     if isinstance(t, Integral):
         if _symbolic(t.lo, t.hi):
@@ -1320,7 +1325,7 @@ def _trig_fence(lhs, rhs, facts):
 
 def _unfit(t):
     """A term no instance may hold: an MVar, an infinity, an Int or a D."""
-    if isinstance(t, (MVar, PosInf, NegInf, Integral, Deriv)):
+    if isinstance(t, (MVar, PosInf, NegInf, Integral, Deriv, CInt)):
         return True
     return any(_unfit(k) for _, k in children(t) if isinstance(k, Term))
 
@@ -1343,7 +1348,7 @@ def _check(check, lhs, rhs, minted, dom, goal_dom, buf, code, trig=False):
         facts.append((c.lhs, c.rhs))
     if complexes.has_complex((lhs, rhs)):
         return _check_complex(check, lhs, rhs, minted, facts, dom, goal_dom,
-                              buf, code)
+                              buf, code, trig)
     extra = ()
     try:
         done = FD.ring(lhs, rhs) if check == "ring" else FD.field(lhs, rhs,
@@ -1379,24 +1384,36 @@ def _check(check, lhs, rhs, minted, dom, goal_dom, buf, code, trig=False):
     return tuple(dict.fromkeys(name for name, _, _ in extra))
 
 
-def _check_complex(check, lhs, rhs, minted, facts, dom, goal_dom, buf, code):
+def _check_complex(check, lhs, rhs, minted, facts, dom, goal_dom, buf, code,
+                   trig=False):
     """E169: lhs == rhs over C is the real parts equal and the imaginary
     parts equal, each by ring or field; both checks' divisors are emitted.
     A fact holding a Complex term is refused (K1); a real fact is used on
-    both parts. The residual is re + i*im of the parts' residuals."""
+    both parts. The residual is re + i*im of the parts' residuals. With
+    trig, a part field fails takes E88's fallback on its own (E197)."""
     if complexes.has_complex(tuple(x for f in facts for x in f)):
         raise Refused("field-fact-shape", "a fact about complex terms is "
                       "not read by field yet (K1)")
     (a, b), (c, d) = complexes.split(lhs), complexes.split(rhs)
     R = complexes._real
-    done, residuals = [], []
+    done, residuals, extra = [], [], []
     for x, y in ((R(a), R(c)), (R(b), R(d))):
         try:
             done.append(FD.ring(x, y) if check == "ring" else
                         FD.field(x, y, facts))
             residuals.append(None)
         except FD.NotEqual as e:
-            residuals.append(residual.residual_term(e.residual))
+            inst = _trig_instances(x, y, facts) if trig and \
+                check == "field" else None
+            try:
+                if inst is None:
+                    raise FD.NotEqual(e.residual)
+                done.append(FD.field(x, y, facts + [(c.lhs, c.rhs)
+                                                    for _, _, c in inst]))
+                residuals.append(None)
+                extra.extend(inst)
+            except (FD.NotEqual, Refused, RecursionError):
+                residuals.append(residual.residual_term(e.residual))
     if any(r is not None for r in residuals):
         res = complexes.join(tuple(residuals))
         raise Refused(code, f"{check} leaves lhs - rhs = {_brief(res)}", res)
@@ -1408,7 +1425,12 @@ def _check_complex(check, lhs, rhs, minted, facts, dom, goal_dom, buf, code):
             _charge_formers(buf, v, dom, goal_dom)
         for h in rec.conclusion.dom:
             _emit(buf, with_domain(h, dom), "fact_hyp", goal_dom)
-    return ()
+    for _, inst, c in extra:
+        for v in inst.values():
+            _charge_formers(buf, v, dom, goal_dom)
+        for h in c.dom:
+            _emit(buf, with_domain(h, dom), S_TRIG, goal_dom)
+    return tuple(dict.fromkeys(name for name, _, _ in extra))
 
 
 # ---------------------------------------------------------------- moves
@@ -1456,8 +1478,8 @@ def _no_trees_erased(lhs, inst, at):
     A seam (ARCHITECTURE.md §7): rewrite calls it by this global name; the
     planted bug rewrite_tree_branch_skips_E57 and the BACKSTOPS case
     rewrite_closing_check_goal replace it in a child process."""
-    for t in (*inst.values(), at):
-        if any(isinstance(n, Integral) and not statable(n) for n in trees(t)):
+    for t in (*inst.values(), at):  # a CInt is never statable (E192, E199)
+        if any(not statable(n) for n in trees(t)):
             raise Refused("Int-or-D-not-normalisable", f"{_brief(t)} holds an "
                           "improper or unstatable Int, which a rewrite could "
                           "erase (E57, E65)")
@@ -2063,6 +2085,136 @@ def _int_flip(state, args, minted, buf):
     _no_trees_in_limits(it.lo, it.hi)  # SECOND_REVIEW_RULE
     _flip_under_D(anc, it)  # step 3
     new = _flipped(it)  # step 4
+    sides = list(_sides(g))
+    sides[side] = _put(sides[side], path, new)
+    _charge_formers(buf, new, P, g.dom, anc=anc)
+    goal = (replace(g, lhs=sides[0], rhs=sides[1] if len(sides) > 1 else g.rhs),)
+    check_goal(goal)
+    return goal, None, {}
+
+
+# ---------------------------------------------------------------- cint_param
+#
+# p1_expected E191: a contour integral is defined by its parametrisation.
+
+S_CINT_JOIN, S_CINT_C1 = "cint_join", "cint_path_C1"
+
+
+def _cint_select(g, k):
+    """The CInt nodes of the non-?A side(s), pre-order; the k-th, or the
+    only one. Returns (side index, path, the CInt, P, anc)."""
+    found = [(i, p, s, d, a) for i, side in enumerate(_sides(g))
+             for p, s, d, a in _positions(side, g.dom) if isinstance(s, CInt)]
+    if k is not None:
+        if k >= len(found):
+            raise Refused("cint-no-integral", f"the goal holds no contour "
+                          f"integral at occurrence {k}")
+        return found[k]
+    if not found:
+        raise Refused("cint-no-integral", "the goal holds no contour integral")
+    if len(found) > 1:
+        raise Refused("cint-ambiguous", f"{len(found)} contour integrals in "
+                      "the goal; give an occurrence")
+    return found[0]
+
+
+def _ends(g, t):
+    """(start, end) of a path."""
+    k = type(g)
+    if k is Seg:
+        return g.a, g.b
+    if k is Arc:
+        at = lambda u: Add(g.c, Mul(g.r, App("exp", Mul(Const("i"), u))))
+        return at(g.t1), at(g.t2)
+    if k is PathP:
+        return subst(g.phi, {g.var: g.lo}), subst(g.phi, {g.var: g.hi})
+    if k is Rev:
+        a, b = _ends(g.g, t)
+        return b, a
+    return _ends(g.a, t)[0], _ends(g.b, t)[1]  # Join
+
+
+def _plus(a, b):
+    return b if a == Num(0) else a if b == Num(0) else Add(a, b)
+
+
+def _times(a, b):
+    return b if a == Num(1) else a if b == Num(1) else Mul(a, b)
+
+
+def _minus(b, a):
+    return b if a == Num(0) else Add(b, Neg(a))
+
+
+def _path_data(g):
+    """E199: the terms a path is built from, outside any path[s] binder:
+    seg's ends, arc's centre, radius and angles, path[s]'s bounds (its phi
+    is owed by Reg(phi, 1) on its range)."""
+    k = type(g)
+    if k is Seg:
+        return [g.a, g.b]
+    if k is Arc:
+        return [g.c, g.r, g.t1, g.t2]
+    if k is PathP:
+        return [g.lo, g.hi]
+    if k is Rev:
+        return _path_data(g.g)
+    return _path_data(g.a) + _path_data(g.b)  # Join
+
+
+def _pieces(g, t, sign, out, joins):
+    """Each piece of g as (sign, lo, hi, phi(t), phi'(t), the C^1 owed or
+    None), and each join's end == start equation, in order."""
+    k = type(g)
+    if k is Seg:
+        d = _minus(g.b, g.a)  # E195: built without 0 + or 1* padding
+        out.append((sign, Num(0), Num(1), _plus(g.a, _times(Var(t), d)), d,
+                    None))
+    elif k is Arc:
+        e = App("exp", Mul(Const("i"), Var(t)))
+        out.append((sign, g.t1, g.t2, _plus(g.c, _times(g.r, e)),
+                    _times(_times(Const("i"), g.r), e), None))
+    elif k is PathP:
+        phi = subst(g.phi, {g.var: Var(t)})
+        d = DV.deriv(phi, t, ())
+        out.append((sign, g.lo, g.hi, phi, d.output, (phi, d)))
+    elif k is Rev:
+        _pieces(g.g, t, -sign, out, joins)
+    else:  # Join: g.a then g.b, owing a's end == b's start
+        joins.append(Rel("==", _ends(g.a, t)[1], _ends(g.b, t)[0]))
+        _pieces(g.a, t, sign, out, joins)
+        _pieces(g.b, t, sign, out, joins)
+
+
+def _cint_param(state, args, minted, buf):
+    """E191: the selected CInt replaced by the sum of its pieces'
+    integrals, Int[t = lo .. hi] f(phi(t))*phi'(t), negated under rev;
+    each join owes its end == start; path[s]'s phi owes C^1 on its range
+    and deriv's sides; the new term's formers are charged as any new
+    term's (E64: the integrand C^0 on each piece's range), then
+    check_goal."""
+    g = state.goal[0]
+    side, path, ci, P, anc = _cint_select(g, args.get("occurrence"))
+    taken = fv(g) | bv(g) | fv(ci.path) | bv(ci.body)
+    t = next(n for n in itertools.chain(
+        ("t",), (f"t_{j}" for j in itertools.count(1))) if n not in taken)
+    pieces, joins = [], []
+    _pieces(ci.path, t, 1, pieces, joins)
+    for j in joins:
+        _emit_at(buf, j, P, anc, S_CINT_JOIN, g.dom)
+    for x in _path_data(ci.path):  # E199: the path's own data is owed
+        _charge_formers(buf, x, P, g.dom, anc=anc)
+    new = None
+    for sign, lo, hi, phi, dphi, owe in pieces:
+        f = _times(subst(ci.body, {ci.var: phi}), dphi)
+        # E199: rev's sign inside the integrand, so ftc can take the Int
+        it = Integral(t, lo, hi, f if sign > 0 else Neg(f))
+        new = it if new is None else Add(new, it)
+        if owe is not None:  # path[s]: phi in C^1 and deriv's sides
+            rng = _range(it, P)[0]
+            _emit_at(buf, Reg(owe[0], 1), P + (rng,), anc, S_CINT_C1, g.dom)
+            for key, _ in owe[1].emissions:
+                _emit_at(buf, key, P + (rng,), anc, S_CINT_C1, g.dom)
     sides = list(_sides(g))
     sides[side] = _put(sides[side], path, new)
     _charge_formers(buf, new, P, g.dom, anc=anc)
@@ -2739,4 +2891,4 @@ _MOVE = {"rewrite": _rewrite, "fact": _fact, "ftc": _ftc, "close": _close,
          "int_parts": _int_parts, "int_improper": _int_improper,
          "taylor_lagrange": _taylor, "bound": _bound, "verify": _verify,
          "quad_t": _quad_t, "sep_autonomous": _sep_autonomous,
-         "energy_integral": _energy_integral}
+         "energy_integral": _energy_integral, "cint_param": _cint_param}

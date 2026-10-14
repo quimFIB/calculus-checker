@@ -6,7 +6,7 @@ roots grouping themselves), so a drawing groups exactly as the TeX does.
 """
 
 from session import KERNEL  # noqa: F401  (puts kernel/ on the path)
-from terms import (show, Branch, CVar, Add, App, Call, Const, Deriv, Div, Integral, Interval,
+from terms import (show, Branch, CInt, CVar, Add, App, Call, Const, Deriv, Div, Integral, Interval,
                    Judgement, MVar, Mul, Neg, NegInf, NonZero, Num, PosInf,
                    Pow, Reg, Rel, RPow, Term, Var, _d13_free)
 from tex import _level
@@ -165,6 +165,9 @@ def _t(t, need=0, left=True):
         return hcat(text(t.fn), paren(hcat(*parts)))
     if k is Integral:
         return integral(_end(t.lo), _end(t.hi), _t(t.body), _name(t.var))
+    if k is CInt:  # E199: the path, as show writes it, below the sign
+        b = integral(text(""), text(""), _t(t.body), _name(t.var))
+        return Box(b.rows[1:-1] + [show(t.path)], b.base - 1)
     raise TypeError(f"not a term: {t!r}")
 
 

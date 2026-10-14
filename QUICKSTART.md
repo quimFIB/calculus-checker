@@ -802,7 +802,21 @@ goal D[z] Log z == 1/z @ re z > 0 complex z.
 verify by field.
 ```
 
-Contour integrals and residues are the next stage (COMPLEX.md, K4).
+A contour integral is defined by its parametrisation. `cint_param`
+replaces it with ordinary integrals in a real variable `t`, one per piece
+of the path, which `ftc` then closes:
+
+```dx
+goal CInt[w on circle(0, 1)] 1/w == ?A complex w.
+cint_param.
+(* Int[t = 0 .. 2*pi] (1/exp(i*t))*(i*exp(i*t)) == ?A *)
+ftc i*t by field.
+```
+
+Paths are `seg(a, b)`, `arc(c, r, t1, t2)`, `circle(c, r)` and
+`path[s = a .. b] phi`, joined by `++` and reversed by `rev`. A join owes
+that one piece ends where the next starts. Winding numbers and residues
+are the next stage (COMPLEX.md, K4b).
 
 ## The moves
 

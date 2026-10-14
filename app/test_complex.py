@@ -131,6 +131,55 @@ class ComplexVariable(unittest.TestCase):
         self.assertEqual(r["refusal"]["code"], "deriv-not-holomorphic")
 
 
+class Contours(unittest.TestCase):
+    """K4a (E190-E198): contour integrals, parametrised by cint_param and
+    closed by ftc and auto-simpl."""
+
+    def test_integrals(self):
+        import p1_expected as X
+        for goal, sentences, value in X.K4A_CASES["integrals"]:
+            with self.subTest(goal=goal):
+                r = run(f"goal {goal} complex w.", sentences)
+                self.assertEqual(r["report"], "Proved.", r)
+                self.assertEqual(r["auto"][-1], f"close {value} by ring.")
+                self.assertEqual(r["admissions"], 0)
+
+    def test_move_refusals(self):
+        import p1_expected as X
+        for goal, sentence, code in X.K4A_CASES["move_refusals"]:
+            with self.subTest(goal=goal):
+                r = run(f"goal {goal} complex w.", [f"{sentence}."])
+                self.assertEqual(r["refusal"]["code"], code, r)
+
+    def test_review_rows(self):  # E199
+        import p1_expected as X
+        for header, sentences, want in X.K4A_CASES["review"]:
+            with self.subTest(header=header):
+                r = run(header, sentences)
+                if "refusal" in r:
+                    self.assertEqual(r["refusal"]["code"], want, r)
+                    continue
+                self.assertEqual((r["report"], r["admissions"]),
+                                 ("Proved.", 0), r)
+                self.assertEqual(r["auto"][-1], f"close {want} by ring.")
+
+    def test_tex_and_2d_draw_a_contour_integral(self):  # E199
+        import pretty2d
+        import tex
+        from terms import parse_term
+        t = parse_term("CInt[z on circle(0, 1)] 1/z", {"z": "complex"})
+        self.assertEqual(tex._t(t), r"\int_{\operatorname{circle}"
+                         r"\left(0, 1\right)} {\frac{1}{z}} \,\mathrm{d}{z}")
+        self.assertEqual(pretty2d.pretty(t).splitlines()[-1].strip(),
+                         "circle(0, 1)")
+
+    def test_cint_param_names_a_fresh_variable(self):
+        # t is taken by the goal, so the parameter is t_1
+        r = run("goal CInt[w on seg(0, t)] w == ?A complex w.",
+                ["cint_param."])
+        self.assertIn("Int[t_1 = 0 .. 1]", r["goal"], r)
+
+
 class TeX(unittest.TestCase):
     def test_round_trips(self):
         sig = {"z": "complex"}

@@ -14,7 +14,7 @@ are `re z` and `im z` of a CVar z, and `arg[theta](w)` of any w, which
 field keys by w's own split.
 """
 
-from terms import (Add, App, Branch, Call, Const, CVar, Deriv, Div, Integral,
+from terms import (Add, App, Branch, Call, CInt, Const, CVar, Deriv, Div, Integral,
                    Interval, MVar, Mul, Neg, NonZero, Num, Pow, Refused, Reg,
                    Rel, RPow, Term, Var, children, sort_of, statable, trees)
 
@@ -140,11 +140,11 @@ def split(t):
     before anything is split, because a part that re, im or a factor i
     discards would otherwise take it out of sight of field's E26 (b)
     check: im(Int[x = 0 .. oo] 1) == 0 proved."""
-    for node in trees(t):
-        if isinstance(node, Integral) and not statable(node):
-            raise Refused("Int-or-D-not-normalisable", "an improper "
-                          "integral is not a value the kernel can split "
-                          "(E26 (b), E182)")
+    for node in trees(t):  # a CInt is never statable (E192)
+        if not statable(node):
+            raise Refused("Int-or-D-not-normalisable", "an improper or "
+                          "contour integral is not a value the kernel can "
+                          "split (E26 (b), E182, E192)")
     return _split(t)
 
 
@@ -168,6 +168,11 @@ def _split(t):
         (p, q), (r, s) = _split(t.a), _split(t.b)
         if s is None:
             return _pdiv((p, q), (r, s))
+        rest, us = _exp_factors(t.b)
+        if us:  # E196, E199: a/(m*exp(u)) is (a*exp(-u))/m, an identity
+            num = Mul(t.a, App("exp", Neg(us[0] if len(us) == 1 else
+                                          _sum(us))))
+            return _split(num if rest is None else Div(num, rest))
         d = _norm2_of(t.b)
         re = _add(_mul(p, r), _mul(q, s))
         im = _sub(_mul(q, r), _mul(p, s))
@@ -255,7 +260,8 @@ def join(pair):
     if b is None:
         return _real(a)
     neg = type(b) is Neg  # (-x)*i written -(x*i), so a - x*i prints
-    im = Mul(b.a if neg else b, I)
+    x = b.a if neg else b
+    im = I if x == Num(1) else Mul(x, I)  # E195: i, not 1*i
     if a is None:
         return Neg(im) if neg else im
     return Add(a, Neg(im) if neg else im)
@@ -290,6 +296,8 @@ def realify_judgement(j):
         if sort_of(j.e) == "C":  # E187: C has no zero divisors, so a
             out = []             # product is # 0 when each factor is
             for f in _factors(j.e):
+                if type(f) is App and f.fn == "exp":  # E196: never 0 on C
+                    continue
                 a, b = split(f)
                 p = NonZero(_real(_norm2((a, b))) if b is not None
                             else _real(a), dom)
@@ -303,6 +311,25 @@ def realify_judgement(j):
             return (Reg(_real(a), j.k, dom), Reg(_real(b), j.k, dom))
         return (Reg(realify(j.e), j.k, dom),)
     raise Refused("complex-key", f"not a judgement: {j!r}")
+
+
+def _exp_factors(e):
+    """(the product of e's other factors or None, the u of each exp(u)
+    factor), through products only."""
+    if type(e) is App and e.fn == "exp":
+        return None, [e.arg]
+    if type(e) is Mul:
+        (ra, ua), (rb, ub) = _exp_factors(e.a), _exp_factors(e.b)
+        rest = rb if ra is None else ra if rb is None else Mul(ra, rb)
+        return rest, ua + ub
+    return e, []
+
+
+def _sum(us):
+    out = us[0]
+    for u in us[1:]:
+        out = Add(out, u)
+    return out
 
 
 def _factors(e):
@@ -390,7 +417,7 @@ def real_form(x):
             continue
         if type(t) is Branch and t.fn == "arg":
             continue
-        if isinstance(t, (CVar, Branch)) or (type(t) is Const and
+        if isinstance(t, (CVar, Branch, CInt)) or (type(t) is Const and
                                               t.name == "i"):
             return False
         if type(t) is App and t.fn in _COMPLEX_APPS:

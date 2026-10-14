@@ -13,7 +13,7 @@ import re
 from session import KERNEL  # noqa: F401  (puts kernel/ on the path)
 from terms import (Add, App, Call, Const, Deriv, Div, Integral, Interval,
                    Judgement, MVar, Mul, Neg, NegInf, NonZero, Num, PosInf,
-                   Branch, CVar,
+                   Branch, CVar, CInt, Seg, Arc, PathP, Join, Rev,
                    Pow, Reg, Rel, RPow, Term, Var, _d13_free, _literal_rpow,
                    parse_goal, parse_judgement, parse_term)
 
@@ -28,7 +28,7 @@ FNS = {"sin": r"\sin", "cos": r"\cos", "tan": r"\tan", "exp": r"\exp",
 RELS = {"==": "=", "<=": r"\le", "<": "<", ">=": r"\ge", ">": ">"}
 
 # show's levels; Div is 6 here, since \frac groups itself
-_LEVEL = {Integral: 0, Add: 1, Mul: 2, Neg: 3, App: 4, Deriv: 4,
+_LEVEL = {Integral: 0, CInt: 0, Add: 1, Mul: 2, Neg: 3, App: 4, Deriv: 4,
           Branch: 4, Pow: 5, RPow: 5}
 
 
@@ -115,7 +115,32 @@ def _t(t, need=0, left=True):
     if k is Integral:
         return (r"\int_{" + _end(t.lo) + "}^{" + _end(t.hi) + "} {"
                 + _t(t.body) + r"} \,\mathrm{d}{" + _name(t.var) + "}")
+    if k is CInt:  # E199: the path as the integral's subscript
+        return (r"\int_{" + _path(t.path) + "} {" + _t(t.body)
+                + r"} \,\mathrm{d}{" + _name(t.var) + "}")
     raise TypeError(f"not a term: {t!r}")
+
+
+def _path(g):
+    """A path as show writes it, in TeX (E190)."""
+    k = type(g)
+    op = lambda name, *xs: (r"\operatorname{" + name + "}"
+                            + _paren(", ".join(_t(x) for x in xs)))
+    if k is Seg:
+        return op("seg", g.a, g.b)
+    if k is Arc:
+        if g.t1 == Num(0) and g.t2 == Mul(Num(2), Const("pi")):
+            return op("circle", g.c, g.r)
+        return op("arc", g.c, g.r, g.t1, g.t2)
+    if k is PathP:
+        return (r"\operatorname{path}_{" + _name(g.var) + r" \in ["
+                + _t(g.lo) + ", " + _t(g.hi) + "]}" + _paren(_t(g.phi)))
+    if k is Rev:
+        return r"\operatorname{rev} " + (_paren(_path(g.g)) if type(g.g) is
+                                          Join else _path(g.g))
+    b = _path(g.b)
+    return _path(g.a) + r" \mathbin{+\!\!+} " + (_paren(b) if type(g.b) is
+                                                  Join else b)
 
 
 def _end(e):

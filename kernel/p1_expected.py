@@ -17547,7 +17547,60 @@ DECISIONS_COMPLEX_K4A = {
     "E193": "E27 and the closed whitelist do not admit a CInt or a path, "
             "so a value is never an unevaluated contour integral.",
     "E194": "K4a's cases (K4A_CASES).",
+    "E195": "Building K4a: cint_param writes each piece without 0 +, 1* "
+            "or - 0 padding (seg(0, b) is t*b, circle(0, 1) is exp(i*t)), "
+            "and join writes an imaginary part 1 as i, not 1*i. Each is "
+            "equal under ring to E191's form, so nothing is weakened; the "
+            "closed answers stay fully evaluated.",
+    "E196": "exp is never 0 on C (exp(u)*exp(-u) == 1). So a complex "
+            "e # 0 owes nothing for a factor exp(u) (E187's factor "
+            "split), and split reads a/exp(u) as a*exp(-u), an identity "
+            "that keeps |exp(u)|^2 out of the denominators. Without it, "
+            "the parametrised circle owed cos t^2 + sin t^2 # 0, which "
+            "no method decides.",
+    "E197": "_check_complex takes E88's trig_norm fallback on each part "
+            "on its own, in ftc's check only, when check is field and "
+            "field fails on that part, exactly as the real check does; "
+            "its hypotheses are emitted as there. Before, the complex "
+            "check never had the fallback, so conj(exp(i*t))*exp(i*t) "
+            "== 1 failed on cos t^2 + sin t^2 == 1.",
+    "E198": "Correcting K4A_CASES after 'Spec for paths and contour "
+            "integrals' (f04d32f), with no weakening: the broken join's "
+            "row wanted obligation-decided-false, but 1 == 2 is closed "
+            "and literal, so E7 refutes it as obligation-refuted when "
+            "emitted, before E33's search runs; and the D11 refusal row "
+            "was CInt[z on seg(0, 1)] z + z, which is no clash, because "
+            "the body extends right as Int's does, so both z are bound. "
+            "It is now CInt[z on seg(0, 1)] z == z.",
+    "E199": "The skeptic's review of K4a. Blocking, both fixed: (1) "
+            "rewrite's erase guard (E57) refused only an unstatable Int, so "
+            "pyth erased an opaque divergent CInt and proved; it now "
+            "refuses any unstatable tree node, a CInt included. (2) "
+            "cint_param charged no formers for the path's own data, so "
+            "CInt[w on arc(1/0, 1, 0, pi)] 1 proved -2; the formers of "
+            "seg's ends, arc's centre, radius and angles and path[s]'s "
+            "bounds are now charged at the CInt's position. Should-fix: "
+            "has_complex is true of every CInt and field reads a CInt as a "
+            "tree, which refuses (E26 (b)), where both had raised; TeX and "
+            "the 2-D printer draw a CInt with its path as the subscript, "
+            "and untex does not read one back yet (bad-tex). A CInt inside "
+            "an Int or a D is refused Int-or-D-not-normalisable when the "
+            "Int's former is split, so E192's 'owes nothing at install' "
+            "holds for a CInt outside any binder only; nested contour "
+            "integrals wait for K4b. Minor: under rev the sign goes into "
+            "the integrand, so ftc can take the Int; E196 reads an exp "
+            "among a divisor's factors, a/(m*exp(u)) as (a*exp(-u))/m; "
+            "the integrand is built without a *1 factor; _unfit excludes "
+            "a CInt. E191's 'a decided equation' for a join means owed: "
+            "decided when the kernel can, admitted otherwise (cos(2*pi) "
+            "== cos 0 is admitted), never proved unchecked.",
 }
+
+CINT_MOVE = "cint_param"
+E57_PRINCIPLE[CINT_MOVE] = (
+    "erases nothing: it replaces a CInt by its definition (E191), the "
+    "sum of its pieces' integrals, whose formers are charged as any new "
+    "term's (E64), with the path's own data charged as well (E199)")
 
 K4A_SIG = {"z": "complex"}
 K4A_CASES = {
@@ -17562,7 +17615,8 @@ K4A_CASES = {
     ],
     "refusals": [  # (text, code)
         ("CInt[z on arc(0, i, 0, pi)] z", "sort-real-only"),
-        ("CInt[z on seg(0, 1)] z + z", "D11-bound-and-free"),
+        # the body extends right, as Int's: the clash is across ==
+        ("CInt[z on seg(0, 1)] z == z", "D11-bound-and-free"),
     ],
     # through the app, auto-simpl closing: (goal, sentences, value)
     "integrals": [
@@ -17575,11 +17629,45 @@ K4A_CASES = {
         ("CInt[w on path[s = 0 .. 1] s + i*s^2] w == ?A",
          ["cint_param.", "ftc (t + i*t^2)^2/2 by field."], "i"),
     ],
+    # E199, through the app: (header, sentences, a refusal code or the
+    # auto-close value, which must be Proved. with 0 admissions)
+    "review": [
+        ("goal (sin(CInt[w on seg(0, 1)] 1/w))^2 + "
+         "(cos(CInt[w on seg(0, 1)] 1/w))^2 == ?A complex w.",
+         ["rewrite pyth with u := CInt[w on seg(0, 1)] 1/w at "
+          "(sin(CInt[w on seg(0, 1)] 1/w))^2 + "
+          "(cos(CInt[w on seg(0, 1)] 1/w))^2."],
+         "Int-or-D-not-normalisable"),
+        ("goal CInt[w on arc(1/0, 1, 0, pi)] 1 == ?A complex w.",
+         ["cint_param."], "divisor-normalises-to-zero"),
+        ("goal CInt[w on arc(ln(-1), 1, 0, pi)] 1 == ?A complex w.",
+         ["cint_param."], "obligation-refuted"),
+        ("goal CInt[w on arc(1/x, 1, 0, pi)] 1 == ?A complex w.",
+         ["cint_param."], "obligation-decided-false"),
+        ("goal 1/(CInt[w on seg(0, 1)] 1) == ?A complex w.", [],
+         "Int-or-D-not-normalisable"),
+        ("goal (CInt[w on seg(0, 1)] 1) == ?A complex w.", ["close 1."],
+         "Int-or-D-not-normalisable"),
+        ("goal (CInt[w on seg(0, 1)] 1) == 1 complex w.", ["verify."],
+         "Int-or-D-not-normalisable"),
+        ("goal CInt[w on rev circle(0, 1)] 1/w == ?A complex w.",
+         ["cint_param.", "ftc -i*t by field."], "-2*pi*i"),
+        ("goal CInt[w on circle(0, 2)] 1/w == ?A complex w.",
+         ["cint_param.", "ftc i*t by field."], "2*pi*i"),
+        ("goal CInt[w on arc(0, 1, 2*pi, 0)] 1/w == ?A complex w.",
+         ["cint_param.", "ftc i*t by field."], "-2*pi*i"),
+        ("goal CInt[w on seg(0, 1)] 1 == ?A complex w.",
+         ["cint_param.", "ftc t by field."], "1"),
+        ("goal CInt[w on seg(0, 1) ++ seg(1, 1 + i)] 1 == ?A complex w.",
+         ["cint_param.", "ftc t occurrence 0 by field.",
+          "ftc i*t occurrence 0 by field."], "1 + i"),
+    ],
     # (goal, sentence, code)
     "move_refusals": [
         ("CInt[w on circle(0, 1)] 1/w == ?A", "close 2*pi*i by field",
          "Int-or-D-not-normalisable"),
+        # 1 == 2 is literal, so E7 refutes it as it is emitted (E198)
         ("CInt[w on seg(0, 1) ++ seg(2, 3)] w == ?A", "cint_param",
-         "obligation-decided-false"),
+         "obligation-refuted"),
     ],
 }

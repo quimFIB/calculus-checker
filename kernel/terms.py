@@ -166,6 +166,56 @@ class Branch(Term):
 
 
 @dataclass(frozen=True, slots=True)
+class Seg(Term):
+    """seg(a, b): a path (GRAMMAR.md §11, K4a, E190)."""
+    a: Term
+    b: Term
+
+
+@dataclass(frozen=True, slots=True)
+class Arc(Term):
+    """arc(c, r, t1, t2): c + r*exp(i*t), t from t1 to t2 (E190)."""
+    c: Term
+    r: Term
+    t1: Term
+    t2: Term
+
+
+@dataclass(frozen=True, slots=True)
+class PathP(Term):
+    """path[var = lo .. hi] phi: var a Real binder (E190)."""
+    var: str
+    lo: Term
+    hi: Term
+    phi: Term
+
+
+@dataclass(frozen=True, slots=True)
+class Join(Term):
+    """a ++ b (E190)."""
+    a: Term
+    b: Term
+
+
+@dataclass(frozen=True, slots=True)
+class Rev(Term):
+    """rev g (E190)."""
+    g: Term
+
+
+PATHS = (Seg, Arc, PathP, Join, Rev)
+
+
+@dataclass(frozen=True, slots=True)
+class CInt(Term):
+    """CInt[var on path] body: the integral of body along path in dvar,
+    var a Complex binder (E190); opaque until cint_param (E192)."""
+    var: str
+    path: Term
+    body: Term
+
+
+@dataclass(frozen=True, slots=True)
 class Call(Term):
     fn: str  # a declared symbol
     args: tuple
@@ -262,6 +312,9 @@ def lit(q):
 _CHILDREN = {Neg: ("a",), Add: ("a", "b"), Mul: ("a", "b"), Div: ("a", "b"),
              Pow: ("base",), RPow: ("base", "exp"), App: ("arg",),
              Branch: ("theta", "arg"),
+             Seg: ("a", "b"), Arc: ("c", "r", "t1", "t2"),
+             PathP: ("lo", "hi", "phi"), Join: ("a", "b"), Rev: ("g",),
+             CInt: ("path", "body"),
              Call: ("args",), Deriv: ("body",), Integral: ("lo", "hi", "body"),
              Interval: ("lo", "hi"), Rel: ("lhs", "rhs", "dom"),
              NonZero: ("e", "dom"), Reg: ("e", "dom")}
@@ -291,7 +344,7 @@ def trees(x):
     p1_expected E26 (b): neither node has a definedness condition the
     kernel can state, so field's normaliser and norm_num refuse a side
     holding one, and deriv refuses to read one as a constant (E12)."""
-    if isinstance(x, (Integral, Deriv)):
+    if isinstance(x, (Integral, Deriv, CInt)):  # CInt: E192
         yield x
     for k in _kids(x):
         yield from trees(k)
@@ -350,6 +403,10 @@ def fv(x):
         return frozenset((x.name,))
     if isinstance(x, Integral):
         return (fv(x.body) - {x.var}) | fv(x.lo) | fv(x.hi)
+    if isinstance(x, CInt):  # E190: the path is outside the binder
+        return (fv(x.body) - {x.var}) | fv(x.path)
+    if isinstance(x, PathP):
+        return (fv(x.phi) - {x.var}) | fv(x.lo) | fv(x.hi)
     out = frozenset().union(*map(fv, _kids(x)))
     return out | {x.var} if isinstance(x, (Deriv, Interval)) else out
 
@@ -358,7 +415,7 @@ def bv(x):
     """Bound variables: the names bound by an Integral anywhere in x
     (GRAMMAR.md §5). A Deriv's variable is never in bv."""
     out = frozenset().union(*map(bv, _kids(x)))
-    return out | {x.var} if isinstance(x, Integral) else out
+    return out | {x.var} if isinstance(x, (Integral, CInt, PathP)) else out
 
 
 def subst(x, mapping):
@@ -390,7 +447,7 @@ def subst(x, mapping):
         if isinstance(node, Var):
             done.append(mapping.get(node.name, node))
             continue
-        if isinstance(node, (Deriv, Integral)):
+        if isinstance(node, (Deriv, Integral, CInt, PathP)):
             done.append(_subst_binder(node, mapping))
             continue
         fields = (tuple(enumerate(node)) if isinstance(node, tuple)
@@ -429,6 +486,20 @@ def _subst_binder(x, mapping):
             raise Refused("subst-under-D", f"substituting into D[{x.var}] "
                           f"would change what is differentiated (GRAMMAR §5)")
         return Deriv(x.var, subst(x.body, live))
+    if isinstance(x, (CInt, PathP)):  # E190: binders, as Int's
+        field = "body" if isinstance(x, CInt) else "phi"
+        v, body = x.var, getattr(x, field)
+        if v in reps:
+            taken = fv(x) | fv(body) | bv(body) | reps | set(mapping)
+            v = next(f"{x.var}_{i}" for i in itertools.count(1)
+                     if f"{x.var}_{i}" not in taken)
+            fresh = CVar(v) if isinstance(x, CInt) else Var(v)
+            body = subst(body, {x.var: fresh})
+        inner = {k: t for k, t in live.items() if k != x.var}
+        if isinstance(x, CInt):
+            return CInt(v, subst(x.path, live), subst(body, inner))
+        return PathP(v, subst(x.lo, live), subst(x.hi, live),
+                     subst(body, inner))
     v, body = x.var, x.body
     if v in reps:  # rename the binder before going under it
         taken = fv(x) | fv(body) | bv(body) | reps | set(mapping)
@@ -513,6 +584,13 @@ def sort_of(t):
         if "C" in [sort_of(x) for x in t.args]:
             raise Refused("sort-real-only", f"{t.fn} takes real arguments")
         return "R"
+    if k is CInt:  # E190: Complex; the path's Real parts checked
+        _check_path(t.path)
+        sort_of(t.body)
+        return "C"
+    if k in PATHS:
+        _check_path(t)
+        return "R"
     if k in (Integral, Deriv):  # E176: a Real variable; limits Real, body any
         for e in _finite(*((t.lo, t.hi) if k is Integral else ())):
             if sort_of(e) == "C" or not _complex_free(e):
@@ -547,6 +625,31 @@ def _nodes_of(t):
         else:
             todo.extend(_kids(n))
     return out
+
+
+def _check_path(p):
+    """E190: an arc's radius and angles, and path[t]'s bounds, are Real
+    and free of complex structure; ends, centres and phi take either."""
+    def real(*ts):
+        for x in ts:
+            if sort_of(x) == "C" or not _complex_free(x):
+                raise Refused("sort-real-only", "an arc's radius and angles "
+                              "and a path's bounds are real")
+    k = type(p)
+    if k is Seg:
+        sort_of(p.a), sort_of(p.b)
+    elif k is Arc:
+        sort_of(p.c)
+        real(p.r, p.t1, p.t2)
+    elif k is PathP:
+        real(p.lo, p.hi)
+        sort_of(p.phi)
+    elif k is Join:
+        _check_path(p.a), _check_path(p.b)
+    elif k is Rev:
+        _check_path(p.g)
+    else:
+        raise Refused("syntax", "not a path")
 
 
 def _holds_mvar(t):
@@ -636,7 +739,9 @@ def _var_sorts(x):
     cplx = {t.name for t in nodes if isinstance(t, CVar)}
     real = {t.name for t in nodes if isinstance(t, Var)
             and not isinstance(t, CVar)}
-    real |= {t.var for t in nodes if isinstance(t, (Integral, Interval))}
+    real |= {t.var for t in nodes if isinstance(t, (Integral, Interval,
+                                                       PathP))}
+    cplx |= {t.var for t in nodes if isinstance(t, CInt)}
     real |= {t.var for t in nodes if isinstance(t, Deriv)
              and t.var not in cplx}
     return real, cplx
@@ -705,7 +810,7 @@ def _leaves_ok(t):
     name."""
     if not _built(t):
         return False
-    if isinstance(t, (Var, Deriv, Integral)):
+    if isinstance(t, (Var, Deriv, Integral, CInt, PathP)):
         return _is_variable(t.name if isinstance(t, Var) else t.var)
     if isinstance(t, (Const, MVar)):
         return type(t.name) is str and (t.name in CONSTANTS if isinstance(
@@ -761,6 +866,18 @@ def _check_term(t, enclosing):
         raise Refused("oo-misplaced", "oo is only an Int limit (GRAMMAR §5)")
     if type(t) not in _TERMS or not _leaves_ok(t):
         raise Refused("syntax", f"not a term: {_shown(t)}")
+    if isinstance(t, (CInt, PathP)):  # E190: binders, as Int's
+        if t.var in enclosing:
+            raise Refused("shadowing", f"{t.var} is rebound (GRAMMAR §5)")
+        outer = (t.path,) if isinstance(t, CInt) else (t.lo, t.hi)
+        if any(t.var in fv(o) for o in outer):
+            raise Refused("bound-in-endpoint", f"{t.var} is in its own "
+                          "path or bounds")
+        for o in outer:
+            _check_term(o, enclosing)
+        _check_term(t.body if isinstance(t, CInt) else t.phi,
+                    enclosing + (t.var,))
+        return
     if not isinstance(t, Integral):
         for k in _kids(t):
             _check_term(k, enclosing)
@@ -785,7 +902,7 @@ _TOKEN = re.compile(r"""
   | (?P<nat>[0-9]+) | (?P<regk>C(?:[⁰¹²³⁴-⁹]+|ω))
   | (?P<id>[A-Za-z][A-Za-z0-9_]*)
   | (?P<mvar>\?[A-Za-z][A-Za-z0-9_]*) | (?P<syn>[≐≤≥∈∧⊤])
-  | (?P<op>\.\.|==|<=|>=|/\\|->|[-+*/^()\[\],=<>\#@])""", re.X)
+  | (?P<op>\.\.|==|<=|>=|/\\|->|\+\+|[-+*/^()\[\],=<>\#@])""", re.X)
 _SYNONYMS = {"≐": ("op", "=="), "≤": ("op", "<="), "≥": ("op", ">="),
              "∈": ("id", "in"), "∧": ("op", "/\\"), "⊤": ("id", "true")}
 _ASCII_HINTS = {"−": "-", "·": "*", "π": "pi", "√": "sqrt", "∞": "oo",
@@ -827,7 +944,9 @@ def _lex(s):
 
 # ---------------------------------------------------------------- names (§3)
 
-KEYWORDS = frozenset(("D", "Int", "in", "oo", "true", "rpow"))
+KEYWORDS = frozenset(("D", "Int", "in", "oo", "true", "rpow",
+                      # K4a (E190): contour integrals and paths
+                      "CInt", "on", "seg", "arc", "circle", "path", "rev"))
 # GRAMMAR.md §11: names that start a branch (arg, pow, Log, Arg, Sqrt; log
 # and sqrt start one only before "[")
 _BRANCH_WORDS = frozenset(("arg", "pow")) | frozenset(PRINCIPAL)
@@ -943,6 +1062,8 @@ class _Parser:
     # terms
 
     def expr(self):
+        if self.at("CInt"):  # E190
+            return self.cint()
         return self.binder() if self.at("Int") else self.sum()
 
     def binder(self):
@@ -963,6 +1084,86 @@ class _Parser:
         body = self.expr()
         self.binders.pop()
         return Integral(v[1], lo, hi, body)
+
+    def cint(self):
+        """E190: CInt[z on g] f, z a Complex binder in f."""
+        self.take()
+        self.expect("[")
+        v = self.take()
+        if v[0] != "id" or not _VARIABLE.fullmatch(v[1]) or v[1] in _CLASS:
+            self.fail("syntax", "expected a variable", v)
+        self.expect("on")
+        g = self.path()
+        self.expect("]")
+        if v[1] in fv(g):
+            self.fail("bound-in-endpoint", f"{v[1]} is in its own path", v)
+        if v[1] in self.binders:
+            self.fail("shadowing", f"{v[1]} is rebound; rename it", v)
+        saved = self.sig
+        self.sig = {**saved, v[1]: "complex"}
+        self.binders.append(v[1])
+        self.bound.append(v)
+        try:
+            body = self.expr()
+        finally:
+            self.sig = saved
+            self.binders.pop()
+        return CInt(v[1], g, body)
+
+    def path(self):
+        """E190: patom { ++ patom }, left-associative."""
+        g = self.patom()
+        while self.at("++"):
+            self.take()
+            g = Join(g, self.patom())
+        return g
+
+    def patom(self):
+        tok = self.peek()
+        if _is(tok, "rev"):
+            self.take()
+            return Rev(self.patom())
+        if _is(tok, "("):
+            self.take()
+            g = self.path()
+            self.expect(")")
+            return g
+        if _is(tok, "seg", "arc", "circle"):
+            self.take()
+            self.expect("(")
+            args = [self.expr()]
+            while self.at(","):
+                self.take()
+                args.append(self.expr())
+            self.expect(")")
+            want = {"seg": 2, "arc": 4, "circle": 2}[tok[1]]
+            if len(args) != want:
+                self.fail("syntax", f"{tok[1]} takes {want} arguments", tok)
+            if tok[1] == "seg":
+                return Seg(*args)
+            if tok[1] == "arc":
+                return Arc(*args)
+            return Arc(args[0], args[1], Num(0), Mul(Num(2), Const("pi")))
+        if _is(tok, "path"):
+            self.take()
+            self.expect("[")
+            v = self.var()
+            self.expect("=")
+            lo = self.expr()
+            self.expect("..")
+            hi = self.expr()
+            self.expect("]")
+            if v[1] in fv(lo) | fv(hi):
+                self.fail("bound-in-endpoint", f"{v[1]} is in its own bounds",
+                          v)
+            self.binders.append(v[1])
+            self.bound.append(v)
+            try:
+                phi = self.sum()
+            finally:
+                self.binders.pop()
+            return PathP(v[1], lo, hi, phi)
+        self.syntax("a path: seg, arc, circle, path, rev or (...)")
 
     def endpoint(self):
         """oo, -oo or a sum. An oo that does not end the endpoint is left
@@ -1117,7 +1318,7 @@ class _Parser:
                 self.take()[1])
         if k == "declared":
             return self.call()
-        if _is(tok, "Int"):
+        if _is(tok, "Int", "CInt"):
             self.fail("D7-int-in-arith", "write 2*(Int[...] f) (D7)")
         if _is(tok, "oo"):
             self.fail("oo-misplaced", "oo is only an Int limit or an open "
@@ -1341,8 +1542,8 @@ def parse_goal(s, sig=None):
 # position requires, `left` says whether t starts its context (R1), and
 # `tail` whether the text ends in a bare application (R3).
 
-_LEVEL = {Integral: 0, Add: 1, Mul: 2, Div: 2, Neg: 3, App: 4, Deriv: 4,
-          Branch: 4, Pow: 5, RPow: 5}
+_LEVEL = {Integral: 0, CInt: 0, Add: 1, Mul: 2, Div: 2, Neg: 3, App: 4,
+          Deriv: 4, Branch: 4, Pow: 5, RPow: 5}
 
 
 def _show(t, need, left):
@@ -1428,6 +1629,32 @@ def _show_steps(t, need, left):
             return f"{head} {a}", True
         a = (yield arg, 0, True)[0]
         return f"{head}({a})", False
+    if isinstance(t, CInt):  # E190
+        g = (yield t.path, 0, True)[0]
+        body = (yield t.body, 0, True)[0]
+        return f"CInt[{t.var} on {g}] {body}", False
+    if isinstance(t, Seg):
+        a, b = (yield t.a, 0, True)[0], (yield t.b, 0, True)[0]
+        return f"seg({a}, {b})", False
+    if isinstance(t, Arc):
+        c, r = (yield t.c, 0, True)[0], (yield t.r, 0, True)[0]
+        if t.t1 == Num(0) and t.t2 == Mul(Num(2), Const("pi")):
+            return f"circle({c}, {r})", False
+        t1, t2 = (yield t.t1, 0, True)[0], (yield t.t2, 0, True)[0]
+        return f"arc({c}, {r}, {t1}, {t2})", False
+    if isinstance(t, PathP):
+        lo, hi = (yield t.lo, 0, True)[0], (yield t.hi, 0, True)[0]
+        phi = (yield t.phi, 1, True)[0]
+        return f"path[{t.var} = {lo} .. {hi}] {phi}", False
+    if isinstance(t, Join):
+        a = (yield t.a, 0, True)[0]
+        b = (yield t.b, 0, True)[0]
+        if isinstance(t.b, Join):
+            b = f"({b})"
+        return f"{a} ++ {b}", False
+    if isinstance(t, Rev):
+        g = (yield t.g, 0, True)[0]
+        return (f"rev ({g})" if isinstance(t.g, Join) else f"rev {g}"), False
     if isinstance(t, Integral):
         body = (yield t.body, 0, True)[0]
         return f"Int[{t.var} = {_end(t.lo)} .. {_end(t.hi)}] {body}", False

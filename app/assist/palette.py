@@ -15,7 +15,7 @@ from schema import rpow_int_exponent
 import field as FD
 from assist import factor as FA
 from assist import probe
-from terms import (App, Deriv, Integral, MVar, Neg, NegInf, PosInf, Rel, Term,
+from terms import (App, CInt, Deriv, Integral, MVar, Neg, NegInf, PosInf, Rel, Term,
                    Var, fv, show, subst)
 from dataclasses import fields
 
@@ -147,6 +147,11 @@ def moves(goal):
     ints = integrals(goal)
     finite = [i for i in ints if _finite(i)]
     out = []
+    g0 = goal[0] if goal else None
+    if g0 is not None and any(isinstance(t, CInt) for t in subterms(
+            getattr(g0, "lhs", g0))):  # E191
+        out.append({"move": "cint_param", "sentence": "cint_param.",
+                    "why": "a contour integral: unfold its parametrisation"})
     if finite:
         x = finite[0].var
         out += [
@@ -170,7 +175,7 @@ def moves(goal):
                 break
     g = goal[0] if goal else None
     if (g is not None and isinstance(getattr(g, "rhs", None), MVar)
-            and not any(isinstance(t, (Integral, Deriv))
+            and not any(isinstance(t, (Integral, Deriv, CInt))
                         for t in subterms(g.lhs))):
         out.append({"move": "close", "sentence": "close _.",
                     "why": "no integral or derivative left: name the value"})

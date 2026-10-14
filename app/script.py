@@ -25,6 +25,7 @@ FORMS = {
     "int_subst": ({"as", "from", "to", "reverse", "occurrence", "by",
                    "using"}, {"as", "from", "to"}),
     "int_flip": ({"occurrence"}, set()),
+    "cint_param": ({"occurrence"}, set()),  # E191
     "int_parts": ({"in", "with", "occurrence", "by", "using"},
                   {"in", "with"}),
     "taylor_lagrange": ({"in", "from", "to", "at", "derivs", *SENSES,
@@ -56,6 +57,7 @@ USAGE = {
     "int_subst": "int_subst x := T as y from T to T [reverse T] "
                  "[occurrence N] [by ring|field] [using h, ...]",
     "int_flip": "int_flip [occurrence N]",
+    "cint_param": "cint_param [occurrence N]",
     "int_parts": "int_parts in x with u := T; v := T [occurrence N] "
                  "[by ring|field] [using h, ...]",
     "taylor_lagrange": "taylor_lagrange h := lower|upper of T in u from T "
@@ -84,6 +86,7 @@ TEMPLATES = {
     "fact": "fact h := entry with a := _.",
     "int_subst": "int_subst x := _ as t from _ to _ by ring.",
     "int_flip": "int_flip.",
+    "cint_param": "cint_param.",
     "int_parts": "int_parts in x with u := _; v := _ by ring.",
     "taylor_lagrange": "taylor_lagrange h := lower of _ in u from _ to _ at _ "
                        "derivs _; _ increasing by field.",
@@ -267,7 +270,7 @@ def _build(move, head, cl):
             args = {"mode": "reverse", **args,
                     "f": _term(cl["reverse"], "reverse")}
         return _checked({**args, **occ}, cl)
-    if move == "int_flip":
+    if move in ("int_flip", "cint_param"):
         if head:
             raise TacticError(f"unexpected {head!r}")
         return occ
@@ -374,8 +377,8 @@ def show(move, args):
         rev = f" reverse {args['f']}" if args.get("mode") == "reverse" else ""
         s = (f"int_subst {args['var']} := {args['sub']} as {args['new_var']}"
              f" from {args['lo']} to {args['hi']}{rev}{occ}{_tail(args)}")
-    elif move == "int_flip":
-        s = f"int_flip{occ}"
+    elif move in ("int_flip", "cint_param"):
+        s = f"{move}{occ}"
     elif move == "int_parts":
         s = (f"int_parts in {args['var']} with u := {args['u']}; "
              f"v := {args['v']}{occ}{_tail(args)}")

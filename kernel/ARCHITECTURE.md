@@ -1472,3 +1472,27 @@ against complex evaluation at 200 random points per term.
   a divisor's |b|^2 multiplicatively.
 - **Regularity** (`discharge._reg_rule` and `tagger.reg_rule`) reads `re`
   and `im` of a CVar as parameters, and `arg[theta](u)` by rule `arg`.
+
+**Stage K4a (E190–E199)**, paths and contour integrals:
+
+- **`terms`** adds the path nodes `Seg`, `Arc` (`circle` is an `Arc` from
+  0 to 2π), `PathP`, `Join` and `Rev`, and the binder `CInt`. `CInt` and
+  `PathP` bind as `Int` does in `fv`, `bv`, `subst` and `_check_term`.
+  `sort_of` checks a path's Real parts with `_check_path`.
+- **A `CInt` is opaque** until it is parametrised. `trees()` yields it
+  and `statable()` is false, so field, `split` and deriv refuse it
+  (E26 (b)), and `_positions` does not descend into it.
+- **`cint_param`** replaces the selected `CInt` by the sum of its pieces'
+  real-variable integrals, `Int[t = lo .. hi] f(phi(t))*phi'(t)` with t
+  fresh, negated under `rev`. A join owes end == start, a `path[s]` owes
+  C^1 and deriv's sides, and the new integrals' formers are charged as
+  any new term's.
+- **`complexes`**: `exp` is never 0 on ℂ, so a complex `# 0` drops `exp`
+  factors and `split` reads `a/exp(u)` as `a*exp(-u)` (E196). `join`
+  writes `i`, not `1*i`.
+- **`_check_complex`** takes E88's `trig_norm` fallback on each part, in
+  ftc's check only (E197).
+- **The review (E199)**: rewrite's erase guard refuses any unstatable
+  tree node, a `CInt` included; `cint_param` charges the formers of the
+  path's own data; field reads a `CInt` as a tree, which refuses; `tex`
+  and `pretty2d` draw a `CInt` with its path as the subscript.

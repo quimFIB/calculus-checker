@@ -333,8 +333,12 @@ part, and limits over ℂ have one new law, |G| → 0 ⇒ G → 0. So
 any multiple of π evaluate (periodicity families). **K3, calculus in a
 complex variable, is built** (E183–E188): `D[z]` with the holomorphic rule
 table, branches differentiated off their cut (an off-cut condition is one
-real judgement), and Cauchy–Riemann by `verify`. Contours and residues
-are K4, next.
+real judgement), and Cauchy–Riemann by `verify`. **K4a, contour integrals, is built**
+(E190–E199): paths `seg`, `arc`, `circle` and `path[t]`, joined by `++`
+and reversed by `rev`, and `CInt[z on g] f`, which `cint_param` unfolds
+into real-variable integrals by its parametrisation, so ∮ dz/z = 2πi and
+∮ z̄ dz = 2πi on the unit circle prove. Winding numbers, the residue
+theorem and the contour tactics are K4b and K4c, next.
 
 **Next,** per §17: stage 1's lists are done (2026-09-25). The gate
 (`app/GATE.md`): work its seventeen problems in order on the page, then

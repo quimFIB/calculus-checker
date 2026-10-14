@@ -83,7 +83,7 @@ from dataclasses import dataclass
 from fractions import Fraction
 
 import poly as P
-from terms import (Add, App, Branch, Call, Const, CVar, Deriv, Div, Integral,
+from terms import (Add, App, Branch, Call, CInt, Const, CVar, Deriv, Div, Integral,
                    Mul, Neg, NonZero, Num, Pow, Refused, Rel, RPow, Var, show,
                    statable, trees)
 
@@ -341,7 +341,7 @@ class _Normaliser:
                               self.key(complexes._real(im))), t)
         if k is Call:
             return self.atom(("call", t.fn, tuple(map(self.key, t.args))), t)
-        if k is Deriv or k is Integral:
+        if k is Deriv or k is Integral or k is CInt:  # CInt: E192, E199
             return self.tree(t)
         raise TypeError(f"ring and field cannot read {t!r}")
 

@@ -6351,6 +6351,9 @@ def k1_problems(part):
     import random
     import complexes as CX
     C, S, out = X.K1_CASES, X.K1_SIG, []
+    k4a = part.startswith("k4a_")  # E194: K4a's parse-level rows
+    if k4a:
+        C, S, part = X.K4A_CASES, X.K4A_SIG, part[4:]
     if part == "round_trips":
         for text, printed in C["round_trips"]:
             t = T.parse_term(text, S)
@@ -6359,7 +6362,7 @@ def k1_problems(part):
     elif part == "refusals":
         for text, code in C["refusals"]:
             parse = T.parse_judgement if any(o in text for o in "<>") \
-                else T.parse_term
+                else T.parse_goal if k4a and "==" in text else T.parse_term
             try:
                 parse(text, S)
                 out.append(f"{text}: accepted")
@@ -6450,6 +6453,12 @@ def k1_checks(suite):
     suite.check("Z", f"K3 review rows ({len(X.K3_CASES['review'])}): cuts "
                 "never proved, branches, D[z] split as atoms (E189)",
                 lambda: k1_problems("k3_review"))
+    suite.check("Z", f"K4a round trips ({len(X.K4A_CASES['round_trips'])})"
+                ": paths and CInt (E190)", lambda: k1_problems(
+                    "k4a_round_trips"))
+    suite.check("Z", f"K4a refusals ({len(X.K4A_CASES['refusals'])}): a "
+                "complex arc radius, D11 across == (E190)",
+                lambda: k1_problems("k4a_refusals"))
     suite.check("Z", f"K2 limits ({len(X.K2_CASES['limits'])}): over C, "
                 "modulus_to_zero (E179)", lambda: k1_problems("k2_limits"))
     suite.check("Z", f"split agrees with complex evaluation on "
@@ -6677,7 +6686,8 @@ def consolidation_checks(suite):
                 (X.INT_PARTS_MOVE, X.INT_IMPROPER_MOVE,  # sections 19, 20
                  X.TAYLOR_MOVE, X.BOUND_MOVE,  # section 25
                  X.VERIFY_MOVE,  # section 26
-                 *X.ODE_MOVES)  # section 30
+                 *X.ODE_MOVES,  # section 30
+                 X.CINT_MOVE)  # K4a, E191
                 else [f"MOVES is {K.MOVES}"])
     print("\nint_flip (E51): accepted moves")
     for c in FLIP_ACCEPTS:

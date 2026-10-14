@@ -86,7 +86,7 @@ goals window."
 (defconst dx-moves
   '("ftc" "int_improper" "close" "simpl" "rewrite" "fact" "int_subst" "int_flip"
     "int_parts" "taylor_lagrange" "bound" "verify"
-    "quad_t" "sep_autonomous" "energy_integral")
+    "quad_t" "sep_autonomous" "energy_integral" "cint_param")
   "The moves, as app/SCRIPT.md names them.")
 
 (defconst dx-templates
@@ -104,7 +104,8 @@ goals window."
     ("verify" . "verify by field.")
     ("quad_t" . "quad_t h := eom from _ to _ in u antiderivative _ regs regv by field.")
     ("sep_autonomous" . "sep_autonomous h := eom from _ to _ in w rate _ antiderivative _ range (_, oo) regs regv by field.")
-    ("energy_integral" . "energy_integral h := eom kinematic kin from _ to _ in w rate _ antiderivative _ range (-oo, oo) regs regx, regv by field."))
+    ("energy_integral" . "energy_integral h := eom kinematic kin from _ to _ in w rate _ antiderivative _ range (-oo, oo) regs regx, regv by field.")
+    ("cint_param" . "cint_param."))
   "Each move's shape, as script.TEMPLATES has it (app/PRETTY.md).")
 
 (defconst dx-pretty-symbols
@@ -473,7 +474,7 @@ fits the goals window; indented two spaces."
     (,(regexp-opt '("by" "using" "with" "at" "occurrence" "as" "from" "to"
                     "reverse" "in" "derivs" "increasing" "decreasing" "strictly" "scale"
                     "kinematic" "rate" "antiderivative" "range" "regs" "given"
-                    "lower" "upper" "of")
+                    "lower" "upper" "of" "on")
                   'symbols)
      . font-lock-builtin-face)
     (,(regexp-opt '("ring" "field") 'symbols) . font-lock-constant-face)
@@ -485,7 +486,9 @@ fits the goals window; indented two spaces."
                     "atanh" "pi" "oo" "e_const"
                     ;; complex (COMPLEX.md): i, the parts, the branches
                     "i" "re" "im" "conj" "Log" "Arg" "Sqrt" "log" "arg"
-                    "rpow")
+                    "rpow"
+                    ;; contours (K4a): the binder and the paths
+                    "CInt" "seg" "arc" "circle" "path" "rev")
                   'symbols)
      . font-lock-type-face))
   "Highlighting for `dx-mode'.")
