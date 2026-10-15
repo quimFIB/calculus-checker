@@ -18877,3 +18877,89 @@ REIM_CASES["review"] = [  # E264: (goal, sentences, value)
 REIM_CASES["move_refusals"].append(
     ("(Int[x = 0 .. 1] x) + (Int[y = 0 .. 1] y) == ?A", "int_re x",
      "int-re-ambiguous"))
+
+
+# -------------------------------------------------- principal values and indentation (E265-E271)
+
+DECISIONS_PV = {
+    "E265": "A principal value is a term: PV[x = a .. b] f, written like "
+            "an Int. It is the limit as eps -> 0+ of the integral of f over "
+            "[a, b] with each interval (p - eps, p + eps) removed, for p "
+            "ranging over the points of (a, b) where f is not defined. Those "
+            "points must be finitely many. An infinite end is an improper "
+            "limit, as an Int's is. The node is PV(var, lo, hi, body). It is "
+            "not an Integral, so no Int move ever reads it as one. Its "
+            "variable is bound in its body as an Int's is: fv, bv, subst and "
+            "the scope checks treat it like PathP. Its ends are Real and its "
+            "sort is its body's.",
+    "E266": "Until a move evaluates it, a PV is opaque, like a CInt "
+            "(E192). trees() yields it and statable() is false, so field, "
+            "split and norm_num refuse it, and the position walk does not "
+            "enter it. It owes nothing at install. Its body is undefined at "
+            "the excluded points by design, so the body's formers would "
+            "fail there. Its existence and value are established by the "
+            "move that evaluates it. The printer writes PV[x = a .. b] f, "
+            "TeX writes \\\\mathrm{PV}\\\\int, and untex refuses it (bad-tex).",
+    "E267": "Indentation, Z13. Let f be as Z10 requires (E213, E214), with "
+            "a decay certificate in the closing half-plane, except that Q "
+            "may have real roots, each simple. Then PV[x = -oo .. oo] f "
+            "exists and equals 2*pi*i*(the sum of res(f, a) over S above) "
+            "+ pi*i*(the sum of res(f, p) over the real roots p), closing "
+            "upper. Closing lower it is -2*pi*i*(the sum below) - "
+            "pi*i*(the sum over the real roots). Proof: Z10's contour with "
+            "a semicircle of radius eps round each real pole, on the side "
+            "away from the closed region. Each tends to -pi*i*res(f, p) "
+            "upper, or +pi*i*res lower, for a simple pole (the half-residue "
+            "lemma). The move is residues upper|lower on a PV over the "
+            "whole line. A real root of multiplicity > 1 refuses "
+            "pv-pole-not-simple. A real root needs im r == 0 settled, and "
+            "every other root im r # 0 settled. An undecided root refuses "
+            "pv-root-undecided.",
+    "E268": "int_re F and int_im F accept a PV, as they accept an Int "
+            "(E257): PV f becomes re (im) of PV F under the same check. "
+            "Sound: a PV is linear, and re PV F = PV re F whenever PV F "
+            "exists, which the move that evaluates it establishes.",
+    "E269": "An Int whose integrand is undefined at a real point is still "
+            "refused at install (its former, E64). A learner states the PV "
+            "instead. For sin(x)/x, whose singularity is removable, the PV "
+            "equals the improper integral, and the rule gives pi.",
+    "E270": "What this does not reach. A PV over a finite range, or with "
+            "a pole of order > 1 (which has no principal value in general). "
+            "Kramers-Kronig for an abstract chi (20 P7's first part), which "
+            "is a theorem about every function of a class, not a computation.",
+    "E271": "The cases (PV_CASES).",
+}
+
+PV_CASES = {
+    "round_trips": [  # (text, printed)
+        ("PV[x = -oo .. oo] exp(i*x)/x", "PV[x = -oo .. oo] exp(i*x)/x"),
+        ("PV[x = -1 .. 1] 1/x", "PV[x = -1 .. 1] 1/x"),
+    ],
+    # through the app, auto-simpl closing: (goal, sentences, value)
+    "integrals": [
+        ("PV[x = -oo .. oo] exp(i*x)/x == ?A", ["residues upper."], "pi*i"),
+        ("PV[x = -oo .. oo] sin(x)/x == ?A",
+         ["int_im exp(i*x)/x.", "residues upper."], "pi"),
+        ("PV[x = -oo .. oo] 1/((x - 1)*(x^2 + 1)) == ?A",
+         ["residues upper."], "-pi/2"),
+        ("PV[x = -oo .. oo] 1/((x - 1)*(x^2 + 1)) == ?A",
+         ["residues lower."], "-pi/2"),
+        ("PV[x = -oo .. oo] cos(x)/(x - 1) == ?A",
+         ["int_re exp(i*x)/(x - 1).", "residues upper."], "-pi*sin(1)"),
+        ("PV[x = -oo .. oo] 1/(x^2 + 1) == ?A", ["residues upper."], "pi"),
+    ],
+    # (goal, sentence, code)
+    "move_refusals": [
+        ("PV[x = -oo .. oo] 1/(x^2*(x^2 + 1)) == ?A", "residues upper",
+         "pv-pole-not-simple"),
+        ("PV[x = -1 .. 1] 1/x == ?A", "residues upper",
+         "residues-line-not-whole"),
+        ("PV[x = -oo .. oo] 1/x == ?A", "residues upper",
+         "decay-not-certified"),
+        ("PV[x = -oo .. oo] exp(i*x)/x == ?A", "ftc 1 by ring",
+         "ftc-no-integral"),
+        # PV is opaque to field
+        ("(PV[x = -oo .. oo] 1/x) - (PV[x = -oo .. oo] 1/x) == 0",
+         "verify by ring", "Int-or-D-not-normalisable"),
+    ],
+}
