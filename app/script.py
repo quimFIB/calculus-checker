@@ -26,6 +26,7 @@ FORMS = {
                    "using"}, {"as", "from", "to"}),
     "int_flip": ({"occurrence"}, set()),
     "cint_param": ({"occurrence"}, set()),  # E191
+    "residues": ({"in", "occurrence"}, set()),  # E200, E201
     "int_parts": ({"in", "with", "occurrence", "by", "using"},
                   {"in", "with"}),
     "taylor_lagrange": ({"in", "from", "to", "at", "derivs", *SENSES,
@@ -58,6 +59,7 @@ USAGE = {
                  "[occurrence N] [by ring|field] [using h, ...]",
     "int_flip": "int_flip [occurrence N]",
     "cint_param": "cint_param [occurrence N]",
+    "residues": "residues [in C, ...] [occurrence N]",
     "int_parts": "int_parts in x with u := T; v := T [occurrence N] "
                  "[by ring|field] [using h, ...]",
     "taylor_lagrange": "taylor_lagrange h := lower|upper of T in u from T "
@@ -87,6 +89,7 @@ TEMPLATES = {
     "int_subst": "int_subst x := _ as t from _ to _ by ring.",
     "int_flip": "int_flip.",
     "cint_param": "cint_param.",
+    "residues": "residues.",
     "int_parts": "int_parts in x with u := _; v := _ by ring.",
     "taylor_lagrange": "taylor_lagrange h := lower of _ in u from _ to _ at _ "
                        "derivs _; _ increasing by field.",
@@ -274,6 +277,13 @@ def _build(move, head, cl):
         if head:
             raise TacticError(f"unexpected {head!r}")
         return occ
+    if move == "residues":  # E201: the region, as a domain writes it
+        if head:
+            raise TacticError(f"unexpected {head!r}")
+        if "in" in cl and not cl["in"].strip():
+            raise TacticError("in: give the region's conditions")
+        return {**({"region": cl["in"].strip()} if "in" in cl else {}),
+                **occ}
     if move == "taylor_lagrange":
         return _taylor(head, cl)
     if move in ODE:
@@ -379,6 +389,8 @@ def show(move, args):
              f" from {args['lo']} to {args['hi']}{rev}{occ}{_tail(args)}")
     elif move in ("int_flip", "cint_param"):
         s = f"{move}{occ}"
+    elif move == "residues":
+        s = f"residues{' in ' + args['region'] if 'region' in args else ''}{occ}"
     elif move == "int_parts":
         s = (f"int_parts in {args['var']} with u := {args['u']}; "
              f"v := {args['v']}{occ}{_tail(args)}")

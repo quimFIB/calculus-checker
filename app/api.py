@@ -846,6 +846,7 @@ def untex_(body):
 # PAGE.md: the optional arguments the kernel's _check_args accepts
 _OPTIONAL = {"rewrite": ("occurrence",), "int_flip": ("occurrence",),
              "cint_param": ("occurrence",),
+             "residues": ("region", "occurrence"),
              "ftc": ("occurrence",), "int_parts": ("occurrence",),
              "int_improper": ("occurrence",),
              "int_subst": ("mode", "occurrence", "f")}

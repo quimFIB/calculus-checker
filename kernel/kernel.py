@@ -97,8 +97,10 @@ bind them anywhere else.
 """
 
 import itertools
+import math
 import weakref
 from dataclasses import dataclass, replace
+from fractions import Fraction
 from types import MappingProxyType
 
 import deriv as DV
@@ -114,6 +116,7 @@ import tagger
 import trig_norm
 import complexes
 import entries
+import roots
 from entries import ENTRIES
 from terms import (Arc, CInt, Join, PathP, Rev, Seg, Const, NEG_INF, POS_INF, Add, App, Branch, Call, CVar, Deriv, Div, Integral, Mul,
                    Interval, MVar, Neg, NegInf, NonZero, Num, PosInf, Pow,
@@ -142,7 +145,8 @@ DECIDED_FALSE = "obligation-decided-false"  # E33
 VERDICT = "Proved modulo {n} admissions"
 MOVES = ("rewrite", "fact", "ftc", "close", "int_subst", "int_flip",
          "int_parts", "int_improper", "taylor_lagrange", "bound", "verify",
-         "quad_t", "sep_autonomous", "energy_integral", "cint_param")
+         "quad_t", "sep_autonomous", "energy_integral", "cint_param",
+         "residues")
 # E96: the moves an order goal takes; `bound` takes nothing else. The ODE
 # rules (E149) mint a handle and leave any goal as it is.
 ORDER_MOVES = ("rewrite", "fact", "taylor_lagrange", "bound", "quad_t",
@@ -629,7 +633,8 @@ _ARGS = {"rewrite": ("entry", "inst", "at"), "fact": ("entry", "inst", "bind"),
                             "F", "range", "using", "check", "facts"),
          "energy_integral": ("bind", "law", "kin", "regs", "lo", "hi", "var",
                              "f", "F", "range", "using", "check", "facts"),
-         "cint_param": ()}  # E191
+         "cint_param": (),  # E191
+         "residues": ()}  # E200
 _TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f", "u", "v", "scale")
 
 
@@ -682,6 +687,7 @@ def _check_args(move, args, goal):
     optional = ({"occurrence"} if move in ("rewrite", "int_flip", "ftc",
                                            "int_parts", "int_improper",
                                            "cint_param")
+                else {"occurrence", "region"} if move == "residues"  # E201
                 else {"scale"} if move == "bound" else set())
     if move == "int_subst":  # INT_SUBST_RULE step 1 (E36, E45, E48)
         optional = {"mode", "occurrence"}
@@ -701,8 +707,17 @@ def _check_args(move, args, goal):
               and type(facts) in (list, tuple)
               and not (args["check"] == "ring" and facts))
     if ok and move in ("int_flip", "ftc", "int_improper",
-                       "cint_param"):  # E51, E73, E191
+                       "cint_param", "residues"):  # E51, E73, E191, E200
         ok = args.get("occurrence", 0) >= 0
+    if ok and move == "residues":  # E201: a list of conditions
+        region = args.get("region", ())
+        ok = type(region) in (list, tuple) and all(
+            type(j) in (Rel, NonZero) and j.dom == () for j in region)
+        try:
+            for j in region if ok else ():
+                check_sorts(j)
+        except Refused:
+            ok = False
     if ok and move == "int_parts":  # INT_PARTS_RULE step 1
         ok = args.get("occurrence", 0) >= 0 and _names_variable(args["var"])
     if ok and move == "bound":  # E99: ring's lone fact is the order one
@@ -2180,8 +2195,8 @@ def _pieces(g, t, sign, out, joins):
         out.append((sign, g.lo, g.hi, phi, d.output, (phi, d)))
     elif k is Rev:
         _pieces(g.g, t, -sign, out, joins)
-    else:  # Join: g.a then g.b, owing a's end == b's start
-        joins.append(Rel("==", _ends(g.a, t)[1], _ends(g.b, t)[0]))
+    else:  # Join: g.a then g.b, owing a's end == b's start (E203)
+        joins.extend(_meets(_end_info(g.a, True), _end_info(g.b, False)))
         _pieces(g.a, t, sign, out, joins)
         _pieces(g.b, t, sign, out, joins)
 
@@ -2201,7 +2216,7 @@ def _cint_param(state, args, minted, buf):
     pieces, joins = [], []
     _pieces(ci.path, t, 1, pieces, joins)
     for j in joins:
-        _emit_at(buf, j, P, anc, S_CINT_JOIN, g.dom)
+        _owe(buf, j, S_CINT_JOIN, P, anc, g.dom)
     for x in _path_data(ci.path):  # E199: the path's own data is owed
         _charge_formers(buf, x, P, g.dom, anc=anc)
     new = None
@@ -2221,6 +2236,735 @@ def _cint_param(state, args, minted, buf):
     goal = (replace(g, lhs=sides[0], rhs=sides[1] if len(sides) > 1 else g.rhs),)
     check_goal(goal)
     return goal, None, {}
+
+
+# ---------------------------------------------------------------- residues
+#
+# p1_expected E200-E208: COMPLEX.md Z8, Cauchy's theorem and the residue
+# theorem as one rule. U is open and convex (E201), so star-shaped; every
+# hypothesis is owed (E202); the finders (roots.py, the branch choices
+# below) are untrusted, and each thing they find is checked or owed.
+
+S_RES_CLOSED, S_RES_IN_U = "residues_closed", "residues_path_in_U"
+S_RES_HOLO, S_RES_ROOTS = "residues_holomorphic", "residues_roots"
+S_RES_WIND, S_RES_POLE = "residues_wind", "residues_pole"
+SQRT_FACT = "sqrt_sq_val"
+
+
+def _pi_multiple(t):
+    """q when t is ring-equal to q*pi for a rational q (0 included), else
+    None."""
+    try:
+        (p,), atoms = FD.ring_polys([t])
+    except Refused:
+        return None
+    if not p:
+        return Fraction(0)
+    if len(p) != 1:
+        return None
+    (mono, q), = p.items()
+    if len(mono) != 1 or mono[0][1] != 1 or atoms[mono[0][0]] != Const("pi"):
+        return None
+    return Fraction(q)
+
+
+def _end_info(g, last):
+    """g's start (last False) or end: ('arc', c, r, angle) when it is an
+    arc's, else ('pt', the point)."""
+    k = type(g)
+    if k is Arc:
+        return ("arc", g.c, g.r, g.t2 if last else g.t1)
+    if k is Rev:
+        return _end_info(g.g, not last)
+    if k is Join:
+        return _end_info(g.b if last else g.a, last)
+    s, e = _ends(g, None)
+    return ("pt", e if last else s)
+
+
+_HALF = Div(Num(1), Num(2))
+_COS_SIN_DEG = {  # the first quadrant's exact values (E211)
+    0: (Num(1), Num(0)), 30: (Div(App("sqrt", Num(3)), Num(2)), _HALF),
+    45: (Div(App("sqrt", Num(2)), Num(2)), Div(App("sqrt", Num(2)), Num(2))),
+    60: (_HALF, Div(App("sqrt", Num(3)), Num(2))), 90: (Num(0), Num(1))}
+
+
+def _cos_sin(q):
+    """(cos, sin) of q*pi exactly when q*pi is a multiple of pi/6 or pi/4,
+    else None (E211)."""
+    deg = q * 180
+    if deg.denominator != 1 or int(deg) % 15:
+        return None
+    d = int(deg) % 360
+    neg = lambda t: t if t == Num(0) else Neg(t)
+    for lo, sc, ss, base in ((0, 1, 1, lambda d: d),
+                             (90, -1, 1, lambda d: 180 - d),
+                             (180, -1, -1, lambda d: d - 180),
+                             (270, 1, -1, lambda d: 360 - d)):
+        if lo <= d <= lo + 90 and base(d) in _COS_SIN_DEG:
+            c, s = _COS_SIN_DEG[base(d)]
+            return (c if sc > 0 else neg(c)), (s if ss > 0 else neg(s))
+    return None
+
+
+def _point(info):
+    if info[0] == "arc":
+        _, c, r, s = info
+        q = _pi_multiple(s)
+        cs = None if q is None else _cos_sin(q)
+        if cs is None:
+            return Add(c, Mul(r, App("exp", Mul(Const("i"), s))))
+        cos, sin = cs  # E211: exact, so a closed end decides
+        w = cos if sin == Num(0) else _plus(cos, _times(sin, Const("i")))
+        return _plus(c, _times(r, w))
+    return info[1]
+
+
+def _joins(g):
+    """(end, start) at each ++ of g, rev's included (E211)."""
+    if type(g) is Rev:
+        return [(s, e) for e, s in _joins(g.g)]
+    if type(g) is Join:
+        return (_joins(g.a) + [(_end_info(g.a, True), _end_info(g.b, False))]
+                + _joins(g.b))
+    return []
+
+
+def _meets(end, start):
+    """E203: the equations that make `end` meet `start`. Two arc ends meet
+    when their centres and radii are equal and their angles differ by
+    2*pi*k; any other pair by E191's end == start."""
+    if end[0] == start[0] == "arc":
+        _, c1, r1, s1 = end
+        _, c2, r2, s2 = start
+        q1, q2 = _pi_multiple(s1), _pi_multiple(s2)
+        # E211: only the same circle, else the points are compared
+        if q1 is not None and q2 is not None and c1 == c2 and r1 == r2 \
+                and ((q1 - q2) / 2).denominator == 1:
+            k = int((q1 - q2) / 2)
+            out = []
+            if s1 != s2:
+                turn = Mul(Num(2 * abs(k)), Const("pi"))
+                out.append(Rel("==", s1, s2 if k == 0 else
+                               Add(s2, Neg(turn) if k < 0 else turn)))
+            return out
+    return [Rel("==", _point(end), _point(start))]
+
+
+def _ring_holds(j):
+    """An equation ring proves, over C by its split parts."""
+    if type(j) is not Rel or j.op != "==":
+        return False
+    try:
+        if complexes.has_complex(j):
+            (a, b), (c, d) = complexes.split(j.lhs), complexes.split(j.rhs)
+            R = complexes._real
+            FD.ring(R(a), R(c))
+            FD.ring(R(b), R(d))
+        else:
+            FD.ring(j.lhs, j.rhs)
+        return True
+    except (FD.NotEqual, Refused, RecursionError):
+        return False
+
+
+def _closed_verdict(k):
+    """A closed real key decided: norm_num, the exact values then norm_num,
+    then E206's surds. True, False or None."""
+    try:
+        said = FD.norm_num(k)
+        if said is not None:
+            return said
+        new, _ = discharge.exact_values(k)
+        said = FD.norm_num(new)
+        return said if said is not None else FD.surd_decide(new)
+    except Refused:
+        return None
+
+
+def _real_keys(prop, P):
+    key = with_domain(prop, P)
+    return complexes.realify_judgement(key) if complexes.has_complex(key) \
+        else (key,)
+
+
+def _verdict(prop, P):
+    """The finder's test (untrusted): True when every real key of prop at P
+    settles, False when a closed one is false, else None."""
+    out = True
+    try:
+        keys = _real_keys(prop, P)
+    except Refused:
+        return None
+    for k in keys:
+        if k.dom == ():
+            v = _closed_verdict(k)
+            if v is False:
+                return False
+            if v is None and not _settles(k):
+                out = None
+        elif not _settles(k):
+            out = None
+    return out
+
+
+def _owe(buf, prop, source, P, anc, gd):
+    """Emit prop at P. An equation ring proves is discharged ('ring'); a
+    closed key E206 decides is discharged ('norm_num_surd') or refused
+    'obligation-refuted'; anything else is emitted as any key is."""
+    if _ring_holds(prop):
+        for k in _real_keys(prop, P):
+            if k not in buf:
+                _emit(buf, k, source, gd, discharged_by=("ring", ()),
+                      divisor=False)
+        return
+    keys = _real_keys(prop, P)
+    if all(k.dom == () for k in keys):
+        for k in keys:
+            said = FD.norm_num(k)
+            if said is None:
+                new, used = discharge.exact_values(k)
+                if FD.norm_num(new) is None:
+                    v = FD.surd_decide(new)
+                    if v is False:
+                        raise Refused("obligation-refuted", f"E206: "
+                                      f"{show(k)} is false")
+                    if v:
+                        _emit(buf, k, source, gd, divisor=False,
+                              discharged_by=("norm_num_surd", tuple(used)))
+                        continue
+            _emit(buf, k, source, gd, divisor=False)
+        return
+    _emit_at(buf, prop, P, anc, source, gd, divisor=False)
+
+
+def _choose(branches, P, code, what):
+    """The first branch whose every condition settles (the finder,
+    untrusted): (its value, its conditions). None settling refuses
+    `code`."""
+    for value, conds in branches:
+        if all(_verdict(c, P) is True for c in conds):
+            return value, conds
+    raise Refused(code, f"no branch of {what} is decided")
+
+
+# -- the region (E201)
+
+def _sq(t):
+    return Pow(t, 2)
+
+
+def _norm2c(w):
+    """|w|^2 in w's parts."""
+    return Add(_sq(App("re", w)), _sq(App("im", w)))
+
+
+def _sub(a, b):
+    return a if b == Num(0) else Add(a, Neg(b))
+
+
+def _region(conds, z):
+    """U's conditions, each ('half', diff, alpha, beta, j) for diff > 0
+    affine with diff(z) == alpha*re z + beta*im z + diff(0), or ('disk', c,
+    rho, j) for abs(z - c) < rho."""
+    zc, out = CVar(z), []
+    for j in conds:
+        if type(j) is not Rel or j.dom:
+            raise Refused("region-not-convex", f"{_brief(j)} is not an "
+                          "open half-plane or disk (E201)")
+        j = Rel(j.op, subst(j.lhs, {z: zc}), subst(j.rhs, {z: zc}))
+        if z not in fv(Add(j.lhs, j.rhs)) or any(type(n) is CVar and n.name != z
+                                 for n in DV._nodes(Add(j.lhs, j.rhs))):
+            raise Refused("region-wrong-variable", f"{show(j)} is not a "
+                          f"condition on {z} alone (E201)")
+        if j.op not in ("<", ">"):
+            raise Refused("region-not-convex", f"{show(j)}: only < and > "
+                          "make an open region (E201)")
+        lo, hi = (j.lhs, j.rhs) if j.op == "<" else (j.rhs, j.lhs)
+        if type(lo) is App and lo.fn == "abs" and z in fv(lo.arg) and \
+                z not in fv(hi):
+            c0 = subst(lo.arg, {z: Num(0)})
+            c = c0.a if type(c0) is Neg else Num(0) if c0 == Num(0) \
+                else Neg(c0)
+            if not _ring_holds(Rel("==", lo.arg, _sub(zc, c))):
+                raise Refused("region-not-convex", f"{show(j)} is not an "
+                              "open disk abs(z - c) < r (E201)")
+            out.append(("disk", c, hi, j))
+            continue
+        diff = _sub(hi, lo)
+        g0 = subst(diff, {z: Num(0)})
+        alpha = _sub(subst(diff, {z: Num(1)}), g0)
+        beta = _sub(subst(diff, {z: Const("i")}), g0)
+        affine = Add(Add(Mul(alpha, App("re", zc)), Mul(beta, App("im", zc))),
+                     g0)
+        try:
+            ok = sort_of(diff) == "R" and FD.ring_equal(
+                complexes.realify(diff), complexes.realify(affine))
+        except Refused:
+            ok = False
+        if not ok:
+            raise Refused("region-not-convex", f"{show(j)} is not an open "
+                          "half-plane or disk (E201)")
+        out.append(("half", diff, alpha, beta, j))
+    return out
+
+
+def _in_U(U, p, z):
+    """The keys saying the point p is in U."""
+    out = []
+    for item in U:
+        if item[0] == "half":
+            out.append(Rel(">", subst(item[1], {z: p}), Num(0)))
+        else:
+            _, c, rho, _ = item
+            out += [Rel(">", rho, Num(0)),
+                    Rel("<", _norm2c(_sub(p, c)), _sq(rho))]
+    return out
+
+
+def _not_in_U(U, p, z):
+    """One branch per condition, each saying p fails it."""
+    out = []
+    for item in U:
+        if item[0] == "half":
+            out.append([Rel("<=", subst(item[1], {z: p}), Num(0))])
+        else:
+            _, c, rho, _ = item
+            out.append([Rel(">=", _norm2c(_sub(p, c)), _sq(rho))])
+    return out
+
+
+def _piece_in_U(U, piece, z, P):
+    """E202 (2): (keys, extra domain) for a path piece inside U."""
+    k = type(piece)
+    if k is Seg:
+        return _in_U(U, piece.a, z) + _in_U(U, piece.b, z), ()
+    if k is Arc:
+        out = []
+        c, r = piece.c, piece.r
+        for item in U:
+            if item[0] == "half":
+                _, diff, alpha, beta, _ = item
+                Lc = subst(diff, {z: c})
+                out += [Rel(">", Lc, Num(0)),
+                        Rel(">", _sq(Lc), Mul(_sq(r), Add(_sq(alpha),
+                                                          _sq(beta))))]
+            else:
+                _, c0, rho, _ = item
+                out += [Rel(">", r, Num(0)), Rel(">", _sub(rho, r), Num(0)),
+                        Rel("<", _norm2c(_sub(c, c0)), _sq(_sub(rho, r)))]
+        return out, ()
+    rng, orient = _range_of(piece.var, piece.lo, piece.hi, P)  # path[s]
+    phi = piece.phi
+    return [Rel(item[-1].op, subst(item[-1].lhs, {z: phi}),
+                subst(item[-1].rhs, {z: phi})) for item in U], (rng, orient)
+
+
+def _flat(g):
+    """g's pieces, unoriented."""
+    if type(g) is Rev:
+        return _flat(g.g)
+    if type(g) is Join:
+        return _flat(g.a) + _flat(g.b)
+    return [g]
+
+
+def _oriented(g, back=False):
+    """g's pieces in traversal order, each with True when run backwards."""
+    if type(g) is Rev:
+        return _oriented(g.g, not back)
+    if type(g) is Join:
+        a, b = _oriented(g.a, back), _oriented(g.b, back)
+        return b + a if back else a + b
+    return [(g, back)]
+
+
+# -- completeness of S (E204)
+
+def _side_conditions(f, z):
+    """(divisors, other side conditions) holomorphy owes for f: deriv's
+    under D[z] (E184; refuses what is not holomorphic) and f's own
+    formers, deduplicated."""
+    props = [k for k, _ in DV.deriv(f, z, ()).emissions]
+    props += [p for _, s, _, _ in _positions(f, ()) for p, _ in _owed(s)]
+    divs, other = [], []
+    for p in props:
+        p = with_domain(p, ())
+        if type(p) is NonZero:
+            if p.e not in divs:
+                divs.append(p.e)
+        elif p not in other:
+            other.append(p)
+    return divs, other
+
+
+def _c_term(c):
+    return roots.root_term((c, roots.ZERO, 1))
+
+
+def _zminus(z, r):
+    zc = CVar(z)
+    if r == Num(0):
+        return zc
+    return Add(zc, r.a) if type(r) is Neg else Add(zc, Neg(r))
+
+
+def _factored(lc, rts, z, skip=None):
+    """lc*(z - r)^m*... over the roots but `skip`."""
+    out = None if lc == Num(1) else lc
+    for r, m in rts:
+        if r == skip:
+            continue
+        f = _zminus(z, r)
+        f = f if m == 1 else Pow(f, m)
+        out = f if out is None else Mul(out, f)
+    return Num(1) if out is None else out
+
+
+def _factor_divisor(d, z, buf, P, anc, gd):
+    """E204: (exp arguments, lc, [(root, m)]) for the divisor d, the
+    factorisation checked by field on split parts with sqrt_sq_val facts,
+    and lc # 0 owed."""
+    rest, us = complexes._exp_factors(d)
+    if rest is None:
+        return us, Num(1), []
+    if z not in fv(rest):
+        _owe(buf, NonZero(rest), S_RES_ROOTS, P, anc, gd)
+        return us, rest, []
+    p = roots.poly(rest, z)
+    if p is not None and len(p) <= 1:  # E211: z cancels, no root
+        _owe(buf, NonZero(rest), S_RES_ROOTS, P, anc, gd)
+        return us, rest, []
+    if p is None:
+        raise Refused("residue-divisor-not-polynomial", f"the divisor "
+                      f"{_brief(rest)} is not a polynomial in {z} over Q(i) "
+                      "(E204)")
+    found = roots.factor(p)
+    if found is None:
+        raise Refused("residue-roots-not-found", f"no factorisation of "
+                      f"{_brief(rest)} was found (E204)")
+    lc, rts = _c_term(found[0]), [(roots.root_term(r), m)
+                                  for r, m in found[1]]
+    surds = sorted({r[2] for r, _ in found[1] if r[2] != 1})
+    facts = [(Pow(App("sqrt", Num(s)), 2), Num(s)) for s in surds]
+    (a, b), (c, e) = complexes.split(rest), complexes.split(
+        _factored(lc, rts, z))
+    R = complexes._real
+    try:
+        FD.field(R(a), R(c), facts)
+        FD.field(R(b), R(e), facts)
+    except (FD.NotEqual, Refused, RecursionError):
+        raise Refused("residue-roots-not-found", f"the factorisation of "
+                      f"{_brief(rest)} does not check (E204)") from None
+    for s in surds:  # sqrt_sq_val's hypothesis, a >= 0
+        _owe(buf, Rel(">=", Num(s), Num(0)), S_RES_ROOTS, P, anc, gd)
+    _owe(buf, NonZero(lc), S_RES_ROOTS, P, anc, gd)
+    return us, lc, rts
+
+
+# -- winding numbers (E205)
+
+def _height(c, r, a, q, angle):
+    """im c + r*sin(angle) - im a, with sin exact at multiples of pi/6
+    and pi/4 (E211)."""
+    cs = _cos_sin(q)
+    sin = cs[1] if cs is not None else App("sin", angle)
+    return _sub(Add(App("im", c), _times(r, sin)) if sin != Num(0)
+                else App("im", c), App("im", a))
+
+
+def _cross_branches(up, ys, ye, XR, XN, count):
+    """Sunday's rule for one monotone piece: count where it crosses right
+    of a, 0 otherwise."""
+    if up:
+        H = [Rel("<=", ys, Num(0)), Rel(">", ye, Num(0))]
+        miss = [[Rel(">", ys, Num(0))], [Rel("<=", ye, Num(0))]]
+    else:
+        H = [Rel("<=", ye, Num(0)), Rel(">", ys, Num(0))]
+        miss = [[Rel(">", ye, Num(0))], [Rel("<=", ys, Num(0))]]
+    return ([(count, H + x) for x in XR] + [(0, m) for m in miss]
+            + [(0, x) for x in XN])
+
+
+def _wind(g, a, P, anc, gd, buf):
+    """wind(g, a) by crossings of the ray right of a, each branch owed;
+    g's avoidance of a owed too."""
+    total = 0
+    for piece, back in _oriented(g):
+        k = type(piece)
+        if k is Seg:
+            p, q = (piece.b, piece.a) if back else (piece.a, piece.b)
+            P_, Q_ = _sub(p, a), _sub(q, a)
+            xp, yp = App("re", P_), App("im", P_)
+            xq, yq = App("re", Q_), App("im", Q_)
+            cross = Add(Mul(xp, yq), Neg(Mul(xq, yp)))
+            dp = Add(Mul(App("re", _sub(a, p)), App("re", _sub(q, p))),
+                     Mul(App("im", _sub(a, p)), App("im", _sub(q, p))))
+            dq = Add(Mul(App("re", _sub(a, q)), App("re", _sub(p, q))),
+                     Mul(App("im", _sub(a, q)), App("im", _sub(p, q))))
+            avoid = [(0, [NonZero(cross)]), (0, [Rel("<", dp, Num(0))]),
+                     (0, [Rel("<", dq, Num(0))])]
+            said = [_verdict(c, P) for _, (c,) in avoid]
+            if all(v is False for v in said):
+                raise Refused("residue-pole-on-path", f"{show(a)} lies on "
+                              f"{show(piece)} (E205)")
+            # the first branch that settles, else the first, owed
+            _owe(buf, next((c for v, (_, (c,)) in zip(said, avoid) if v),
+                           avoid[0][1][0]), S_RES_WIND, P, anc, gd)
+            up = [Rel("<=", yp, Num(0)), Rel(">", yq, Num(0))]
+            down = [Rel(">", yp, Num(0)), Rel("<=", yq, Num(0))]
+            branches = [(1, up + [Rel(">", cross, Num(0))]),
+                        (-1, down + [Rel("<", cross, Num(0))]),
+                        (0, [Rel("<=", yp, Num(0)), Rel("<=", yq, Num(0))]),
+                        (0, [Rel(">", yp, Num(0)), Rel(">", yq, Num(0))]),
+                        (0, up + [Rel("<", cross, Num(0))]),
+                        (0, down + [Rel(">", cross, Num(0))])]
+            n, conds = _choose(branches, P, "wind-undecided",
+                               f"{show(piece)}'s crossing")
+        elif k is Arc:
+            c, r = piece.c, piece.r
+            t1, t2 = (piece.t2, piece.t1) if back else (piece.t1, piece.t2)
+            q1, q2 = _pi_multiple(t1), _pi_multiple(t2)
+            if q1 is None or q2 is None:
+                raise Refused("wind-not-computable", f"{show(piece)}'s "
+                              "angles are not rational multiples of pi (E205)")
+            # E211: the crossing rules read r > 0 (r < 0 is the circle
+            # turned through its centre)
+            _owe(buf, Rel(">", r, Num(0)), S_RES_WIND, P, anc, gd)
+            D2, r2 = _norm2c(_sub(a, c)), _sq(r)
+            off = NonZero(_sub(D2, r2))
+            if _verdict(off, P) is False:
+                raise Refused("residue-pole-on-path", f"{show(a)} lies on "
+                              f"the circle of {show(piece)} (E205)")
+            _owe(buf, off, S_RES_WIND, P, anc, gd)
+            lo, hi = min(q1, q2), max(q1, q2)
+            cuts, j = [], math.floor(lo - Fraction(1, 2)) + 1
+            while j + Fraction(1, 2) < hi:
+                if j + Fraction(1, 2) > lo:
+                    cuts.append(j + Fraction(1, 2))
+                j += 1
+            ends = [lo] + cuts + [hi]
+            sign = 1 if q2 >= q1 else -1
+            terms = {q1: t1, q2: t2}
+            dx = _sub(App("re", c), App("re", a))
+            n, conds = 0, []
+            for u, v in zip(ends, ends[1:]):
+                mid = ((u + v) / 2) % 2
+                right = mid < Fraction(1, 2) or mid > Fraction(3, 2)
+                yu = _height(c, r, a, u, terms.get(u, Mul(_frac(u), Const("pi"))))
+                yv = _height(c, r, a, v, terms.get(v, Mul(_frac(v), Const("pi"))))
+                if right:
+                    XR = [[Rel(">", dx, Num(0))], [Rel("<", D2, r2)]]
+                    XN = [[Rel("<=", dx, Num(0)), Rel(">=", D2, r2)]]
+                else:
+                    XR = [[Rel(">", dx, Num(0)), Rel(">", D2, r2)]]
+                    XN = [[Rel("<=", dx, Num(0))], [Rel("<=", D2, r2)]]
+                up = right == (sign > 0)
+                ys, ye = (yu, yv) if sign > 0 else (yv, yu)
+                m, cs = _choose(_cross_branches(up, ys, ye, XR, XN,
+                                                1 if up else -1),
+                                P, "wind-undecided", f"{show(piece)}'s "
+                                "crossing")
+                n, conds = n + m, conds + cs
+        else:
+            raise Refused("wind-not-computable", f"a path[s] piece's "
+                          "winding number is not computed yet (E205)")
+        for cnd in conds:
+            _owe(buf, cnd, S_RES_WIND, P, anc, gd)
+        total += n
+    return total
+
+
+def _frac(q):
+    return roots._frac(q)
+
+
+# -- residues (E207)
+
+class _Poles:
+    """f's pole orders at one point a, read from the factorisations."""
+
+    def __init__(self, z, a, fac):
+        self.z, self.a, self.fac = z, a, fac
+
+    def mult(self, d):
+        if self.z not in fv(d):
+            return 0
+        if d not in self.fac:
+            raise Refused("residue-divisor-not-polynomial", f"{_brief(d)} "
+                          "has no factorisation (E204)")
+        return sum(m for r, m in self.fac[d][2] if r == self.a)
+
+    def order(self, t):
+        if self.z not in fv(t):
+            return 0
+        k = type(t)
+        if k is CVar:
+            return 0
+        if k is Add:
+            return max(self.order(t.a), self.order(t.b))
+        if k is Neg:
+            return self.order(t.a)
+        if k is Mul:
+            return self.order(t.a) + self.order(t.b)
+        if k is Div:
+            self._regular(t.b)
+            return self.order(t.a) + self.mult(t.b)
+        if k is Pow:
+            if t.n >= 0:
+                return t.n * self.order(t.base)
+            self._regular(t.base)
+            return -t.n * self.mult(t.base)
+        for _, c in children(t):
+            if isinstance(c, Term):
+                self._regular(c)
+        return 0
+
+    def _regular(self, t):
+        if self.order(t):
+            raise Refused("residue-not-a-pole", f"{_brief(t)} has a pole "
+                          f"at {show(self.a)} inside a function, so the "
+                          "singularity is not a pole (E207)")
+
+    def zpow(self, j):
+        f = _zminus(self.z, self.a)
+        return Num(1) if j == 0 else f if j == 1 else Pow(f, j)
+
+    def reduced(self, d):
+        us, lc, rts = self.fac[d]
+        out = _factored(lc, rts, self.z, skip=self.a)
+        for u in us:
+            out = _times(App("exp", u), out)
+        return out
+
+    def times(self, t, k):
+        """(z - a)^k * t, built by structure, for k >= order(t)."""
+        o = self.order(t)
+        if o == 0:
+            return _times(self.zpow(k), t)
+        kind = type(t)
+        if kind is Add:
+            return Add(self.times(t.a, k), self.times(t.b, k))
+        if kind is Neg:
+            return Neg(self.times(t.a, k))
+        if kind is Mul:
+            oa = self.order(t.a)
+            return _times(self.times(t.a, oa), self.times(t.b, k - oa))
+        if kind is Div:
+            x = self.times(t.a, k - self.mult(t.b))
+            d = self.reduced(t.b)
+            return x if d == Num(1) else Div(x, d)
+        if t.n > 0:  # Pow
+            p = self.order(t.base)
+            return _times(self.zpow(k - t.n * p), Pow(self.times(t.base, p),
+                                                       t.n))
+        mu = -t.n * self.mult(t.base)
+        d = self.reduced(t.base)
+        return _times(self.zpow(k - mu), Num(1) if d == Num(1) else Pow(d, t.n))
+
+
+def _residue(f, z, a, fac, buf, P, anc, gd):
+    """E207: (m, the residue term) at a, m == 0 for a removable point."""
+    poles = _Poles(z, a, fac)
+    m = poles.order(f)
+    if m == 0:
+        return 0, None
+    phi = poles.times(f, m)
+    for _, s, _, _ in _positions(phi, ()):  # phi holomorphic at a
+        for p, _ in _owed(s):
+            if type(p) is NonZero:
+                _owe(buf, NonZero(subst(p.e, {z: a})), S_RES_POLE, P, anc, gd)
+    for _ in range(m - 1):
+        phi = DV.deriv(phi, z, ()).output
+    R = subst(phi, {z: a})
+    if m > 2:
+        R = Div(R, Num(math.factorial(m - 1)))
+    return m, R
+
+
+def _residues(state, args, minted, buf):
+    """E200-E208: the selected CInt[z on g] f replaced by 2*pi*i times the
+    sum of wind(g, a)*res(f, a) over S, with every hypothesis owed."""
+    g = state.goal[0]
+    side, path, ci, P, anc = _cint_select(g, args.get("occurrence"))
+    z, gd = ci.var, g.dom
+    U = _region(args.get("region", ()), z)
+    for x in _path_data(ci.path):  # E199: the path's own data is owed
+        _charge_formers(buf, x, P, gd, anc=anc)
+    # (1) closed, and every join meeting (E211)
+    for end, start in _joins(ci.path) + [(_end_info(ci.path, True),
+                                          _end_info(ci.path, False))]:
+        for j in _meets(end, start):
+            _owe(buf, j, S_RES_CLOSED, P, anc, gd)
+    for piece in _flat(ci.path):  # E211: path[s]'s phi, as cint_param's
+        if type(piece) is PathP:
+            rng, orient = _range_of(piece.var, piece.lo, piece.hi, P)
+            if orient is not None:
+                _emit(buf, orient, "orient", gd)
+            _charge_formers(buf, piece.phi, P + (rng,), gd, anc=anc)
+            _emit_at(buf, Reg(piece.phi, 1), P + (rng,), anc, S_CINT_C1, gd)
+            for key, _ in DV.deriv(piece.phi, piece.var, ()).emissions:
+                _emit_at(buf, key, P + (rng,), anc, S_CINT_C1, gd)
+    # (2) g in U
+    if U:
+        for piece in _flat(ci.path):
+            keys, extra = _piece_in_U(U, piece, z, P)
+            dom = P
+            if extra:
+                rng, orient = extra
+                if orient is not None:
+                    _emit(buf, orient, "orient", gd)
+                dom = P + (rng,)
+            for key in keys:
+                _owe(buf, key, S_RES_IN_U, dom, anc, gd)
+    # (3) holomorphic on U minus S
+    divs, other = _side_conditions(ci.body, z)
+    conds = tuple(item[-1] for item in U)
+    for p in other:  # a cut: on all of U
+        _emit_at(buf, p, P + conds, anc, S_RES_HOLO, gd, divisor=False)
+    fac, found = {}, []
+    for d in divs:
+        fac[d] = _factor_divisor(d, z, buf, P, anc, gd)
+        for r, _ in fac[d][2]:
+            if r not in found:
+                found.append(r)
+    S = []
+    for r in found:  # E204: each root in S, or outside U
+        inside = _in_U(U, r, z)
+        if not U or all(_verdict(c, P) is True for c in inside):
+            S.append(r)
+            for c in inside:
+                _owe(buf, c, S_RES_ROOTS, P, anc, gd)
+            continue
+        out = next((b for b in _not_in_U(U, r, z)
+                    if all(_verdict(c, P) is True for c in b)), None)
+        for c in out or inside:
+            _owe(buf, c, S_RES_ROOTS, P, anc, gd)
+        if out is None:
+            S.append(r)
+    # (4) S distinct, avoided, and each winding number
+    for i, a in enumerate(S):
+        for b in S[i + 1:]:
+            _owe(buf, NonZero(_sub(a, b)), S_RES_ROOTS, P, anc, gd)
+    total, trace = None, []
+    for a in S:
+        w = _wind(ci.path, a, P, anc, gd, buf)
+        m, R = (0, None) if w == 0 else _residue(ci.body, z, a, fac, buf,
+                                                  P, anc, gd)
+        trace.append((a, m, w))
+        if R is None:
+            continue
+        term = R if w == 1 else Neg(R) if w == -1 else \
+            Mul(Num(abs(w)), R) if w > 0 else Neg(Mul(Num(-w), R))
+        total = term if total is None else Add(total, term)
+    new = Num(0) if total is None else Mul(
+        Mul(Mul(Num(2), Const("pi")), Const("i")), total)
+    sides = list(_sides(g))
+    sides[side] = _put(sides[side], path, new)
+    _charge_formers(buf, new, P, gd, anc=anc)
+    goal = (replace(g, lhs=sides[0], rhs=sides[1] if len(sides) > 1 else g.rhs),)
+    check_goal(goal)
+    return goal, None, {"trace": tuple(trace)}
 
 
 # ---------------------------------------------------------------- int_parts
@@ -2891,4 +3635,5 @@ _MOVE = {"rewrite": _rewrite, "fact": _fact, "ftc": _ftc, "close": _close,
          "int_parts": _int_parts, "int_improper": _int_improper,
          "taylor_lagrange": _taylor, "bound": _bound, "verify": _verify,
          "quad_t": _quad_t, "sep_autonomous": _sep_autonomous,
-         "energy_integral": _energy_integral, "cint_param": _cint_param}
+         "energy_integral": _energy_integral, "cint_param": _cint_param,
+         "residues": _residues}

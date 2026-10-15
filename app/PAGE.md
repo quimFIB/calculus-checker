@@ -35,7 +35,8 @@ GET /moves   -> {moves: [{name, args: [{name, type, term, optional}]}]}
 The kernel's `MOVES` in order, each with its argument names as `kernel`
 lists them and the loader's type for each (`str`, `dict`, `list`, `int`),
 `term` true when the loader parses it as a term, and `optional` true for
-`occurrence` (rewrite, int_flip, cint_param, ftc, int_parts, int_improper) and for
+`occurrence` (rewrite, int_flip, cint_param, residues, ftc, int_parts,
+int_improper), for residues' `region` (its conditions as text, E201) and for
 int_subst's `mode`, `occurrence` and `f` (`f` is required once `mode` is
 `reverse`, which the kernel checks). The page builds its move form from this, so a new move needs no
 page change.

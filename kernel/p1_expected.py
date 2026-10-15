@@ -17887,3 +17887,89 @@ K4B_CASES = {
         ("CInt[w on circle(2, 1)] Log w == ?A", "residues"),
     ],
 }
+
+RESIDUE_MOVE = "residues"
+E57_PRINCIPLE[RESIDUE_MOVE] = (
+    "erases a CInt, replacing it by its value under Z8 (E200), every "
+    "hypothesis of which is owed (E202): closedness, the path in U, "
+    "holomorphy on U minus S, S complete, and each winding number's "
+    "branches; the residue terms' formers are charged as any new term's "
+    "(E64, E208)")
+K4B_SIG = {"w": "complex"}
+DECISIONS_COMPLEX_K4B["E210"] = (
+    "Building K4b. (1) Auto-simpl's value (E162) reduced the numerator by "
+    "a sqrt_sq_val fact and not the denominator, so a residue sum with "
+    "(sqrt 2)^3 below the line asked for the same fact twice and stopped; "
+    "a denominator power of a fact's atom is now reduced as the numerator "
+    "is, (sqrt q)^e to q^(e//2)*(sqrt q)^(e%2). Untrusted: the close is "
+    "checked as before. (2) K4B_CASES gains a surds table for E206 (added "
+    "rows, nothing weakened), and the kernel suite checks each integral's "
+    "residues value against Simpson's rule on its path.")
+K4B_CASES["surds"] = [  # (judgement, E206's verdict)
+    ("sqrt 2 > 1", True),
+    ("(sqrt(1599)/5 - 8)^2 + 1/25 < 1", True),
+    ("1/sqrt 2 - sqrt 2 / 2 == 0", True),
+    ("sqrt(8) == 2*sqrt 2", True),
+    ("sqrt 2 - 3/2 > 0", False),
+    ("sqrt 2 * sqrt 3 > 2", None),
+    ("pi > 3", None),
+]
+DECISIONS_COMPLEX_K4B["E211"] = (
+    "The skeptic's review of K4b (2026-10-15), folded in. Blocking, each a "
+    "false theorem, all fixed: (1) the crossing rules of E205 read r > 0, "
+    "and nothing owed it, so arc(0, -1, 0, 2*pi) wound 0 times round 0 and "
+    "CInt of 1/w along it proved 0; residues now owes r > 0 for each arc "
+    "whose winding it counts. (2) Only the whole path's end and start were "
+    "compared, so seg(0, 2) ++ seg(3, 2*i) ++ seg(2*i, 0) passed for "
+    "closed; residues owes every join's meeting, as cint_param does. (3) A "
+    "path[s] piece owed nothing about its phi, so a discontinuous or "
+    "divergent phi passed Cauchy's theorem; it owes phi's formers, Reg(phi, "
+    "1) and deriv's sides on its range, as cint_param does (E191). "
+    "Should-fix: trial division under sqrt was unbounded (a 21-digit "
+    "discriminant hung), now bounded at 10^12 in roots.py and E206, which "
+    "refuse or leave undecided beyond it; a # in the region was refused "
+    "bad-args and is now region-not-convex. Minor, fixed: an arc's end at "
+    "a multiple of pi/6 or pi/4 is written exactly (cos and sin from a "
+    "first-quadrant table, reflected), so joins mixing arcs and points and "
+    "the height tests decide (E205's promise for rational multiples of pi "
+    "now holds for those); E203's angle test applies only to the same "
+    "circle, and two different circles are compared by their points, so a "
+    "true join of arc(0, 1, -pi, 0) and arc(-1, 2, 0, pi) is no longer "
+    "refuted; roots.py factors the square-free part p/gcd(p, p') and "
+    "counts multiplicities by exact division, so (w^2 + 1)^3 and w^100 "
+    "factor; a divisor in which z cancels (0*w + 1) owes only # 0. Left: a "
+    "degenerate seg(p, p) is refused residue-pole-on-path even when the "
+    "pole is elsewhere.")
+K4B_CASES["review"] = [  # E211: (header, sentences, refusal code or value)
+    ("goal CInt[w on arc(0, -1, 0, 2*pi)] 1/w == ?A complex w.",
+     ["residues."], "obligation-refuted"),
+    ("goal CInt[w on circle(0, R)] 1/(w - 1) == ?A @ R < -1 complex w.",
+     ["residues."], "obligation-decided-false"),
+    ("goal CInt[w on seg(0, 2) ++ seg(3, 2*i) ++ seg(2*i, 0)] 1 == ?A "
+     "complex w.", ["residues."], "obligation-refuted"),
+    ("goal CInt[w on path[s = -1 .. 1] s^2 + i*(s/abs(s))*(1 - s^2)] 1 == "
+     "?A complex w.", ["residues."], "deriv-no-rule"),
+    ("goal CInt[w on path[s = -1 .. 1] 1/s^2] w == ?A complex w.",
+     ["residues."], "obligation-decided-false"),
+    ("goal CInt[w on circle(0, 1)] 1/(w^2 - 100000000000000000039) == ?A "
+     "complex w.", ["residues."], "residue-roots-not-found"),
+    ("goal CInt[w on circle(0, 1)] 1/w == ?A complex w.",
+     ["residues in re w # 0."], "region-not-convex"),
+    ("goal CInt[w on arc(0, 1, 0, pi) ++ seg(-1, 1) ++ arc(0, 1, 2*pi, "
+     "3*pi)] 1 == ?A complex w.", ["residues."], "obligation-refuted"),
+    ("goal CInt[w on arc(0, 1, pi/3, 7*pi/3)] 1/w == ?A complex w.",
+     ["residues."], "2*pi*i"),
+    ("goal CInt[w on arc(0, 1, pi/4, 9*pi/4)] 1/(w - 1/2) == ?A complex w.",
+     ["residues."], "2*pi*i"),
+    ("goal CInt[w on arc(0, 1, -pi, 0) ++ arc(-1, 2, 0, pi)] 1 == ?A "
+     "complex w.", ["cint_param.", "ftc exp(i*t) occurrence 0 by field.",
+                    "ftc 2*exp(i*t) occurrence 0 by field."], "-2"),
+    ("goal CInt[w on circle(i, 1)] 1/(w^2 + 1)^3 == ?A complex w.",
+     ["residues."], "(3/8)*pi"),
+    ("goal CInt[w on circle(0, 1)] 1/(0*w + 1) == ?A complex w.",
+     ["residues."], "0"),
+    ("goal CInt[w on circle(0, 1)] 1/w^100 == ?A complex w.",
+     ["residues."], "0"),
+    ("goal CInt[w on circle(0, 1) ++ rev circle(0, 1)] 1/w == ?A complex w.",
+     ["residues."], "0"),
+]

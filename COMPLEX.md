@@ -1,9 +1,10 @@
 # Complex analysis: a design (proposal, revision 2, 2026-10-14)
 
 **Status:** the design, being built. **K1 (arithmetic), K2 (a real
-variable), K3 (a complex variable) and K4a (paths and contour integrals)
-are built** (2026-10-14, p1_expected E165–E199, GRAMMAR.md §11,
-ARCHITECTURE.md §16); K4b and K4c are not (E190). It answers DESIGN.md §18 Q8 ("complex numbers as a
+variable), K3 (a complex variable), K4a (paths and contour integrals) and
+K4b (the residue theorem, Z8)** are built (2026-10-14 and 2026-10-15,
+p1_expected E165–E210, GRAMMAR.md §11, ARCHITECTURE.md §16); K4c is not
+(E190). It answers DESIGN.md §18 Q8 ("complex numbers as a
 sort"), which revision 10 deferred until the course reached unit 06.
 
 **Revision 2** follows the owner's brief on revision 1: *implement it

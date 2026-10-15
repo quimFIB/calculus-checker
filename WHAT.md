@@ -337,8 +337,15 @@ real judgement), and Cauchy–Riemann by `verify`. **K4a, contour integrals, is 
 (E190–E199): paths `seg`, `arc`, `circle` and `path[t]`, joined by `++`
 and reversed by `rev`, and `CInt[z on g] f`, which `cint_param` unfolds
 into real-variable integrals by its parametrisation, so ∮ dz/z = 2πi and
-∮ z̄ dz = 2πi on the unit circle prove. Winding numbers, the residue
-theorem and the contour tactics are K4b and K4c, next.
+∮ z̄ dz = 2πi on the unit circle prove. **K4b, the residue theorem, is
+built** (E200–E210): one move, `residues [in U]`, replaces a contour
+integral over a closed path by 2πi times the winding-weighted residues.
+The poles come from a factorisation that `field` checks (roots in ℚ(i)
+or with one real surd), the winding numbers from half-open ray crossings
+per segment and arc, and each residue from (z − a)^m f differentiated.
+Every hypothesis is owed. Unit 20 P4's ∮ χ round |ω − 8| = 1 (−5πi/√1599)
+and readiness P5's semicircle at R = 2 (π/√2) prove with no admission.
+The estimation lemma, limits in R and the contour tactics are K4c, next.
 
 **Next,** per §17: stage 1's lists are done (2026-09-25). The gate
 (`app/GATE.md`): work its seventeen problems in order on the page, then

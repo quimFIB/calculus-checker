@@ -152,6 +152,8 @@ def moves(goal):
             getattr(g0, "lhs", g0))):  # E191
         out.append({"move": "cint_param", "sentence": "cint_param.",
                     "why": "a contour integral: unfold its parametrisation"})
+        out.append({"move": "residues", "sentence": "residues.",  # E200
+                    "why": "a closed contour: the residue theorem"})
     if finite:
         x = finite[0].var
         out += [

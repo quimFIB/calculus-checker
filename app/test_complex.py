@@ -180,6 +180,68 @@ class Contours(unittest.TestCase):
         self.assertIn("Int[t_1 = 0 .. 1]", r["goal"], r)
 
 
+class Residues(unittest.TestCase):
+    """K4b (E200-E210): the residue theorem by one move, closed by
+    auto-simpl."""
+
+    def test_integrals(self):
+        import p1_expected as X
+        for goal, sentences, value in X.K4B_CASES["integrals"]:
+            with self.subTest(goal=goal):
+                r = run(f"goal {goal} complex w.", sentences)
+                self.assertEqual(r["report"], "Proved.", r)
+                self.assertEqual(r["auto"][-1], f"close {value} by ring.")
+                self.assertEqual(r["admissions"], 0)
+
+    def test_course(self):
+        import p1_expected as X
+        for goal, sentences in X.K4B_CASES["course"]:
+            with self.subTest(goal=goal):
+                r = run(f"goal {goal} complex w.", sentences)
+                self.assertEqual((r["report"], r["admissions"]),
+                                 ("Proved.", 0), r)
+
+    def test_move_refusals(self):
+        import p1_expected as X
+        for goal, sentence, code in X.K4B_CASES["move_refusals"]:
+            with self.subTest(goal=goal, sentence=sentence):
+                r = run(f"goal {goal} complex w.", [f"{sentence}."])
+                self.assertEqual(r["refusal"]["code"], code, r)
+
+    def test_never_proved(self):
+        import p1_expected as X
+        for goal, sentence in X.K4B_CASES["never_proved"]:
+            with self.subTest(goal=goal):
+                r = run(f"goal {goal} complex w.", [f"{sentence}."])
+                self.assertNotEqual(r.get("report"), "Proved.", r)
+
+    def test_review_rows(self):  # E211
+        import p1_expected as X
+        for header, sentences, want in X.K4B_CASES["review"]:
+            with self.subTest(header=header):
+                r = run(header, sentences)
+                if "refusal" in r:
+                    self.assertEqual(r["refusal"]["code"], want, r)
+                    continue
+                self.assertEqual((r["report"], r["admissions"]),
+                                 ("Proved.", 0), r)
+                self.assertEqual(r["auto"][-1], f"close {want} by ring.")
+
+    def test_the_sentence_round_trips(self):
+        import script
+        for text in ("residues.", "residues in re w > 0.",
+                     "residues in re w > 0, abs(w - 1) < 2 occurrence 1."):
+            with self.subTest(text=text):
+                move, args = script.parse(text)
+                self.assertEqual(script.show(move, args), text)
+
+    def test_palette_offers_residues(self):
+        from assist import palette
+        from terms import parse_goal
+        g = parse_goal("CInt[w on circle(0, 1)] 1/w == ?A", {"w": "complex"})
+        self.assertIn("residues", [m["move"] for m in palette.moves(g)])
+
+
 class TeX(unittest.TestCase):
     def test_round_trips(self):
         sig = {"z": "complex"}

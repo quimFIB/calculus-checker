@@ -625,3 +625,97 @@ def norm_num(j):
     if type(j) is NonZero:
         return vals[0] != 0
     return _OPS[j.op](*vals)
+
+
+# ---------------------------------------------------------------- E206
+
+SURD_MAX = 10 ** 12  # the largest q*den E206 reads under sqrt (E211)
+
+
+class _Mixed(Exception):
+    """Two different surds, or a term outside Q(sqrt s)."""
+
+
+def _surd(t, s):
+    """t's value as (a, b): a + b*sqrt(s[0]), where s is a one-item list
+    holding the squarefree surd met first (None until then). Raises _Mixed
+    outside Q(sqrt s), ZeroDivisionError on a zero divisor."""
+    k = type(t)
+    if k is Num:
+        return Fraction(t.n), Fraction(0)
+    if k is Neg:
+        a, b = _surd(t.a, s)
+        return -a, -b
+    if k is Add or k is Mul or k is Div:
+        (a, b), (c, d) = _surd(t.a, s), _surd(t.b, s)
+        q = s[0] or 0
+        if k is Add:
+            return a + c, b + d
+        if k is Mul:
+            return a * c + b * d * q, a * d + b * c
+        n = c * c - d * d * q
+        return (a * c - b * d * q) / n, (b * c - a * d) / n
+    if k is Pow:
+        if abs(t.n) > 64:
+            raise _Mixed()
+        a, b = _surd(t.base, s)
+        out, q = (Fraction(1), Fraction(0)), s[0] or 0
+        for _ in range(abs(t.n)):
+            out = (out[0] * a + out[1] * b * q, out[0] * b + out[1] * a)
+        if t.n < 0:
+            n = out[0] * out[0] - out[1] * out[1] * q
+            out = (out[0] / n, -out[1] / n)
+        return out
+    if k is App and t.fn == "sqrt":
+        r = rational_value(t.arg)
+        if r is None or r < 0:
+            raise _Mixed()
+        num = r.numerator * r.denominator
+        if num > SURD_MAX:  # E211: trial division is bounded
+            raise _Mixed()
+        f, sq, n = 2, 1, num
+        while f * f <= n:
+            while n % (f * f) == 0:
+                n //= f * f
+                sq *= f
+            f += 1
+        c = Fraction(sq, r.denominator)
+        if n == 1 or c == 0:
+            return c, Fraction(0)
+        if s[0] is None:
+            s[0] = n
+        elif s[0] != n:
+            raise _Mixed()
+        return Fraction(0), c
+    raise _Mixed()
+
+
+def _surd_sign(a, b, q):
+    if b == 0 or q == 0:
+        return (a > 0) - (a < 0)
+    if a == 0:
+        return (b > 0) - (b < 0)
+    if (a > 0) == (b > 0):
+        return 1 if a > 0 else -1
+    x = a * a - b * b * q
+    return ((x > 0) - (x < 0)) * (1 if a > 0 else -1)
+
+
+def surd_decide(j):
+    """E206: a closed real Rel or NonZero with dom () over Q(sqrt s), for
+    one squarefree s, decided exactly: True or False, else None. The sign
+    of a + b*sqrt(s) is the sign a and b share, else a's sign times that of
+    a^2 - b^2*s."""
+    if type(j) not in (Rel, NonZero) or j.dom != ():
+        return None
+    diff = Add(j.lhs, Neg(j.rhs)) if type(j) is Rel else j.e
+    s = [None]
+    try:
+        a, b = _surd(diff, s)
+    except (_Mixed, ZeroDivisionError, RecursionError):
+        return None
+    sign = _surd_sign(a, b, s[0] or 0)
+    if type(j) is NonZero:
+        return sign != 0
+    return {"==": sign == 0, "<": sign < 0, "<=": sign <= 0, ">": sign > 0,
+            ">=": sign >= 0}.get(j.op)

@@ -86,7 +86,7 @@ goals window."
 (defconst dx-moves
   '("ftc" "int_improper" "close" "simpl" "rewrite" "fact" "int_subst" "int_flip"
     "int_parts" "taylor_lagrange" "bound" "verify"
-    "quad_t" "sep_autonomous" "energy_integral" "cint_param")
+    "quad_t" "sep_autonomous" "energy_integral" "cint_param" "residues")
   "The moves, as app/SCRIPT.md names them.")
 
 (defconst dx-templates
@@ -105,7 +105,8 @@ goals window."
     ("quad_t" . "quad_t h := eom from _ to _ in u antiderivative _ regs regv by field.")
     ("sep_autonomous" . "sep_autonomous h := eom from _ to _ in w rate _ antiderivative _ range (_, oo) regs regv by field.")
     ("energy_integral" . "energy_integral h := eom kinematic kin from _ to _ in w rate _ antiderivative _ range (-oo, oo) regs regx, regv by field.")
-    ("cint_param" . "cint_param."))
+    ("cint_param" . "cint_param.")
+    ("residues" . "residues."))
   "Each move's shape, as script.TEMPLATES has it (app/PRETTY.md).")
 
 (defconst dx-pretty-symbols

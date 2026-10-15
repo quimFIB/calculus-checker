@@ -7,6 +7,7 @@ refuses, or stop early, and nothing else: the chain is kept only when it
 closes the goal with every step accepted and no admission added.
 """
 
+from fractions import Fraction
 from types import SimpleNamespace
 
 import fill
@@ -15,9 +16,10 @@ import session  # noqa: F401  puts kernel/ on the path
 import complexes as CX  # noqa: E402
 import entries  # noqa: E402
 import field as FD  # noqa: E402
+import poly as P  # noqa: E402
 import residual as RD  # noqa: E402
 import schema as SC  # noqa: E402
-from terms import Const, MVar, Mul, Neg, Num, fv, lit, show, subst  # noqa: E402
+from terms import Const, MVar, Mul, Neg, Num, Pow, fv, lit, show, subst  # noqa: E402
 
 MAX_REWRITES, MAX_FACTS = 32, 8
 
@@ -123,7 +125,36 @@ def _value(lhs, pairs):
         FD.field(w, Num(0), pairs)
         return Num(0), den
     except FD.NotEqual as ne:
-        return RD.residual_term(ne.residual), den
+        return RD.residual_term(_rationalised(ne.residual, pairs)), den
+
+
+def _rationalised(res, pairs):
+    """The residual with each denominator power of a fact's atom reduced
+    as the fact reduces the numerator: (sqrt q)^e is q^(e//2)*(sqrt
+    q)^(e%2), the constant moved into the numerator (E210). Field reduces
+    only the numerator, so without this (sqrt 2)^3 stays below the line
+    and the next fact asked for is the same one."""
+    sq = {}
+    for lhs, rhs in pairs:
+        q = FD.rational_value(rhs)
+        if type(lhs) is Pow and lhs.n == 2 and lhs.base in res.atoms \
+                and q is not None and q > 0:
+            sq[res.atoms.index(lhs.base)] = q
+    if not sq:
+        return res
+    den, scale = [], Fraction(1)
+    for p, e in res.den:
+        mono = next(iter(p)) if len(p) == 1 else None
+        idx = mono[0][0] if mono and len(mono) == 1 and mono[0][1] == 1 \
+            and p[mono] == 1 else None
+        if idx in sq:
+            scale *= sq[idx] ** (e // 2)
+            if e % 2:
+                den.append((p, 1))
+        else:
+            den.append((p, e))
+    return SimpleNamespace(num=P.scale(res.num, 1 / scale), den=tuple(den),
+                           atoms=res.atoms)
 
 
 def _text(inst):

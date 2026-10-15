@@ -55,7 +55,8 @@ ARG_TYPES = {"at": str, "F": str, "value": str, "inst": dict, "facts": list,
              "scale": str,  # section 28 (E139)
              # section 30's ODE rules (E149)
              "law": str, "kin": str, "regs": list, "using": list,
-             "range": str}
+             "range": str,
+             "region": str}  # residues' (p1_expected E201)
 # The args that are GRAMMAR.md strings for terms, parsed with the file's sig.
 TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f", "u", "v", "scale")
 
@@ -197,12 +198,20 @@ def step_args(args, handles, sig):
         elif k == "derivs" and isinstance(v, list) \
                 and all(isinstance(s, str) for s in v):  # section 25
             out[k] = [parse_term(s, sig) for s in v]
+        elif k == "region" and isinstance(v, str):  # E201
+            out[k] = region(v, sig)
         elif k == "range" and isinstance(v, str) \
                 and isinstance(args.get("var"), str):  # section 30
             out[k] = interval(args["var"], v, sig)
         else:  # entry, bind, check, occurrence, and int_subst's var,
             out[k] = v  # new_var and mode, which the kernel reads as names
     return out
+
+
+def region(text, sig):
+    """residues' region (p1_expected E201): conditions as a domain writes
+    them ('re w > 0, abs(w) < 2'), parsed as the domain of 0 == 0."""
+    return parse_goal(f"0 == 0 @ {text}", sig)[0].dom
 
 
 def interval(var, text, sig):

@@ -563,7 +563,7 @@ class Http(unittest.TestCase):
             s, r = self.req("POST", "/layout", {"text": "close 2."})
             self.assertEqual(s, 200)
             s, r = self.req("GET", "/templates")
-            self.assertEqual(len(r["templates"]), 16)  # + verify (E112), ODE (E149), simpl (E161), cint_param (E191)
+            self.assertEqual(len(r["templates"]), 17)  # + verify (E112), ODE (E149), simpl (E161), cint_param (E191), residues (E200)
         finally:
             server.BACKEND = saved
         self.assertEqual(calls, [])

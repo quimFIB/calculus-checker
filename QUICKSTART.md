@@ -815,8 +815,23 @@ ftc i*t by field.
 
 Paths are `seg(a, b)`, `arc(c, r, t1, t2)`, `circle(c, r)` and
 `path[s = a .. b] phi`, joined by `++` and reversed by `rev`. A join owes
-that one piece ends where the next starts. Winding numbers and residues
-are the next stage (COMPLEX.md, K4b).
+that one piece ends where the next starts.
+
+On a closed path, `residues` applies the residue theorem in one move. It
+finds the poles, counts how often the path winds round each, and replaces
+the integral by 2πi times the winding-weighted residues. Here it writes
+`2*pi*i*(1/(i + i))`, since only the pole at `i` is inside, and
+auto-simpl evaluates that to `pi`:
+
+```dx
+goal CInt[w on circle(i, 1)] 1/(w^2 + 1) == ?A complex w.
+residues.
+```
+
+Every hypothesis of the theorem is owed: the path is closed, the function
+is holomorphic off the poles, and no pole lies on the path. A function
+with a cut needs a region that avoids the cut, given as open half-planes
+and disks: `residues in re w > 0.` for `Log w` on `circle(2, 1)`.
 
 ## The moves
 

@@ -6429,6 +6429,118 @@ def k1_problems(part):
     return out
 
 
+def _cint_numeric(ci, n=800):
+    """A CInt's value by Simpson's rule on each piece of its path, for
+    K4b's check that residues' result is the integral (E200)."""
+    import cmath
+
+    def pieces(g, back):
+        k = type(g)
+        if k is T.Rev:
+            return pieces(g.g, not back)
+        if k is T.Join:
+            a, b = pieces(g.a, back), pieces(g.b, back)
+            return b + a if back else a + b
+        if k is T.Seg:
+            a, b = _k1_eval(g.a, {}), _k1_eval(g.b, {})
+            ph, dph, lo, hi = (lambda t: a + t * (b - a)), \
+                (lambda t: b - a), 0.0, 1.0
+        elif k is T.Arc:
+            c, r = _k1_eval(g.c, {}), _k1_eval(g.r, {}).real
+            lo, hi = _k1_eval(g.t1, {}).real, _k1_eval(g.t2, {}).real
+            ph = lambda t: c + r * cmath.exp(1j * t)
+            dph = lambda t: 1j * r * cmath.exp(1j * t)
+        else:
+            raise TypeError(g)
+        return [(ph, dph, hi, lo) if back else (ph, dph, lo, hi)]
+
+    total = 0
+    for ph, dph, lo, hi in pieces(ci.path, False):
+        h = (hi - lo) / n
+        acc = 0
+        for j in range(n + 1):
+            t = lo + j * h
+            w = 1 if j in (0, n) else 4 if j % 2 else 2
+            acc += w * _k1_eval(ci.body, {ci.var: ph(t)}) * dph(t)
+        total += acc * h / 3
+    return total
+
+
+def k4b_problems(part):
+    """K4B_CASES (E200-E209) at the kernel: residues' step on each row."""
+    import loader
+    C, S, out = X.K4B_CASES, X.K4B_SIG, []
+
+    def stepped(goal_text, sentence):
+        st = K.install(T.parse_goal(goal_text, S))
+        args = {}
+        if " in " in sentence:
+            args["region"] = loader.region(sentence.split(" in ", 1)[1]
+                                           .rstrip("."), S)
+        return st, K.step(st, "residues", args)
+
+    if part in ("integrals", "course"):
+        for row in C[part]:
+            goal_text, sentences = row[0], row[1]
+            st, r = stepped(goal_text, sentences[0])
+            if isinstance(r, K.Refusal):
+                out.append(f"{goal_text}: {r.code}")
+                continue
+            if K.report(r) != f"Open: {T.show_goal(r.goal)}" or any(
+                    ob.status == K.ADMITTED for ob in r.obligations()):
+                out.append(f"{goal_text}: {K.report(r)}, admissions")
+            got = complex(_k1_eval(r.goal[0].lhs, {}))
+            ci = next(x for x in T.trees(st.goal[0].lhs)
+                      if isinstance(x, T.CInt))
+            want = _cint_numeric(ci)
+            if abs(got - want) > 1e-6 * max(1, abs(want)):
+                out.append(f"{goal_text}: residues gives {got}, the "
+                           f"integral is {want}")
+            if len(row) > 2 and abs(got - complex(_k1_eval(
+                    T.parse_term(row[2], S), {}))) > 1e-9:
+                out.append(f"{goal_text}: {got}, want {row[2]}")
+    elif part == "move_refusals":
+        for goal_text, sentence, code in C["move_refusals"]:
+            _, r = stepped(goal_text, sentence)
+            got = r.code if isinstance(r, K.Refusal) else K.report(r)
+            if got != code:
+                out.append(f"{goal_text} / {sentence}: {got}, want {code}")
+    elif part == "never_proved":
+        for goal_text, sentence in C["never_proved"]:
+            _, r = stepped(goal_text, sentence)
+            if not isinstance(r, K.Refusal) and not any(
+                    ob.status == K.ADMITTED for ob in r.obligations()):
+                out.append(f"{goal_text}: residues owes nothing admitted")
+    elif part == "review":  # E211, the rows residues decides alone
+        import re as _re
+        for header, sentences, want in C["review"]:
+            if len(sentences) != 1:
+                continue
+            m = _re.fullmatch(r"goal (.+?)(?: @ (.+?))? complex w\.", header)
+            goal_text = m[1] + (f" @ {m[2]}" if m[2] else "")
+            st, r = stepped(goal_text, sentences[0])
+            if isinstance(r, K.Refusal):
+                if r.code != want:
+                    out.append(f"{header}: {r.code}, want {want}")
+                continue
+            if any(ob.status == K.ADMITTED for ob in r.obligations()):
+                out.append(f"{header}: admissions")
+            try:
+                v = T.parse_term(want, S)
+            except T.Refused:
+                out.append(f"{header}: accepted, want {want}")
+                continue
+            if abs(complex(_k1_eval(r.goal[0].lhs, {}))
+                   - complex(_k1_eval(v, {}))) > 1e-9:
+                out.append(f"{header}: {T.show(r.goal[0].lhs)}, want {want}")
+    elif part == "surds":
+        for text, want in C["surds"]:
+            got = FD.surd_decide(T.parse_judgement(text))
+            if got != want:
+                out.append(f"{text}: {got}, want {want}")
+    return out
+
+
 def k1_checks(suite):
     suite.check("Z", f"K1 round trips ({len(X.K1_CASES['round_trips'])}), "
                 "GRAMMAR.md §11", lambda: k1_problems("round_trips"))
@@ -6459,6 +6571,24 @@ def k1_checks(suite):
     suite.check("Z", f"K4a refusals ({len(X.K4A_CASES['refusals'])}): a "
                 "complex arc radius, D11 across == (E190)",
                 lambda: k1_problems("k4a_refusals"))
+    suite.check("Z", f"K4b residues ({len(X.K4B_CASES['integrals'])} "
+                f"+ {len(X.K4B_CASES['course'])} course): each step "
+                "accepted with no admission, and its value the integral by "
+                "quadrature (E200-E208)", lambda: k4b_problems("integrals")
+                + k4b_problems("course"))
+    suite.check("Z", f"K4b refusals ({len(X.K4B_CASES['move_refusals'])})"
+                ": the region, holomorphy, poles, paths (E201-E207)",
+                lambda: k4b_problems("move_refusals"))
+    suite.check("Z", f"K4b never proved ({len(X.K4B_CASES['never_proved'])}"
+                "): a cut owed on all of C", lambda: k4b_problems(
+                    "never_proved"))
+    suite.check("Z", f"K4b review rows ({len(X.K4B_CASES['review'])}): "
+                "negative radii, every join owed, path[s]'s phi owed, "
+                "bounded surds, exact arc ends, repeated factors (E211)",
+                lambda: k4b_problems("review"))
+    suite.check("Z", f"E206 surds ({len(X.K4B_CASES['surds'])}): decided "
+                "exactly in Q(sqrt s), two surds left undecided",
+                lambda: k4b_problems("surds"))
     suite.check("Z", f"K2 limits ({len(X.K2_CASES['limits'])}): over C, "
                 "modulus_to_zero (E179)", lambda: k1_problems("k2_limits"))
     suite.check("Z", f"split agrees with complex evaluation on "
@@ -6687,7 +6817,7 @@ def consolidation_checks(suite):
                  X.TAYLOR_MOVE, X.BOUND_MOVE,  # section 25
                  X.VERIFY_MOVE,  # section 26
                  *X.ODE_MOVES,  # section 30
-                 X.CINT_MOVE)  # K4a, E191
+                 X.CINT_MOVE, X.RESIDUE_MOVE)  # K4a, E191; K4b, E200
                 else [f"MOVES is {K.MOVES}"])
     print("\nint_flip (E51): accepted moves")
     for c in FLIP_ACCEPTS:

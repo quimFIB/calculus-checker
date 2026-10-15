@@ -50,6 +50,7 @@ tests alone: `python3 -m unittest discover -s kernel`.
 | `residual.py` | untrusted | none (§8.7): residual normal form to a term | poly, terms |
 | `schema.py` | untrusted | none (§9): the `closed` whitelist (E23) and the evaluated-form check (E27) | terms, poly, field, entries |
 | `loader.py` | untrusted | none (§16.4): reads a problem file, feeds its proof to `install` and `step` | kernel, terms |
+| `roots.py` | untrusted | none (E204): proposes a polynomial divisor's factorisation, roots in ℚ(i) or with one real surd | terms |
 | `proof_of_life.py` | script | none | everything, p1_expected, problems/stage0/expected.py, test_discharge |
 | `test_discharge.py` | test | none | discharge, search, refute, kernel, tagger, p1_expected, problems/stage0/expected.py |
 
@@ -1496,3 +1497,38 @@ against complex evaluation at 200 random points per term.
   tree node, a `CInt` included; `cint_param` charges the formers of the
   path's own data; field reads a `CInt` as a tree, which refuses; `tex`
   and `pretty2d` draw a `CInt` with its path as the subscript.
+
+**Stage K4b (E200–E210)**, the residue theorem:
+
+- **`residues`** replaces the selected `CInt[z on g] f` by 2πi times the
+  sum of wind(g, a)·res(f, a) over S. It owes, at the `CInt`'s position:
+  g closed; g inside U, piece by piece; f's side conditions under `D[z]`,
+  a cut on all of U and each divisor through the factorisation; S's
+  points distinct, in U and avoided by g; and each winding number's
+  branch. U is C, or open half-planes and disks given by `in` (E201).
+- **The factorisation** is proposed by `roots.factor` (untrusted) and
+  checked by `field` on the split parts, with `sqrt_sq_val` facts for a
+  surd. That is the sixth place trusted code imports untrusted code, and
+  a wrong root costs a refusal.
+- **Winding numbers** (`_wind`) count the crossings of the ray right of a
+  by Sunday's half-open rule. A segment is one piece, and an arc is split
+  at π/2 + kπ so that sin is monotone on each part. Each piece's branch
+  is a conjunction of real keys. `_choose` picks the first branch that
+  settles, which is untrusted, and the kernel owes that branch.
+- **Residues** (`_Poles`): the pole order bound is read from the
+  factorisations. φ = (z − a)^m f is built by structure, and the residue
+  is D[z]^(m−1) φ at a, over (m − 1)!.
+- **`field.surd_decide`** decides a closed key exactly in ℚ(√s) for one
+  surd (E206). Only `residues`' own keys use it, through `_owe`, which
+  also discharges an equation `ring` proves.
+- **Arc ends meet modulo 2π** (`_meets`, E203), in `cint_param`'s joins
+  too.
+- **The review (E211)** found three false theorems, all fixed:
+  - an arc's radius is owed positive wherever its winding is counted;
+  - every join of the path is owed, not only the closing one;
+  - a `path[s]` piece owes its phi's formers, C^1 and deriv's sides.
+
+  Arc ends at multiples of π/6 and π/4 are written exactly by
+  `_cos_sin`, so joins and height tests decide. `roots.factor` factors
+  the square-free part and counts multiplicities, and trial division
+  under sqrt is bounded.
