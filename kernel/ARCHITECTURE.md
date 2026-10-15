@@ -1594,3 +1594,9 @@ against complex evaluation at 200 random points per term.
 - **`_const_split`** puts a z-free factor aside before Z10's and Z11's
   certificates.
 - **The root finder's gcd** is monic.
+
+**A later discharge upgrades an admission (E250–E252).** `_Tracker.add`
+lets a DISCHARGED emission replace an ADMITTED entry of the same key,
+sources unioned. Nothing replaces a DISCHARGED entry. Z10's
+`_line_divisors` discharges the Int's polynomial divisors on the line
+once their roots are certified off it.

@@ -298,10 +298,17 @@ class _Tracker:
 
         `emission` is an Obligation. A new key is inserted. A known key
         gains the emission's sources, and its status, tag and reason do not
-        change (E8).
+        change (E8), except that an ADMITTED key a DISCHARGED emission
+        reaches takes that discharge, sources unioned (E250).
         """
         k = emission.key
-        self._entries[k] = _merged(self._entries.get(k), emission)
+        old = self._entries.get(k)
+        if old is not None and old.status == ADMITTED and \
+                emission.status == DISCHARGED:
+            self._entries[k] = replace(emission,
+                                       sources=old.sources | emission.sources)
+            return
+        self._entries[k] = _merged(old, emission)
 
     def entries(self):
         """The entries as a tuple of Obligation, in insertion order."""
@@ -3201,6 +3208,7 @@ def _residues_line(state, args, minted, buf):
     for i, a in enumerate(S):
         for b in S[i + 1:]:
             _owe(buf, NonZero(_sub(a, b)), S_LINE_POLE, P, anc, gd)
+    _line_divisors(it, z, P, anc, gd, buf)  # E251
     body = Pt if Qt == Num(1) else Div(Pt, Qt)
     if u is not None:
         body = _times(App("exp", u), body)
@@ -3221,6 +3229,36 @@ def _residues_line(state, args, minted, buf):
     goal = (replace(g, lhs=sides[0], rhs=sides[1] if len(sides) > 1 else g.rhs),)
     check_goal(goal)
     return goal, None, {"trace": tuple(trace)}
+
+
+def _line_divisors(it, z, P, anc, gd, buf):
+    """E251: each polynomial divisor of the Int's body whose roots all
+    settle off the line is nonzero on it; emit its NonZero at the body
+    position, as the Int's former charged it, DISCHARGED."""
+    for _, s, d, _a in _positions(it, P, anc):
+        for prop, divisor in _owed(s):
+            if not divisor or type(prop) is not NonZero or z not in fv(prop.e):
+                continue
+            dz = subst(prop.e, {z: CVar(z)})
+            rest, _us = complexes._exp_factors(dz)
+            p = None if rest is None else roots.poly(rest, z)
+            found = None if p is None or len(p) < 2 else roots.factor(p)
+            if found is None:
+                continue
+            rts = [roots.root_term(r) for r, _ in found[1]]
+            if not all(_verdict(NonZero(App("im", r)), P) is True
+                       for r in rts):
+                continue
+            # the factorisation is checked as E204 checks it
+            try:
+                _factor_divisor(rest, z, buf, P, anc, gd)
+            except Refused:
+                continue
+            for k in _real_keys(prop, d):
+                if k not in buf or buf[k].status != DISCHARGED:
+                    buf[k] = Obligation(k, frozenset((S_LINE_POLE,)),
+                                        DISCHARGED,
+                                        ("residues_line_roots", ()))
 
 
 def _ring_holds_field(a, b):

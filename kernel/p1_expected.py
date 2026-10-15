@@ -18625,10 +18625,9 @@ SECTOR_CASES = {
           "fact h3 := sqrt_sq_val with a := 1599.", "fact h4 := exp_zero.",
           "close (pi*u/32)*(1 - exp(-t/5)*(cos(sqrt(1599)*t/5) + "
           "sin(sqrt(1599)*t/5)/sqrt(1599))) by field using h1, h2, h3, h4."],
-         "Proved modulo 1 admissions"),
+         "Proved."),  # E252: was modulo 1 admissions (E246)
         # t < 0: closed below, nothing there
-        (f"goal {P9_GOAL} @ t < 0.", ["residues lower."],
-         "Proved modulo 1 admissions"),
+        (f"goal {P9_GOAL} @ t < 0.", ["residues lower."], "Proved."),
     ],
     # (goal, sentence, code)
     "move_refusals": [

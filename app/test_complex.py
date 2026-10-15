@@ -385,6 +385,30 @@ class Sector(unittest.TestCase):
                 self.assertEqual(r["refusal"]["code"], code, r)
 
 
+class Upgrade(unittest.TestCase):
+    """E250-E252: a later discharge upgrades an admission."""
+
+    def test_reports(self):
+        import p1_expected as X
+        for header, sentences, report in X.UPGRADE_CASES["reports"]:
+            with self.subTest(header=header):
+                self.assertEqual(run(header, sentences)["report"], report)
+
+    def test_the_tracker_takes_a_later_discharge(self):
+        import kernel as K
+        old = K.Obligation("k", frozenset(("a",)), K.ADMITTED, ("none", ()))
+        new = K.Obligation("k", frozenset(("b",)), K.DISCHARGED,
+                           ("norm_num", ()))
+        t = K._Tracker()
+        t.add(old)
+        t.add(new)
+        (ob,) = t.entries()
+        self.assertEqual((ob.status, ob.sources), (K.DISCHARGED,
+                                                   frozenset(("a", "b"))))
+        t.add(old)  # a DISCHARGED key is never touched again
+        self.assertEqual(t.entries()[0].status, K.DISCHARGED)
+
+
 class TeX(unittest.TestCase):
     def test_round_trips(self):
         sig = {"z": "complex"}
