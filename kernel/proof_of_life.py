@@ -6736,6 +6736,51 @@ def _sine_cite(text):
     return None if tag is None or tag[0] != "cite" else tag[1][0]
 
 
+def reim_rows(rows):
+    """E263's rows, as reim_problems' integrals."""
+    return reim_problems(None, rows)
+
+
+def reim_problems(part, rows=None):
+    """REIM_CASES (E257-E262) at the kernel."""
+    out = []
+    for row in (rows if rows is not None else X.REIM_CASES[part]):
+        goal_text, sentences = row[0], row[1]
+        sentences = [sentences] if isinstance(sentences, str) else sentences
+        st = K.install(T.parse_goal(goal_text, {}))
+        r = st
+        for text in sentences:
+            if isinstance(r, K.Refusal):
+                break
+            text = text.rstrip(".")
+            word = text.split(" ", 1)
+            if word[0] in ("int_re", "int_im"):
+                r = K.step(r, word[0], {"F": T.parse_term(word[1], {})})
+            elif word[0] == "residues":
+                r = K.step(r, "residues", {"half": word[1]})
+            elif word[0] == "int_even":
+                r = K.step(r, "int_even", {})
+            else:
+                move, args = _k1_move(text.replace(" occurrence 0", ""), {})
+                if "occurrence 0" in text:
+                    args["occurrence"] = 0
+                r = K.step(r, move, args)
+        if part == "move_refusals":
+            got = r.code if isinstance(r, K.Refusal) else K.report(r)
+            if got != row[2]:
+                out.append(f"{goal_text}: {got}, want {row[2]}")
+            continue
+        if isinstance(r, K.Refusal):
+            out.append(f"{goal_text}: {r.code}")
+            continue
+        if any(ob.status == K.ADMITTED for ob in r.obligations()):
+            out.append(f"{goal_text}: admissions")
+        got = complex(_k1_eval(r.goal[0].lhs, {}))
+        if abs(got - complex(_k1_eval(T.parse_term(row[2]), {}))) > 1e-9:
+            out.append(f"{goal_text}: {got}, want {row[2]}")
+    return out
+
+
 def k1_checks(suite):
     suite.check("Z", f"K1 round trips ({len(X.K1_CASES['round_trips'])}), "
                 "GRAMMAR.md §11", lambda: k1_problems("round_trips"))
@@ -6823,6 +6868,16 @@ def k1_checks(suite):
                 "for sin(pi*a) on (0, 1), not elsewhere (E253)", lambda: [
                     f"{t}: {got}" for t, want in X.SINE_CASES["cites"]
                     for got in [_sine_cite(t)] if got != want])
+    suite.check("Z", f"int_re and int_im ({len(X.REIM_CASES['integrals'])}"
+                "): cos x/(x^2 + 1) and its relatives, parity in int_even, "
+                "each value numerically (E257-E262)",
+                lambda: reim_problems("integrals") + reim_problems("review"))
+    suite.check("Z", f"20 P7's exact checks ({len(X.P7_CASES)}): chi'(0) "
+                "and the sum rule, no admission (E263)", lambda: [
+                    p for p in reim_rows(X.P7_CASES)])
+    suite.check("Z", f"int_re refusals ({len(X.REIM_CASES['move_refusals'])}"
+                "): a wrong F, no Int, an odd integrand (E259)",
+                lambda: reim_problems("move_refusals"))
     suite.check("Z", f"E206 surds ({len(X.K4B_CASES['surds'])}): decided "
                 "exactly in Q(sqrt s), two surds left undecided",
                 lambda: k4b_problems("surds"))
@@ -7057,7 +7112,8 @@ def consolidation_checks(suite):
                  X.VERIFY_MOVE,  # section 26
                  *X.ODE_MOVES,  # section 30
                  X.CINT_MOVE, X.RESIDUE_MOVE,  # K4a, E191; K4b, E200
-                 X.INT_EVEN_MOVE)  # K4c-i, E217
+                 X.INT_EVEN_MOVE,  # K4c-i, E217
+                 *X.INT_RE_MOVES)  # E257
                 else [f"MOVES is {K.MOVES}"])
     print("\nint_flip (E51): accepted moves")
     for c in FLIP_ACCEPTS:

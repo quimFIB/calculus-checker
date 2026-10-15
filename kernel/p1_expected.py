@@ -18817,7 +18817,7 @@ REIM_CASES = {
          ["int_even.", "int_re exp(i*x)/(x^2 + 1).", "residues upper."],
          "pi/(2*exp(1))"),
         ("Int[x = 0 .. 1] x == ?A", ["int_re x + i*x^2.", "ftc x^2/2 + "
-                                     "i*x^3/3 by ring."], "1/2"),
+                                     "i*x^3/3 occurrence 0 by ring."], "1/2"),
     ],
     # (goal, sentence, code)
     "move_refusals": [
@@ -18830,3 +18830,50 @@ REIM_CASES = {
          "int-not-even"),
     ],
 }
+DECISIONS_REIM["E262"] = (
+    "Correcting REIM_CASES after its spec (fa3923a), nothing weakened: the "
+    "proper Int's row needs ftc at occurrence 0, since without an "
+    "occurrence ftc reads the goal's whole lhs, which is now re(Int ...).")
+INT_RE_MOVES = ("int_re", "int_im")
+E57_PRINCIPLE["int_re"] = E57_PRINCIPLE["int_im"] = (
+    "erases nothing: Int f and re (im) of Int F are equal when re F == f "
+    "(field), and for an improper Int exist together once Int F is "
+    "evaluated (E257); the new Int's formers are charged")
+DECISIONS_REIM["E263"] = (
+    "20 P7's exact galvanometer checks, without a principal value. "
+    "chi''(w)/w cancels to (2/5)/((64 - w^2)^2 + 4/25*w^2), and "
+    "w*chi''(w) is even. Three changes were needed. (1) The root finder "
+    "denests a biquadratic's square roots, sqrt(A + B*sqrt s) = p + "
+    "q*sqrt s with p, q in Q(i), from p^2 + q^2*s == A and 2*p*q == B. It "
+    "is untrusted, and field checks the factorisation. (2) Z10's "
+    "_line_divisors also discharges the same divisor key admitted in the "
+    "tracker on any sub-interval of the line, its other items free of the "
+    "variable. Nonzero on R is nonzero on each part of it. (3) int_even "
+    "writes a divisor d(-x) that field's check returns as d(x), since x -> "
+    "-x maps the line to itself. Then both checks prove with no admission: "
+    "chi'(0) = 1/64 by the first, and the sum rule's pi/2 by the second.")
+P7_CASES = [  # (goal, sentences, value): Proved. with 0 admissions
+    ("Int[w = -oo .. oo] (2/5)/((64 - w^2)^2 + 4/25*w^2) == ?A",
+     ["residues upper."], "pi/64"),
+    ("Int[w = 0 .. oo] (2/5)*w^2/((64 - w^2)^2 + 4/25*w^2) == ?A",
+     ["int_even.", "residues upper."], "pi/2"),
+]
+DECISIONS_REIM["E264"] = (
+    "The review of E257-E263 (2026-10-15): no false theorem from the new "
+    "code in about 130 attacks, values checked against mpmath. Folded in: "
+    "int_re's check takes E258's parity facts, so exp(-(i*x))/(x^2 + 1) is "
+    "accepted for cos(x)/(x^2 + 1). An ambiguous goal is refused "
+    "int-re-ambiguous, not int-re-no-integral. Left, as before: the "
+    "refuter misses a key false at an interior point, such as sqrt(x^2 + 1) "
+    "- 1 > 0 @ (-1, 1) at x = 0, which d_log_branch emits for "
+    "log[pi/2](x + i), so it is admitted (honest, since admitted, but "
+    "not refuted). Also: parity facts fire only on a literal negation; "
+    "limits' modulus-law sides are emitted without the range; and ln at 0+ "
+    "reads ln 0 (E230 (3)).")
+REIM_CASES["review"] = [  # E264: (goal, sentences, value)
+    ("Int[x = -oo .. oo] cos(x)/(x^2 + 1) == ?A",
+     ["int_re exp(-(i*x))/(x^2 + 1).", "residues lower."], "pi/exp(1)"),
+]
+REIM_CASES["move_refusals"].append(
+    ("(Int[x = 0 .. 1] x) + (Int[y = 0 .. 1] y) == ?A", "int_re x",
+     "int-re-ambiguous"))

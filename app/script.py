@@ -28,6 +28,8 @@ FORMS = {
     "cint_param": ({"occurrence"}, set()),  # E191
     "residues": ({"in", "occurrence"}, set()),  # E200, E201, E213
     "int_even": ({"occurrence"}, set()),  # E217
+    "int_re": ({"occurrence"}, set()),  # E257
+    "int_im": ({"occurrence"}, set()),
     "int_parts": ({"in", "with", "occurrence", "by", "using"},
                   {"in", "with"}),
     "taylor_lagrange": ({"in", "from", "to", "at", "derivs", *SENSES,
@@ -63,6 +65,8 @@ USAGE = {
     "residues": "residues [upper|lower|keyhole|sector] [in C, ...] "
                 "[occurrence N]",
     "int_even": "int_even [occurrence N]",
+    "int_re": "int_re T [occurrence N]",
+    "int_im": "int_im T [occurrence N]",
     "int_parts": "int_parts in x with u := T; v := T [occurrence N] "
                  "[by ring|field] [using h, ...]",
     "taylor_lagrange": "taylor_lagrange h := lower|upper of T in u from T "
@@ -94,6 +98,8 @@ TEMPLATES = {
     "cint_param": "cint_param.",
     "residues": "residues.",
     "int_even": "int_even.",
+    "int_re": "int_re _.",
+    "int_im": "int_im _.",
     "int_parts": "int_parts in x with u := _; v := _ by ring.",
     "taylor_lagrange": "taylor_lagrange h := lower of _ in u from _ to _ at _ "
                        "derivs _; _ increasing by field.",
@@ -281,6 +287,10 @@ def _build(move, head, cl):
         if head:
             raise TacticError(f"unexpected {head!r}")
         return occ
+    if move in ("int_re", "int_im"):  # E257: the complex integrand
+        if not head:
+            raise TacticError(f"{move} needs the complex integrand F")
+        return {"F": _term(head, move), **occ}
     if move == "residues":  # E201: the region, as a domain writes it
         if head in ("upper", "lower", "keyhole", "sector"):  # E213, E232, E244
             if "in" in cl:
@@ -398,6 +408,8 @@ def show(move, args):
              f" from {args['lo']} to {args['hi']}{rev}{occ}{_tail(args)}")
     elif move in ("int_flip", "cint_param", "int_even"):
         s = f"{move}{occ}"
+    elif move in ("int_re", "int_im"):
+        s = f"{move} {args['F']}{occ}"
     elif move == "residues":
         half = f" {args['half']}" if "half" in args else ""
         s = f"residues{half}{' in ' + args['region'] if 'region' in args else ''}{occ}"
@@ -552,7 +564,7 @@ def layout(sentence):
         name(_trim(sentence, span[0], k))
         return _trim(sentence, k + 2, span[1])
 
-    if move in ("ftc", "int_improper", "close"):
+    if move in ("ftc", "int_improper", "close", "int_re", "int_im"):
         term(head)
     elif move == "rewrite":
         name(head)

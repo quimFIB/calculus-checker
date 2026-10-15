@@ -849,6 +849,7 @@ _OPTIONAL = {"rewrite": ("occurrence",), "int_flip": ("occurrence",),
              "cint_param": ("occurrence",),
              "residues": ("half", "region", "occurrence"),
              "int_even": ("occurrence",),
+             "int_re": ("occurrence",), "int_im": ("occurrence",),
              "ftc": ("occurrence",), "int_parts": ("occurrence",),
              "int_improper": ("occurrence",),
              "int_subst": ("mode", "occurrence", "f")}

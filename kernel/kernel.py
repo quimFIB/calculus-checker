@@ -146,7 +146,7 @@ VERDICT = "Proved modulo {n} admissions"
 MOVES = ("rewrite", "fact", "ftc", "close", "int_subst", "int_flip",
          "int_parts", "int_improper", "taylor_lagrange", "bound", "verify",
          "quad_t", "sep_autonomous", "energy_integral", "cint_param",
-         "residues", "int_even")
+         "residues", "int_even", "int_re", "int_im")
 # E96: the moves an order goal takes; `bound` takes nothing else. The ODE
 # rules (E149) mint a handle and leave any goal as it is.
 ORDER_MOVES = ("rewrite", "fact", "taylor_lagrange", "bound", "quad_t",
@@ -642,7 +642,8 @@ _ARGS = {"rewrite": ("entry", "inst", "at"), "fact": ("entry", "inst", "bind"),
                              "f", "F", "range", "using", "check", "facts"),
          "cint_param": (),  # E191
          "residues": (),  # E200
-         "int_even": ()}  # E217
+         "int_even": (),  # E217
+         "int_re": ("F",), "int_im": ("F",)}  # E257
 _TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f", "u", "v", "scale")
 
 
@@ -694,7 +695,8 @@ def _check_args(move, args, goal):
     need = set(_ARGS[move])
     optional = ({"occurrence"} if move in ("rewrite", "int_flip", "ftc",
                                            "int_parts", "int_improper",
-                                           "cint_param", "int_even")
+                                           "cint_param", "int_even",
+                                           "int_re", "int_im")
                 else {"occurrence", "region", "half"} if move == "residues"
                 else {"scale"} if move == "bound" else set())
     if move == "int_subst":  # INT_SUBST_RULE step 1 (E36, E45, E48)
@@ -715,7 +717,8 @@ def _check_args(move, args, goal):
               and type(facts) in (list, tuple)
               and not (args["check"] == "ring" and facts))
     if ok and move in ("int_flip", "ftc", "int_improper",
-                       "cint_param", "residues", "int_even"):  # E51, E73, E191, E200
+                       "cint_param", "residues", "int_even", "int_re",
+                       "int_im"):  # E51, E73, E191, E200, E257
         ok = args.get("occurrence", 0) >= 0
     if ok and move == "residues":  # E201: a list of conditions
         region = args.get("region", ())
@@ -3208,7 +3211,7 @@ def _residues_line(state, args, minted, buf):
     for i, a in enumerate(S):
         for b in S[i + 1:]:
             _owe(buf, NonZero(_sub(a, b)), S_LINE_POLE, P, anc, gd)
-    _line_divisors(it, z, P, anc, gd, buf)  # E251
+    _line_divisors(it, z, P, anc, gd, buf, state)  # E251, E263
     body = Pt if Qt == Num(1) else Div(Pt, Qt)
     if u is not None:
         body = _times(App("exp", u), body)
@@ -3231,10 +3234,13 @@ def _residues_line(state, args, minted, buf):
     return goal, None, {"trace": tuple(trace)}
 
 
-def _line_divisors(it, z, P, anc, gd, buf):
+def _line_divisors(it, z, P, anc, gd, buf, state=None):
     """E251: each polynomial divisor of the Int's body whose roots all
     settle off the line is nonzero on it; emit its NonZero at the body
-    position, as the Int's former charged it, DISCHARGED."""
+    position, as the Int's former charged it, DISCHARGED. E263: the same
+    proposition admitted in the tracker on a sub-interval of the line, its
+    other domain items free of z, is discharged too."""
+    props = set()
     for _, s, d, _a in _positions(it, P, anc):
         for prop, divisor in _owed(s):
             if not divisor or type(prop) is not NonZero or z not in fv(prop.e):
@@ -3255,6 +3261,7 @@ def _line_divisors(it, z, P, anc, gd, buf):
             except Refused:
                 continue
             for k in _real_keys(prop, d):
+                props.add(replace(k, dom=()))
                 old = buf.get(k)
                 src = frozenset((S_LINE_POLE,)) | (old.sources if old else
                                                    frozenset())
@@ -3263,6 +3270,17 @@ def _line_divisors(it, z, P, anc, gd, buf):
                                         ("residues_line_roots", ()))
                 else:
                     buf[k] = replace(old, sources=src)
+    for ob in (state.obligations() if state is not None else ()):
+        k = ob.key
+        if ob.status != ADMITTED or type(k) is not NonZero or \
+                replace(k, dom=()) not in props:
+            continue
+        ivs = [t for t in k.dom if isinstance(t, Interval)]
+        rest = [t for t in k.dom if not isinstance(t, Interval)]
+        if len(ivs) == 1 and ivs[0].var == z and not any(
+                z in fv(t) for t in rest) and k not in buf:
+            buf[k] = Obligation(k, frozenset((S_LINE_POLE,)), DISCHARGED,
+                                ("residues_line_roots", ()))
 
 
 def _ring_holds_field(a, b):
@@ -3284,6 +3302,20 @@ def _ring_holds_field(a, b):
         return None if r.code == FD.POWER_CODE else False
     except RecursionError:
         return None
+
+
+def _parity_facts(t):
+    """E258: sin_odd and cos_even at each sin(-u) and cos(-u) of t, as
+    field facts (atom, value)."""
+    out, seen = [], set()
+    for n in DV._nodes(t):
+        if type(n) is App and n.fn in ("sin", "cos") and type(n.arg) is Neg \
+                and n not in seen:
+            seen.add(n)
+            u = n.arg.a
+            out.append((n, Neg(App("sin", u)) if n.fn == "sin"
+                        else App("cos", u)))
+    return out
 
 
 def _even_select(g, k):
@@ -3309,18 +3341,30 @@ def _int_even(state, args, minted, buf):
     x, f = it.var, it.body
     flipped = subst(f, {x: Neg(Var(x))})
     line = Interval(x, NEG_INF, False, POS_INF, False)
-    try:
-        if complexes.has_complex(f):
-            (a, b), (c, d) = complexes.split(f), complexes.split(flipped)
-            R = complexes._real
-            done = [FD.field(R(a), R(c)), FD.field(R(b), R(d))]
-        else:
-            done = [FD.field(f, flipped)]
-    except (FD.NotEqual, Refused, RecursionError):
+    done = None
+    for facts in ([], _parity_facts(flipped)):  # E258: then with parity
+        try:
+            if complexes.has_complex(f):
+                (a, b), (c, d) = complexes.split(f), complexes.split(flipped)
+                R = complexes._real
+                done = [FD.field(R(a), R(c), facts),
+                        FD.field(R(b), R(d), facts)]
+            else:
+                done = [FD.field(f, flipped, facts)]
+            break
+        except (FD.NotEqual, Refused, RecursionError):
+            continue
+    if done is None:
         raise Refused("int-not-even", f"{_brief(f)} is not even in {x}: "
                       f"f(-{x}) == f({x}) fails (E217)") from None
+    own = {p.e for _, s, _, _ in _positions(f, ()) for p, _ in _owed(s)
+           if type(p) is NonZero}
+    flip_of = {subst(o, {x: Neg(Var(x))}): o for o in own}
     for ok in done:
         for dv in ok.divisors:
+            # E263: d(-x) # 0 on the line is d(x) # 0 there, since x -> -x
+            # maps the line to itself
+            dv = dv if dv in own else flip_of.get(dv, dv)
             _emit_at(buf, NonZero(dv), P + (line,), anc, S_EVEN, g.dom)
     if isinstance(it.lo, NegInf):  # E245: the whole line as twice the half
         new = Mul(Num(2), Integral(x, Num(0), POS_INF, f))
@@ -3615,6 +3659,69 @@ def _residues_sector(state, args, minted, buf):
     goal = (replace(g, lhs=sides[0], rhs=sides[1] if len(sides) > 1 else g.rhs),)
     check_goal(goal)
     return goal, None, {}
+
+
+# ---------------------------------------------------------------- int_re
+#
+# p1_expected E257-E259: re and im through an Int.
+
+S_REIM = "int_re_check"
+
+
+def _int_reim(state, args, minted, buf, part):
+    """E257: Int[x = a .. b] f as re (im) of Int[x = a .. b] F, when re F
+    (im F) == f by field on split parts, its divisors owed on the range."""
+    g = state.goal[0]
+    try:
+        side, path, it, P, anc = _flip_select(g, args.get("occurrence"))
+    except Refused as r:  # E264: ambiguity keeps its own code
+        code = "int-re-ambiguous" if r.code == "int-flip-ambiguous" else \
+            "int-re-no-integral"
+        raise Refused(code, r.message) from None
+    x, f, F = it.var, it.body, args["F"]
+    if sort_of(f) != "R":
+        raise Refused("int-re-real-only", f"{_brief(f)} is complex; int_re "
+                      "and int_im read a real integrand (E259)")
+    try:
+        _subst_scope(g, anc, [("F", F, {x})])
+    except Refused as r:
+        raise Refused("int-re-scope", r.message) from None
+    if anc:
+        _subst_under_D(anc, it, (F,))
+    P = _decided(buf, P, anc, g.dom)
+    rng, orient = _range_of(x, it.lo, it.hi, P)
+    if orient is not None:
+        _emit(buf, orient, "orient", g.dom)
+    a, b = complexes.split(F)
+    want = a if part == "re" else b
+    want = Num(0) if want is None else complexes._real(want)
+    ok = None
+    for facts in ([], _parity_facts(Add(want, f))):  # E264: with parity
+        try:
+            ok = FD.field(want, f, facts)
+            break
+        except (FD.NotEqual, Refused, RecursionError):
+            continue
+    if ok is None:
+        raise Refused("int-re-check-failed", f"{part} of {_brief(F)} is not "
+                      f"{_brief(f)} by field (E257)")
+    for dv in ok.divisors:
+        _emit_at(buf, NonZero(dv), P + (rng,), anc, S_REIM, g.dom)
+    new = App(part, Integral(x, it.lo, it.hi, F))
+    sides = list(_sides(g))
+    sides[side] = _put(sides[side], path, new)
+    _charge_formers(buf, new, P, g.dom, anc=anc)
+    goal = (replace(g, lhs=sides[0], rhs=sides[1] if len(sides) > 1 else g.rhs),)
+    check_goal(goal)
+    return goal, None, {}
+
+
+def _int_re(state, args, minted, buf):
+    return _int_reim(state, args, minted, buf, "re")
+
+
+def _int_im(state, args, minted, buf):
+    return _int_reim(state, args, minted, buf, "im")
 
 
 # ---------------------------------------------------------------- int_parts
@@ -4343,4 +4450,5 @@ _MOVE = {"rewrite": _rewrite, "fact": _fact, "ftc": _ftc, "close": _close,
          "taylor_lagrange": _taylor, "bound": _bound, "verify": _verify,
          "quad_t": _quad_t, "sep_autonomous": _sep_autonomous,
          "energy_integral": _energy_integral, "cint_param": _cint_param,
-         "residues": _residues, "int_even": _int_even}
+         "residues": _residues, "int_even": _int_even,
+         "int_re": _int_re, "int_im": _int_im}

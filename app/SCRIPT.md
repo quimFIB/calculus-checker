@@ -34,6 +34,8 @@ int_flip [occurrence N].
 cint_param [occurrence N].
 residues [upper|lower|keyhole|sector] [in C, ...] [occurrence N].
 int_even [occurrence N].
+int_re T [occurrence N].
+int_im T [occurrence N].
 int_parts in x with u := T; v := T [occurrence N] [by C] [using h, ...].
 taylor_lagrange h := lower|upper of T in u from T to T at T derivs T; T; ... [strictly] increasing|decreasing [by C] [using h, ...].
 bound [scale T] [by C] using h, ....

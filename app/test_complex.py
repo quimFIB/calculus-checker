@@ -409,6 +409,37 @@ class Upgrade(unittest.TestCase):
         self.assertEqual(t.entries()[0].status, K.DISCHARGED)
 
 
+class ReIm(unittest.TestCase):
+    """E257-E262: re and im through an Int, parity in int_even."""
+
+    def test_integrals(self):
+        import p1_expected as X
+        from proof_of_life import _k1_eval
+        for goal, sentences, value in (X.REIM_CASES["integrals"] + X.P7_CASES
+                                       + X.REIM_CASES["review"]):
+            with self.subTest(goal=goal):
+                r = run(f"goal {goal}.", sentences)
+                self.assertEqual((r["report"], r["admissions"]),
+                                 ("Proved.", 0), r)
+                v = r["auto"][-1].split("close ", 1)[1].rsplit(" by ", 1)[0]
+                self.assertAlmostEqual(
+                    complex(_k1_eval(parse_term(v), {})),
+                    complex(_k1_eval(parse_term(value), {})), places=9)
+
+    def test_move_refusals(self):
+        import p1_expected as X
+        for goal, sentence, code in X.REIM_CASES["move_refusals"]:
+            with self.subTest(goal=goal):
+                r = run(f"goal {goal}.", [f"{sentence}."])
+                self.assertEqual(r["refusal"]["code"], code, r)
+
+    def test_sentences_round_trip(self):
+        import script
+        for text in ("int_re exp(i*x)/(x^2 + 1).", "int_im x occurrence 1."):
+            move, args = script.parse(text)
+            self.assertEqual(script.show(move, args), text)
+
+
 class TeX(unittest.TestCase):
     def test_round_trips(self):
         sig = {"z": "complex"}

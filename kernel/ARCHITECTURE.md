@@ -1600,3 +1600,9 @@ lets a DISCHARGED emission replace an ADMITTED entry of the same key,
 sources unioned. Nothing replaces a DISCHARGED entry. Z10's
 `_line_divisors` discharges the Int's polynomial divisors on the line
 once their roots are certified off it.
+
+**re and im through an Int (E257–E262).** `_int_reim` checks re F (or
+im F) == f by `field` on F's split parts, with its divisors owed on the
+range, and writes re (im) of the new Int. `int_even` retries with
+`_parity_facts`, the sin_odd and cos_even instances at negated
+arguments.

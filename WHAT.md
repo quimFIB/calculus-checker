@@ -366,7 +366,12 @@ Fresnel's ∫₀^∞ cos x² = ∫₀^∞ sin x² = √(π/8) and the Gaussian, 
 Gaussian integral stated as the rule's theorem. `int_even` now also takes
 the whole line to twice the half. Unit 20 P9's Bromwich inversion proves
 by hand, modulo the install-time positivity of its denominator on the
-line. Indentation (it needs a principal value) is not built.
+line. `int_re F`/`int_im F` move `re`/`im` through an Int once re F == f
+checks, so ∫ cos x/(x² + 1) = π/e closes through Z10, and `int_even` sees
+sin and cos parity (E257–E262). A later step's discharge now upgrades an
+earlier admission (E250), and two strict sine bounds are cite entries
+(E253), so unit 20 P8 and P9 prove with no admission. Indentation (it
+needs a principal value) is not built.
 
 **Next,** per §17: stage 1's lists are done (2026-09-25). The gate
 (`app/GATE.md`): work its seventeen problems in order on the page, then

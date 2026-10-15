@@ -199,11 +199,42 @@ def _quadratic(a, b, c):
     return [(A, B, s), (A, _cneg(B), s)]
 
 
-def _biquadratic(p):
-    """Roots of a z^4 + b z^2 + c with w = z^2 in Q(i), or None."""
-    ws = _quadratic(p[4], p[2], p[0])
-    if ws is None or any(B != ZERO for _, B, _ in ws):
+def _denest(A, B, s):
+    """A square root p + q*sqrt(s) of A + B*sqrt(s), with p and q in Q(i),
+    or None (p1_expected E263): from p^2 + q^2*s == A and 2*p*q == B, q^2
+    is (A +- sqrt(A^2 - s*B^2))/(2*s)."""
+    D = _cadd(_cmul(A, A), _cneg(_cmul(_c(s), _cmul(B, B))))
+    r = _csqrt(D)
+    if r is None or r[1] != 1:
         return None
+    for sign in (1, -1):
+        q2 = _cmul(_cadd(A, _cmul(_c(sign), r[0])), _cinv(_c(2 * s)))
+        rq = _csqrt(q2)
+        if rq is None or rq[1] != 1 or rq[0] == ZERO:
+            continue
+        q = rq[0]
+        pp = _cmul(B, _cinv(_cmul(_c(2), q)))
+        if _cadd(_cmul(pp, pp), _cmul(_c(s), _cmul(q, q))) == A and \
+                _cmul(_c(2), _cmul(pp, q)) == B:
+            return pp, q
+    return None
+
+
+def _biquadratic(p):
+    """Roots of a z^4 + b z^2 + c with w = z^2 in Q(i), or in Q(i)(sqrt s)
+    with a square root that denests (E263); else None."""
+    ws = _quadratic(p[4], p[2], p[0])
+    if ws is None:
+        return None
+    if any(B != ZERO for _, B, _ in ws):
+        out = []
+        for A, B, sq in ws:
+            d = _denest(A, B, sq)
+            if d is None:
+                return None
+            pp, q = d
+            out += [(pp, q, sq), (_cneg(pp), _cneg(q), sq)]
+        return out
     out = []
     for w, _, _ in ws:
         r = _csqrt(w)
