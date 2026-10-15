@@ -18768,3 +18768,65 @@ UPGRADE_CASES["reports"].append(
       "fact f6 := pyth_cos with u := (a - 1)*pi.",
       "close pi/sin(a*pi) by field using f1, f2, f3, f4, f5, f6."],
      "Proved modulo 1 admissions"))
+
+
+# -------------------------------------------------- re and im through an Int; parity in int_even (E257-E261)
+
+DECISIONS_REIM = {
+    "E257": "int_re F [occurrence N] and int_im F [occurrence N]. "
+            "Int[x = a .. b] f becomes re(Int[x = a .. b] F) (or im) when "
+            "re F == f (or im F == f) holds as an identity, checked by "
+            "field on F's split parts, with field's divisors owed on the "
+            "range. f must be Real and F may be Complex; F's variable is the "
+            "Int's. The ends may be finite, infinite or marked. Soundness: "
+            "for a statable Int both sides exist, since the new Int's former "
+            "owes F continuous on the range, and re commutes with the "
+            "integral. For an improper Int the new one is unstatable, and its "
+            "existence is established only by the move that evaluates it "
+            "(E225). If Int F converges, Int re F converges to re of its "
+            "value. If nothing evaluates it, nothing is proved. So "
+            "Int[x = -oo .. oo] cos(x)/(x^2 + 1) is re of exp(i*x)/(x^2 + 1)'s "
+            "integral, which Z10 closes.",
+    "E258": "int_even sees parity. When field fails on f(-x) == f(x), the "
+            "check is retried once with facts: for each sin or cos node of "
+            "f(-x) whose argument is a negation -u, the instance sin_odd or "
+            "cos_even at u, which the kernel builds from ENTRIES as E88 "
+            "builds trig_norm's. Neither has a hypothesis. abs has no "
+            "parity entry and is not covered.",
+    "E259": "The codes. int-re-check-failed (re F == f fails), "
+            "int-re-real-only (f is Complex), int-re-scope (F mentions a "
+            "name bound around the Int), and int-re-no-integral.",
+    "E260": "What this does not reach. A cos or sin whose argument is not "
+            "linear in x, where the exp form has no decay certificate. The "
+            "Hilbert-transform principal values, which need indentation "
+            "(the next item).",
+    "E261": "The cases (REIM_CASES).",
+}
+
+REIM_CASES = {
+    # through the app, auto-simpl closing: (goal, sentences, value)
+    "integrals": [
+        ("Int[x = -oo .. oo] cos(x)/(x^2 + 1) == ?A",
+         ["int_re exp(i*x)/(x^2 + 1).", "residues upper."], "pi/exp(1)"),
+        ("Int[x = -oo .. oo] x*sin(x)/(x^2 + 1) == ?A",
+         ["int_im x*exp(i*x)/(x^2 + 1).", "residues upper."], "pi/exp(1)"),
+        ("Int[x = -oo .. oo] cos(2*x)/(x^2 + 4) == ?A",
+         ["int_re exp(2*i*x)/(x^2 + 4).", "residues upper."],
+         "pi/(2*exp(4))"),
+        ("Int[x = 0 .. oo] cos(x)/(x^2 + 1) == ?A",
+         ["int_even.", "int_re exp(i*x)/(x^2 + 1).", "residues upper."],
+         "pi/(2*exp(1))"),
+        ("Int[x = 0 .. 1] x == ?A", ["int_re x + i*x^2.", "ftc x^2/2 + "
+                                     "i*x^3/3 by ring."], "1/2"),
+    ],
+    # (goal, sentence, code)
+    "move_refusals": [
+        ("Int[x = -oo .. oo] cos(x)/(x^2 + 1) == ?A",
+         "int_re exp(-(i*x))/(x^2 + 2)", "int-re-check-failed"),
+        ("Int[x = -oo .. oo] sin(x)/(x^2 + 1) == ?A",
+         "int_re exp(i*x)/(x^2 + 1)", "int-re-check-failed"),
+        ("x == ?A", "int_re x", "int-re-no-integral"),
+        ("Int[x = 0 .. oo] sin(x)/(x^2 + 1)^2 == ?A", "int_even",
+         "int-not-even"),
+    ],
+}
