@@ -18181,3 +18181,113 @@ K4C_CASES["review"] = [  # E221: (header, sentence, refusal code or value)
     ("goal Int[x = -oo .. oo] exp(i*exp(1)*x)/(x^2 + 1) == ?A.",
      "residues upper", "pi/exp(exp(1))"),
 ]
+
+
+# -------------------------------------------------- improper integrals at a finite end (E222-E229)
+
+DECISIONS_OPEN_ENDS = {
+    "E222": "An Int's end may be marked open, approached from inside the "
+            "range: endpoint ::= e | oo | -oo | e '+' | e '-'. Int[x = a+ "
+            ".. b] f means the limit as eps -> 0+ of Int[x = a + eps .. b] "
+            "f, and Int[x = a .. b-] f the limit of Int[x = a .. b - eps] "
+            "f. With another marked or infinite end the limits are "
+            "independent, as two infinite ends are now. The marker is "
+            "explicit: an Int that turned improper silently would change "
+            "what existing goals mean. Before this, an integrand singular "
+            "at a finite end (unit 00 P7, 20 P8, Int[x = 0 .. 1] x^(-1/2)) "
+            "could not be stated, since the Int's formers fail at the "
+            "end. That was the deferred item in WHAT.md and DESIGN.md "
+            "(STAGE0 S30).",
+    "E223": "The node is Open(e, side), side '+' or '-'. It is a term, so "
+            "fv, subst, the position walk and the formers reach e. It is "
+            "allowed only as an Int's lo or hi, and anywhere else it is "
+            "refused open-end-misplaced. Its sort is e's, Real and free of "
+            "complex structure. The printer writes e+ and e-, TeX writes "
+            "e^{+} and e^{-}, and untex refuses them (bad-tex), as it does "
+            "a CInt. In the parser, a + or - at an endpoint followed by .. "
+            "or ] is the marker and not an operator.",
+    "E224": "The range (E56). A marked end makes the range open there: "
+            "(a, b] for a+ and [a, b) for b-. The marked side must be the "
+            "interior side. a+ must be the lower end of the decided order "
+            "and b- the upper end, or the Int is refused open-end-side. Two "
+            "rational literal ends decide this exactly, and otherwise "
+            "E56's ordering decides it. The orientation is as before: "
+            "Int[x = 1 .. 0+] f is -Int[x = 0+ .. 1] f.",
+    "E225": "Definedness. A marked Int is not statable (E64), exactly as "
+            "an Int with an infinite end is not. Its existence cannot be "
+            "stated, so field, split and norm_num refuse it (E26 (b)), and "
+            "it owes no Reg(f, 0) at install (E65). Its body's E6 and E26 "
+            "formers are charged on the open-ended range. So Int[x = 0+ .. "
+            "1] 1/sqrt x installs, owing sqrt x # 0 and x >= 0 on (0, 1], "
+            "and Int[x = 0+ .. 1] 1/x - Int[x = 0+ .. 1] 1/x == 0 is "
+            "refused Int-or-D-not-normalisable rather than proved as two "
+            "cancelling atoms. Existence is established by the move that "
+            "evaluates the Int.",
+    "E226": "int_improper at a marked end. The value is V(b) - V(a), "
+            "where at a marked end a+ V(a) is the limit of F(a + 1/u) as u "
+            "-> oo, and at b- V(b) is the limit of F(b - 1/u). The trusted "
+            "limit evaluator (E77) computes each, with u fresh, so no new "
+            "trusted limit code is added. The premises are E76's on the "
+            "open-ended range: F in C^0 there, F in C^1 and D F == f on its "
+            "interior, and f in C^0 on the range. This is sound because "
+            "ftc holds on each closed [a + eps, b] inside the range, and "
+            "F(a + eps) tends to V(a). An infinite limit refuses "
+            "int-improper-diverges, and none refuses "
+            "int-improper-limit-unknown.",
+    "E227": "Every other move that reads an Int's ends refuses a marked "
+            "end, naming it: ftc, int_subst, int_flip, int_parts, int_even "
+            "and residues upper|lower refuse int-open-end, as ftc refuses "
+            "an infinite end today. A rewrite inside a marked Int's body "
+            "is as inside any Int's, on the open-ended range. A later rule "
+            "may accept a marked end in one move, additively.",
+    "E228": "What this does not reach. An interior singularity, which "
+            "needs a split at the point. The diverges judgement, which "
+            "would make Int[x = 0+ .. 1] 1/x refutable rather than only "
+            "refused at int_improper. Marked ends in the keyhole, which "
+            "come next (K4c-ii).",
+    "E229": "The cases (OPEN_END_CASES).",
+}
+
+OPEN_END_CASES = {
+    "round_trips": [  # (text, printed)
+        ("Int[x = 0+ .. 1] 1/sqrt x", "Int[x = 0+ .. 1] 1/sqrt x"),
+        ("Int[u = 0 .. 1-] 1/sqrt(1 - u)", "Int[u = 0 .. 1-] 1/sqrt(1 - u)"),
+        ("Int[x = 0+ .. oo] exp(-x)", "Int[x = 0+ .. oo] exp(-x)"),
+        ("Int[x = a + 1+ .. b-] f(x)", "Int[x = a + 1+ .. b-] f(x)"),
+    ],
+    "refusals": [  # (text, code) at the parser or install
+        ("x+ == 1", "syntax"),
+        ("Int[x = 0- .. 1] 1/sqrt x == ?A", "open-end-side"),
+        ("Int[x = 0 .. 1+] 1/sqrt(1 - x) == ?A", "open-end-side"),
+        # unmarked, as before: the former fails at 0
+        ("Int[x = 0 .. 1] 1/sqrt x == ?A", "obligation-decided-false"),
+        # two divergent copies do not cancel
+        ("Int[x = 0+ .. 1] 1/x - Int[x = 0+ .. 1] 1/x == 0",
+         "Int-or-D-not-normalisable"),
+    ],
+    # (goal, sentences, value): Proved. with 0 admissions, auto-simpl
+    # closing, the value compared numerically
+    "integrals": [
+        ("Int[x = 0+ .. 1] 1/sqrt x == ?A",
+         ["int_improper 2*sqrt x by field."], "2"),
+        # unit 00 P7's B(1, 1/2)
+        ("Int[u = 0 .. 1-] 1/sqrt(1 - u) == ?A",
+         ["int_improper -(2*sqrt(1 - u)) by field."], "2"),
+        ("Int[x = 0+ .. 1] 1/sqrt(x)^3*sqrt(x)^2 == ?A",
+         ["int_improper 2*sqrt x by field."], "2"),
+        ("Int[x = 0+ .. oo] 1/(sqrt(x)*(1 + x)) == ?A",
+         ["int_improper 2*atan(sqrt x) by field."], "pi"),
+        ("Int[x = 1 .. 0+] 1/sqrt x == ?A",
+         ["int_improper 2*sqrt x by field."], "-2"),
+    ],
+    # (goal, sentence, code)
+    "move_refusals": [
+        ("Int[x = 0+ .. 1] 1/x == ?A", "int_improper ln x by field",
+         "int-improper-diverges"),
+        ("Int[x = 0+ .. 1] 1/sqrt x == ?A", "ftc 2*sqrt x by field",
+         "int-open-end"),
+        ("Int[x = 0+ .. 1] 1/sqrt x == ?A",
+         "int_subst x := t^2 as t from 0 to 1 by field", "int-open-end"),
+        ("Int[x = 0+ .. 1] 1/sqrt x == ?A", "int_flip", "int-open-end"),
+    ],
+}
