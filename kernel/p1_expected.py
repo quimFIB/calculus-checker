@@ -18349,3 +18349,106 @@ OPEN_END_CASES["review"] = [  # E231: (goal, sentence, code or value)
     ("Int[x = 0+ .. 1-] 1/sqrt(x) + 1/sqrt(1 - x) == ?A",
      "int_improper 2*sqrt(x) - 2*sqrt(1 - x) by field", "4"),
 ]
+
+
+# -------------------------------------------------- complex, stage K4c-ii (E232-E238)
+
+DECISIONS_COMPLEX_K4D = {
+    "E232": "K4c-ii is the keyhole, Z11, applied by residues keyhole "
+            "[occurrence N] to an Int from 0 or 0+ to oo. Marked ends "
+            "(E222) make its power integrands statable: x^alpha*R(x) with "
+            "alpha any real term, a symbol included, on (0, oo). The "
+            "argument principle needs no rule while h is a polynomial, "
+            "since residues proves CInt of h'/h. The sector (Fresnel) needs "
+            "Int[x = 0 .. oo] exp(-x^2) as an entry, and indentation needs "
+            "a principal-value term; both come later.",
+    "E233": "Z11. Let R = P/Q be rational over Q(i), with no pole on [0, "
+            "oo). Write z^alpha for exp(alpha*log[2*pi](z)), whose cut is "
+            "the positive axis. (Power form.) If alpha is not an integer, "
+            "alpha + 1 + m0 > 0, where m0 is the order of P's zero at 0, "
+            "and alpha + 1 < deg Q - deg P, then Int[x = 0+ .. oo] "
+            "x^alpha*R(x) == 2*pi*i/(1 - exp(2*pi*i*alpha)) times the sum "
+            "of res(z^alpha*R(z), a) over Q's roots a. (Log form.) If "
+            "alpha is an integer n, then x^n*R(x) is rational, and with "
+            "deg Q >= deg P + n + 2, Int[x = 0 .. oo] x^n*R(x) == -(the sum "
+            "of res(log[2*pi](z)*z^n*R(z), a)). Proof: integrate round the "
+            "keyhole about the cut. The edges differ by the factor 1 - "
+            "exp(2*pi*i*alpha), or by 2*pi*i*R for the log. The large and "
+            "small circles vanish by the two degree conditions. Off the "
+            "cut the branch's values are those of any argument in (0, "
+            "2*pi), and the poles are off the cut.",
+    "E234": "The certificate. f[x := z] is split by structure into "
+            "x^alpha*g, by the law of exponents for one positive base, "
+            "which is trusted on (0, oo). sqrt(x) adds 1/2, rpow(x, e) adds "
+            "e, products add, quotients subtract, and integer powers "
+            "scale. An x^alpha anywhere else, an exp, or any other head "
+            "holding x refuses keyhole-not-certified. g == P/Q is checked "
+            "by field on split parts (E214). alpha is an integer when ring "
+            "makes it an integer literal; then the log form applies, with "
+            "x^n folded into P or Q. Otherwise the power form applies and "
+            "owes sin(pi*alpha) # 0, alpha + 1 + m0 > 0 and alpha + 1 < "
+            "deg Q - deg P, each a real key on the goal's domain. A failed "
+            "degree test in the log form refuses decay-not-certified. Each "
+            "root r of Q owes that it is off [0, oo), by the branch the "
+            "finder names: im r # 0, or re r < 0. A refuted pair refuses "
+            "residue-pole-on-cut. S is every root, pairwise distinct. Each "
+            "residue is E207's on log[2*pi](z)*P/Q or exp(alpha*log[2*pi]"
+            "(z))*P/Q.",
+    "E235": "The ends. The power form needs Int[x = 0+ .. oo] when its "
+            "integrand is not defined at 0; 0 unmarked is accepted where "
+            "the Int installs (a sqrt factor with alpha > 0). The log form "
+            "takes 0 or 0+. Any other range refuses keyhole-not-half-line.",
+    "E236": "The result. The Int becomes -(R_1 + ...) for the log form, "
+            "and 2*pi*i/(1 - exp(2*pi*i*alpha))*(R_1 + ...) for the power "
+            "form, with the new term's formers charged (E64).",
+    "E237": "What K4c-ii does not reach. A parameter in Q (E218). Int "
+            "R(x)*log x, the log^2 form, additive later. A closed form "
+            "auto-simpl cannot reach, such as 20 P8's pi/sin(pi*a), is left "
+            "to a close by hand.",
+    "E238": "K4c-ii's cases (K4D_CASES).",
+}
+
+K4D_SIG = {}
+K4D_CASES = {
+    # through the app, auto-simpl closing: (goal, sentences, value), the
+    # value compared numerically, Proved. with 0 admissions
+    "integrals": [
+        ("Int[x = 0 .. oo] 1/(x + 1)^2 == ?A", ["residues keyhole."], "1"),
+        ("Int[x = 0 .. oo] 1/((x + 1)*(x + 2)) == ?A", ["residues keyhole."],
+         "ln(2)"),
+        ("Int[x = 0 .. oo] x/(x + 1)^3 == ?A", ["residues keyhole."], "1/2"),
+        ("Int[x = 0 .. oo] 1/(x^2 + 1) == ?A", ["residues keyhole."],
+         "pi/2"),
+        ("Int[x = 0 .. oo] 1/(x^3 + 1) == ?A", ["residues keyhole."],
+         "2*pi/(3*sqrt(3))"),
+        ("Int[x = 0 .. oo] sqrt(x)/(x + 1)^2 == ?A", ["residues keyhole."],
+         "pi/2"),
+        ("Int[x = 0 .. oo] sqrt(x)/(x^2 + 1) == ?A", ["residues keyhole."],
+         "pi/sqrt(2)"),
+        ("Int[x = 0+ .. oo] 1/(sqrt(x)*(x + 1)) == ?A", ["residues keyhole."],
+         "pi"),
+        # 20 P8 at a = 1/3: pi/sin(pi/3) = 2*pi/sqrt(3)
+        ("Int[x = 0+ .. oo] rpow(x, -2/3)/(1 + x) == ?A",
+         ["residues keyhole."], "2*pi/sqrt(3)"),
+    ],
+    # (header, sentences): Proved. with 0 admissions; a close by hand
+    "symbolic": [
+        # 20 P8: pi/sin(pi*a) for 0 < a < 1
+        ("goal Int[x = 0+ .. oo] rpow(x, a - 1)/(1 + x) == ?A @ a > 0, "
+         "a < 1.", ["residues keyhole.", "close pi/sin(pi*a) by field."]),
+    ],
+    # (goal, sentence, code)
+    "move_refusals": [
+        ("Int[x = 0 .. oo] x/(x^2 + 1) == ?A", "residues keyhole",
+         "decay-not-certified"),
+        # alpha + 1 = 3/2 < deg Q - deg P = 1 is refuted
+        ("Int[x = 0 .. oo] sqrt(x)/(x + 1) == ?A", "residues keyhole",
+         "obligation-refuted"),
+        ("Int[x = 0 .. oo] 1/(x^2 - 2) == ?A", "residues keyhole",
+         "residue-pole-on-cut"),
+        ("Int[x = -oo .. oo] 1/(x^2 + 1) == ?A", "residues keyhole",
+         "keyhole-not-half-line"),
+        ("Int[x = 0 .. oo] exp(-x)/(x^2 + 1) == ?A", "residues keyhole",
+         "keyhole-not-certified"),
+    ],
+}
