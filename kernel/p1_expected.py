@@ -17973,3 +17973,153 @@ K4B_CASES["review"] = [  # E211: (header, sentences, refusal code or value)
     ("goal CInt[w on circle(0, 1) ++ rev circle(0, 1)] 1/w == ?A complex w.",
      ["residues."], "0"),
 ]
+
+
+# -------------------------------------------------- complex, stage K4c-i (E212-E219)
+
+DECISIONS_COMPLEX_K4C = {
+    "E212": "K4c in two parts. K4c-i is Z10, which closes a line "
+            "integral in a half-plane, and int_even. K4c-ii is the "
+            "keyhole for branch integrands, the argument principle as a "
+            "rule, the sector, and indentation; the sector needs the "
+            "Gaussian integral as an entry and indentation needs a "
+            "principal value in the grammar. This changes COMPLEX.md "
+            "5.3 and 5.5, which built 'close the contour' from general "
+            "rules: the estimation lemma, lim[R -> oo] and the "
+            "symmetric limit. The goal language has no limit term, so "
+            "that composition cannot be stated. Z10 states the composed "
+            "theorem once, with general hypotheses, and its decay "
+            "certificates are partial computation (COMPLEX.md 2.1). A "
+            "later certificate extends what it reaches without changing "
+            "what it means. The general estimation lemma waits for "
+            "limit terms and is additive.",
+    "E213": "Z10. Let f be holomorphic on an open set containing the "
+            "closed upper half-plane, except a finite set S in the open "
+            "upper half-plane. Suppose, for |z| >= R0 with im z >= 0, "
+            "either (R) |f(z)| <= C/|z|^2, or (J) f = exp(i*a*z)*g with "
+            "a > 0 and |g(z)| <= C/|z|. Then Int[x = -oo .. oo] f(x) "
+            "converges, absolutely under (R) and by Dirichlet's test "
+            "under (J), and it equals 2*pi*i times the sum of res(f, a) "
+            "over S. The proof is the residue theorem on seg(-R, R) ++ "
+            "arc(0, R, 0, pi), with the arc's integral going to 0 by the "
+            "estimation lemma under (R) and by Jordan's lemma under (J). "
+            "The lower half-plane is the mirror image: S below, a < 0, "
+            "and -2*pi*i. The move is residues upper|lower [occurrence "
+            "N] on an Int over the whole line. Without upper or lower, "
+            "residues reads CInts (E200). With it, it reads Ints, and in "
+            "is refused. Bromwich's inversion is this theorem in the "
+            "variable y of s = sigma + i*y, where exp(s*t) is (J) with "
+            "a = t.",
+    "E214": "The certificate. f[x := z] is split by structure into "
+            "exp(u)*g. Products add the exp arguments, quotients "
+            "subtract them, powers scale them, and a negation is kept "
+            "in g. This is trusted, by exp's addition law, exp(-u) == "
+            "1/exp(u) and exp(u)^n == exp(n*u). An exp under a sum, or "
+            "any other head holding z outside a polynomial, refuses "
+            "decay-not-certified. u must be affine in z: u == alpha*z + "
+            "beta, with alpha = u(1) - u(0) and beta = u(0), checked by "
+            "ring on split parts. g must be rational: P/Q is proposed "
+            "(untrusted) and g == P/Q is checked by field on split "
+            "parts. When alpha is ring-zero, the certificate is (R) and "
+            "needs deg Q >= deg P + 2. Otherwise it is (J): it owes re "
+            "alpha == 0 and a = im alpha > 0 (upper) or < 0 (lower), and "
+            "needs deg Q >= deg P + 1. A common factor of P and Q lowers "
+            "both degrees equally, so the difference belongs to the "
+            "function. A failed degree test refuses decay-not-certified. "
+            "exp(u)*P/Q has no cut, so it is holomorphic off Q's roots.",
+    "E215": "The poles. Q is factored and checked as in E204. Each "
+            "root owes im r # 0: f is continuous on the line, and a "
+            "refuted key refuses residue-pole-on-line. S is the roots "
+            "with im r > 0 (upper) or im r < 0 (lower); the finder names "
+            "the side and the kernel owes it. Each residue is E207's, "
+            "computed on exp(u)*P/Q. That equals f[x := z] wherever both "
+            "are defined, and the Int's own former already owes f on the "
+            "line.",
+    "E216": "The result. The Int becomes 2*pi*i*(R_1 + ...) (upper) or "
+            "-(2*pi*i*(R_1 + ...)) (lower). With S empty it becomes 0. "
+            "The new term's formers are charged (E64). The selected Int "
+            "must be Int[x = -oo .. oo]; any other Int refuses "
+            "residues-line-not-whole, and a goal with no Int refuses "
+            "residues-no-integral.",
+    "E217": "int_even [occurrence N]: Int[x = 0 .. oo] f becomes "
+            "(1/2)*Int[x = -oo .. oo] f when f[x := -x] == f, checked "
+            "by field on split parts with its divisors owed on the line. "
+            "It is sound as an equivalence. For an even f, the "
+            "substitution x -> -x makes Int[x = -oo .. 0] f equal to "
+            "Int[x = 0 .. oo] f, so either side exists exactly when the "
+            "other does, and the new Int's formers are charged as any "
+            "new term's. The codes are int-even-no-integral (no Int[x = "
+            "0 .. oo]) and int-not-even.",
+    "E218": "What Z10 does not reach yet. cos x/(1 + x^2) holds two "
+            "exponentials that close in opposite directions; the route "
+            "is re of exp(i*x)/(1 + x^2), which needs re to commute with "
+            "an improper Int. A parameter in Q, as in 20 P5's gamma and "
+            "omega_0, is refused because E204 factors over Q(i). Poles "
+            "on the line need indentation and a principal value. Branch "
+            "integrands are K4c-ii's keyhole.",
+    "E219": "K4c-i's cases (K4C_CASES).",
+}
+
+K4C_SIG = {}
+K4C_CASES = {
+    # through the app, auto-simpl closing: (goal, sentences, value), the
+    # value compared numerically, Proved. with 0 admissions
+    "integrals": [
+        ("Int[x = -oo .. oo] 1/(x^2 + 1) == ?A", ["residues upper."], "pi"),
+        ("Int[x = -oo .. oo] 1/(x^2 + 1) == ?A", ["residues lower."], "pi"),
+        ("Int[x = -oo .. oo] 1/(x^2 + 1)^2 == ?A", ["residues upper."],
+         "pi/2"),
+        ("Int[x = -oo .. oo] 1/((x^2 + 1)*(x^2 + 4)) == ?A",
+         ["residues upper."], "pi/6"),
+        ("Int[x = -oo .. oo] 1/(x^4 + 1) == ?A", ["residues upper."],
+         "pi/sqrt(2)"),
+        ("Int[x = -oo .. oo] x^2/(x^4 + 1) == ?A", ["residues upper."],
+         "pi/sqrt(2)"),
+        # Jordan (J): a = 1 above, a = -1 below
+        ("Int[x = -oo .. oo] exp(i*x)/(x^2 + 1) == ?A", ["residues upper."],
+         "pi*exp(-1)"),
+        ("Int[x = -oo .. oo] exp(-(i*x))/(x^2 + 1) == ?A",
+         ["residues lower."], "pi*exp(-1)"),
+        # deg Q = deg P + 1: Jordan's lemma, Dirichlet's convergence
+        ("Int[x = -oo .. oo] x*exp(i*x)/(x^2 + 1) == ?A",
+         ["residues upper."], "pi*i*exp(-1)"),
+        ("Int[x = 0 .. oo] 1/(x^2 + 1) == ?A",
+         ["int_even.", "residues upper."], "pi/2"),
+        # readiness P5, by its second route: pi/(2*sqrt 2)
+        ("Int[x = 0 .. oo] 1/(1 + x^4) == ?A",
+         ["int_even.", "residues upper."], "pi/(2*sqrt(2))"),
+    ],
+    # (header, sentences): Proved. with 0 admissions, closed by hand
+    "symbolic": [
+        # Bromwich: the inverse Laplace transform of 1/(s + 1) on re s = 0,
+        # 2*pi times exp(-t)
+        ("goal Int[y = -oo .. oo] exp(i*t*y)/(i*y + 1) == ?A @ t > 0.",
+         ["residues upper.", "close 2*pi*exp(-t) by field."]),
+    ],
+    # (goal, sentence, code)
+    "move_refusals": [
+        ("Int[x = -oo .. oo] x/(x^2 + 1) == ?A", "residues upper",
+         "decay-not-certified"),
+        ("Int[x = -oo .. oo] cos(x)/(x^2 + 1) == ?A", "residues upper",
+         "decay-not-certified"),
+        ("Int[x = -oo .. oo] 1/(x^2 - 1) == ?A", "residues upper",
+         "residue-pole-on-line"),
+        # closing exp(i*x) below: a = 1 < 0 is refuted
+        ("Int[x = -oo .. oo] exp(i*x)/(x^2 + 1) == ?A", "residues lower",
+         "obligation-refuted"),
+        ("Int[x = -oo .. oo] exp(x)/(x^2 + 1) == ?A", "residues upper",
+         "obligation-refuted"),
+        ("Int[x = 0 .. oo] 1/(x^2 + 1) == ?A", "residues upper",
+         "residues-line-not-whole"),
+        ("x == ?A", "residues upper", "residues-no-integral"),
+        ("Int[x = 0 .. oo] x/(x^2 + 1)^2 == ?A", "int_even",
+         "int-not-even"),
+        ("Int[x = 0 .. 1] 1/(x^2 + 1) == ?A", "int_even",
+         "int-even-no-integral"),
+    ],
+    # (goal, sentence): never Proved.
+    "never_proved": [
+        # a's sign is not known: a > 0 is owed and admitted
+        ("Int[x = -oo .. oo] exp(i*a*x)/(x^2 + 1) == ?A", "residues upper"),
+    ],
+}
