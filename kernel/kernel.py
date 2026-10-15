@@ -2704,10 +2704,8 @@ def _factor_divisor(d, z, buf, P, anc, gd):
     if p is not None and len(p) <= 1:  # E211: z cancels, no root
         _owe(buf, NonZero(rest), S_RES_ROOTS, P, anc, gd)
         return us, rest, []
-    if p is None:
-        raise Refused("residue-divisor-not-polynomial", f"the divisor "
-                      f"{_brief(rest)} is not a polynomial in {z} over Q(i) "
-                      "(E204)")
+    if p is None:  # E273: factor by factor, symbolic ones by E274
+        return _factor_symbolic(rest, us, z, buf, P, anc, gd)
     found = roots.factor(p)
     if found is None:
         raise Refused("residue-roots-not-found", f"no factorisation of "
@@ -2727,6 +2725,198 @@ def _factor_divisor(d, z, buf, P, anc, gd):
                       f"{_brief(rest)} does not check (E204)") from None
     for s in surds:  # sqrt_sq_val's hypothesis, a >= 0
         _owe(buf, Rel(">=", Num(s), Num(0)), S_RES_ROOTS, P, anc, gd)
+    _owe(buf, NonZero(lc), S_RES_ROOTS, P, anc, gd)
+    return us, lc, rts
+
+
+def _num_den(t, z):
+    """E279: (N, D) with t == N/D by structure, through quotients,
+    products, negation and integer powers; None for anything else that
+    holds z outside a polynomial shape."""
+    k = type(t)
+    if z not in fv(t) or _poly_shape(t, z):
+        return t, Num(1)
+    if k is Div or k is Mul:
+        a, b = _num_den(t.a, z), _num_den(t.b, z)
+        if a is None or b is None:
+            return None
+        if k is Mul:
+            return _times(a[0], b[0]), _times(a[1], b[1])
+        return _times(a[0], b[1]), _times(a[1], b[0])
+    if k is Neg:
+        a = _num_den(t.a, z)
+        return None if a is None else (Neg(a[0]), a[1])
+    if k is Pow:
+        a = _num_den(t.base, z)
+        if a is None:
+            return None
+        n, d = a if t.n >= 0 else (a[1], a[0])
+        return Pow(n, abs(t.n)), Pow(d, abs(t.n))
+    return None
+
+
+def _degree_up(t, z):
+    """E279: an upper bound on t's degree in z, by structure."""
+    if z not in fv(t):
+        return 0
+    k = type(t)
+    if k is CVar:
+        return 1
+    if k is Add:
+        return max(_degree_up(t.a, z), _degree_up(t.b, z))
+    if k is Mul:
+        return _degree_up(t.a, z) + _degree_up(t.b, z)
+    if k is Neg or k is Div:
+        return _degree_up(t.a, z)
+    if k is Pow:
+        return t.n * _degree_up(t.base, z)
+    return 10 ** 6
+
+
+def _poly_shape(t, z):
+    """t built from z, z-free terms, +, -, *, integer powers >= 0 and
+    division by a z-free term: a polynomial in z with z-free coefficients."""
+    if z not in fv(t):
+        return True
+    k = type(t)
+    if k is CVar:
+        return True
+    if k in (Add, Mul):
+        return _poly_shape(t.a, z) and _poly_shape(t.b, z)
+    if k is Neg:
+        return _poly_shape(t.a, z)
+    if k is Div:
+        return z not in fv(t.b) and _poly_shape(t.a, z)
+    if k is Pow:
+        return t.n >= 0 and _poly_shape(t.base, z)
+    return False
+
+
+def _factor_list(t, z, e=1):
+    """E273: (factor, exponent) pairs of t through products, powers and
+    negation; a z-free factor is kept as a constant."""
+    k = type(t)
+    if k is Mul:
+        return _factor_list(t.a, z, e) + _factor_list(t.b, z, e)
+    if k is Pow and t.n > 0:
+        return _factor_list(t.base, z, e * t.n)
+    if k is Neg:
+        return [(Neg(Num(1)), e)] + _factor_list(t.a, z, e)
+    return [(t, e)]
+
+
+def _c_normal(t):
+    """A z-free coefficient in field's normal form, over C by its parts,
+    where field checks the two equal; else t (E279)."""
+    try:
+        if complexes.has_complex(t):
+            a, b = complexes.split(t)
+            parts = tuple(None if x is None else _whole_normal(
+                complexes._real(x)) for x in (a, b))
+            parts = tuple(None if x == Num(0) else x for x in parts)
+            new = complexes.join(parts) if parts != (None, None) else Num(0)
+        else:
+            new = _whole_normal(t)
+        return new if _ring_holds_field(t, new) else t
+    except (Refused, RecursionError):
+        return t
+
+
+def _quadratic_roots(f, z, P):
+    """E274: (lead, [(root, m)], [(E, key)]) for a factor of degree <= 2
+    with z-free coefficients, the signs of its discriminant settled at P;
+    None when it is not one, or its discriminant's sign is not decided."""
+    zc = CVar(z)
+    c0 = subst(f, {z: Num(0)})
+    f1, fm = subst(f, {z: Num(1)}), subst(f, {z: Neg(Num(1))})
+    c1 = Div(_sub(f1, fm), Num(2))
+    c2 = _sub(Div(Add(f1, fm), Num(2)), c0)
+    c0, c1, c2 = (_c_normal(c) for c in (c0, c1, c2))  # E279: readable
+    if not _ring_holds(Rel("==", f, Add(Add(Mul(c2, Pow(zc, 2)),
+                                               Mul(c1, zc)), c0))):
+        return None
+    if _ring_holds(Rel("==", c2, Num(0))):
+        if _ring_holds(Rel("==", c1, Num(0))):
+            return None
+        return c1, [(_c_normal(Neg(Div(c0, c1))), 1)], []
+    # E280: monic first, so proportional factors give the same roots
+    lead = c2
+    c1, c0, c2 = _c_normal(Div(c1, c2)), _c_normal(Div(c0, c2)), Num(1)
+    D = _sub(Pow(c1, 2), Mul(Mul(Num(4), c2), c0))
+    try:
+        re, im = complexes.split(D)
+    except Refused:
+        return None
+    if im is not None and not _ring_holds(Rel("==", complexes._real(im),
+                                               Num(0))):
+        return None
+    E = Num(0) if re is None else _c_normal(complexes._real(re))
+    if _ring_holds(Rel("==", E, Num(0))):
+        return lead, [(_c_normal(Neg(Div(c1, Num(2)))), 2)], []
+    half = _c_normal(Neg(Div(c1, Num(2))))  # E280: no -0 left in a root
+    for op, rad, imag in ((">", E, False), ("<", Neg(E), True)):
+        key = Rel(op, E, Num(0))
+        if _verdict(key, P) is True:
+            rad = _c_normal(rad)
+            s = Div(App("sqrt", rad), Num(2))
+            s = Mul(Const("i"), s) if imag else s
+            return lead, [(s if half == Num(0) else Add(half, s), 1),
+                          (Neg(s) if half == Num(0) else Add(half, Neg(s)),
+                           1)], [(rad, key)]
+    return None
+
+
+def _factor_symbolic(rest, us, z, buf, P, anc, gd):
+    """E273-E275: rest factored factor by factor, symbolic quadratics by
+    E274, the whole checked by field on split parts with sqrt_sq_val
+    facts, the leading coefficient and each discriminant's sign owed."""
+    lc, rts, rads = Num(1), [], []
+    for f, e in _factor_list(rest, z):
+        if z not in fv(f):
+            lc = _times(lc, f if e == 1 else Pow(f, e))
+            continue
+        if not _poly_shape(f, z):
+            raise Refused("residue-divisor-not-polynomial", f"the divisor "
+                          f"factor {_brief(f)} is not a polynomial in {z} "
+                          "(E273)")
+        p = roots.poly(f, z)
+        found = roots.factor(p) if p is not None and len(p) >= 2 else None
+        if found is not None:
+            lead = _c_term(found[0])
+            got = [(roots.root_term(r), m) for r, m in found[1]]
+            rads += [(Num(r[2]), Rel(">=", Num(r[2]), Num(0)))
+                     for r, _ in found[1] if r[2] != 1]
+        else:
+            q = _quadratic_roots(f, z, P)
+            if q is None:
+                raise Refused("residue-roots-not-found", f"no factorisation "
+                              f"of {_brief(f)} was found (E273, E274)")
+            lead, got, more = q
+            rads += more
+        lc = _times(lc, lead if e == 1 else Pow(lead, e))
+        for r, m in got:
+            for k, (r0, m0) in enumerate(rts):
+                if r0 == r:
+                    rts[k] = (r0, m0 + m * e)
+                    break
+            else:
+                rts.append((r, m * e))
+    facts, seen = [], set()
+    for rad, key in rads:
+        atom = App("sqrt", rad)
+        if atom not in seen:
+            seen.add(atom)
+            facts.append((Pow(atom, 2), rad))
+            _owe(buf, key, S_RES_ROOTS, P, anc, gd)
+    (a, b), (c, e) = complexes.split(rest), complexes.split(
+        _factored(lc, rts, z))
+    R = complexes._real
+    try:
+        FD.field(R(a), R(c), facts)
+        FD.field(R(b), R(e), facts)
+    except (FD.NotEqual, Refused, RecursionError):
+        raise Refused("residue-roots-not-found", f"the factorisation of "
+                      f"{_brief(rest)} does not check (E274)") from None
     _owe(buf, NonZero(lc), S_RES_ROOTS, P, anc, gd)
     return us, lc, rts
 
@@ -3156,11 +3346,17 @@ def _residues_line(state, args, minted, buf):
     u, gr = _exp_split(f, z)
     cst, gr = _const_split(gr, z)  # E242: a z-free factor kept aside
     proposal = roots.rational(gr, z)
-    if proposal is None:
-        raise Refused("decay-not-certified", f"{_brief(gr)} is not rational "
-                      f"in {z} over Q(i) (E214)")
-    pp, qq = proposal
-    Pt, Qt = roots.poly_term(pp, z), roots.poly_term(qq, z)
+    sym = None
+    if proposal is None:  # E279: symbolic coefficients
+        sym = _num_den(gr, z)
+        if sym is None or not _poly_shape(sym[0], z) or \
+                not _poly_shape(sym[1], z):
+            raise Refused("decay-not-certified", f"{_brief(gr)} is not "
+                          f"rational in {z} (E214)")
+        Pt, Qt = sym
+    else:
+        pp, qq = proposal
+        Pt, Qt = roots.poly_term(pp, z), roots.poly_term(qq, z)
     held = _ring_holds_field(gr, Pt if Qt == Num(1) else Div(Pt, Qt))
     if held is None:  # E221: a resource limit, not a wrong identity
         raise Refused("residues-too-large", f"{_brief(gr)} == P/Q is too "
@@ -3168,7 +3364,11 @@ def _residues_line(state, args, minted, buf):
     if not held:
         raise Refused("decay-not-certified", f"{_brief(gr)} == P/Q does not "
                       "check (E214)")
-    gap = (len(qq) - 1) - (len(pp) - 1 if pp else -1)
+    if sym is None:
+        gap = (len(qq) - 1) - (len(pp) - 1 if pp else -1)
+    else:  # E279: Q's exact degree from its certified factorisation
+        fq = _factor_divisor(Qt, z, buf, P, anc, gd)
+        gap = sum(m for _, m in fq[2]) - _degree_up(Pt, z)
     alpha = None
     if u is not None:
         alpha = _sub(subst(u, {z: Num(1)}), subst(u, {z: Num(0)}))
@@ -3274,18 +3474,17 @@ def _line_divisors(it, z, P, anc, gd, buf, state=None):
                 continue
             dz = subst(prop.e, {z: CVar(z)})
             rest, _us = complexes._exp_factors(dz)
-            p = None if rest is None else roots.poly(rest, z)
-            found = None if p is None or len(p) < 2 else roots.factor(p)
-            if found is None:
+            if rest is None or z not in fv(rest):
                 continue
-            rts = [roots.root_term(r) for r, _ in found[1]]
-            if not all(_verdict(NonZero(App("im", r)), P) is True
-                       for r in rts):
-                continue
-            # the factorisation is checked as E204 checks it
+            # the factorisation is checked as E204 checks it, a symbolic
+            # one as E274 does (E279)
             try:
-                _factor_divisor(rest, z, buf, P, anc, gd)
+                _, _lc, got = _factor_divisor(rest, z, buf, P, anc, gd)
             except Refused:
+                continue
+            if not got or not all(
+                    _verdict(NonZero(App("im", r)), P) is True
+                    for r, _ in got):
                 continue
             for k in _real_keys(prop, d):
                 props.add(replace(k, dom=()))

@@ -478,6 +478,26 @@ class PrincipalValues(unittest.TestCase):
         self.assertIn("PV", pretty2d.pretty(t))
 
 
+class Symbolic(unittest.TestCase):
+    """E273-E279: symbolic coefficients in a divisor; 20 P5."""
+
+    def test_reports(self):
+        import p1_expected as X
+        for header, sentences, report in (X.SYMBOLIC_CASES["reports"]
+                                          + X.SYMBOLIC_CASES["review"]):
+            with self.subTest(header=header):
+                r = run(header, sentences)
+                self.assertTrue((r.get("report") or "").startswith(report), r)
+                self.assertEqual(r.get("admissions"), 0, r)
+
+    def test_move_refusals(self):
+        import p1_expected as X
+        for goal, sentence, code in X.SYMBOLIC_CASES["move_refusals"]:
+            with self.subTest(goal=goal):
+                r = run(f"goal {goal}.", [f"{sentence}."])
+                self.assertEqual(r["refusal"]["code"], code, r)
+
+
 class TeX(unittest.TestCase):
     def test_round_trips(self):
         sig = {"z": "complex"}

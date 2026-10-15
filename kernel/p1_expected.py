@@ -19064,3 +19064,64 @@ SYMBOLIC_CASES = {
          "residue-roots-not-found"),
     ],
 }
+DECISIONS_SYMBOLIC["E279"] = (
+    "Building E273-E276, and correcting SYMBOLIC_CASES (7ef46cb), with "
+    "nothing weakened. (1) Z10's certificate also takes symbolic "
+    "coefficients. g == N/D is built by structure (_num_den) and checked "
+    "by field. D's exact degree is the sum of its root multiplicities, "
+    "from its certified factorisation with its leading coefficient # 0 "
+    "owed, and N's degree is a structural upper bound (_degree_up), so the "
+    "gap is a lower bound, which is all the decay needs. (2) A quadratic "
+    "factor's coefficients and discriminant are put in field's normal "
+    "form, checked equal (_c_normal), so a radicand reads -g^2 + 4*o^2. "
+    "(3) Z10's _line_divisors factors symbolic divisors too, so P5's "
+    "denominator positivity on the line is discharged. (4) The rows: "
+    "4*o^2 - g^2 > 0 is stated in P5's domain, since discharge does not "
+    "derive it from g < 2*o, o > 0 (a product). The facts name the "
+    "radicand in normal form. 1/(x^2 + a^2) closes by sqrt_sq at "
+    "sqrt(4*a^2), which is 2*a, since a fact sqrt(E)^2 == E does not fix "
+    "the sign. K4B_CASES' 1/(w - x) on circle(0, 2) now has the root x, "
+    "and its avoidance |x|^2 # 4 is decided false at x = 2, so it is "
+    "refused obligation-decided-false, not residue-divisor-not-polynomial.")
+SYMBOLIC_CASES["reports"] = [
+    ("goal Int[x = -oo .. oo] 1/(x^2 + a^2) == ?A @ a > 0.",
+     ["residues upper.", "rewrite sqrt_sq with u := 2*a at sqrt(4*a^2).",
+      "close pi/a by field."], "Proved."),
+    # 20 P5, the first integral
+    ("goal Int[w = -oo .. oo] 1/((o^2 - w^2 - i*g*w)*(o^2 - w^2 + i*g*w)) "
+     "== ?A @ g > 0, o > 0, 4*o^2 - g^2 > 0.",
+     ["residues upper.", "fact h := sqrt_sq_val with a := -g^2 + 4*o^2.",
+      "close pi/(g*o^2) by field using h."], "Proved."),
+    # 20 P5, the second
+    ("goal Int[w = -oo .. oo] w^2/((o^2 - w^2 - i*g*w)*(o^2 - w^2 + "
+     "i*g*w)) == ?A @ g > 0, o > 0, 4*o^2 - g^2 > 0.",
+     ["residues upper.", "fact h := sqrt_sq_val with a := -g^2 + 4*o^2.",
+      "close pi/g by field using h."], "Proved."),
+]
+K4B_CASES["move_refusals"] = [
+    (g, s, "obligation-decided-false" if g.startswith(
+        "CInt[w on circle(0, 2)] 1/(w - x)") else c)
+    for g, s, c in K4B_CASES["move_refusals"]]
+DECISIONS_SYMBOLIC["E280"] = (
+    "The review of E273-E279 (2026-10-15): about 120 goals, no false "
+    "theorem and no crash; every value checked. Folded in: a quadratic "
+    "factor is made monic before its roots are formed (its leading "
+    "coefficient # 0 is owed as before), so proportional factors such as "
+    "x^2 + a^2 and 4*x^2 + 4*a^2 give the same root terms and merge. "
+    "Before, equal roots spelled differently were taken as two simple "
+    "poles, and their false distinctness was admitted. A root's real part "
+    "is written without -0, so a Jordan case such as exp(i*k*x)/(x^2 + "
+    "a^2) closes by field. Recorded as limits: a PV's symbolic divisor is "
+    "not exempt from its formers (E272 exempts Q(i) polynomials only), so "
+    "a PV with a symbolic pole is refused. Under a square root, a symbolic "
+    "root's winding on a circle is not decided. An overdamped P5 (roots "
+    "on the imaginary axis) leaves the placement of a surd root owed, and "
+    "it is admitted.")
+SYMBOLIC_CASES["review"] = [  # E280: (header, sentences, report)
+    ("goal Int[x = -oo .. oo] 1/((x^2 + a^2)*(4*x^2 + 4*a^2)) == ?A "
+     "@ a > 0.", ["residues upper."], "Open"),
+    ("goal Int[x = -oo .. oo] exp(i*k*x)/(x^2 + a^2) == ?A @ k > 0, a > 0.",
+     ["residues upper.", "rewrite sqrt_sq with u := 2*a at sqrt(4*a^2).",
+      "fact h := exp_neg with u := k*a.",
+      "close pi/(a*exp(k*a)) by field using h."], "Proved."),
+]
