@@ -674,3 +674,10 @@ patom     = "rev" patom | "(" path ")"
 - **Sorts:** an `arc`'s radius and angles, and `path`'s bounds, are Real
   and free of complex structure (`sort-real-only` otherwise). A `CInt`
   is Complex.
+
+**Stage K4b (p1_expected E200–E209): the residue theorem.** It adds no
+term syntax. `wind` and `res` are computed into the move's result and are
+not terms. The move `residues [in C, ...] [occurrence N]` (SCRIPT.md) takes
+a region as a list of conditions on the `CInt`'s variable, read as domain
+items are (§6). Each condition is an open half-plane, affine in `re z`
+and `im z`, or an open disk, `abs(z - c) < r` (E201).

@@ -17671,3 +17671,219 @@ K4A_CASES = {
          "obligation-refuted"),
     ],
 }
+
+
+# -------------------------------------------------- complex, stage K4b (E200-E209)
+
+DECISIONS_COMPLEX_K4B = {
+    "E200": "K4b is COMPLEX.md Z8, Cauchy's theorem and the residue "
+            "theorem as one rule, applied by the move residues [in C, ...] "
+            "[occurrence N]. Let U be open and star-shaped, S a finite set "
+            "of points of U, f holomorphic on U minus S, and g a closed "
+            "piecewise C^1 path in U that avoids S. Then CInt[z on g] f == "
+            "2*pi*i * (sum over a in S of wind(g, a) * res(f, a)). The "
+            "move replaces the selected CInt by that sum, with each winding "
+            "number and residue computed (E205, E207); every hypothesis is "
+            "owed (E202). There is no new term syntax: wind and res are "
+            "computed into the result and are not terms yet, which a later "
+            "stage may add without changing what the rule means.",
+    "E201": "The region. Without in, U is C. With in, U is the "
+            "conjunction of the conditions, each on the CInt's variable z "
+            "and each one of two forms: an open half-plane, < or > between "
+            "sides whose difference is affine in re z and im z with z-free "
+            "real coefficients (re z > 0, im z < 1, re z + im z > 2); or "
+            "an open disk, abs(z - c) < r or r > abs(z - c), abs(z) < r "
+            "included. Anything else is refused region-not-convex, and a "
+            "condition on another variable region-wrong-variable. The "
+            "intersection of open half-planes and open disks is open and "
+            "convex, so it is star-shaped about each of its points: the "
+            "region's form is Z8's certificate, with no centre to give. A "
+            "slit plane, and any other star-shaped region that is not "
+            "convex, waits for K4c's keyhole.",
+    "E202": "What residues owes, at the CInt's position domain P. (1) g "
+            "is closed: its start equals its end, by E191's join "
+            "equation, or E203's when both ends are an arc's. (2) g lies "
+            "in U, piece by piece: a segment when both its ends are in U "
+            "(U is convex); an arc(c, r, t1, t2) when its whole circle is, "
+            "by a sufficient condition for each of U's conditions: for a "
+            "half-plane L > 0 with L(z) = alpha*re z + beta*im z + gamma, "
+            "L(c) > 0 and L(c)^2 > r^2*(alpha^2 + beta^2); for a disk "
+            "abs(z - c0) < rho, r > 0, rho - r > 0 and (re(c - c0))^2 + "
+            "(im(c - c0))^2 < (rho - r)^2; a path[s] when each condition "
+            "holds at phi(s) on its range. Nothing is owed when U is C. "
+            "(3) f is holomorphic on U minus S: D[z] f is derived by "
+            "deriv's holomorphic rules (E184; deriv-not-holomorphic "
+            "otherwise), each divisor it owes is nonzero on U minus S "
+            "(E204), and each other side condition it owes (a cut, E185) "
+            "holds on all of U, owed as that key with U's conditions "
+            "added to its domain. (4) S's points are pairwise distinct "
+            "(a - b # 0, decided), each is in U, and g avoids each one "
+            "(E205).",
+    "E203": "Two ends that are both an arc's, c1 + r1*exp(i*s1) and c2 + "
+            "r2*exp(i*s2), meet when c1 == c2, r1 == r2 and s1 - s2 == "
+            "2*pi*k for an integer k, since exp(i*s) has period 2*pi. Each "
+            "equation is owed unless its sides are tree-equal, k is "
+            "proposed (untrusted) and the equation is checked like any "
+            "key. cint_param's joins use the same test, so circle(0, 1) ++ "
+            "circle(0, 1) no longer owes the admitted cos(2*pi) == cos 0 "
+            "(E199). Any other pair of ends is compared by E191's "
+            "equation, as before.",
+    "E204": "Completeness of S. Each divisor d that (3) owes, with its "
+            "exp factors dropped (E196), must be a polynomial in z with "
+            "coefficients in Q(i); otherwise residues refuses "
+            "residue-divisor-not-polynomial (sin z, or a parameter in d: "
+            "zero-set entries come later, additively). An untrusted finder "
+            "proposes d == lc*(z - r_1)^m_1*...*(z - r_k)^m_k. Each root is "
+            "in Q(i), or comes from a quadratic or a biquadratic with real "
+            "surds sqrt(q), q a rational. The kernel checks the "
+            "factorisation by field on its split parts, with the facts "
+            "sqrt(q)^2 == q (sqrt_sq_val, each owing q >= 0), and owes lc "
+            "# 0. Each root is then either a point of S, owing that it is "
+            "in U, or outside U, owing the negation of one of U's "
+            "conditions at it, which the finder names. For a half-plane "
+            "the negation is L(r) <= 0, and for a disk it is (re(r - "
+            "c0))^2 + (im(r - c0))^2 >= rho^2. When U is C, every root is "
+            "in S. If the finder finds no factorisation, residues refuses "
+            "residue-roots-not-found. So f's divisors vanish in U only at "
+            "S, and f's other side conditions hold on all of U: f is "
+            "holomorphic on U minus S.",
+    "E205": "Winding numbers by crossings. wind(g, a) is the signed count "
+            "of g's crossings of the ray from a to the right, {a + s : s > "
+            "0}, counted by Sunday's half-open rule. A piece going up "
+            "counts +1 where its height passes from at or below im a to "
+            "above it. A piece going down counts -1 where its height "
+            "passes from above im a to at or below it. Each counts only "
+            "when the crossing lies right of re a. Write y_p for im p - "
+            "im a and x_p for re p - re a. seg(p, q) goes up across the "
+            "ray iff y_p <= 0 < y_q, and the crossing is right of a iff "
+            "x_p*y_q - x_q*y_p > 0; going down is the mirror image. An arc "
+            "is split by the finder at the angles pi/2 + k*pi between its "
+            "ends, so that sin is monotone on each part. The height test "
+            "reads c + r*sin at the part's ends. On a part where cos >= 0, "
+            "the crossing is right of a iff re c > re a or |a - c|^2 < "
+            "r^2. On a part where cos <= 0, it is right of a iff re c > "
+            "re a and |a - c|^2 > r^2. A part traversed with decreasing "
+            "angle counts with the opposite sign. The finder names one "
+            "branch, a conjunction of real conditions on the path's data "
+            "and a's parts, and the kernel owes it; none that settles "
+            "refuses wind-undecided. g avoids a, also owed with a branch "
+            "the finder names. For a segment: x_p*y_q - x_q*y_p # 0, or a "
+            "lies on the line beyond one end. For an arc: |a - c|^2 # r^2 "
+            "(sufficient, so a pole on the circle but off the arc is "
+            "refused). When that is refuted, residues refuses "
+            "residue-pole-on-path. A path[s] piece, or an arc whose angles "
+            "are not rational multiples of pi, refuses "
+            "wind-not-computable. For a closed path that avoids a, the "
+            "count is the winding number, and the half-open rule counts a "
+            "crossing at a junction exactly once.",
+    "E206": "Closed surds. A closed real judgement whose terms are built "
+            "by the field operations and integer powers from rational "
+            "literals and sqrt(q), for one rational q >= 0, is decided "
+            "exactly in Q(sqrt q). The sign of a + b*sqrt(q) is the sign "
+            "shared by a and b when they agree, and otherwise the sign of "
+            "a*(a^2 - b^2*q). residues decides the closed keys it emits "
+            "(E202, E204, E205) this way before it emits them, tagged "
+            "norm_num_surd; a later stage may make this part of E7 for "
+            "every key.",
+    "E207": "Residues. At a point a of S, the pole order bound m of f at "
+            "a is: 0 for a term with no divisor vanishing at a; a sum's "
+            "largest; a product's sum; for x/d, x's plus the multiplicity "
+            "of a in d (E204); for u^n, n times u's. An application's "
+            "argument must have order 0, or residues refuses "
+            "residue-not-a-pole: exp(1/z) at 0 is essential. When m is 0, "
+            "a is removable and contributes nothing. Otherwise phi = (z - "
+            "a)^m * f is built by structure. A sum gives each of its parts "
+            "times (z - a)^m. A product splits the power between its "
+            "factors by their orders. x/d gives ((z - a)^(m - mu)*x)/d', "
+            "where mu is a's multiplicity in d and d' = lc*product over r "
+            "# a of (z - r)^m_r. The factorisation makes phi equal to (z - "
+            "a)^m * f off S. phi's divisors are owed nonzero at a (closed "
+            "keys, decided). Then res(f, a) == (D[z]^(m-1) phi at z := a) "
+            "/ (m - 1)!, by deriv's rules and substitution. This is sound "
+            "because f = phi/(z - a)^m near a with phi holomorphic at a, "
+            "so it is the Laurent coefficient of 1/(z - a).",
+    "E208": "The result. The CInt becomes 2*pi*i*(w_1*R_1 + ...), each R "
+            "a residue term, over the points of S with nonzero winding. A "
+            "winding of 1 is written without its factor and -1 as a "
+            "negation. If no point has nonzero winding, the result is 0, "
+            "which is Cauchy's theorem. The new term's formers are charged "
+            "at the CInt's position (E64), and auto-simpl evaluates it as "
+            "any constant goal (E162). The step's trace lists (a, m, "
+            "wind) for each point of S, in the order found.",
+    "E209": "K4b's cases (K4B_CASES).",
+}
+
+K4B_CASES = {
+    # through the app, auto-simpl closing: (goal, sentences, value)
+    "integrals": [
+        ("CInt[w on circle(0, 2)] 1/(w^2 + 1) == ?A", ["residues."], "0"),
+        ("CInt[w on circle(i, 1)] 1/(w^2 + 1) == ?A", ["residues."], "pi"),
+        ("CInt[w on circle(-1 + i, 1)] 1/(w^2 + 2*w + 2) == ?A",
+         ["residues."], "pi"),
+        ("CInt[w on circle(0, 1)] exp(w)/w == ?A", ["residues."], "2*pi*i"),
+        # a pole of order 3: (D[w]^2 exp(w) at 0)/2!
+        ("CInt[w on circle(0, 1)] exp(w)/w^3 == ?A", ["residues."], "pi*i"),
+        ("CInt[w on circle(0, 1)] 1/w^2 == ?A", ["residues."], "0"),
+        ("CInt[w on circle(0, 3)] w/((w - 1)*(w + 1)) == ?A",
+         ["residues."], "2*pi*i"),
+        # S empty: Cauchy
+        ("CInt[w on circle(0, 1)] w^2*exp(w) == ?A", ["residues."], "0"),
+        # clockwise, twice round by one arc, twice round by a join (E203)
+        ("CInt[w on rev circle(0, 1)] 1/w == ?A", ["residues."], "-2*pi*i"),
+        ("CInt[w on arc(0, 1, 0, 4*pi)] 1/w == ?A", ["residues."],
+         "4*pi*i"),
+        ("CInt[w on circle(0, 1) ++ circle(0, 1)] 1/w == ?A",
+         ["residues."], "4*pi*i"),
+        # a square: crossings of segments
+        ("CInt[w on seg(1 + i, -1 + i) ++ seg(-1 + i, -1 - i) ++ "
+         "seg(-1 - i, 1 - i) ++ seg(1 - i, 1 + i)] 1/w == ?A",
+         ["residues."], "2*pi*i"),
+        # a cut, holomorphic on the half-plane U (E201, E202 (3))
+        ("CInt[w on circle(2, 1)] Log w == ?A", ["residues in re w > 0."],
+         "0"),
+        # 20 P4, part 3, second circle: both poles inside, residues cancel
+        ("CInt[w on circle(0, 10)] 1/(64 - w^2 - 2/5*i*w) == ?A",
+         ["residues."], "0"),
+    ],
+    # (goal, sentences): Proved. with 0 admissions, auto-simpl closing,
+    # the value's printed form not pinned
+    "course": [
+        # 20 P4, part 3: one pole, -i/5 + sqrt(1599)/5, inside |w - 8| = 1;
+        # the value is -5*pi*i/sqrt(1599)
+        ("CInt[w on circle(8, 1)] 1/(64 - w^2 - 2/5*i*w) == ?A",
+         ["residues."]),
+        # readiness P5's contour at R = 2: the poles exp(i*pi/4) and
+        # exp(3*i*pi/4) inside, by surds (E204); the value is pi/sqrt(2)
+        ("CInt[w on seg(-2, 2) ++ arc(0, 2, 0, pi)] 1/(1 + w^4) == ?A",
+         ["residues."]),
+    ],
+    # (goal, sentence, code)
+    "move_refusals": [
+        ("CInt[w on seg(0, 1)] 1/w == ?A", "residues", "obligation-refuted"),
+        ("CInt[w on circle(0, 1)] 1/(w - 1) == ?A", "residues",
+         "residue-pole-on-path"),
+        ("CInt[w on circle(0, 1)] conj(w) == ?A", "residues",
+         "deriv-not-holomorphic"),
+        ("CInt[w on circle(0, 1)] exp(1/w) == ?A", "residues",
+         "residue-not-a-pole"),
+        ("CInt[w on circle(0, 1)] 1/sin(w) == ?A", "residues",
+         "residue-divisor-not-polynomial"),
+        ("CInt[w on circle(0, 2)] 1/(w - x) == ?A", "residues",
+         "residue-divisor-not-polynomial"),
+        ("CInt[w on circle(0, 1)] 1/w == ?A", "residues in abs(w) > 1",
+         "region-not-convex"),
+        ("CInt[w on circle(0, 1)] 1/w == ?A", "residues in re z > 0",
+         "region-wrong-variable"),
+        # the circle leaves U: L(c) = 0 > 0 is refuted
+        ("CInt[w on circle(0, 1)] Log w == ?A", "residues in re w > 0",
+         "obligation-refuted"),
+        ("CInt[w on path[s = 0 .. 2*pi] exp(i*s)] 1/w == ?A", "residues",
+         "wind-not-computable"),
+        ("x == ?A", "residues", "cint-no-integral"),
+    ],
+    # (goal, sentence): never Proved. -- a refusal, or admissions
+    "never_proved": [
+        # Log's cut is owed on all of C, which is false at -1
+        ("CInt[w on circle(2, 1)] Log w == ?A", "residues"),
+    ],
+}
