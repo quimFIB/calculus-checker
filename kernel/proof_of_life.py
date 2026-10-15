@@ -6694,6 +6694,38 @@ def k4d_problems(part):
     return out
 
 
+def sector_problems(part):
+    """SECTOR_CASES (E242-E248) at the kernel."""
+    C, out = X.SECTOR_CASES, []
+
+    def args_of(sentence):
+        word = sentence.rstrip(".").split()
+        return word[0], ({"half": word[1]} if len(word) > 1 else {})
+
+    for row in C[part]:
+        goal_text, sentences = row[0], row[1]
+        st = K.install(T.parse_goal(goal_text, {}))
+        r = st
+        for sentence in (sentences if part != "move_refusals" else [sentences]):
+            if isinstance(r, K.Refusal):
+                break
+            r = K.step(r, *args_of(sentence))
+        if part == "move_refusals":
+            got = r.code if isinstance(r, K.Refusal) else K.report(r)
+            if got != row[2]:
+                out.append(f"{goal_text}: {got}, want {row[2]}")
+            continue
+        if isinstance(r, K.Refusal):
+            out.append(f"{goal_text}: {r.code}")
+            continue
+        if any(ob.status == K.ADMITTED for ob in r.obligations()):
+            out.append(f"{goal_text}: admissions")
+        got = complex(_k1_eval(r.goal[0].lhs, {}))
+        if abs(got - complex(_k1_eval(T.parse_term(row[2]), {}))) > 1e-9:
+            out.append(f"{goal_text}: {got}, want {row[2]}")
+    return out
+
+
 def k1_checks(suite):
     suite.check("Z", f"K1 round trips ({len(X.K1_CASES['round_trips'])}), "
                 "GRAMMAR.md §11", lambda: k1_problems("round_trips"))
@@ -6769,6 +6801,14 @@ def k1_checks(suite):
     suite.check("Z", f"K4c-ii refusals ({len(X.K4D_CASES['move_refusals'])}"
                 "): decay, a pole on the cut, the range, an exp (E234-E235)",
                 lambda: k4d_problems("move_refusals"))
+    suite.check("Z", f"Z12 sector ({len(X.SECTOR_CASES['integrals'])}): "
+                "Fresnel, the Gaussian, both ways of int_even, each value "
+                "numerically, no admission (E243-E245)",
+                lambda: sector_problems("integrals")
+                + sector_problems("review"))
+    suite.check("Z", f"Z12 refusals ({len(X.SECTOR_CASES['move_refusals'])}"
+                "): the phase, the range, the Gaussian's sign (E244)",
+                lambda: sector_problems("move_refusals"))
     suite.check("Z", f"E206 surds ({len(X.K4B_CASES['surds'])}): decided "
                 "exactly in Q(sqrt s), two surds left undecided",
                 lambda: k4b_problems("surds"))

@@ -354,6 +354,37 @@ class Keyhole(unittest.TestCase):
                          "residues keyhole occurrence 1.")
 
 
+class Sector(unittest.TestCase):
+    """Z12 and 20 P9 (E242-E248), through the app."""
+
+    def test_integrals(self):
+        import p1_expected as X
+        from proof_of_life import _k1_eval
+        for goal, sentences, value in (X.SECTOR_CASES["integrals"]
+                                       + X.SECTOR_CASES["review"]):
+            with self.subTest(goal=goal):
+                r = run(f"goal {goal}.", sentences)
+                self.assertEqual((r["report"], r["admissions"]),
+                                 ("Proved.", 0), r)
+                v = r["auto"][-1].split("close ", 1)[1].rsplit(" by ", 1)[0]
+                self.assertAlmostEqual(
+                    complex(_k1_eval(parse_term(v), {})),
+                    complex(_k1_eval(parse_term(value), {})), places=9)
+
+    def test_symbolic(self):
+        import p1_expected as X
+        for header, sentences, report in X.SECTOR_CASES["symbolic"]:
+            with self.subTest(header=header):
+                self.assertEqual(run(header, sentences)["report"], report)
+
+    def test_move_refusals(self):
+        import p1_expected as X
+        for goal, sentence, code in X.SECTOR_CASES["move_refusals"]:
+            with self.subTest(goal=goal):
+                r = run(f"goal {goal}.", [f"{sentence}."])
+                self.assertEqual(r["refusal"]["code"], code, r)
+
+
 class TeX(unittest.TestCase):
     def test_round_trips(self):
         sig = {"z": "complex"}

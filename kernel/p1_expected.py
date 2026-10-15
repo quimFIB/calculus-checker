@@ -18643,3 +18643,21 @@ SECTOR_CASES = {
         ("Int[x = -oo .. oo] x*exp(-x^2) == ?A", "int_even", "int-not-even"),
     ],
 }
+DECISIONS_SECTOR["E249"] = (
+    "The skeptic's review of Z12, P9 and E242 (2026-10-15): about 150 cases, "
+    "no false theorem and no crash; all six wrong P9 values refused. Folded "
+    "in: a negation at the top of the integrand is a constant factor, so "
+    "-cos(x^2) closes. E206 now also runs, in _discharge, on a closed key "
+    "that no certificate closed, as the last step before the refuter, so "
+    "closed surd formers such as -((1 - sqrt 2)*1^2) >= 0 decide, and a "
+    "cite with its certificate (sqrt 3 # 0 by sqrt_pos, P1.2) keeps its "
+    "place. Left as "
+    "incompleteness: a k that is imaginary only after evaluation "
+    "(exp(i*pi/2)) takes the Gaussian branch and is refused. int_even does "
+    "not see evenness through cos, sin or abs (E221). A sign of a with no "
+    "domain is decided false at a = 0, not admitted. A nested surd, such as "
+    "sqrt(sqrt 2 - 1) # 0, is not E206's (one square root) and is admitted.")
+SECTOR_CASES["review"] = [  # E249: (goal, sentences, value)
+    ("Int[x = 0 .. oo] -cos(x^2) == ?A", ["residues sector."],
+     "-sqrt(pi/8)"),
+]

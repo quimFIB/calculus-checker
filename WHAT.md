@@ -360,9 +360,13 @@ evaluated by `int_improper`. **K4c-ii, the keyhole, is built** (E232–E240):
 x^α·R with α any real term, so unit 20 P8's ∫₀^∞ x^(a−1)/(1 + x) proves at
 a = 1/3 (2π/√3), and for symbolic a by hand, modulo the answer's own
 sin(πa) ≠ 0. Sin and cos at multiples of π/6 and π/4, standard atan
-values and arguments at closed points now evaluate exactly (E239). The
-sector (it needs the Gaussian integral) and indentation (it needs a
-principal value) are not built.
+values and arguments at closed points now evaluate exactly (E239). **The sector
+is built** (Z12, E242–E248): `residues sector` gives the quadratic phase,
+Fresnel's ∫₀^∞ cos x² = ∫₀^∞ sin x² = √(π/8) and the Gaussian, with the
+Gaussian integral stated as the rule's theorem. `int_even` now also takes
+the whole line to twice the half. Unit 20 P9's Bromwich inversion proves
+by hand, modulo the install-time positivity of its denominator on the
+line. Indentation (it needs a principal value) is not built.
 
 **Next,** per §17: stage 1's lists are done (2026-09-25). The gate
 (`app/GATE.md`): work its seventeen problems in order on the page, then

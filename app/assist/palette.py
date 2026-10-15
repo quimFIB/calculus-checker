@@ -164,6 +164,8 @@ def moves(goal):
            and isinstance(i.hi, PosInf) for i in ints):  # E232
         out.append({"move": "residues", "sentence": "residues keyhole.",
                     "why": "[0, oo): the keyhole round the positive axis"})
+        out.append({"move": "residues", "sentence": "residues sector.",
+                    "why": "[0, oo): exp, cos or sin of a*x^2 (E244)"})
     if any(i.lo == Num(0) and isinstance(i.hi, PosInf) for i in ints):
         out.append({"move": "int_even", "sentence": "int_even.",  # E217
                     "why": "an even integrand on [0, oo): half the line"})

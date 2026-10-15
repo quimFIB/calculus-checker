@@ -1584,3 +1584,13 @@ against complex evaluation at 200 random points per term.
   - `discharge.exact_values` also evaluates the table angles, the
     standard atan values and the principal Arg at closed points.
   - E206 runs on every closed key in `_discharge`.
+
+**Z12 and 20 P9 (E242–E248):**
+
+- **`residues sector`** (`_residues_sector`) evaluates
+  c·exp(k·x²), cos(a·x²) or sin(a·x²) on [0, ∞) from Z12's values. Each
+  sign is owed, and the Gaussian integral is part of the rule's theorem.
+- **`int_even`** also takes the whole line to twice the half.
+- **`_const_split`** puts a z-free factor aside before Z10's and Z11's
+  certificates.
+- **The root finder's gcd** is monic.

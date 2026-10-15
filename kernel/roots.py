@@ -259,9 +259,11 @@ def _pdivmod(p, q):
 
 
 def _gcd(p, q):
+    """The monic gcd, so a constant gcd leaves p's square-free part p."""
     while q:
         p, q = q, _pdivmod(p, q)[1]
-    return p
+    inv = _cinv(p[-1])
+    return [_cmul(c, inv) for c in p]
 
 
 def _derivative(p):

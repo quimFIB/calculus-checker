@@ -716,7 +716,7 @@ def _check_args(move, args, goal):
             type(j) in (Rel, NonZero) and j.dom == () for j in region)
         # E213: upper or lower reads a line Int, and takes no region
         ok = ok and ("half" not in args or (args["half"] in (
-            "upper", "lower", "keyhole") and "region" not in args))
+            "upper", "lower", "keyhole", "sector") and "region" not in args))
         try:
             for j in region if ok else ():
                 check_sorts(j)
@@ -1152,7 +1152,7 @@ def _discharge(key, sources, gamma):
         new, used = key, ()
     said = FD.norm_num(new) if new != key else None
     tag = "norm_num"
-    if said is None and new != key:  # E239: E206 for every closed key
+    if said is None and new != key:  # E239: E206 after the exact values
         said, tag = FD.surd_decide(new), "norm_num_surd"
     if said:
         return Obligation(key, sources, DISCHARGED, (tag, used))
@@ -1167,6 +1167,14 @@ def _discharge(key, sources, gamma):
     tag = None if cert is None else discharge.check(key, cert)
     if tag is not None:
         return Obligation(key, sources, DISCHARGED, tag, None, _frozen(cert))
+    # E249: E206 on a closed key no certificate closed, last before the
+    # refuter, so a cite with its certificate keeps its place
+    said = FD.surd_decide(new)
+    if said:
+        return Obligation(key, sources, DISCHARGED, ("norm_num_surd", used))
+    if said is False:
+        raise Refused(DECIDED_FALSE, f"{show(key)} is false: it reads "
+                      f"{show(new)} (E206)")
     try:
         found = refute.refute(key, _owed)
     except RecursionError:
@@ -2951,6 +2959,8 @@ def _residues(state, args, minted, buf):
     sum of wind(g, a)*res(f, a) over S, with every hypothesis owed."""
     if args.get("half") == "keyhole":  # E232: Z11
         return _residues_keyhole(state, args, minted, buf)
+    if args.get("half") == "sector":  # E243: Z12
+        return _residues_sector(state, args, minted, buf)
     if "half" in args:  # E213: Z10, on a line Int
         return _residues_line(state, args, minted, buf)
     g = state.goal[0]
@@ -3079,6 +3089,25 @@ def _exp_split(t, z):
     return None, t
 
 
+def _const_split(t, z):
+    """E242: (c, r) with t == c*r by structure, c the z-free factors of
+    t's products and quotients (Num(1) for none), so a parameter such as
+    u_0 in a numerator does not stop the rational certificate."""
+    if z not in fv(t):
+        return t, Num(1)
+    k = type(t)
+    if k is Mul or k is Div:
+        (ca, ra), (cb, rb) = _const_split(t.a, z), _const_split(t.b, z)
+        if k is Mul:
+            return _times(ca, cb), _times(ra, rb)
+        c = ca if cb == Num(1) else Div(ca, cb)
+        return c, ra if rb == Num(1) else Div(ra, rb)
+    if k is Neg:
+        c, r = _const_split(t.a, z)
+        return c, Neg(r)
+    return Num(1), t
+
+
 def _line_select(g, k):
     """The Int nodes of the non-?A side(s), pre-order; the k-th, or the
     only one, which must run over the whole line (E216)."""
@@ -3115,6 +3144,7 @@ def _residues_line(state, args, minted, buf):
     zc = CVar(z)
     f = subst(it.body, {z: zc})
     u, gr = _exp_split(f, z)
+    cst, gr = _const_split(gr, z)  # E242: a z-free factor kept aside
     proposal = roots.rational(gr, z)
     if proposal is None:
         raise Refused("decay-not-certified", f"{_brief(gr)} is not rational "
@@ -3174,6 +3204,7 @@ def _residues_line(state, args, minted, buf):
     body = Pt if Qt == Num(1) else Div(Pt, Qt)
     if u is not None:
         body = _times(App("exp", u), body)
+    body = _times(cst, body)
     total, trace = None, []
     for a in S:
         m, R = _residue(body, z, a, fac, buf, P, anc, gd)
@@ -3216,8 +3247,8 @@ def _ring_holds_field(a, b):
 def _even_select(g, k):
     found = [(i, p, s, d, a) for i, side in enumerate(_sides(g))
              for p, s, d, a in _positions(side, g.dom)
-             if isinstance(s, Integral) and _bare(s.lo) == Num(0)
-             and isinstance(s.hi, PosInf)]
+             if isinstance(s, Integral) and isinstance(s.hi, PosInf) and (
+                 _bare(s.lo) == Num(0) or isinstance(s.lo, NegInf))]  # E245
     if not found or (k is not None and k >= len(found)):
         raise Refused("int-even-no-integral", "the goal holds no Int[x = 0 "
                       ".. oo] (E217)")
@@ -3249,7 +3280,10 @@ def _int_even(state, args, minted, buf):
     for ok in done:
         for dv in ok.divisors:
             _emit_at(buf, NonZero(dv), P + (line,), anc, S_EVEN, g.dom)
-    new = Mul(Div(Num(1), Num(2)), Integral(x, NEG_INF, POS_INF, f))
+    if isinstance(it.lo, NegInf):  # E245: the whole line as twice the half
+        new = Mul(Num(2), Integral(x, Num(0), POS_INF, f))
+    else:
+        new = Mul(Div(Num(1), Num(2)), Integral(x, NEG_INF, POS_INF, f))
     sides = list(_sides(g))
     sides[side] = _put(sides[side], path, new)
     _charge_formers(buf, new, P, g.dom, anc=anc)
@@ -3379,6 +3413,7 @@ def _residues_keyhole(state, args, minted, buf):
                       "Z11 reads x^alpha times a rational function (E234)")
     alpha, gr = _power_split(it.body, x)
     gz = subst(gr, {x: zc})
+    cst, gz = _const_split(gz, z)  # E242
     proposal = roots.rational(gz, z)
     if proposal is None:
         raise Refused("keyhole-not-certified", f"{_brief(gr)} is not rational "
@@ -3410,7 +3445,7 @@ def _residues_keyhole(state, args, minted, buf):
         if gap < 2:
             raise Refused("decay-not-certified", f"deg Q - deg P = {gap} < 2 "
                           "(E233)")
-        body = Mul(log, rat)
+        body = Mul(log, _times(cst, rat))
     else:  # power form: alpha not an integer, both ends' decay (E233)
         m0 = next((j for j, c in enumerate(pp) if c != roots.ZERO), 0)
         a1 = Add(alpha, Num(1))
@@ -3430,7 +3465,7 @@ def _residues_keyhole(state, args, minted, buf):
             if k not in buf:
                 _emit(buf, k, S_KEY_CERT, gd, divisor=False,
                       discharged_by=("keyhole_alpha", ()))
-        body = Mul(App("exp", Mul(alpha, log)), rat)
+        body = Mul(App("exp", Mul(alpha, log)), _times(cst, rat))
     fac = {Qt: _factor_divisor(Qt, z, buf, P, anc, gd)}
     S = []
     for r, _ in fac[Qt][2]:  # E234: off [0, oo)
@@ -3468,6 +3503,76 @@ def _residues_keyhole(state, args, minted, buf):
     goal = (replace(g, lhs=sides[0], rhs=sides[1] if len(sides) > 1 else g.rhs),)
     check_goal(goal)
     return goal, None, {"trace": tuple(trace)}
+
+
+# ---------------------------------------------------------------- Z12
+#
+# p1_expected E243-E244: the sector for the quadratic phase, and the
+# Gaussian it rests on, as residues sector on an Int[x = 0 .. oo].
+
+S_SECTOR = "residues_sector"
+
+
+def _residues_sector(state, args, minted, buf):
+    """E243-E244: Int[x = 0 .. oo] c*h, h exp(k*x^2), cos(a*x^2) or
+    sin(a*x^2), by Z12's values, each sign owed."""
+    g = state.goal[0]
+    found = [(i, p, s, d, a) for i, side in enumerate(_sides(g))
+             for p, s, d, a in _positions(side, g.dom)
+             if isinstance(s, Integral)]
+    if not found:
+        raise Refused("residues-no-integral", "the goal holds no integral")
+    k = args.get("occurrence")
+    if k is not None and k >= len(found):
+        raise Refused("residues-no-integral", f"no integral at occurrence {k}")
+    if k is None and len(found) > 1:
+        raise Refused("residues-ambiguous", f"{len(found)} integrals in the "
+                      "goal; give an occurrence")
+    side, path, it, P, anc = found[k or 0]
+    _open_end(it, "residues sector")
+    if not (it.lo == Num(0) and isinstance(it.hi, PosInf)):
+        raise Refused("sector-not-half-line", f"{_brief(it)} is not over "
+                      "[0, oo) (E244)")
+    x, gd = it.var, g.dom
+    cst, h = _const_split(it.body, x)
+    while type(h) is Neg:  # E249: a sign is a constant factor
+        cst, h = _times(Neg(Num(1)), cst) if cst == Num(1) else Neg(cst), h.a
+    bad = Refused("sector-not-certified", f"{_brief(it.body)}: Z12 reads c "
+                  "times exp(k*x^2), cos(a*x^2) or sin(a*x^2) (E244)")
+    if type(h) is not App or h.fn not in ("exp", "cos", "sin"):
+        raise bad
+    u = h.arg
+    kk = subst(u, {x: Num(1)})
+    if x in fv(kk) or not _ring_holds(Rel("==", u, Mul(kk, Pow(Var(x), 2)))):
+        raise bad
+    sqrt_pi = App("sqrt", Const("pi"))
+    i = Const("i")
+    if h.fn == "exp":
+        if _ring_holds(Rel("==", App("re", kk), Num(0))):
+            a = App("im", kk)
+            up = _verdict(Rel(">", a, Num(0)), P) is not False and \
+                _verdict(Rel("<", a, Num(0)), P) is not True
+            _owe(buf, Rel(">" if up else "<", a, Num(0)), S_SECTOR, P, anc, gd)
+            mag = a if up else Neg(a)
+            turn = Div(Mul(i, Const("pi")), Num(4))
+            value = Mul(App("exp", turn if up else Neg(turn)),
+                        Div(sqrt_pi, Mul(Num(2), App("sqrt", mag))))
+        else:  # the Gaussian
+            _owe(buf, Rel("==", App("im", kk), Num(0)), S_SECTOR, P, anc, gd)
+            _owe(buf, Rel("<", App("re", kk), Num(0)), S_SECTOR, P, anc, gd)
+            value = Div(sqrt_pi, Mul(Num(2), App("sqrt", Neg(App("re", kk)))))
+    else:
+        if complexes.has_complex(kk):
+            raise bad
+        _owe(buf, Rel(">", kk, Num(0)), S_SECTOR, P, anc, gd)
+        value = Div(sqrt_pi, Mul(Num(2), App("sqrt", Mul(Num(2), kk))))
+    new = _times(cst, value)
+    sides = list(_sides(g))
+    sides[side] = _put(sides[side], path, new)
+    _charge_formers(buf, new, P, gd, anc=anc)
+    goal = (replace(g, lhs=sides[0], rhs=sides[1] if len(sides) > 1 else g.rhs),)
+    check_goal(goal)
+    return goal, None, {}
 
 
 # ---------------------------------------------------------------- int_parts
