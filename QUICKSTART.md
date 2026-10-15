@@ -982,6 +982,8 @@ The kernel also uses them itself to discharge obligations.
 | `sqrt_pos` | `sqrt a > 0 @ a > 0` |
 | `sqrt_nonneg` | `sqrt a >= 0 @ a >= 0` |
 | `sin_nonneg_on` | `sin u >= 0 @ u >= 0, u <= pi` |
+| `sin_pos_on` | `sin u > 0 @ u > 0, u < pi` |
+| `sin_pos_pi` | `sin(pi*u) > 0 @ u > 0, u < 1` |
 | `cos_nonneg_on` | `cos u >= 0 @ u >= 0, u <= pi/2` |
 | `cos_le_one` | `cos u <= 1` |
 | `cos_ge_neg_one` | `cos u >= -1` |

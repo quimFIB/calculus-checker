@@ -3255,10 +3255,14 @@ def _line_divisors(it, z, P, anc, gd, buf):
             except Refused:
                 continue
             for k in _real_keys(prop, d):
-                if k not in buf or buf[k].status != DISCHARGED:
-                    buf[k] = Obligation(k, frozenset((S_LINE_POLE,)),
-                                        DISCHARGED,
+                old = buf.get(k)
+                src = frozenset((S_LINE_POLE,)) | (old.sources if old else
+                                                   frozenset())
+                if old is None or old.status != DISCHARGED:
+                    buf[k] = Obligation(k, src, DISCHARGED,
                                         ("residues_line_roots", ()))
+                else:
+                    buf[k] = replace(old, sources=src)
 
 
 def _ring_holds_field(a, b):

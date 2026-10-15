@@ -131,6 +131,9 @@ STATEMENTS = {
                     ("u", "v")),
     "arg_left_down": ("Arg(u + i*v) == atan(v/u) - pi @ u < 0, v < 0",
                       ("u", "v")),
+    # E253: strict sine bounds, read by cite
+    "sin_pos_on": ("sin u > 0 @ u > 0, u < pi", ("u",)),
+    "sin_pos_pi": ("sin(pi*u) > 0 @ u > 0, u < 1", ("u",)),
 }
 
 

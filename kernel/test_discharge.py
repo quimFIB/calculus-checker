@@ -821,12 +821,13 @@ def entries_problems():
             *X.UNIT00_ENTRIES_APPEND,  # E117: 39
             *X.G8_ENTRIES_APPEND,  # E133: 42
             *X.K1_ENTRIES_APPEND,  # E172: 47
-            *X.K4D_ENTRIES_APPEND]  # E239: 51
+            *X.K4D_ENTRIES_APPEND,  # E239: 51
+            *X.SINE_ENTRIES_APPEND]  # E253: 53
     if names[-len(tail):] != tail:
         out.append(f"cos_zero, sqrt_nonneg and CONSOLIDATION_ENTRIES are not "
                    f"last, in that order: {names}")
-    if len(names) != 51:
-        out.append(f"ENTRIES has {len(names)} entries, expected 51")
+    if len(names) != 53:
+        out.append(f"ENTRIES has {len(names)} entries, expected 53")
     for name, e in {**X.SQRT_NONNEG_ENTRY, **X.CONSOLIDATION_ENTRIES,
                     **X.UNIT00_ENTRIES, **X.G8_ENTRIES}.items():
         got = ENTRIES.get(name)

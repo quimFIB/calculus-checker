@@ -4590,7 +4590,8 @@ def discharge_checks(suite):
         return
     suite.check("D", "DISCHARGE_NEW_ENTRIES pinned (sqrt_zero immediately before "
                 "sqrt_sq, cos_zero after exp_one, sqrt_nonneg after it, "
-                "CONSOLIDATION_ENTRIES, atan_zero, trig_norm's seven, exp_pos, unit 00's seven, G8's three, K1's five, then K4c-ii's four: 51), and EXACT_VALUE_ENTRIES is "
+                "CONSOLIDATION_ENTRIES, atan_zero, trig_norm's seven, exp_pos, unit 00's seven, G8's three, K1's five, K4c-ii's four, then the sine bounds: 53), and "
+                "EXACT_VALUE_ENTRIES is "
                 "ENTRIES' exact values", TD.entries_problems)
     for row in TD.expected_certificates():
         where, _, tag, spec = row
@@ -6726,6 +6727,15 @@ def sector_problems(part):
     return out
 
 
+def _sine_cite(text):
+    import search
+    import discharge as DC
+    k = T.parse_judgement(text)
+    cert = search.propose(k)
+    tag = DC.check(k, cert) if cert else None
+    return None if tag is None or tag[0] != "cite" else tag[1][0]
+
+
 def k1_checks(suite):
     suite.check("Z", f"K1 round trips ({len(X.K1_CASES['round_trips'])}), "
                 "GRAMMAR.md §11", lambda: k1_problems("round_trips"))
@@ -6809,6 +6819,10 @@ def k1_checks(suite):
     suite.check("Z", f"Z12 refusals ({len(X.SECTOR_CASES['move_refusals'])}"
                 "): the phase, the range, the Gaussian's sign (E244)",
                 lambda: sector_problems("move_refusals"))
+    suite.check("Z", f"sine bounds ({len(X.SINE_CASES['cites'])}): cited "
+                "for sin(pi*a) on (0, 1), not elsewhere (E253)", lambda: [
+                    f"{t}: {got}" for t, want in X.SINE_CASES["cites"]
+                    for got in [_sine_cite(t)] if got != want])
     suite.check("Z", f"E206 surds ({len(X.K4B_CASES['surds'])}): decided "
                 "exactly in Q(sqrt s), two surds left undecided",
                 lambda: k4b_problems("surds"))
@@ -7013,7 +7027,8 @@ def consolidation_entries_problems():
         X.UNIT00_ENTRIES_APPEND) + list(  # and unit 00's seven (E117)
         X.G8_ENTRIES_APPEND) + list(  # and G8's three (E133)
         X.K1_ENTRIES_APPEND) + list(  # and K1's five (E172)
-        X.K4D_ENTRIES_APPEND)  # and K4c-ii's four (E239)
+        X.K4D_ENTRIES_APPEND) + list(  # and K4c-ii's four (E239)
+        X.SINE_ENTRIES_APPEND)  # and the sine bounds (E253)
     if "sqrt_nonneg" not in names or \
             names[names.index("sqrt_nonneg") + 1:] != want:
         out.append(f"not appended after sqrt_nonneg in order: {names}")

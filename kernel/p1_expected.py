@@ -18515,7 +18515,7 @@ K4D_CASES["symbolic"] = [
       "fact f4 := cos_pi.", "fact f5 := sin_pi.",
       "fact f6 := pyth_cos with u := (a - 1)*pi.",
       "close pi/sin(pi*a) by field using f1, f2, f3, f4, f5, f6."],
-     "Proved modulo 1 admissions"),
+     "Proved."),  # E255: was modulo 1 admissions (E240 (3))
 ]
 K4D_EXACT_VALUES_ADD = ("atan_one", "atan_sqrt3")  # E239: exact values
 DECISIONS_COMPLEX_K4D["E241"] = (
@@ -18699,7 +18699,8 @@ UPGRADE_CASES = {
           "sin(sqrt(1599)*t/5)/sqrt(1599))) by field using h1, h2, h3, h4."],
          "Proved."),
         (f"goal {P9_GOAL} @ t < 0.", ["residues lower."], "Proved."),
-        # admitted at install, never discharged later: unchanged
+        # the symbolic 20 P8: its last admission, sin(pi*a) # 0, is
+        # discharged by sin_pos_pi since E253 (E255)
         ("goal Int[x = 0+ .. oo] rpow(x, a - 1)/(1 + x) == ?A @ a > 0, a < 1.",
          ["residues keyhole.",
           "fact f1 := sin_add with u := (a - 1)*pi; v := (a - 1)*pi.",
@@ -18708,7 +18709,7 @@ UPGRADE_CASES = {
           "fact f4 := cos_pi.", "fact f5 := sin_pi.",
           "fact f6 := pyth_cos with u := (a - 1)*pi.",
           "close pi/sin(pi*a) by field using f1, f2, f3, f4, f5, f6."],
-         "Proved modulo 1 admissions"),
+         "Proved."),  # E255
     ],
 }
 
@@ -18749,3 +18750,21 @@ SINE_CASES = {
         ("sin(pi*a) # 0 @ a > 0, a < 2", None),
     ],
 }
+DECISIONS_SINE["E256"] = (
+    "The review of E250-E255 (2026-10-15): no false theorem and no crash. "
+    "Folded in: _line_divisors merges a key's sources rather than replacing "
+    "them, and UPGRADE_CASES regains a negative witness. The same P8 closed "
+    "with pi/sin(a*pi) keeps its admission, since the cite matches by tree "
+    "(E254), and no later step discharges it. Left, as before (E241 (1)): a "
+    "linear key false on its whole domain, such as a + 1 - 1 < 1 @ a > 1, a "
+    "< 2, is admitted, since the refuter's sampling misses it.")
+UPGRADE_CASES["reports"].append(
+    ("goal Int[x = 0+ .. oo] rpow(x, a - 1)/(1 + x) == ?A @ a > 0, a < 1.",
+     ["residues keyhole.",
+      "fact f1 := sin_add with u := (a - 1)*pi; v := (a - 1)*pi.",
+      "fact f2 := cos_add with u := (a - 1)*pi; v := (a - 1)*pi.",
+      "fact f3 := sin_add with u := (a - 1)*pi; v := pi.",
+      "fact f4 := cos_pi.", "fact f5 := sin_pi.",
+      "fact f6 := pyth_cos with u := (a - 1)*pi.",
+      "close pi/sin(a*pi) by field using f1, f2, f3, f4, f5, f6."],
+     "Proved modulo 1 admissions"))
