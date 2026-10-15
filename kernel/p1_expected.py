@@ -18661,3 +18661,54 @@ SECTOR_CASES["review"] = [  # E249: (goal, sentences, value)
     ("Int[x = 0 .. oo] -cos(x^2) == ?A", ["residues sector."],
      "-sqrt(pi/8)"),
 ]
+
+
+# -------------------------------------------------- a later discharge upgrades an admission (E250-E252)
+
+DECISIONS_UPGRADE = {
+    "E250": "E8 is amended, for the tracker only. A key the tracker holds "
+            "ADMITTED that a later step emits DISCHARGED takes the "
+            "discharge: its status, tag, reason and certificate. The union "
+            "of the sources is kept, as before. The key is the same "
+            "judgement, domain included, so the discharge is of the same "
+            "claim, by a method the kernel checked. The record can only get "
+            "stronger, and a DISCHARGED key is never touched again. A step's "
+            "own record (StepRecord.emitted) keeps the status its buffer "
+            "gave, since it records what that step established. Before "
+            "this, an obligation admitted at install stayed admitted when a "
+            "later move proved it, and the report overcounted.",
+    "E251": "Z10 uses it. When residues upper|lower has factored the "
+            "integrand's polynomial divisors (E204) and each root's im r # "
+            "0 settled (E215), each such divisor d is nonzero for every real "
+            "x. So Z10 emits NonZero(d) at the Int's body positions, on the "
+            "line, exactly as the Int's former charged it, DISCHARGED with "
+            "tag residues_line_roots. A divisor whose roots did not all "
+            "settle, or that is not a polynomial, is left as it was.",
+    "E252": "The cases. 20 P9 for t > 0 and for t < 0 read Proved., having "
+            "read 'Proved modulo 1 admissions' (E246). An admission no "
+            "later step discharges is unchanged.",
+}
+UPGRADE_CASES = {
+    # (header, sentences, report)
+    "reports": [
+        (f"goal {P9_GOAL} @ t > 0.",
+         ["residues upper.",
+          "fact h1 := cos_even with u := sqrt(1599)*t/5.",
+          "fact h2 := sin_odd with u := sqrt(1599)*t/5.",
+          "fact h3 := sqrt_sq_val with a := 1599.", "fact h4 := exp_zero.",
+          "close (pi*u/32)*(1 - exp(-t/5)*(cos(sqrt(1599)*t/5) + "
+          "sin(sqrt(1599)*t/5)/sqrt(1599))) by field using h1, h2, h3, h4."],
+         "Proved."),
+        (f"goal {P9_GOAL} @ t < 0.", ["residues lower."], "Proved."),
+        # admitted at install, never discharged later: unchanged
+        ("goal Int[x = 0+ .. oo] rpow(x, a - 1)/(1 + x) == ?A @ a > 0, a < 1.",
+         ["residues keyhole.",
+          "fact f1 := sin_add with u := (a - 1)*pi; v := (a - 1)*pi.",
+          "fact f2 := cos_add with u := (a - 1)*pi; v := (a - 1)*pi.",
+          "fact f3 := sin_add with u := (a - 1)*pi; v := pi.",
+          "fact f4 := cos_pi.", "fact f5 := sin_pi.",
+          "fact f6 := pyth_cos with u := (a - 1)*pi.",
+          "close pi/sin(pi*a) by field using f1, f2, f3, f4, f5, f6."],
+         "Proved modulo 1 admissions"),
+    ],
+}
