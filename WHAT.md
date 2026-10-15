@@ -93,7 +93,9 @@ readiness P1 from the sheet's own goal, stage 0's S1–S3, three substitution
 files, ∫₀¹ √(1 − x²) = π/4, readiness P1(1) by parts, readiness P5 and P2
 (improper integrals over infinite ranges), ∫₀^{π/2} cos²t = π/4, and
 readiness P3 part 1 (both sides of the Lagrange remainder's bound).
-`python3.12 kernel/proof_of_life.py` passes 1141 checks (`PROOF_OF_LIFE.md`).
+`python3.12 kernel/proof_of_life.py` passes 1181 of its 1182 checks
+(2026-10-15; the one failure is F3's 8 s install bound, which this
+machine's speed misses at every commit timed) (`PROOF_OF_LIFE.md`).
 Discharge, `int_subst`, `int_flip` and regularity are built, and so are
 §18 Q23's formers: integrals and derivatives owe their own definedness.
 
@@ -114,8 +116,12 @@ each spec-first and then reviewed by an independent skeptic:
 
 **Deliberately not built yet:**
 - the `diverges` judgement (integrands singular at a finite end are built:
-  `Int[x = 0+ .. 1] f`, evaluated by `int_improper`, E222–E230, and unit 00
-  P7's B(1, 1/2) proves);
+  `Int[x = 0+ .. 1] f`, evaluated by `int_improper`, E222–E231);
+- in complex analysis: limit terms and the estimation lemma (E212),
+  zero-set entries such as 1/sin z's (E204), the argument principle as a
+  rule (E232), Kramers–Kronig for an abstract χ (E270), a PV over a finite
+  range or with a double pole (E270), symbolic factors of degree > 2
+  (E277), phases xⁿ for n > 2 (E247) and interior singularities (E228);
 - `int_improper` for trig integrands by a squeeze law (e^-x sin x is
   reached through complex numbers instead: COMPLEX.md K2, E179);
 - the cycle case of `int_parts` (E74), hyperbolic atoms in `trig_norm`;
@@ -186,7 +192,7 @@ files, `kernel/problems/ode/` (outside the gate's corpus), with Γ in an
 `assume` list. A `.dx` header states Γ after `assuming` (DX.md), the
 page's own-goal form has an Assuming box and shows Γ beside the goal, and
 the three moves have tactics (SCRIPT.md).
-`python3.12 kernel/proof_of_life.py` passes 1141 checks.
+`python3.12 kernel/proof_of_life.py` passed 1141 checks then (2026-09-26).
 
 **Doom Emacs has a `:lang dx` module** (`emacs/doom/dx`, 2026-09-26, the
 owner's ask). Linked into `$DOOMDIR/modules/lang/dx` and enabled as `dx`
@@ -291,8 +297,10 @@ goal, and `taylor.P3_LOWER` / `taylor.P3_UPPER` are problems.
 **Learning the language: `QUICKSTART.md`** (2026-09-28, the owner's
 ask). Twelve worked lessons, `tutorial/01-ftc.dx` to `12-ode.dx`, run
 from S1 to an equation of motion. With the page's other examples they
-cover every move but `sep_autonomous` and `energy_integral`, the
-entries, and what a refusal says. Each lesson has
+cover the entries, what a refusal says, and every move but
+`sep_autonomous` and `energy_integral` (its complex-analysis section
+covers contours, residues, the closing rules, marked ends and principal
+values). Each lesson has
 an exercise, `tutorial/exercises/`, with a solution in
 `tutorial/solutions/`. `app/test_tutorial.py` proves every lesson and
 solution and runs every other example on the page, including the text
@@ -339,39 +347,46 @@ real judgement), and Cauchy–Riemann by `verify`. **K4a, contour integrals, is 
 and reversed by `rev`, and `CInt[z on g] f`, which `cint_param` unfolds
 into real-variable integrals by its parametrisation, so ∮ dz/z = 2πi and
 ∮ z̄ dz = 2πi on the unit circle prove. **K4b, the residue theorem, is
-built** (E200–E210): one move, `residues [in U]`, replaces a contour
-integral over a closed path by 2πi times the winding-weighted residues.
-The poles come from a factorisation that `field` checks (roots in ℚ(i)
-or with one real surd), the winding numbers from half-open ray crossings
-per segment and arc, and each residue from (z − a)^m f differentiated.
-Every hypothesis is owed. Unit 20 P4's ∮ χ round |ω − 8| = 1 (−5πi/√1599)
-and readiness P5's semicircle at R = 2 (π/√2) prove with no admission.
-**K4c-i, closing a line integral, is built** (E212–E220): `residues
-upper|lower` takes Int[x = -oo .. oo] f to 2πi times the residues in a
-half-plane, under a decay certificate the kernel checks (degrees, or
-Jordan's exp(i·a·x) with a's sign owed). `int_even` halves the line, so
-readiness P5's ∫₀^∞ dx/(1 + x⁴) = π/(2√2) proves by residues, and
-Bromwich's inversion is the same rule in s = σ + iy. There is no limit term
-in the goal language, so Z10 states the composed theorem once instead of
-building it from the estimation lemma (E212). **Improper integrals at a
-finite end are built** (E222–E231): an end marked `0+` or `1-` is a limit,
-evaluated by `int_improper`. **K4c-ii, the keyhole, is built** (E232–E240):
-`residues keyhole` on [0, oo) takes a rational integrand by log z, or
-x^α·R with α any real term, so unit 20 P8's ∫₀^∞ x^(a−1)/(1 + x) proves at
-a = 1/3 (2π/√3), and for symbolic a by hand, modulo the answer's own
-sin(πa) ≠ 0. Sin and cos at multiples of π/6 and π/4, standard atan
-values and arguments at closed points now evaluate exactly (E239). **The sector
-is built** (Z12, E242–E248): `residues sector` gives the quadratic phase,
-Fresnel's ∫₀^∞ cos x² = ∫₀^∞ sin x² = √(π/8) and the Gaussian, with the
-Gaussian integral stated as the rule's theorem. `int_even` now also takes
-the whole line to twice the half. Unit 20 P9's Bromwich inversion proves
-by hand, modulo the install-time positivity of its denominator on the
-line. `int_re F`/`int_im F` move `re`/`im` through an Int once re F == f
-checks, so ∫ cos x/(x² + 1) = π/e closes through Z10, and `int_even` sees
-sin and cos parity (E257–E262). A later step's discharge now upgrades an
-earlier admission (E250), and two strict sine bounds are cite entries
-(E253), so unit 20 P8 and P9 prove with no admission. Indentation (it
-needs a principal value) is not built.
+built** (E200–E211): `residues [in U]` replaces a contour integral over a
+closed path by 2πi times the winding-weighted residues, U ℂ or open
+half-planes and disks. The poles come from a factorisation that `field`
+checks, the winding numbers from half-open ray crossings, and each residue
+from (z − a)^m f differentiated; every hypothesis is owed. Unit 20 P4's
+∮ χ round |ω − 8| = 1 (−5πi/√1599) proves.
+
+**Real integrals by residues are built** (2026-10-15). There is no limit
+term in the goal language, so each closing method is one stated theorem
+with a decay certificate the kernel checks (E212), not a composition:
+- `residues upper|lower` (Z10) takes Int[x = -oo .. oo] f to ±2πi times the
+  residues in a half-plane, by degree or Jordan's exp(i·a·x) (E212–E221);
+  Bromwich's inversion is the same rule in s = σ + iy, so unit 20 P9's
+  inversion proves (E246, E252);
+- `int_even` takes an even integrand between [0, oo) and the whole line,
+  both ways (E217, E245), so readiness P5's ∫₀^∞ dx/(1 + x⁴) = π/(2√2)
+  proves by residues;
+- `residues keyhole` (Z11) takes ∫₀^∞ of a rational function by log z, or
+  of x^α·R for any real α, so unit 20 P8's ∫₀^∞ x^(a−1)/(1 + x) =
+  π/sin(πa) proves for 0 < a < 1 (E232–E241, E255);
+- `residues sector` (Z12) gives the quadratic phase, Fresnel's
+  ∫₀^∞ cos x² = ∫₀^∞ sin x² = √(π/8) (unit 20 P6) and the Gaussian, which
+  the rule states as its theorem (E242–E249);
+- `int_re F` and `int_im F` move re and im through an Int once re F == f
+  checks, so ∫ cos x/(x² + 1) = π/e (E257–E264), and unit 20 P7's two
+  exact galvanometer checks prove (E263);
+- **principal values and indentation**: `PV[x = a .. b] f` is a term, and
+  `residues upper|lower` on a whole-line PV adds πi times the residues at
+  simple real poles, so PV ∫ sin x/x = π (Z13, E265–E272);
+- **symbolic coefficients**: a divisor's quadratic factors with parameter
+  coefficients factor by the quadratic formula, signs owed from the
+  goal's domain, so unit 20 P5's two integrals prove with D written as the
+  course factors it (E273–E280).
+
+**Improper integrals at a finite end are built** (E222–E231): an end
+marked `0+` or `1-` is a limit, evaluated by `int_improper`, so unit 00
+P7's B(1, 1/2) proves. Exact values now include sin and cos at multiples
+of π/6 and π/4, the standard atan values, arguments at closed points and
+two strict sine bounds (E239, E253); a later step's discharge upgrades an
+earlier admission (E250).
 
 **Next,** per §17: stage 1's lists are done (2026-09-25). The gate
 (`app/GATE.md`): work its seventeen problems in order on the page, then
@@ -379,8 +394,8 @@ needs a principal value) is not built.
 code. QUICKSTART.md's last section says what the gate does not record,
 and which files hold its answers.
 
-**Python version:** the suite passes 1141 of 1141 on Python 3.12, and on
-3.14 (2026-09-28).
+**Python version:** the suite passed 1141 of 1141 on Python 3.12, and on
+3.14 (2026-09-28); see above for today's count.
 On 3.11 five deep-term checks fail with `RecursionError` in dataclass
 `__eq__`, so 3.12 is the floor in practice.
 

@@ -8,7 +8,8 @@ against them. Each skeleton file's docstrings carry the per-function detail;
 this file carries what crosses module lines. `§n` is `DESIGN.md` unless it
 says otherwise.
 
-**Running.** From the project root, with Python 3.10 or later and nothing
+**Running.** From the project root, with Python 3.12 or later (3.11 fails
+deep terms with RecursionError in dataclass `__eq__`) and nothing
 installed, one command:
 
     python3 kernel/proof_of_life.py
@@ -37,7 +38,10 @@ tests alone: `python3 -m unittest discover -s kernel`.
 | File | Tier | §15.2 item | Imports |
 |---|---|---|---|
 | `terms.py` | trusted | 1, 8: nodes, fv/bv, substitution, goal checks, parser, printer | stdlib |
-| `entries.py` | trusted | 7: the twenty-three §6.8 entries, pinned (P1's ten, stage 0's four, the owner's `sqrt_zero` and `cos_zero`, E35, `sqrt_nonneg`, E49, and the consolidation's six, E54) | terms |
+| `entries.py` | trusted | 7: the 53 §6.8 entries and 6 families, pinned (P1's ten, stage 0's four, the owner's `sqrt_zero` and `cos_zero`, E35, `sqrt_nonneg`, E49, the consolidation's six, E54, and the later stages' appended in order; the trig table `cos_sin_table`, E239) | terms |
+| `complexes.py` | trusted | `split` to real and imaginary parts, realified keys and domains (§16) | terms, field |
+| `limits.py` | trusted | the limit evaluator `int_improper` and the marked ends use (E77, E226) | terms, field |
+| `trig_norm.py` | untrusted | none (E88): proposes trig instances that `field` re-checks | terms, field |
 | `domains.py` | trusted | 2, 5: E26 (a)'s natural-domain table and regularity's one added datum (C1_EXTRA), the one table the formers and the regularity checker both read (E61, §13) | terms |
 | `poly.py` | trusted | 4: copied from `spike/ring/poly.py`, plus `exact_div` (p1_expected E131) | stdlib |
 | `field.py` | trusted | 4: `ring`, `field`, `norm_num`; field keys an atom's argument with exactly dividing denominator factors cancelled (E131) | poly, terms |
@@ -53,6 +57,7 @@ tests alone: `python3 -m unittest discover -s kernel`.
 | `roots.py` | untrusted | none (E204): proposes a polynomial divisor's factorisation, roots in ℚ(i) or with one real surd | terms |
 | `proof_of_life.py` | script | none | everything, p1_expected, problems/stage0/expected.py, test_discharge |
 | `test_discharge.py` | test | none | discharge, search, refute, kernel, tagger, p1_expected, problems/stage0/expected.py |
+| `test_field.py`, `test_grammar.py` | test | none | field, terms |
 
 **Keeping the trusted base auditable.** The trusted files are the ones
 whose mistakes are false theorems: they build terms and goals, decide
@@ -71,7 +76,7 @@ relabelling) could move to an untrusted relabeller that runs after a
 generic trusted refusal; that is an audit choice for the owner, not done
 here.
 
-Standard library only, Python 3.10+. Modules import each other flat, spike
+Standard library only, Python 3.12+. Modules import each other flat, spike
 style (`import poly as P`, `from terms import Num`), since the script's
 directory is on `sys.path` when `python3 kernel/proof_of_life.py` runs.
 
@@ -88,8 +93,10 @@ deriv's output forms and side conditions *are* the rule table (§15.2 item 2).
 The planted bug `d_ln_emits_nothing` is the proof. Emitting per-rule steps
 is later work.
 
-**Trusted code imports untrusted code in five places, and none can
-produce a theorem.** `tagger.tag` names the method expected to close an
+**Trusted code imports untrusted code in seven places, and none can
+produce a theorem.** Two arrived with the complex stages: `trig_norm`
+proposes instances that `field` re-checks (E88), and `roots` proposes a
+factorisation that `field` checks on split parts (E204). `tagger.tag` names the method expected to close an
 admission, and nothing relies on it (E24). `search.propose` proposes a
 certificate, and only `discharge.check`'s acceptance discharges (E28).
 `refute.exact_false` and `refute.refute` decide an obligation false, which
@@ -1402,7 +1409,7 @@ The suite's item R (`rpow_checks`) reads RPOW_E163. D17's two
 must-refuse constructions left DIRECT_REFUSALS: they are terms now, and
 item R checks what they print.
 
-## 16. Complex arithmetic, stage K1 (p1_expected E165–E174)
+## 16. Complex analysis, from stage K1 on (p1_expected E165–E280)
 
 COMPLEX.md is the design and GRAMMAR.md §11 the grammar. What the kernel
 gained:
@@ -1519,8 +1526,10 @@ against complex evaluation at 200 random points per term.
   factorisations. φ = (z − a)^m f is built by structure, and the residue
   is D[z]^(m−1) φ at a, over (m − 1)!.
 - **`field.surd_decide`** decides a closed key exactly in ℚ(√s) for one
-  surd (E206). Only `residues`' own keys use it, through `_owe`, which
-  also discharges an equation `ring` proves.
+  surd (E206). `residues`' own keys use it through `_owe`, which also
+  discharges an equation `ring` proves, and since E239 and E249
+  `_discharge` runs it on every closed key, after the exact values and
+  last before the refuter.
 - **Arc ends meet modulo 2π** (`_meets`, E203), in `cint_param`'s joins
   too.
 - **The review (E211)** found three false theorems, all fixed:
@@ -1606,3 +1615,29 @@ im F) == f by `field` on F's split parts, with its divisors owed on the
 range, and writes re (im) of the new Int. `int_even` retries with
 `_parity_facts`, the sin_odd and cos_even instances at negated
 arguments.
+
+**Principal values and indentation, Z13 (E265–E272).**
+
+- **`terms.PV`** is a binder handled as `PathP` is in `fv`, `bv`, `subst`
+  and the checker, but it is not an `Integral`. `trees()` yields it,
+  `_positions` does not enter it, and `field` refuses it.
+- **`residues upper|lower`** reads a whole-line PV through
+  `_residues_line`. A real root of Q is allowed when `im r == 0` settles
+  and its multiplicity is 1. It adds ±πi Σ res at those poles.
+- **`_pv_body_formers`:** before evaluating a PV, `residues`,
+  `int_re` and `int_im` charge its body's formers on the range. Divisors
+  that are polynomials in the variable are exempt; their zeros are the
+  excluded points.
+
+**Symbolic coefficients (E273–E280).**
+
+- **`_factor_symbolic`** factors a divisor factor by factor
+  (`_factor_list`). A symbolic factor of degree ≤ 2 goes through
+  `_quadratic_roots`:
+  - the coefficients come from f(0) and f(±1), checked by `ring`, made
+    monic and normalised by `_c_normal`;
+  - the discriminant's sign is settled and owed.
+
+  The whole factorisation is checked by `field` with `sqrt_sq_val` facts.
+- **Z10 on a symbolic integrand:** `_num_den` builds N/D by structure.
+  The degree gap is D's certified multiplicities minus `_degree_up`(N).

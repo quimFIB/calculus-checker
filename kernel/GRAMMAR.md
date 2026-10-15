@@ -66,6 +66,10 @@ were added, not by section.)
 | `mvar-misplaced` | `?A` anywhere but the whole right side of one `==` in a goal (D15) |
 | `syntax` | anything else malformed: an unexpected token, an unbalanced bracket, a missing operand |
 
+The complex terms add their own codes, listed in §11: `sort-order-on-complex`,
+`sort-real-only`, `complex-calculus-not-built`, `branch-not-constant`, and
+for marked ends `open-end-misplaced`, `open-end-side` and `open-end-empty`.
+
 Every refusal this file names has a code, including `shadowing`,
 `D11-bound-and-free`, `D13-unnamed-interval` and the catch-all `syntax`.
 `oo-misplaced` is both a parse code and a constructor's: the parser raises it, and so does the `Interval` constructor (§7, D18),
@@ -157,7 +161,7 @@ item      = [ VAR "in" ] interval | sum CMP sum | sum "#" "0" ;
 CMP       = "<=" | "<" | ">=" | ">" ;
 interval  = ( "[" | "(" ) endpoint "," endpoint ( "]" | ")" ) ;
 expr      = binder | sum ;
-binder    = "Int" "[" VAR "=" endpoint ".." endpoint "]" expr ;
+binder    = ( "Int" | "PV" ) "[" VAR "=" endpoint ".." endpoint "]" expr ;
 sum       = product { ( "+" | "-" ) product } ;       (* left-assoc *)
 product   = unary { ( "*" | "/" ) unary } ;          (* left-assoc *)
 unary     = "-" unary | power ;
@@ -354,16 +358,22 @@ equivalence. The printer never renames.
 | Node | Fields | Invariant |
 |---|---|---|
 | `Num` | `n: int` | n ≥ 0. Negatives are `Neg(Num)`; a fraction p/q is `Div(Num p, Num q)`. The kernel builds literals through `lit(q)`, which produces exactly these shapes. |
-| `Const` | `name` | `pi` or `e_const` |
+| `Const` | `name` | `pi`, `e_const` or `i` (§11) |
 | `Var` | `name` | a variable name (§3) |
+| `CVar` | `name` | a complex variable, declared `complex` (§11) |
 | `MVar` | `name` | in goals only (§6) |
 | `Neg`, `Add`, `Mul`, `Div` | operands | none |
 | `Pow` | `base, n: int` | any int |
 | `RPow` | `base, exp: Term` | none since E163: a `Num` or `Neg(Num)` exponent is a term, printed `rpow(base, exp)` (D17) |
-| `App` | `fn, arg` | fn is one of the 16 builtins |
+| `App` | `fn, arg` | fn is one of the 19 builtins |
 | `Call` | `fn, args: tuple` | fn is declared with `len(args)` arguments |
 | `Deriv` | `var, body` | none |
-| `Integral` | `var, lo, hi, body` | lo and hi are a `Term`, `PosInf` or `NegInf` |
+| `Integral` | `var, lo, hi, body` | lo and hi are a `Term`, `PosInf`, `NegInf` or an `Open` |
+| `Open` | `e, side` | a marked end `e+` or `e-`, only an Int's lo or hi (§11) |
+| `PV` | `var, lo, hi, body` | a principal value, a binder like `Integral` but not one, unmarked ends (§11) |
+| `Branch` | `fn, theta, arg` | `log`, `arg` or `sqrt` with a closed real angle θ (D19) |
+| `Seg`, `Arc`, `PathP`, `Join`, `Rev` | as §11 | the path nodes; `PathP` binds its variable |
+| `CInt` | `var, path, body` | a contour integral; its variable is a `CVar` bound in the body |
 | `Interval` | `var, lo, lo_closed, hi, hi_closed` | lo is a `Term` or `NegInf`, hi is a `Term` or `PosInf`, and an infinite end is open (D18). Constructing one that is not raises `oo-misplaced` (a `__post_init__` check on the frozen dataclass). |
 | `Rel`, `NonZero`, `Reg` | as §6 | the domain is a `tuple` of items; a constraint item is a `Rel`/`NonZero` with an empty domain |
 
@@ -563,8 +573,8 @@ value; §9's whitelist is what refuses it.
 
 ## 11. Complex terms (stage K1, p1_expected E165–E174)
 
-COMPLEX.md is the design; this section is the grammar it needs for
-arithmetic. Calculus over ℂ (K2–K4) adds to it later.
+COMPLEX.md is the design; this section is the grammar it needs, K1's
+arithmetic first and each later stage's additions after it.
 
 **The imaginary unit.** `i` is a constant, `Const("i")`, beside `pi` and
 `e_const`, and is no longer a variable name (COMPLEX.md Z4). `i^2` parses
@@ -622,7 +632,7 @@ alone (Z2):
 | `ln sqrt asin acos atan asinh acosh atanh` | Real, and the argument must be Real |
 | `RPow(b, e)` | b must be Real; Complex if e is |
 | `Call(f, …)` | Real, and every argument must be Real |
-| `Int`, `D`, `Reg`, `Interval` | Real, and everything inside must be Real (until K2) |
+| `Int`, `D`, `Reg`, `Interval`, `PV` | an Int's, D's or PV's body and a Reg's term may be Complex (K2); the limits and an interval's ends stay Real |
 
 The judgements: an order (`<`, `<=`, `>`, `>=`) needs Real sides; `==`
 and `# 0` take either. check_goal checks every judgement of a goal, its
@@ -632,7 +642,7 @@ domain included, and every node built by a move goes through it.
 |---|---|
 | `sort-order-on-complex` | an order judgement with a Complex side, `z < 1`, `i^2 >= 0` |
 | `sort-real-only` | a Real-only builtin, `RPow` base or declared function applied to a Complex term: `ln z` (write `Log z`), `sqrt(i)` (write `Sqrt i`) |
-| `complex-calculus-not-built` | a Complex term inside `Int`, `D`, `Reg` or an interval; K2 builds it |
+| `complex-calculus-not-built` | a Complex term as an Int's or a PV's limit or an interval's end |
 | `branch-not-constant` | a branch angle that is not a closed real constant (D19) |
 
 **Semantics** (COMPLEX.md §3.2). `log[θ] w` is `ln(abs w) + i*arg[θ] w`,
@@ -646,8 +656,8 @@ the modulus, `sqrt((re w)^2 + (im w)^2)`. `conj`, `re` and `im` are total. Over 
 variable. An `Int`'s body, a `D[x]` body and a `Reg`'s term may be
 Complex, since `Int`'s and `D`'s variables are Real, and `Int` and `D`
 take their body's sort. An `Int`'s limits and an interval's ends stay
-Real and free of complex structure. `D[z]` for a CVar z is still refused
-`complex-calculus-not-built` (K3).
+Real and free of complex structure. `D[z]` for a CVar z was refused
+`complex-calculus-not-built` until K3.
 
 **Stage K3 (p1_expected E183–E187):** `D[z]` for a CVar z is the complex
 derivative, and the parser takes it. A `D`'s variable is Complex exactly
@@ -679,8 +689,11 @@ patom     = "rev" patom | "(" path ")"
 term syntax. `wind` and `res` are computed into the move's result and are
 not terms. The move `residues [in C, ...] [occurrence N]` (SCRIPT.md) takes
 a region as a list of conditions on the `CInt`'s variable, read as domain
-items are (§6). Each condition is an open half-plane, affine in `re z`
-and `im z`, or an open disk, `abs(z - c) < r` (E201).
+items are (§6). Each condition is an open half-plane, `<` or `>` between
+sides whose difference is affine in `re z` and `im z`, or an open disk,
+`abs(z - c) < r` or `r > abs(z - c)` (E201). A `#` or any other form is
+refused `region-not-convex`. The flavours `residues upper|lower|keyhole|
+sector` read an Int or a PV, and take no `in` (`bad-args`).
 
 **Marked ends (p1_expected E222–E230): improper integrals at a finite end.**
 
@@ -695,3 +708,21 @@ endpoint  = expr | "oo" | "-" "oo" | expr "+" | expr "-" ;
   (`open-end-side` otherwise).
 - **Where a mark may stand:** only as an Int's end (`open-end-misplaced`).
   A marked Int is not statable (E225), as an infinite one is not.
+- **Empty ranges:** a marked range is ordered strictly, so equal ends
+  refuse `open-end-empty` and an undecided strict order
+  `orientation-undecided` (E231). `Int[x = 0+ .. oo]` is allowed.
+
+**Principal values (p1_expected E265–E272).** `PV[x = a .. b] e` is a
+binder written as an Int is, `"PV"` in §4's `binder`, with unmarked ends.
+It is the limit, as ε → 0⁺, of the integral over [a, b] with an interval
+of half-width ε removed round each of e's finitely many undefined points.
+
+- **Not an Integral:** no Int move reads a `PV`. It is opaque until
+  `residues upper|lower` (or `int_re`/`int_im`) evaluates it, as a `CInt`
+  is: `trees()` yields it and it is not statable, so `field` refuses it
+  (E266).
+- **Binding:** its variable is bound in its body as an Int's is. It sits
+  at level 0 and is parenthesised inside arithmetic (D7).
+- **Printing:** the printer writes `PV[x = a .. b] e`, TeX writes
+  `\mathrm{PV}\int`, and untex refuses it (`bad-tex`).
+- **Codes:** `pv-pole-not-simple` and `pv-root-undecided` (E267).

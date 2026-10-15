@@ -5,7 +5,10 @@
 proof-of-life, proves readiness P1 and eight problem files with nothing
 admitted (§13, §17). Two spikes sit beside it: stage 0c's
 `ring`/`field` in `spike/ring/`, and the recognizer in `spike/recognizer/`
-(§8.5, §17). This proposes a
+(§8.5, §17). *(2026-10-15: "the tool is not built" no longer holds. The
+tool is built on the kernel: `./calc` serves the page and a language
+server over a JSON API, with the assistance tier (`app/`, WHAT.md).
+Complex analysis is built too, as COMPLEX.md records.)* This proposes a
 system, states exactly what it would and would not guarantee, tests the design
 against real problems from the course, and ends with what it would cost and
 what would show it was the wrong idea.
@@ -3659,7 +3662,7 @@ half of that range needs a sort the design does not have. The honest table:
 
 | Units | Fit | Why |
 |---|---|---|
-| **00** ODE cases, dimensions | **Full** | The design was built against it. P7 (V = k\|x\|^n) is out: §5.1 keeps `abs` out of goals |
+| **00** ODE cases, dimensions | **Full** | The design was built against it. P7 (V = k\|x\|^n) is out: §5.1 keeps `abs` out of goals. *(2026-10-15: its B(1, 1/2) integral now proves; the general period does not, §13 below.)* |
 | **08** central forces | **Full** | Orbit equation is scalar quadrature |
 | **09** Kepler's equation | **Full** | Series, iteration, `approx` |
 | **11–12** variations, Lagrangian | **Full** | *Applying* Euler–Lagrange is scalar calculus |
@@ -3671,7 +3674,7 @@ half of that range needs a sort the design does not have. The honest table:
 | 18 wave equation, 19 Fourier | Extension | PDEs in components; then function spaces |
 | **03** frames | **New sort** | SO(3), the hat map, the transport theorem. P8 is "R â Rᵀ = (Ra⃗)^"; P9 is Coriolis; P5–P6 are Frenet frames. That is matrices, eigenvalues and quadratic forms. P1 and P2 are also *negative* results ("is nevertheless **not** continuous"), and piecewise-defined with the value patched at the origin |
 | 07 normal modes, 16 rigid bodies | **New sort** | Matrices, eigenvalues, quadratic forms |
-| 20 Fourier transform, complex | **New sort** | Complex plane, contours, residues |
+| 20 Fourier transform, complex | **New sort** | Complex plane, contours, residues. *(2026-10-15: the sort is built, COMPLEX.md; its §8 lists which of unit 20's problems prove, and P10–P12 do not.)* |
 | 02 phase portraits, 17 chaos | **Out of reach** | Qualitative and numerical, not equational |
 
 Two softenings, both of which survive. First, `D[x] e` where *e* mentions other
@@ -3685,7 +3688,10 @@ qualitative judgement, which is not a fluency problem and was never the target.
 deliverable contains a complex number, so the question can be decided when unit
 06 is approached. It is recorded in §18 as an item separate from the
 functions-as-objects question, because they are different questions — one is a
-sort, the other is an order.
+sort, the other is an order. *(2026-10-14: decided, and built 2026-10-14/15.
+The owner took COMPLEX.md's design and chose to build it before the gate
+(`kernel/p1_expected.py` E165); COMPLEX.md is now the record of what was
+built, E165–E280. §18 Q8 is settled.)*
 
 **The readiness sheet is P1–P5, not "in full".** Revision 1 said in full and
 was wrong by five problems out of twelve. The sheet has five groups: P1–P5 are
@@ -3818,7 +3824,12 @@ scalar term language genuinely runs out.
 - **`abs` has no rules** and appears only in side conditions and domains
   (§5.1). Unit 00 P7 is the casualty. *(Revision 6 admitted `abs` to goals.
   In the kernel as built it has only its regularity entry, so the casualty
-  stands until `d_abs` and `int_split` land, §17.)*
+  stands until `d_abs` and `int_split` land, §17.)* *(2026-10-15: narrowed.
+  P7's B(1, 1/2) integral now proves through marked ends:
+  `Int[u = 0 .. 1-] 1/sqrt(1 - u)` is 2 by `int_improper`
+  (`kernel/p1_expected.py` E222, E229's OPEN_END_CASES). What still does
+  not prove is the period for general V = k|x|ⁿ, which needs `d_abs` and
+  `int_split`, neither built yet, and the Beta function (UNIT00.md).)*
 - **Functions as objects are out of the term language.** Uniform convergence
   arguments, inner-product spaces, P7's justification of differentiating under
   the integral sign. `leibniz` exists but its uniform-domination obligation
@@ -5054,10 +5065,15 @@ the change of language and deployment, and reopen Q7.
    than by argument, and none of the relevant libraries is installed here
    (§14). Settled by a two-lemma spike, and only worth doing if stages 1–3
    survive their gate.
-8. **Complex numbers as a sort.** Unit 06's P2, P10 and P12 need them, unit 20
+8. ~~**Complex numbers as a sort.**~~ Unit 06's P2, P10 and P12 need them, unit 20
    is built on them. Separate from Q4: that one is about *order*, this one is
    about *sort*. Not a stage-0 gate — no stage-1 or stage-2 deliverable
    contains a complex number.
+   **Settled, 2026-10-14:** ℂ is a sort, Real ⊂ Complex, inferred from the
+   term (COMPLEX.md Z2, GRAMMAR.md §11 D20). The owner took COMPLEX.md's
+   recommendations and chose to build before the gate (`kernel/p1_expected.py`
+   E165), and it was built 2026-10-14/15, E165–E280. COMPLEX.md is the
+   record, including what of unit 20 proves and what does not.
 9. ~~**limsup, and the other things that live only at an endpoint.**~~
    **Deferred with a trigger, revision 6 — case by case, not a general
    treatment.** `oo` earned its own syntactic class because it appears in

@@ -62,8 +62,8 @@ USAGE = {
                  "[occurrence N] [by ring|field] [using h, ...]",
     "int_flip": "int_flip [occurrence N]",
     "cint_param": "cint_param [occurrence N]",
-    "residues": "residues [upper|lower|keyhole|sector] [in C, ...] "
-                "[occurrence N]",
+    "residues": "residues [in C, ...] [occurrence N] | residues "
+                "upper|lower|keyhole|sector [occurrence N]",
     "int_even": "int_even [occurrence N]",
     "int_re": "int_re T [occurrence N]",
     "int_im": "int_im T [occurrence N]",

@@ -54,7 +54,8 @@ sentence, which the page takes in the left pane rather than the script:
 - `goal G @ D functions f/1 assuming a1; a2.` means: open **Your own
   goal**, put `G @ D` in Goal, `f/1` in Functions and each assumption on
   its own line in Assuming. Leave out the header's `;` between assumptions
-  and its final `.`, then press Start.
+  and its final `.`, then press Start. A header's `complex z, w` goes in
+  Functions as `z/complex, w/complex`.
 
 Paste the rest of the file into the script pane and step through it. The
 `(* ... *)` comments can stay: they are comments to the checker too.
@@ -127,6 +128,10 @@ The rest of the notation:
   as an integral's end or an open interval's end, such as `[0, oo)`.
 - `Int[x = a .. b] e` is the integral of `e` over x from a to b.
   `D[x] e` is the derivative of `e` with respect to x.
+- An end marked `0+` or `1-`, as in `Int[x = 0+ .. 1] e`, is approached
+  from inside the range: the integral is improper there (Lesson 9).
+- `PV[x = -oo .. oo] e` is a principal value, and `CInt[z on g] e` a
+  contour integral along a path g (Complex numbers).
 - A goal is `left == right`, or an order `<=` `<` `>=` `>`, optionally
   followed by `@` and what may be assumed: `@ a > 0, b > 0`, or an
   interval `@ b in [0, 1)`. `?A` is the unknown value you are asked to
@@ -571,7 +576,7 @@ ftc exp x occurrence 0 by ring.
 
 `occurrence N` works the same way wherever a move could apply at more than
 one place (`ftc`, `int_improper`, `rewrite`, `int_subst`, `int_flip`,
-`int_parts`).
+`int_parts`, `cint_param`, `residues`, `int_even`, `int_re`, `int_im`).
 
 **Your turn:** `tutorial/exercises/08-parts.dx`,
 `goal Int[x = 0 .. pi] x*sin x == ?A.`
@@ -596,6 +601,33 @@ int_improper -exp(-x) by ring.
 
 **Your turn:** `tutorial/exercises/09-improper.dx`,
 `goal Int[x = 1 .. oo] 1/x^2 == ?A.`
+
+An integrand that blows up at a finite end cannot be written over the
+closed range: its definedness fails at the end, and the goal is refused
+where it enters.
+
+```dx
+goal Int[x = 0 .. 1] 1/sqrt x == ?A.
+(* refused: obligation-decided-false *)
+```
+
+Mark the end instead, `0+`, read "from above". The integral is then the
+limit as the end is approached, and `int_improper` takes it as it takes
+an infinite one, from F's limit there:
+
+```dx
+goal Int[x = 0+ .. 1] 1/sqrt x == ?A.
+int_improper 2*sqrt x by field.
+```
+
+`ftc` does not take a marked end, since F(0) is not what the integral
+needs:
+
+```dx
+goal Int[x = 0+ .. 1] 1/sqrt x == ?A.
+ftc 2*sqrt x by field.
+(* refused: int-open-end *)
+```
 
 ## Lesson 10: an inequality, from Taylor's theorem
 
@@ -833,13 +865,27 @@ is holomorphic off the poles, and no pole lies on the path. A function
 with a cut needs a region that avoids the cut, given as open half-planes
 and disks: `residues in re w > 0.` for `Log w` on `circle(2, 1)`.
 
+The region goes after `in`, in the integral's own variable:
+
+```dx
+goal CInt[w on circle(2, 1)] Log w == ?A complex w.
+residues in re w > 0.
+```
+
 An integral over the whole real line closes in a half-plane:
 `residues upper` (or `lower`) replaces it with 2πi times the residues
 there. That needs the integrand to decay, and the kernel checks it: a
 rational function needs the denominator's degree at least two above the
 numerator's, and with a factor `exp(i*a*x)` (Jordan's lemma) one above,
-with `a > 0` for upper. `int_even` turns an even integrand on `[0, oo)` into
-half of the whole line:
+with `a > 0` for upper.
+
+```dx
+goal Int[x = -oo .. oo] exp(i*x)/(x^2 + 1) == ?A.
+residues upper.
+```
+
+`int_even` turns an even integrand on `[0, oo)` into half of the whole
+line, and the whole line into twice the half:
 
 ```dx
 goal Int[x = 0 .. oo] 1/(x^2 + 4)^2 == ?A.
@@ -847,14 +893,90 @@ int_even.
 residues upper.
 ```
 
-An integral over `[0, oo)` that is not even closes round a keyhole about
-the positive axis. `residues keyhole` takes a rational integrand (the log
-form) or one times a power `x^a`, written `sqrt x` or `rpow(x, a)` (the
-power form). An integrand singular at 0 needs its end marked, `0+`:
+A real integrand that is the real part of something that closes is moved
+through the integral by `int_re F` (or `int_im F`), which checks that re F
+is the integrand:
+
+```dx
+goal Int[x = -oo .. oo] cos(x)/(x^2 + 1) == ?A.
+int_re exp(i*x)/(x^2 + 1).
+residues upper.
+```
+
+```dx
+goal Int[x = -oo .. oo] sin(x)/(x^2 + 1) == ?A.
+int_re exp(i*x)/(x^2 + 1).
+(* refused: int-re-check-failed *)
+```
+
+The coefficients may be parameters. Where each pole lies is then a
+condition on them, decided from the goal's domain, and the answer is
+closed by hand:
+
+```dx
+goal Int[x = -oo .. oo] 1/(x^2 + a^2) == ?A @ a > 0.
+residues upper.
+rewrite sqrt_sq with u := 2*a at sqrt(4*a^2).
+close pi/a by field.
+```
+
+A rational integral over `[0, oo)`, even or not, closes round a keyhole
+about the positive axis. `residues keyhole` takes a rational integrand
+(the log form):
+
+```dx
+goal Int[x = 0 .. oo] 1/((x + 1)*(x + 2)) == ?A.
+residues keyhole.
+```
+
+or one times a power `x^a`, written `sqrt x` or `rpow(x, a)` (the power
+form). An integrand singular at 0 needs its end marked, `0+`:
 
 ```dx
 goal Int[x = 0+ .. oo] rpow(x, -1/2)/(x + 4) == ?A.
 residues keyhole.
+```
+
+`residues sector` gives the integrals of `cos(a*x^2)`, `sin(a*x^2)` and
+`exp(i*a*x^2)` over `[0, oo)`, by rotating to the ray at π/4, and the
+Gaussian, on which the rotation rests:
+
+```dx
+goal Int[x = 0 .. oo] cos(x^2) == ?A.
+residues sector.
+```
+
+```dx
+goal Int[x = -oo .. oo] exp(-x^2) == ?A.
+int_even.
+residues sector.
+```
+
+An integral across a pole on the line is refused where it enters, since
+its integrand is undefined there. A principal value cuts a shrinking
+interval out round each such point; `PV[x = -oo .. oo] e` is one, and
+`residues upper` adds πi times the residue at each simple pole on the line:
+
+```dx
+goal PV[x = -oo .. oo] 1/((x - 1)*(x^2 + 1)) == ?A.
+residues upper.
+```
+
+So ∫ sin x/x, whose integrand is undefined at 0, is the imaginary part of
+the principal value of e^{ix}/x:
+
+```dx
+goal PV[x = -oo .. oo] sin(x)/x == ?A.
+int_im exp(i*x)/x.
+residues upper.
+```
+
+A double pole on the line has no principal value:
+
+```dx
+goal PV[x = -oo .. oo] 1/(x^2*(x^2 + 1)) == ?A.
+residues upper.
+(* refused: pv-pole-not-simple *)
 ```
 
 ## The moves
@@ -871,12 +993,19 @@ residues keyhole.
 | `fact h := E` | binds an entry for `by field using h` | 6 |
 | `int_flip` | `Int[x = b .. a] e` → `Int[x = a .. b] -e` | 7 |
 | `int_parts` | ∫ u v′ → [u v] − ∫ u′ v | 8 |
-| `int_improper F` | `ftc` with a limit at an infinite end | 9 |
+| `int_improper F` | `ftc` with a limit at an infinite or marked end | 9 |
 | `taylor_lagrange` | mints a Taylor remainder bound | 10 |
 | `bound` | closes an order goal from one order fact | 10 |
 | `verify` | closes an equation by differentiating and checking | 11 |
 | `quad_t` | derives from a law in the assumptions | 12 |
 | `sep_autonomous`, `energy_integral` | the same for F(v) and F(x); not worked here | 12 |
+| `cint_param` | a contour integral → its pieces' real integrals | Complex numbers |
+| `residues [in C, ...]` | a closed-path contour integral → 2πi Σ wind·res | Complex numbers |
+| `residues upper`, `lower` | ∫ over the line, or a `PV`, → ±2πi Σ res on that side (± πi Σ at simple poles on the line) | Complex numbers |
+| `residues keyhole` | ∫₀^∞ of R(x), or of x^a R(x) | Complex numbers |
+| `residues sector` | ∫₀^∞ of exp(k x²), cos(a x²), sin(a x²) | Complex numbers |
+| `int_even` | ∫₀^∞ f ↔ ½ ∫ over the line, for an even f | Complex numbers |
+| `int_re F`, `int_im F` | ∫ f → re (im) of ∫ F, checking re F == f | Complex numbers |
 
 The full syntax, with every optional clause, is `app/SCRIPT.md`. That
 includes `taylor_lagrange`'s `strictly` and `bound`'s `scale`, which the

@@ -83,7 +83,10 @@ compares, §4). Certificates are not sent in this cut.
 ```
 GET  /problems                         -> {problems: [{id, title, statement}]}
 POST /session  {problem: id}           -> node n0
-POST /session  {goal: str, functions?: {name: arity}}   -> node n0
+POST /session  {goal: str, functions?: {name: arity | "complex"}}   -> node n0
+               (a name mapped to "complex" is a complex variable, the
+               header's `complex z, w`, p1_expected E174; the same holds
+               for /parse, /layout, /untex and /evaluate)
 POST /session  {header: str}           -> node n0, from a .dx header sentence (DX.md)
 ```
 

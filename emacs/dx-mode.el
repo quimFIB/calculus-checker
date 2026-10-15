@@ -478,7 +478,7 @@ fits the goals window; indented two spaces."
     (,(regexp-opt '("by" "using" "with" "at" "occurrence" "as" "from" "to"
                     "reverse" "in" "derivs" "increasing" "decreasing" "strictly" "scale"
                     "kinematic" "rate" "antiderivative" "range" "regs" "given"
-                    "lower" "upper" "of" "on")
+                    "lower" "upper" "of" "on" "keyhole" "sector")
                   'symbols)
      . font-lock-builtin-face)
     (,(regexp-opt '("ring" "field") 'symbols) . font-lock-constant-face)
@@ -492,7 +492,9 @@ fits the goals window; indented two spaces."
                     "i" "re" "im" "conj" "Log" "Arg" "Sqrt" "log" "arg"
                     "rpow"
                     ;; contours (K4a): the binder and the paths
-                    "CInt" "seg" "arc" "circle" "path" "rev")
+                    "CInt" "seg" "arc" "circle" "path" "rev"
+                    ;; principal values (E265)
+                    "PV")
                   'symbols)
      . font-lock-type-face))
   "Highlighting for `dx-mode'.")

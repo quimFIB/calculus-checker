@@ -56,6 +56,9 @@ goal Int[x = 0 .. 1] f(x) == ?A functions f/1.
 - `goal G [functions f/1, g/2].` is `/session`'s goal and functions. The
   word `functions` splits at bracket depth 0 only, as SCRIPT.md's clause
   words do.
+- `goal G [complex z, w] [functions ...].` declares complex variables
+  (p1_expected E174), sent as `functions` entries mapped to "complex";
+  a contour integral's own variable needs no declaration.
 - Anything else as the first sentence is refused `bad-header`, naming the
   two forms. Every later sentence is a tactic.
 

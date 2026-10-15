@@ -32,7 +32,8 @@ fact h := E [with x := T; ...].
 int_subst x := T as y from T to T [reverse T] [occurrence N] [by C] [using h, ...].
 int_flip [occurrence N].
 cint_param [occurrence N].
-residues [upper|lower|keyhole|sector] [in C, ...] [occurrence N].
+residues [in C, ...] [occurrence N].
+residues upper|lower|keyhole|sector [occurrence N].
 int_even [occurrence N].
 int_re T [occurrence N].
 int_im T [occurrence N].
@@ -98,6 +99,24 @@ Unset Auto Simpl.
   with auto-simpl off. With it on (the default), `simpl.` is the move
   `simpl` and runs AUTOSIMPL.md's chain, which also makes the
   evaluation rewrites; the node records `simpl`, not `close`.
+- The complex-analysis moves (kernel/p1_expected E190–E280; QUICKSTART.md's
+  Complex numbers section works each one):
+  - `cint_param` replaces a `CInt[z on g] f` by its pieces'
+    real-variable integrals (E191).
+  - `residues` on a closed-path `CInt` applies the residue theorem, U
+    being ℂ or the open half-planes and disks after `in`, written in the
+    CInt's variable (E200, E201).
+  - `residues upper|lower` closes `Int[x = -oo .. oo] f`, or a `PV`, in a
+    half-plane under a decay certificate (Z10, Z13).
+  - `residues keyhole` takes an Int over `[0, oo)` or `(0, oo)` (Z11).
+  - `residues sector` takes `[0, oo)` integrals of exp(k x²), cos(a x²)
+    and sin(a x²) (Z12).
+  - None of the four flavours takes `in`.
+  - `int_even` maps an even integrand between `[0, oo)` and the whole
+    line, both ways (E217, E245).
+  - `int_re T` and `int_im T` replace an Int or a PV of f by re (im) of
+    the same over T, once re T == f checks (E257, E268).
+- `int_improper` also takes an end marked `a+` or `b-` (E226).
 - `by C` is `by ring` or `by field`. Omitted, it is `by ring`.
 - `using h, ...` lists fact names bound earlier on the path; omitted, none.
 - `with` lists an entry's schema instantiation, `;`-separated; omitted, it
