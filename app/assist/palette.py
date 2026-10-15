@@ -154,6 +154,11 @@ def moves(goal):
                     "why": "a contour integral: unfold its parametrisation"})
         out.append({"move": "residues", "sentence": "residues.",  # E200
                     "why": "a closed contour: the residue theorem"})
+    g0_terms = subterms(getattr(goal[0], "lhs", goal[0])) if goal else []
+    if any(type(t).__name__ == "PV" for t in g0_terms):  # E267
+        out.append({"move": "residues", "sentence": "residues upper.",
+                    "why": "a principal value: close above, half-residues "
+                           "on the line"})
     if any(isinstance(i.lo, NegInf) and isinstance(i.hi, PosInf)
            for i in ints):  # E213
         out += [{"move": "residues", "sentence": "residues upper.",

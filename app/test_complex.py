@@ -440,6 +440,44 @@ class ReIm(unittest.TestCase):
             self.assertEqual(script.show(move, args), text)
 
 
+class PrincipalValues(unittest.TestCase):
+    """E265-E271: PV and Z13, through the app."""
+
+    def test_integrals(self):
+        import p1_expected as X
+        from proof_of_life import _k1_eval
+        for goal, sentences, value in X.PV_CASES["integrals"]:
+            with self.subTest(goal=goal):
+                r = run(f"goal {goal}.", sentences)
+                self.assertEqual((r["report"], r["admissions"]),
+                                 ("Proved.", 0), r)
+                v = r["auto"][-1].split("close ", 1)[1].rsplit(" by ", 1)[0]
+                self.assertAlmostEqual(
+                    complex(_k1_eval(parse_term(v), {})),
+                    complex(_k1_eval(parse_term(value), {})), places=9)
+
+    def test_move_refusals(self):
+        import p1_expected as X
+        for goal, sentence, code in X.PV_CASES["move_refusals"]:
+            with self.subTest(goal=goal):
+                r = run(f"goal {goal}.", [f"{sentence}."])
+                self.assertEqual(r["refusal"]["code"], code, r)
+
+    def test_review_rows(self):  # E272
+        import p1_expected as X
+        for goal, sentences, code in X.PV_CASES["review"]:
+            with self.subTest(goal=goal):
+                r = run(f"goal {goal}.", sentences)
+                self.assertEqual(r["refusal"]["code"], code, r)
+
+    def test_tex_and_2d(self):
+        import pretty2d
+        import tex
+        t = parse_term("PV[x = -oo .. oo] exp(i*x)/x")
+        self.assertIn(r"\mathrm{PV}", tex._t(t))
+        self.assertIn("PV", pretty2d.pretty(t))
+
+
 class TeX(unittest.TestCase):
     def test_round_trips(self):
         sig = {"z": "complex"}

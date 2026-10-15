@@ -18963,3 +18963,32 @@ PV_CASES = {
          "verify by ring", "Int-or-D-not-normalisable"),
     ],
 }
+DECISIONS_PV["E272"] = (
+    "The skeptic's review of E265-E271 (2026-10-15). Blocking, fixed: a PV "
+    "owed nothing about its body, so a body undefined everywhere, such as "
+    "0*sqrt(-1 - x^2), or at infinitely many points, such as 0/sin(x) or "
+    "0*tan(x), got a value through int_re and residues, since field "
+    "cancels 0*atom. E265 needs the excluded points to be finitely many. A "
+    "move that evaluates a PV (residues upper|lower, int_re, int_im) now "
+    "charges the body's formers on the range. A divisor that is a "
+    "polynomial in the variable over Q(i), exp factors aside, is exempt, "
+    "since its finitely many zeros are the excluded points, and one that "
+    "ring makes zero refuses (E25). Every other former must hold on the "
+    "whole range. Also fixed: a PV's ends are sort-checked Real, the "
+    "shadowing message names PV, and Z13 keeps Z10's printed shape "
+    "2*pi*i*(...) when no real pole contributes, which the Bromwich hand "
+    "route matches. Left: a removable double real factor, (x - 1)/((x - "
+    "1)^2*(x^2 + 1)), is refused pv-pole-not-simple, since P/Q is not "
+    "reduced. The refuter does not find cos x # 0's counterexample on the "
+    "line, so 0*tan(x) is admitted, not refuted.")
+PV_CASES["review"] = [  # E272: (goal, sentences, refusal code)
+    ("PV[x = -oo .. oo] cos(x)/(x^2 + 1) + 0*sqrt(-1 - x^2) == ?A",
+     ["int_re exp(i*x)/(x^2 + 1).", "residues upper."],
+     "obligation-decided-false"),
+    ("PV[x = -oo .. oo] sin(x)/x + 0*sqrt(x) == ?A",
+     ["int_im exp(i*x)/x.", "residues upper."], "obligation-decided-false"),
+    ("PV[x = -oo .. oo] cos(x)/(x^2 + 1) + 0/sin(x) == ?A",
+     ["int_re exp(i*x)/(x^2 + 1).", "residues upper."],
+     "obligation-decided-false"),
+    ("PV[x = 0 .. i] 1/x == ?A", [], "complex-calculus-not-built"),
+]

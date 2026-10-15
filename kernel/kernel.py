@@ -118,7 +118,7 @@ import complexes
 import entries
 import roots
 from entries import ENTRIES
-from terms import (Arc, CInt, Join, Open, PathP, Rev, Seg, Const, NEG_INF, POS_INF, Add, App, Branch, Call, CVar, Deriv, Div, Integral, Mul,
+from terms import (Arc, CInt, Join, Open, PV, PathP, Rev, Seg, Const, NEG_INF, POS_INF, Add, App, Branch, Call, CVar, Deriv, Div, Integral, Mul,
                    Interval, MVar, Neg, NegInf, NonZero, Num, PosInf, Pow,
                    Refused, Reg, Rel, RPow, Term, Var, _shown, bv, check_goal,
                    check_names, children, fv, instantiate, parse_term,
@@ -1067,8 +1067,8 @@ def _positions(t, dom, anc=(), path=()):
     order. rewrite (REWRITE_RULE steps 2, 6, 7, 9), int_subst's and
     int_flip's selectors and former charging (E6) all use it."""
     yield path, t, dom, anc
-    if isinstance(t, CInt):  # E192: opaque; its bound variable stays inside
-        return
+    if isinstance(t, (CInt, PV)):  # E192, E266: opaque; the bound variable
+        return                     # stays inside
     inner_dom, inner_anc = dom, anc + ((t,) if isinstance(t, Deriv) else ())
     if isinstance(t, Integral):
         if _symbolic(_bare(t.lo), _bare(t.hi)):  # E224: the bare ends
@@ -3123,7 +3123,7 @@ def _line_select(g, k):
     only one, which must run over the whole line (E216)."""
     found = [(i, p, s, d, a) for i, side in enumerate(_sides(g))
              for p, s, d, a in _positions(side, g.dom)
-             if isinstance(s, Integral)]
+             if isinstance(s, (Integral, PV))]  # E267: a PV too
     if not found:
         raise Refused("residues-no-integral", "the goal holds no integral")
     if k is not None:
@@ -3191,9 +3191,24 @@ def _residues_line(state, args, minted, buf):
              S_LINE_CERT, P, anc, gd)
     # E215: the poles, off the line, and S by side
     fac = {Qt: _factor_divisor(Qt, z, buf, P, anc, gd)}
-    S = []
-    for r, _ in fac[Qt][2]:
+    S, real = [], []
+    pv = isinstance(it, PV)
+    if pv:
+        _pv_body_formers(it, P, anc, gd, buf)  # E272
+    for r, mult in fac[Qt][2]:
         off = NonZero(App("im", r))
+        if pv and _verdict(off, P) is not True:  # E267: on the line
+            on = Rel("==", App("im", r), Num(0))
+            if _verdict(on, P) is not True:
+                raise Refused("pv-root-undecided", f"whether {show(r)} is on "
+                              "the line is not decided (E267)")
+            if mult > 1:
+                raise Refused("pv-pole-not-simple", f"{show(r)} is a pole of "
+                              f"order {mult} on the line; a principal value "
+                              "needs simple ones (E267)")
+            _owe(buf, on, S_LINE_POLE, P, anc, gd)
+            real.append(r)
+            continue
         if _verdict(off, P) is False:
             raise Refused("residue-pole-on-line", f"{show(r)} is a pole on "
                           "the line (E215)")
@@ -3211,7 +3226,8 @@ def _residues_line(state, args, minted, buf):
     for i, a in enumerate(S):
         for b in S[i + 1:]:
             _owe(buf, NonZero(_sub(a, b)), S_LINE_POLE, P, anc, gd)
-    _line_divisors(it, z, P, anc, gd, buf, state)  # E251, E263
+    if not pv:
+        _line_divisors(it, z, P, anc, gd, buf, state)  # E251, E263
     body = Pt if Qt == Num(1) else Div(Pt, Qt)
     if u is not None:
         body = _times(App("exp", u), body)
@@ -3222,10 +3238,21 @@ def _residues_line(state, args, minted, buf):
         trace.append((a, m, 1))
         if R is not None:
             total = R if total is None else Add(total, R)
+    half = None  # E267: the simple real poles' residues
+    for a in real:
+        m, R = _residue(body, z, a, fac, buf, P, anc, gd)
+        trace.append((a, m, 0))
+        if R is not None:
+            half = R if half is None else Add(half, R)
+    pi_i = Mul(Const("pi"), Const("i"))
     new = Num(0) if total is None else Mul(
         Mul(Mul(Num(2), Const("pi")), Const("i")), total)
     if not up and total is not None:
         new = Neg(new)
+    if half is not None:
+        h = Mul(pi_i, half)
+        new = (h if up else Neg(h)) if new == Num(0) else \
+            Add(new, h) if up else Add(new, Neg(h))
     sides = list(_sides(g))
     sides[side] = _put(sides[side], path, new)
     _charge_formers(buf, new, P, gd, anc=anc)
@@ -3668,16 +3695,48 @@ def _residues_sector(state, args, minted, buf):
 S_REIM = "int_re_check"
 
 
+def _pv_body_formers(it, P, anc, gd, buf):
+    """E272: a PV's body is defined on its range but at finitely many
+    points. Each former of the body is owed on the range, except a divisor
+    that is a polynomial in the variable over Q(i) (exp factors aside),
+    whose finitely many zeros are the PV's excluded points. A divisor that
+    ring makes zero refuses (E25)."""
+    x = it.var
+    rng, orient = _range_of(x, it.lo, it.hi, P)
+    if orient is not None:
+        _emit(buf, orient, "orient", gd)
+    for _, s, d, a in _positions(it.body, P + (rng,), anc):
+        for prop, divisor in _owed(s):
+            if divisor and type(prop) is NonZero and x in fv(prop.e):
+                rest, _us = complexes._exp_factors(
+                    subst(prop.e, {x: CVar(x)}))
+                p = None if rest is None else roots.poly(rest, x)
+                if p is not None and len(p) >= 2:
+                    if FD.ring_is_zero(prop.e):
+                        raise Refused("divisor-normalises-to-zero", f"the "
+                                      f"divisor {show(prop.e)} is zero (E25)")
+                    continue
+            _emit_at(buf, prop, d, a, S_PV_BODY, gd, divisor)
+
+
+S_PV_BODY = "pv_body"
+
+
 def _int_reim(state, args, minted, buf, part):
     """E257: Int[x = a .. b] f as re (im) of Int[x = a .. b] F, when re F
     (im F) == f by field on split parts, its divisors owed on the range."""
     g = state.goal[0]
-    try:
-        side, path, it, P, anc = _flip_select(g, args.get("occurrence"))
-    except Refused as r:  # E264: ambiguity keeps its own code
-        code = "int-re-ambiguous" if r.code == "int-flip-ambiguous" else \
-            "int-re-no-integral"
-        raise Refused(code, r.message) from None
+    found = [(i, p, s, d, a) for i, side in enumerate(_sides(g))
+             for p, s, d, a in _positions(side, g.dom)
+             if isinstance(s, (Integral, PV))]  # E268: a PV too
+    k = args.get("occurrence")
+    if not found or (k is not None and k >= len(found)):
+        raise Refused("int-re-no-integral", "the goal holds no integral"
+                      + (f" at occurrence {k}" if k is not None else ""))
+    if k is None and len(found) > 1:  # E264: ambiguity keeps its own code
+        raise Refused("int-re-ambiguous", f"{len(found)} integrals in the "
+                      "goal; give an occurrence")
+    side, path, it, P, anc = found[k or 0]
     x, f, F = it.var, it.body, args["F"]
     if sort_of(f) != "R":
         raise Refused("int-re-real-only", f"{_brief(f)} is complex; int_re "
@@ -3705,9 +3764,12 @@ def _int_reim(state, args, minted, buf, part):
     if ok is None:
         raise Refused("int-re-check-failed", f"{part} of {_brief(F)} is not "
                       f"{_brief(f)} by field (E257)")
-    for dv in ok.divisors:
-        _emit_at(buf, NonZero(dv), P + (rng,), anc, S_REIM, g.dom)
-    new = App(part, Integral(x, it.lo, it.hi, F))
+    if not isinstance(it, PV):  # E268: a PV's points are excluded
+        for dv in ok.divisors:
+            _emit_at(buf, NonZero(dv), P + (rng,), anc, S_REIM, g.dom)
+    else:
+        _pv_body_formers(it, P, anc, g.dom, buf)  # E272
+    new = App(part, type(it)(x, it.lo, it.hi, F))
     sides = list(_sides(g))
     sides[side] = _put(sides[side], path, new)
     _charge_formers(buf, new, P, g.dom, anc=anc)

@@ -12,7 +12,7 @@ import re
 
 from session import KERNEL  # noqa: F401  (puts kernel/ on the path)
 from terms import (Add, App, Call, Const, Deriv, Div, Integral, Interval,
-                   Judgement, MVar, Mul, Neg, NegInf, NonZero, Num, Open, PosInf,
+                   Judgement, MVar, Mul, Neg, NegInf, NonZero, Num, Open, PV, PosInf,
                    Branch, CVar, CInt, Seg, Arc, PathP, Join, Rev,
                    Pow, Reg, Rel, RPow, Term, Var, _d13_free, _literal_rpow,
                    parse_goal, parse_judgement, parse_term)
@@ -28,7 +28,7 @@ FNS = {"sin": r"\sin", "cos": r"\cos", "tan": r"\tan", "exp": r"\exp",
 RELS = {"==": "=", "<=": r"\le", "<": "<", ">=": r"\ge", ">": ">"}
 
 # show's levels; Div is 6 here, since \frac groups itself
-_LEVEL = {Integral: 0, CInt: 0, Add: 1, Mul: 2, Neg: 3, App: 4, Deriv: 4,
+_LEVEL = {Integral: 0, CInt: 0, PV: 0, Add: 1, Mul: 2, Neg: 3, App: 4, Deriv: 4,
           Branch: 4, Pow: 5, RPow: 5}
 
 
@@ -115,6 +115,9 @@ def _t(t, need=0, left=True):
     if k is Integral:
         return (r"\int_{" + _end(t.lo) + "}^{" + _end(t.hi) + "} {"
                 + _t(t.body) + r"} \,\mathrm{d}{" + _name(t.var) + "}")
+    if k is PV:  # E266: a principal value
+        return (r"\mathrm{PV}\!\int_{" + _end(t.lo) + "}^{" + _end(t.hi)
+                + "} {" + _t(t.body) + r"} \,\mathrm{d}{" + _name(t.var) + "}")
     if k is CInt:  # E199: the path as the integral's subscript
         return (r"\int_{" + _path(t.path) + "} {" + _t(t.body)
                 + r"} \,\mathrm{d}{" + _name(t.var) + "}")

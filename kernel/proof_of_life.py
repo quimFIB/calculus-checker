@@ -6781,6 +6781,49 @@ def reim_problems(part, rows=None):
     return out
 
 
+def pv_problems(part):
+    """PV_CASES (E265-E271) at the kernel."""
+    out = []
+    if part == "round_trips":
+        for text, printed in X.PV_CASES["round_trips"]:
+            t = T.parse_term(text)
+            if T.show(t) != printed or T.parse_term(printed) != t:
+                out.append(f"{text}: prints {T.show(t)}")
+        return out
+    for row in X.PV_CASES[part]:
+        goal_text, sentences = row[0], row[1]
+        sentences = [sentences] if isinstance(sentences, str) else sentences
+        try:
+            st = K.install(T.parse_goal(goal_text))
+        except T.Refused as e:
+            st = K.Refusal(e.code, e.message)
+        r = st
+        for text in sentences:
+            if isinstance(r, K.Refusal):
+                break
+            w = text.rstrip(".").split(" ", 1)
+            if w[0] in ("int_re", "int_im"):
+                r = K.step(r, w[0], {"F": T.parse_term(w[1])})
+            elif w[0] == "residues":
+                r = K.step(r, "residues", {"half": w[1]})
+            else:
+                r = K.step(r, *_k1_move(text.rstrip("."), {}))
+        if part in ("move_refusals", "review"):
+            got = r.code if isinstance(r, K.Refusal) else K.report(r)
+            if got != row[2]:
+                out.append(f"{goal_text}: {got}, want {row[2]}")
+            continue
+        if isinstance(r, K.Refusal):
+            out.append(f"{goal_text}: {r.code}")
+            continue
+        if any(ob.status == K.ADMITTED for ob in r.obligations()):
+            out.append(f"{goal_text}: admissions")
+        got = complex(_k1_eval(r.goal[0].lhs, {}))
+        if abs(got - complex(_k1_eval(T.parse_term(row[2]), {}))) > 1e-9:
+            out.append(f"{goal_text}: {got}, want {row[2]}")
+    return out
+
+
 def k1_checks(suite):
     suite.check("Z", f"K1 round trips ({len(X.K1_CASES['round_trips'])}), "
                 "GRAMMAR.md §11", lambda: k1_problems("round_trips"))
@@ -6878,6 +6921,16 @@ def k1_checks(suite):
     suite.check("Z", f"int_re refusals ({len(X.REIM_CASES['move_refusals'])}"
                 "): a wrong F, no Int, an odd integrand (E259)",
                 lambda: reim_problems("move_refusals"))
+    for part, what in (("round_trips", "PV prints and parses back (E265)"),
+                       ("integrals", "Z13: half-residues at simple real "
+                        "poles, sin x/x, each value numerically (E267-E269)"),
+                       ("move_refusals", "double poles, ranges, decay, PV "
+                        "opaque to field and ftc (E266-E267)"),
+                       ("review", "a PV's body owes its formers but at "
+                        "finitely many points (E272)")):
+        suite.check("Z", f"principal values, {part} "
+                    f"({len(X.PV_CASES[part])}): {what}",
+                    lambda part=part: pv_problems(part))
     suite.check("Z", f"E206 surds ({len(X.K4B_CASES['surds'])}): decided "
                 "exactly in Q(sqrt s), two surds left undecided",
                 lambda: k4b_problems("surds"))

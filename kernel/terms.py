@@ -250,6 +250,17 @@ class Integral(Term):
 
 
 @dataclass(frozen=True, slots=True)
+class PV(Term):
+    """PV[var = lo .. hi] body: a principal value (p1_expected E265), a
+    binder like Int's but not an Integral, opaque until a move evaluates
+    it (E266)."""
+    var: str
+    lo: object  # Term, POS_INF or NEG_INF
+    hi: object
+    body: Term
+
+
+@dataclass(frozen=True, slots=True)
 class Open(Term):
     """e+ or e-: an Int's end approached from inside its range, the Int
     improper there (p1_expected E222, E223). Only an Int's lo or hi."""
@@ -328,7 +339,7 @@ _CHILDREN = {Neg: ("a",), Add: ("a", "b"), Mul: ("a", "b"), Div: ("a", "b"),
              PathP: ("lo", "hi", "phi"), Join: ("a", "b"), Rev: ("g",),
              CInt: ("path", "body"),
              Call: ("args",), Deriv: ("body",), Integral: ("lo", "hi", "body"),
-             Open: ("e",),
+             Open: ("e",), PV: ("lo", "hi", "body"),
              Interval: ("lo", "hi"), Rel: ("lhs", "rhs", "dom"),
              NonZero: ("e", "dom"), Reg: ("e", "dom")}
 _TERMS = frozenset((Num, Const, Var, CVar, MVar)) | {c for c in _CHILDREN
@@ -357,7 +368,7 @@ def trees(x):
     p1_expected E26 (b): neither node has a definedness condition the
     kernel can state, so field's normaliser and norm_num refuse a side
     holding one, and deriv refuses to read one as a constant (E12)."""
-    if isinstance(x, (Integral, Deriv, CInt)):  # CInt: E192
+    if isinstance(x, (Integral, Deriv, CInt, PV)):  # CInt: E192, PV: E266
         yield x
     for k in _kids(x):
         yield from trees(k)
@@ -414,7 +425,7 @@ def fv(x):
     """
     if isinstance(x, Var):
         return frozenset((x.name,))
-    if isinstance(x, Integral):
+    if isinstance(x, (Integral, PV)):
         return (fv(x.body) - {x.var}) | fv(x.lo) | fv(x.hi)
     if isinstance(x, CInt):  # E190: the path is outside the binder
         return (fv(x.body) - {x.var}) | fv(x.path)
@@ -428,7 +439,8 @@ def bv(x):
     """Bound variables: the names bound by an Integral anywhere in x
     (GRAMMAR.md §5). A Deriv's variable is never in bv."""
     out = frozenset().union(*map(bv, _kids(x)))
-    return out | {x.var} if isinstance(x, (Integral, CInt, PathP)) else out
+    return out | {x.var} if isinstance(x, (Integral, CInt, PathP, PV)) \
+        else out
 
 
 def subst(x, mapping):
@@ -460,7 +472,7 @@ def subst(x, mapping):
         if isinstance(node, Var):
             done.append(mapping.get(node.name, node))
             continue
-        if isinstance(node, (Deriv, Integral, CInt, PathP)):
+        if isinstance(node, (Deriv, Integral, CInt, PathP, PV)):
             done.append(_subst_binder(node, mapping))
             continue
         fields = (tuple(enumerate(node)) if isinstance(node, tuple)
@@ -520,8 +532,8 @@ def _subst_binder(x, mapping):
                  if f"{x.var}_{i}" not in taken)
         body = subst(body, {x.var: Var(v)})
     inner = {k: t for k, t in live.items() if k != x.var}
-    return Integral(v, subst(x.lo, live), subst(x.hi, live),
-                    subst(body, inner))
+    return type(x)(v, subst(x.lo, live), subst(x.hi, live),
+                   subst(body, inner))  # an Integral or a PV (E265)
 
 
 def instantiate(goal, value):
@@ -606,9 +618,9 @@ def sort_of(t):
         return "R"
     if k is Open:
         return sort_of(t.e)
-    if k in (Integral, Deriv):  # E176: a Real variable; limits Real, body any
-        for e in _finite(*((t.lo, t.hi) if k is Integral else ())):
-            e = e.e if type(e) is Open else e  # E223: e's sort
+    if k in (Integral, Deriv, PV):  # E176: a Real variable; limits Real, body any
+        for e in _finite(*((t.lo, t.hi) if k in (Integral, PV) else ())):
+            e = e.e if type(e) is Open else e  # E223: e's sort; PV E272
             if sort_of(e) == "C" or not _complex_free(e):
                 raise Refused("complex-calculus-not-built", "an integral's "
                               "limits are real")
@@ -897,12 +909,16 @@ def _check_term(t, enclosing):
     if type(t) is Open:  # E223: only an Int's end
         raise Refused("open-end-misplaced", f"{_shown(t)}: a marked end is "
                       "only an Int's lo or hi (E223)")
-    if not isinstance(t, Integral):
+    if not isinstance(t, (Integral, PV)):
         for k in _kids(t):
             _check_term(k, enclosing)
         return
+    if isinstance(t, PV) and any(type(e) is Open for e in (t.lo, t.hi)):
+        raise Refused("open-end-misplaced", "a PV's ends are not marked "
+                      "(E265)")
     if t.var in enclosing:
-        raise Refused("shadowing", f"Int rebinds {t.var} (GRAMMAR §5)")
+        raise Refused("shadowing", f"{'PV' if isinstance(t, PV) else 'Int'} "
+                      f"rebinds {t.var} (GRAMMAR §5)")
     if t.var in fv(t.lo) | fv(t.hi):
         raise Refused("bound-in-endpoint", f"{t.var} is in its own limits")
     for e in _finite(t.lo, t.hi):
@@ -963,7 +979,7 @@ def _lex(s):
 
 # ---------------------------------------------------------------- names (§3)
 
-KEYWORDS = frozenset(("D", "Int", "in", "oo", "true", "rpow",
+KEYWORDS = frozenset(("D", "Int", "PV", "in", "oo", "true", "rpow",
                       # K4a (E190): contour integrals and paths
                       "CInt", "on", "seg", "arc", "circle", "path", "rev"))
 # GRAMMAR.md §11: names that start a branch (arg, pow, Log, Arg, Sqrt; log
@@ -1083,10 +1099,10 @@ class _Parser:
     def expr(self):
         if self.at("CInt"):  # E190
             return self.cint()
-        return self.binder() if self.at("Int") else self.sum()
+        return self.binder() if self.at("Int", "PV") else self.sum()
 
     def binder(self):
-        self.take()
+        kind = PV if self.take()[1] == "PV" else Integral  # E265
         self.expect("[")
         v = self.var()
         self.expect("=")
@@ -1102,7 +1118,7 @@ class _Parser:
         self.bound.append(v)
         body = self.expr()
         self.binders.pop()
-        return Integral(v[1], lo, hi, body)
+        return kind(v[1], lo, hi, body)
 
     def cint(self):
         """E190: CInt[z on g] f, z a Complex binder in f."""
@@ -1344,7 +1360,7 @@ class _Parser:
                 self.take()[1])
         if k == "declared":
             return self.call()
-        if _is(tok, "Int", "CInt"):
+        if _is(tok, "Int", "CInt", "PV"):
             self.fail("D7-int-in-arith", "write 2*(Int[...] f) (D7)")
         if _is(tok, "oo"):
             self.fail("oo-misplaced", "oo is only an Int limit or an open "
@@ -1568,7 +1584,7 @@ def parse_goal(s, sig=None):
 # position requires, `left` says whether t starts its context (R1), and
 # `tail` whether the text ends in a bare application (R3).
 
-_LEVEL = {Integral: 0, CInt: 0, Add: 1, Mul: 2, Div: 2, Neg: 3, App: 4,
+_LEVEL = {Integral: 0, CInt: 0, PV: 0, Add: 1, Mul: 2, Div: 2, Neg: 3, App: 4,
           Deriv: 4, Branch: 4, Pow: 5, RPow: 5}
 
 
@@ -1681,9 +1697,10 @@ def _show_steps(t, need, left):
     if isinstance(t, Rev):
         g = (yield t.g, 0, True)[0]
         return (f"rev ({g})" if isinstance(t.g, Join) else f"rev {g}"), False
-    if isinstance(t, Integral):
+    if isinstance(t, (Integral, PV)):
         body = (yield t.body, 0, True)[0]
-        return f"Int[{t.var} = {_end(t.lo)} .. {_end(t.hi)}] {body}", False
+        kw = "PV" if isinstance(t, PV) else "Int"
+        return f"{kw}[{t.var} = {_end(t.lo)} .. {_end(t.hi)}] {body}", False
     if isinstance(t, Open):  # E223: printed alone only in a message
         e = (yield t.e, 1, True)[0]
         return f"{e}{t.side}", False
