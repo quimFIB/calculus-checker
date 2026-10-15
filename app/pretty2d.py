@@ -7,7 +7,7 @@ roots grouping themselves), so a drawing groups exactly as the TeX does.
 
 from session import KERNEL  # noqa: F401  (puts kernel/ on the path)
 from terms import (show, Branch, CInt, CVar, Add, App, Call, Const, Deriv, Div, Integral, Interval,
-                   Judgement, MVar, Mul, Neg, NegInf, NonZero, Num, PosInf,
+                   Judgement, MVar, Mul, Neg, NegInf, NonZero, Num, Open, PosInf,
                    Pow, Reg, Rel, RPow, Term, Var, _d13_free)
 from tex import _level
 from terms import _literal_rpow
@@ -188,6 +188,8 @@ def _end(e):
         return text("∞")
     if isinstance(e, NegInf):
         return text("-∞")
+    if type(e) is Open:  # E223
+        return hcat(_t(e.e, 1), text(e.side))
     return _t(e, 1)
 
 

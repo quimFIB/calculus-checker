@@ -681,3 +681,17 @@ not terms. The move `residues [in C, ...] [occurrence N]` (SCRIPT.md) takes
 a region as a list of conditions on the `CInt`'s variable, read as domain
 items are (§6). Each condition is an open half-plane, affine in `re z`
 and `im z`, or an open disk, `abs(z - c) < r` (E201).
+
+**Marked ends (p1_expected E222–E230): improper integrals at a finite end.**
+
+```
+endpoint  = expr | "oo" | "-" "oo" | expr "+" | expr "-" ;
+            (* the mark: + or - followed by .. or ] *)
+```
+
+- **Meaning:** `Int[x = 0+ .. 1] f` is the limit as ε → 0⁺ of the Int over
+  [ε, 1], and `b-` is the same from below.
+- **Which mark:** the lower end of the range takes `+` and the upper `-`
+  (`open-end-side` otherwise).
+- **Where a mark may stand:** only as an Int's end (`open-end-misplaced`).
+  A marked Int is not statable (E225), as an infinite one is not.

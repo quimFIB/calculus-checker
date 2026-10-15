@@ -18262,7 +18262,7 @@ OPEN_END_CASES = {
         # unmarked, as before: the former fails at 0
         ("Int[x = 0 .. 1] 1/sqrt x == ?A", "obligation-decided-false"),
         # two divergent copies do not cancel
-        ("Int[x = 0+ .. 1] 1/x - Int[x = 0+ .. 1] 1/x == 0",
+        ("(Int[x = 0+ .. 1] 1/x) - (Int[x = 0+ .. 1] 1/x) == 0",
          "Int-or-D-not-normalisable"),
     ],
     # (goal, sentences, value): Proved. with 0 admissions, auto-simpl
@@ -18273,10 +18273,11 @@ OPEN_END_CASES = {
         # unit 00 P7's B(1, 1/2)
         ("Int[u = 0 .. 1-] 1/sqrt(1 - u) == ?A",
          ["int_improper -(2*sqrt(1 - u)) by field."], "2"),
-        ("Int[x = 0+ .. 1] 1/sqrt(x)^3*sqrt(x)^2 == ?A",
+        ("Int[x = 0+ .. 1] (sqrt x)^2/(sqrt x)^3 == ?A",
          ["int_improper 2*sqrt x by field."], "2"),
         ("Int[x = 0+ .. oo] 1/(sqrt(x)*(1 + x)) == ?A",
-         ["int_improper 2*atan(sqrt x) by field."], "pi"),
+         ["fact h := sqrt_sq_val with a := x.",
+          "int_improper 2*atan(sqrt x) by field using h."], "pi"),
         ("Int[x = 1 .. 0+] 1/sqrt x == ?A",
          ["int_improper 2*sqrt x by field."], "-2"),
     ],
@@ -18291,3 +18292,60 @@ OPEN_END_CASES = {
         ("Int[x = 0+ .. 1] 1/sqrt x == ?A", "int_flip", "int-open-end"),
     ],
 }
+DECISIONS_OPEN_ENDS["E230"] = (
+    "Correcting OPEN_END_CASES after 'Spec for improper integrals at a "
+    "finite end' (ee316fa), with nothing weakened. (1) Three rows had "
+    "syntax slips: (sqrt x)^3 needs its parentheses (D6), two Ints in "
+    "arithmetic need theirs (D7), and 2*atan(sqrt x) checks only with the "
+    "fact (sqrt x)^2 == x, which sqrt_sq_val gives on the range. (2) "
+    "(Int[x = 0+ .. 1] 1/x) - (Int[x = 0+ .. 1] 1/x) == 0 installs, as "
+    "any equation does, and is refused Int-or-D-not-normalisable by every "
+    "closing move (verify, close), so its row moves to move_refusals. (3) "
+    "int_improper ln x on (0, 1]: the evaluator gives ln 0, owing 0 > 0, "
+    "which E7 refutes, so the refusal is obligation-refuted, not "
+    "int-improper-diverges, since the evaluator reads ln at 0+ as ln 0. "
+    "(4) Building E226: the point a + 1/u is written without 0 +, and "
+    "each function argument of F(a + 1/u) is replaced by its field normal "
+    "form where field checks the two equal (_args_normal), since the "
+    "evaluator could not read 1 - (1 - 1/u). Equal rational functions "
+    "agree for all large u, so the limit is unchanged.")
+OPEN_END_SIG = {"f": 1}
+OPEN_END_CASES["refusals"] = OPEN_END_CASES["refusals"][:4]
+OPEN_END_CASES["move_refusals"][0] = (
+    "Int[x = 0+ .. 1] 1/x == ?A", "int_improper ln x by field",
+    "obligation-refuted")
+OPEN_END_CASES["move_refusals"].append(
+    ("(Int[x = 0+ .. 1] 1/x) - (Int[x = 0+ .. 1] 1/x) == 0", "verify by ring",
+     "Int-or-D-not-normalisable"))
+DECISIONS_OPEN_ENDS["E231"] = (
+    "The skeptic's review of marked ends (2026-10-15), folded in. One hole, "
+    "fixed. A marked range was ordered by <=, so Int[x = 0+ .. 0-] built the "
+    "empty range (0, 0), on which every owed key is vacuously true. There "
+    "int_improper atan(1/x) proved -pi modulo admissions that were all "
+    "true, and only the untrusted search stood between it and 0 "
+    "admissions. E56's invariant (a range is never empty) had no "
+    "exception before marks. A marked range is now ordered strictly: an "
+    "infinite end orders it, two equal literals refuse open-end-empty, "
+    "and otherwise lo < hi or hi < lo must settle, or orientation-undecided "
+    "refuses. Should-fix, fixed: (1) F(a + 1/u)'s rational part is "
+    "normalised whole, functions as atoms and checked equal by field, so "
+    "1/(x - 1)^2 on (1, 2] diverges by name. (2) Normalisation skips a "
+    "term over 400 nodes or a power above 64, which ended a hang on "
+    "sin(x^3000). (3) close's oo guard (_holds_infinity) sees a marked end. "
+    "(4) The API's improper flag counts a marked end. Left: ln at 0+ reads "
+    "ln 0 (E230 (3)); the evaluator's sides may hold u, which is sound but "
+    "stronger than needed; sympy_propose does not read Open.")
+OPEN_END_CASES["review"] = [  # E231: (goal, sentence, code or value)
+    ("Int[x = 0+ .. 0-] -1/(1 + x^2) == ?A",
+     "int_improper atan(1/x) by field", "open-end-empty"),
+    ("Int[x = 0+ .. 1 - 1-] -1/(1 + x^2) == ?A",
+     "int_improper atan(1/x) by field", "open-end-empty"),
+    ("Int[x = a+ .. a-] -1/(1 + (x - a)^2) == ?A",
+     "int_improper atan(1/(x - a)) by field", "orientation-undecided"),
+    ("Int[x = 1+ .. 2] 1/(x - 1)^2 == ?A", "int_improper -1/(x - 1) by field",
+     "int-improper-diverges"),
+    ("Int[x = 1+ .. 2] 1/sqrt(x - 1) == ?A",
+     "int_improper 2*sqrt(x - 1) by field", "2"),
+    ("Int[x = 0+ .. 1-] 1/sqrt(x) + 1/sqrt(1 - x) == ?A",
+     "int_improper 2*sqrt(x) - 2*sqrt(1 - x) by field", "4"),
+]

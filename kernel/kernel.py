@@ -118,7 +118,7 @@ import complexes
 import entries
 import roots
 from entries import ENTRIES
-from terms import (Arc, CInt, Join, PathP, Rev, Seg, Const, NEG_INF, POS_INF, Add, App, Branch, Call, CVar, Deriv, Div, Integral, Mul,
+from terms import (Arc, CInt, Join, Open, PathP, Rev, Seg, Const, NEG_INF, POS_INF, Add, App, Branch, Call, CVar, Deriv, Div, Integral, Mul,
                    Interval, MVar, Neg, NegInf, NonZero, Num, PosInf, Pow,
                    Refused, Reg, Rel, RPow, Term, Var, _shown, bv, check_goal,
                    check_names, children, fv, instantiate, parse_term,
@@ -911,7 +911,13 @@ def _range_of(v, lo, hi, dom):
     is exactly the points between the limits and never empty.
 
     A seam (ARCHITECTURE.md §7): its callers look it up by this global name,
-    and E56's planted bugs replace it in a child process."""
+    and E56's planted bugs replace it in a child process.
+
+    E224: a marked end (Open) is ordered by its term, and the interval is
+    open there; a+ must end up the lower end and b- the upper, else
+    'open-end-side'."""
+    if type(lo) is Open or type(hi) is Open:
+        return _marked_range(v, lo, hi, dom)
     inf = [e for e in (lo, hi) if isinstance(e, (PosInf, NegInf))]
     if len(inf) == 2:
         if type(lo) is type(hi):
@@ -932,6 +938,59 @@ def _range_of(v, lo, hi, dom):
             return Interval(v, a, True, b, True), key
     raise Refused(ORIENTATION_UNDECIDED, f"the order of {show(lo)} and "
                   f"{show(hi)} is not decided; state it in the goal's domain")
+
+
+def _marked_range(v, lo, hi, dom):
+    """E224, with E231's correction: a marked range is ordered STRICTLY,
+    so it is never empty. An infinite other end orders it; two rational
+    literals decide it, and equal ones refuse 'open-end-empty'; otherwise
+    lo < hi, then hi < lo, by _settles at `dom`, the one that holds being
+    the orientation key. The mark must then sit on the interior side."""
+    bl, bh = _bare(lo), _bare(hi)
+    key = None
+    if isinstance(bh, PosInf) or isinstance(bl, NegInf):
+        low, high = lo, hi
+    elif isinstance(bl, PosInf) or isinstance(bh, NegInf):
+        low, high = hi, lo
+    else:
+        ql, qh = FD.rational_value(bl), FD.rational_value(bh)
+        if ql is not None and qh is not None:
+            if ql == qh:
+                raise Refused("open-end-empty", f"the range of {v} is empty: "
+                              "a marked range needs distinct ends (E231)")
+            low, high = (lo, hi) if ql < qh else (hi, lo)
+        else:
+            for a, b in ((lo, hi), (hi, lo)):
+                k = with_domain(Rel("<", _bare(a), _bare(b)), dom)
+                if _settles(k):
+                    low, high, key = a, b, k
+                    break
+            else:
+                raise Refused(ORIENTATION_UNDECIDED, f"the strict order of "
+                              f"{show(bl)} and {show(bh)} is not decided; a "
+                              "marked range needs one (E231)")
+    if (type(low) is Open and low.side != "+") or (
+            type(high) is Open and high.side != "-"):
+        raise Refused("open-end-side", "a marked end is approached from "
+                      "inside its range: write the lower end a+ and the "
+                      "upper b- (E224)")
+    bl, bh = _bare(low), _bare(high)
+    return Interval(v, bl, not isinstance(bl, NegInf) and type(low) is not
+                    Open, bh, not isinstance(bh, PosInf) and type(high) is
+                    not Open), key
+
+
+def _bare(e):
+    """An end without its E222 mark."""
+    return e.e if type(e) is Open else e
+
+
+def _open_end(it, move):
+    """E227: a move that reads an Int's ends refuses a marked one."""
+    if type(it.lo) is Open or type(it.hi) is Open:
+        raise Refused("int-open-end", f"{move} does not take a marked end "
+                      f"({show(it.lo if type(it.lo) is Open else it.hi)}); "
+                      "int_improper is the route (E227)")
 
 
 def _range(integral, pos_dom):
@@ -1002,8 +1061,9 @@ def _positions(t, dom, anc=(), path=()):
         return
     inner_dom, inner_anc = dom, anc + ((t,) if isinstance(t, Deriv) else ())
     if isinstance(t, Integral):
-        if _symbolic(t.lo, t.hi):
-            scope = _IntScope(t, Interval(t.var, t.lo, True, t.hi, True), True)
+        if _symbolic(_bare(t.lo), _bare(t.hi)):  # E224: the bare ends
+            scope = _IntScope(t, Interval(t.var, _bare(t.lo), True,
+                                          _bare(t.hi), True), True)
         else:
             scope = _IntScope(t, _range(t, dom)[0])
         inner_dom, inner_anc = dom + (scope.range,), anc + (scope,)
@@ -1710,6 +1770,7 @@ def _ftc(state, args, minted, buf):
     if any(isinstance(e, (PosInf, NegInf)) for e in (it.lo, it.hi)):
         raise Refused("ftc-infinite-endpoint", "F(oo) is not a term (§5.1); "
                       "an infinite range needs int_improper")
+    _open_end(it, "ftc")
     _no_trees_in_limits(it.lo, it.hi)  # SECOND_REVIEW_RULE
     if nested:
         _ftc_scope(g, anc, it.var, F)  # E84
@@ -1788,8 +1849,8 @@ def _ftc_F_formers(buf, F, on_ab, G):
 
 def _holds_infinity(t):
     """An Int limit below t is oo or -oo (close's rule for its value)."""
-    return any(isinstance(k, (PosInf, NegInf)) for s in _subterms(t)
-               for _, k in children(s))
+    return any(isinstance(k, (PosInf, NegInf, Open)) for s in _subterms(t)
+               for _, k in children(s))  # E231: a marked end too
 
 
 def _close(state, args, minted, buf):
@@ -2006,6 +2067,7 @@ def _int_subst(state, args, minted, buf):
     check, f = args["check"], args.get("f")
     side, path, it, P, anc = _select(g, var, args.get("occurrence"))  # step 2
     a, b, body = it.lo, it.hi, it.body
+    _open_end(it, "int_subst")
     for end in (a, b):  # step 3
         if isinstance(end, (PosInf, NegInf)):
             raise Refused("int-subst-infinite-endpoint", "int_subst needs finite "
@@ -2101,6 +2163,7 @@ def _int_flip(state, args, minted, buf):
     key uses it), then check_goal. Returns (new goal, None, no extras)."""
     g = state.goal[0]
     side, path, it, P, anc = _flip_select(g, args.get("occurrence"))  # step 2
+    _open_end(it, "int_flip")
     _no_trees_in_limits(it.lo, it.hi)  # SECOND_REVIEW_RULE
     _flip_under_D(anc, it)  # step 3
     new = _flipped(it)  # step 4
@@ -3049,6 +3112,7 @@ def _line_select(g, k):
     else:
         hit = found[0]
     it = hit[2]
+    _open_end(it, "residues")
     if not (isinstance(it.lo, NegInf) and isinstance(it.hi, PosInf)):
         raise Refused("residues-line-not-whole", f"{_brief(it)} is not over "
                       "the whole line, -oo .. oo (E216)")
@@ -3166,7 +3230,7 @@ def _ring_holds_field(a, b):
 def _even_select(g, k):
     found = [(i, p, s, d, a) for i, side in enumerate(_sides(g))
              for p, s, d, a in _positions(side, g.dom)
-             if isinstance(s, Integral) and s.lo == Num(0)
+             if isinstance(s, Integral) and _bare(s.lo) == Num(0)
              and isinstance(s.hi, PosInf)]
     if not found or (k is not None and k >= len(found)):
         raise Refused("int-even-no-integral", "the goal holds no Int[x = 0 "
@@ -3182,6 +3246,7 @@ def _int_even(state, args, minted, buf):
     f, checked by field on split parts, its divisors owed on the line."""
     g = state.goal[0]
     side, path, it, P, anc = _even_select(g, args.get("occurrence"))
+    _open_end(it, "int_even")
     x, f = it.var, it.body
     flipped = subst(f, {x: Neg(Var(x))})
     line = Interval(x, NEG_INF, False, POS_INF, False)
@@ -3270,6 +3335,7 @@ def _int_parts(state, args, minted, buf):
     G, var, u, v, check = (g.dom, args["var"], args["u"], args["v"],
                            args["check"])
     side, path, it, P, anc = _parts_select(g, var, args.get("occurrence"))
+    _open_end(it, "int_parts")
     for end in (it.lo, it.hi):  # step 3
         if isinstance(end, (PosInf, NegInf)):
             raise Refused("int-parts-infinite-endpoint", "int_parts needs "
@@ -3355,6 +3421,61 @@ def _imp_limit(F, x, end, P, G, buf):
     return value
 
 
+def _imp_open(F, x, end, g, P, G, buf):
+    """E226: V at a marked end, the limit of F(a + 1/u) (a+) or F(b - 1/u)
+    (b-) as u -> oo, u fresh, by the trusted evaluator (E77)."""
+    taken = fv(g) | bv(g) | fv(F)
+    u = next(n for n in itertools.chain(
+        ("u",), (f"u_{j}" for j in itertools.count(1))) if n not in taken)
+    step = Div(Num(1), Var(u))
+    step = step if end.side == "+" else Neg(step)
+    at = step if end.e == Num(0) else Add(end.e, step)
+    return _imp_limit(_whole_normal(_args_normal(subst(F, {x: at}))), u,
+                      POS_INF, P, G, buf)
+
+
+def _too_big(t):
+    """E231: a power or a size field's normal form could blow up on."""
+    nodes = list(DV._nodes(t))
+    return len(nodes) > 400 or any(type(n) is Pow and abs(n.n) > 64
+                                   for n in nodes)
+
+
+def _whole_normal(t):
+    """E231: t's field normal form, functions as atoms, where field checks
+    the two equal (so 1/(1 + 1/u - 1) reads u), else t."""
+    if _too_big(t):
+        return t
+    try:
+        num, den, atoms = FD.field_parts(t)
+        new = residual.residual_term(_Parts(num, den, atoms))
+        FD.field(t, new)
+        return new
+    except (FD.NotEqual, Refused, RecursionError):
+        return t
+
+
+def _args_normal(t):
+    """t with each function's argument replaced by its field normal form
+    where field checks the two equal, so 1 - (1 - 1/u) reads 1/u (E226).
+    Equal as rational functions, they agree for all large u, so the limit
+    is unchanged; an argument field cannot normalise is kept, and so is
+    one past E231's size bound."""
+    if _too_big(t):
+        return t
+    if isinstance(t, (App, Branch)):
+        arg = _args_normal(t.arg)
+        try:
+            num, den, atoms = FD.field_parts(arg)
+            new = residual.residual_term(_Parts(num, den, atoms))
+            FD.field(arg, new)
+            return replace(t, arg=new)
+        except (FD.NotEqual, Refused, RecursionError):
+            return replace(t, arg=arg)
+    kids = {n: _args_normal(c) for n, c in children(t) if isinstance(c, Term)}
+    return replace(t, **kids) if kids and not isinstance(t, Call) else t
+
+
 def _imp_scope(g, anc, x, F):
     """E92: F in scope at the selected Int's position, plus its variable,
     as E84 checks ftc's."""
@@ -3374,9 +3495,9 @@ def _int_improper(state, args, minted, buf):
     side, path, it, P, anc = _imp_select(g, args.get("occurrence"))
     _imp_scope(g, anc, it.var, F)  # E92
     ends = (it.lo, it.hi)
-    if not any(isinstance(e, (PosInf, NegInf)) for e in ends):
-        raise Refused("int-improper-finite", "both limits are finite; ftc "
-                      "is the move")
+    if not any(isinstance(e, (PosInf, NegInf, Open)) for e in ends):
+        raise Refused("int-improper-finite", "both limits are finite and "
+                      "unmarked; ftc is the move")
     _no_trees_in_limits(*(e for e in ends if isinstance(e, Term)))
     if anc:
         _subst_under_D(anc, it, (F,))  # E48, as ftc at an occurrence
@@ -3400,6 +3521,7 @@ def _int_improper(state, args, minted, buf):
           ("deriv+" + check, cites))
     _emit(buf, with_domain(Reg(f, 0), on_rng), S_IMP_f, G)
     va, vb = (_imp_limit(F, x, e, P, G, buf) if isinstance(e, (PosInf, NegInf))
+              else _imp_open(F, x, e, g, P, G, buf) if type(e) is Open
               else subst(F, {x: e}) for e in ends)
     new = Add(vb, Neg(va))  # V(b) - V(a)
     if path is None:

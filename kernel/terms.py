@@ -250,6 +250,18 @@ class Integral(Term):
 
 
 @dataclass(frozen=True, slots=True)
+class Open(Term):
+    """e+ or e-: an Int's end approached from inside its range, the Int
+    improper there (p1_expected E222, E223). Only an Int's lo or hi."""
+    e: Term
+    side: str  # "+" or "-"
+
+    def __post_init__(self):
+        if self.side not in ("+", "-"):
+            raise ValueError(f"Open's side is + or -, not {self.side!r}")
+
+
+@dataclass(frozen=True, slots=True)
 class Interval:
     """A domain item on `var`. An infinite end is open, with -oo only as the
     lower end and oo only as the upper (D18)."""
@@ -316,6 +328,7 @@ _CHILDREN = {Neg: ("a",), Add: ("a", "b"), Mul: ("a", "b"), Div: ("a", "b"),
              PathP: ("lo", "hi", "phi"), Join: ("a", "b"), Rev: ("g",),
              CInt: ("path", "body"),
              Call: ("args",), Deriv: ("body",), Integral: ("lo", "hi", "body"),
+             Open: ("e",),
              Interval: ("lo", "hi"), Rel: ("lhs", "rhs", "dom"),
              NonZero: ("e", "dom"), Reg: ("e", "dom")}
 _TERMS = frozenset((Num, Const, Var, CVar, MVar)) | {c for c in _CHILDREN
@@ -360,8 +373,8 @@ def statable(t):
         return True
     if not isinstance(t, Integral):
         return False
-    return all(isinstance(e, Term) and next(trees(e), None) is None
-               for e in (t.lo, t.hi))
+    return all(isinstance(e, Term) and type(e) is not Open  # E225
+               and next(trees(e), None) is None for e in (t.lo, t.hi))
 
 
 def _kids(x):
@@ -591,8 +604,11 @@ def sort_of(t):
     if k in PATHS:
         _check_path(t)
         return "R"
+    if k is Open:
+        return sort_of(t.e)
     if k in (Integral, Deriv):  # E176: a Real variable; limits Real, body any
         for e in _finite(*((t.lo, t.hi) if k is Integral else ())):
+            e = e.e if type(e) is Open else e  # E223: e's sort
             if sort_of(e) == "C" or not _complex_free(e):
                 raise Refused("complex-calculus-not-built", "an integral's "
                               "limits are real")
@@ -878,6 +894,9 @@ def _check_term(t, enclosing):
         _check_term(t.body if isinstance(t, CInt) else t.phi,
                     enclosing + (t.var,))
         return
+    if type(t) is Open:  # E223: only an Int's end
+        raise Refused("open-end-misplaced", f"{_shown(t)}: a marked end is "
+                      "only an Int's lo or hi (E223)")
     if not isinstance(t, Integral):
         for k in _kids(t):
             _check_term(k, enclosing)
@@ -887,7 +906,7 @@ def _check_term(t, enclosing):
     if t.var in fv(t.lo) | fv(t.hi):
         raise Refused("bound-in-endpoint", f"{t.var} is in its own limits")
     for e in _finite(t.lo, t.hi):
-        _check_term(e, enclosing)
+        _check_term(e.e if type(e) is Open else e, enclosing)
     _check_term(t.body, enclosing + (t.var,))
 
 
@@ -1177,7 +1196,14 @@ class _Parser:
             self.take()
             self.take()
             return NEG_INF
-        return self.sum()
+        t = self.product()  # E223: + or - before .. or ] marks the end
+        while self.at("+", "-"):
+            if _is(self.peek(1), "..", "]"):
+                return Open(t, self.take()[1])
+            op = self.take()[1]
+            r = self.product()
+            t = Add(t, r if op == "+" else Neg(r))
+        return t
 
     def sum(self):
         t = self.product()
@@ -1658,12 +1684,17 @@ def _show_steps(t, need, left):
     if isinstance(t, Integral):
         body = (yield t.body, 0, True)[0]
         return f"Int[{t.var} = {_end(t.lo)} .. {_end(t.hi)}] {body}", False
+    if isinstance(t, Open):  # E223: printed alone only in a message
+        e = (yield t.e, 1, True)[0]
+        return f"{e}{t.side}", False
     raise TypeError(f"not a term: {t!r}")
 
 
 def _end(e):
     if isinstance(e, (PosInf, NegInf)):
         return "oo" if isinstance(e, PosInf) else "-oo"
+    if type(e) is Open:  # E223
+        return _show(e.e, 1, True)[0] + e.side
     return _show(e, 1, True)[0]
 
 

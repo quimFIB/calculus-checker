@@ -15,7 +15,7 @@ from schema import rpow_int_exponent
 import field as FD
 from assist import factor as FA
 from assist import probe
-from terms import (App, CInt, Deriv, Integral, MVar, Neg, NegInf, Num, PosInf, Rel, Term,
+from terms import (App, CInt, Deriv, Integral, MVar, Neg, NegInf, Num, Open, PosInf, Rel, Term,
                    Var, fv, show, subst)
 from dataclasses import fields
 
@@ -131,7 +131,7 @@ def rewrites(goal):
 # ---------------------------------------------------------------- moves
 
 def _finite(i):
-    return not any(isinstance(e, (PosInf, NegInf)) for e in (i.lo, i.hi))
+    return not any(isinstance(e, (PosInf, NegInf, Open)) for e in (i.lo, i.hi))
 
 
 def _float(t):
@@ -177,7 +177,7 @@ def moves(goal):
     if ints:
         if any(not _finite(i) for i in ints):
             out.append({"move": "int_improper", "sentence": "int_improper _.",
-                        "why": "an integral with an infinite end"})
+                        "why": "an integral with an infinite or marked end"})
         for i in finite:
             lo, hi = _float(i.lo), _float(i.hi)
             if lo is not None and hi is not None and lo > hi:

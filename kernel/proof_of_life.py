@@ -6607,6 +6607,69 @@ def k4c_problems(part):
     return out
 
 
+def open_end_problems(part):
+    """OPEN_END_CASES (E222-E230) at the kernel."""
+    C, S, out = X.OPEN_END_CASES, X.OPEN_END_SIG, []
+    if part == "round_trips":
+        for text, printed in C["round_trips"]:
+            t = T.parse_term(text, S)
+            if T.show(t) != printed or T.parse_term(printed, S) != t:
+                out.append(f"{text}: prints {T.show(t)}")
+    elif part == "refusals":
+        for text, code in C["refusals"]:
+            try:
+                st = K.install(T.parse_goal(text, S))
+                got = st.code if isinstance(st, K.Refusal) else K.report(st)
+            except T.Refused as r:
+                got = r.code
+            if got != code:
+                out.append(f"{text}: {got}, want {code}")
+    elif part == "integrals":
+        for goal_text, sentences, value in C["integrals"]:
+            if any("using" in s for s in sentences):
+                continue  # the app's test feeds facts
+            st = K.install(T.parse_goal(goal_text, S))
+            for text in sentences:
+                move, args = _k1_move(text.rstrip("."), S)
+                st = K.step(st, move, args)
+                if isinstance(st, K.Refusal):
+                    break
+            if isinstance(st, K.Refusal):
+                out.append(f"{goal_text}: {st.code}")
+                continue
+            if any(ob.status == K.ADMITTED for ob in st.obligations()):
+                out.append(f"{goal_text}: admissions")
+            got = complex(_k1_eval(st.goal[0].lhs, {}))
+            if abs(got - complex(_k1_eval(T.parse_term(value), {}))) > 1e-9:
+                out.append(f"{goal_text}: {T.show(st.goal[0].lhs)}, want "
+                           f"{value}")
+    elif part == "review":  # E231
+        for goal_text, sentence, want in C["review"]:
+            st = K.install(T.parse_goal(goal_text, S))
+            move, args = _k1_move(sentence, S)
+            r = st if isinstance(st, K.Refusal) else K.step(st, move, args)
+            if isinstance(r, K.Refusal):
+                if r.code != want:
+                    out.append(f"{goal_text}: {r.code}, want {want}")
+                continue
+            if any(ob.status == K.ADMITTED for ob in r.obligations()):
+                out.append(f"{goal_text}: admissions")
+            got = complex(_k1_eval(r.goal[0].lhs, {}))
+            if abs(got - complex(_k1_eval(T.parse_term(want), {}))) > 1e-9:
+                out.append(f"{goal_text}: {T.show(r.goal[0].lhs)}, want {want}")
+    elif part == "move_refusals":
+        for goal_text, sentence, code in C["move_refusals"]:
+            if not sentence.startswith(("int_improper", "ftc", "verify")):
+                continue
+            st = K.install(T.parse_goal(goal_text, S))
+            move, args = _k1_move(sentence, S)
+            r = K.step(st, move, args)
+            got = r.code if isinstance(r, K.Refusal) else K.report(r)
+            if got != code:
+                out.append(f"{goal_text} / {sentence}: {got}, want {code}")
+    return out
+
+
 def k1_checks(suite):
     suite.check("Z", f"K1 round trips ({len(X.K1_CASES['round_trips'])}), "
                 "GRAMMAR.md §11", lambda: k1_problems("round_trips"))
@@ -6662,6 +6725,19 @@ def k1_checks(suite):
     suite.check("Z", f"K4c-i never proved ({len(X.K4C_CASES['never_proved'])}"
                 "): Jordan with a's sign unknown", lambda: k4c_problems(
                     "never_proved"))
+    for part, what in (("round_trips", "a+ and b- print and parse back "
+                         "(E223)"),
+                       ("refusals", "the marked side, misplaced marks, an "
+                        "unmarked singular end (E223, E224)"),
+                       ("integrals", "int_improper at a marked end, the limit "
+                        "of F(a + 1/u), each value numerically (E226)"),
+                       ("move_refusals", "divergence, ftc at a marked end, "
+                        "two divergent copies (E225-E227)"),
+                       ("review", "empty marked ranges refused, divergence "
+                        "by name, both ends marked (E231)")):
+        suite.check("Z", f"open ends, {part} "
+                    f"({len(X.OPEN_END_CASES[part])}): {what}",
+                    lambda part=part: open_end_problems(part))
     suite.check("Z", f"E206 surds ({len(X.K4B_CASES['surds'])}): decided "
                 "exactly in Q(sqrt s), two surds left undecided",
                 lambda: k4b_problems("surds"))

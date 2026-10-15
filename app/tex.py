@@ -12,7 +12,7 @@ import re
 
 from session import KERNEL  # noqa: F401  (puts kernel/ on the path)
 from terms import (Add, App, Call, Const, Deriv, Div, Integral, Interval,
-                   Judgement, MVar, Mul, Neg, NegInf, NonZero, Num, PosInf,
+                   Judgement, MVar, Mul, Neg, NegInf, NonZero, Num, Open, PosInf,
                    Branch, CVar, CInt, Seg, Arc, PathP, Join, Rev,
                    Pow, Reg, Rel, RPow, Term, Var, _d13_free, _literal_rpow,
                    parse_goal, parse_judgement, parse_term)
@@ -148,6 +148,8 @@ def _end(e):
         return r"\infty"
     if isinstance(e, NegInf):
         return r"-\infty"
+    if type(e) is Open:  # E223: e^{+}, e^{-}
+        return "{" + _t(e.e, 1) + "}^{" + e.side + "}"
     return _t(e, 1)
 
 

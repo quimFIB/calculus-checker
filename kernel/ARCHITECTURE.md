@@ -1548,3 +1548,19 @@ against complex evaluation at 200 random points per term.
 - **The poles** are Q's, factored as in E204. Each owes im r # 0, and the
   side is owed. The residues are E207's on exp(u)·P/Q.
 - **`int_even`** checks f(−x) == f(x) by `field` and halves the line.
+
+**Marked ends (E222–E230)**, improper integrals at a finite end:
+
+- **`terms.Open(e, side)`** is an Int end only.
+  - The parser reads `+` or `-` before `..` or `]` as the mark.
+  - `statable` is false for a marked Int, so `field` refuses it.
+  - Its child is e, so `fv`, `subst` and the formers reach the term.
+- **`_range_of`** orders the bare terms and opens the interval at the
+  mark, and refuses a mark on the wrong side. `_positions`' placeholder
+  holds the bare ends.
+- **`int_improper`** takes a marked end by `_imp_open`, the limit of
+  F(a ± 1/u) as u → ∞. Before the trusted evaluator sees it,
+  `_args_normal` replaces each function argument by its field normal form,
+  checked equal by `field`.
+- **`_open_end`** refuses a marked end in `ftc`, `int_subst`, `int_flip`,
+  `int_parts`, `int_even` and `residues`.

@@ -610,7 +610,8 @@ def _integral_of(goal):
                 if isinstance(d, Rel) and d.op == ">" and
                 isinstance(d.lhs, Var) and d.rhs == Num(0)]
     t = goal[0].lhs
-    improper = any(isinstance(e, (PosInf, NegInf)) for e in (t.lo, t.hi))
+    improper = any(isinstance(e, (PosInf, NegInf)) or type(e).__name__ ==
+                   "Open" for e in (t.lo, t.hi))  # E231: a marked end
     return t, positive, improper
 
 

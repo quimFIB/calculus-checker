@@ -113,8 +113,9 @@ each spec-first and then reviewed by an independent skeptic:
   (ln cos x with O(x⁶)) need stage 2's certified numbers and `big_O`.
 
 **Deliberately not built yet:**
-- the `diverges` judgement, and integrands singular at a FINITE end (unit
-  00 P7);
+- the `diverges` judgement (integrands singular at a finite end are built:
+  `Int[x = 0+ .. 1] f`, evaluated by `int_improper`, E222–E230, and unit 00
+  P7's B(1, 1/2) proves);
 - `int_improper` for trig integrands by a squeeze law (e^-x sin x is
   reached through complex numbers instead: COMPLEX.md K2, E179);
 - the cycle case of `int_parts` (E74), hyperbolic atoms in `trig_norm`;
