@@ -214,6 +214,38 @@ class Lsp(unittest.TestCase):
                 self.assertEqual(c.goals(2)["report"], "Proved.")
                 self.assertEqual(c.close(), 0)
 
+    def test_complex_analysis_moves_check_through_the_server(self):
+        """The moves of E190-E280 (residues and its flavours, int_re,
+        int_im, PV, marked ends) prove through ./calc --lsp, and a new
+        refusal code reaches a diagnostic."""
+        texts = (
+            "goal CInt[w on circle(i, 1)] 1/(w^2 + 1) == ?A complex w.\n"
+            "residues.\n",
+            "goal Int[x = -oo .. oo] cos(x)/(x^2 + 1) == ?A.\n"
+            "int_re exp(i*x)/(x^2 + 1).\nresidues upper.\n",
+            "goal PV[x = -oo .. oo] sin(x)/x == ?A.\n"
+            "int_im exp(i*x)/x.\nresidues upper.\n",
+            "goal Int[x = 0 .. oo] 1/((x + 1)*(x + 2)) == ?A.\n"
+            "residues keyhole.\n",
+            "goal Int[x = 0 .. oo] cos(x^2) == ?A.\nresidues sector.\n",
+            "goal Int[x = 0+ .. 1] 1/sqrt x == ?A.\n"
+            "int_improper 2*sqrt x by field.\n",
+        )
+        for text in texts:
+            with self.subTest(text=text.splitlines()[0]):
+                c = self.client()
+                c.open(text)
+                self.assertEqual(c.settled(), [])
+                n = len(script.sentences(text))
+                self.assertEqual(c.goals(n)["report"], "Proved.")
+                self.assertEqual(c.close(), 0)
+        c = self.client()
+        c.open("goal PV[x = -oo .. oo] 1/(x^2*(x^2 + 1)) == ?A.\n"
+               "residues upper.\n")
+        diags = c.settled()
+        self.assertEqual([d["code"] for d in diags], ["pv-pole-not-simple"])
+        self.assertEqual(c.close(), 0)
+
     def test_a_refusal_is_an_error_and_its_code_action_fixes_it(self):
         c = self.client()
         c.open("goal Int[t = 0 .. pi] 2*t*sin t == ?A.\n"
