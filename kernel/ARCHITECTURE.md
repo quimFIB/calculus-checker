@@ -1532,3 +1532,19 @@ against complex evaluation at 200 random points per term.
   `_cos_sin`, so joins and height tests decide. `roots.factor` factors
   the square-free part and counts multiplicities, and trial division
   under sqrt is bounded.
+
+**Stage K4c-i (E212–E220)**, a line integral closed in a half-plane:
+
+- **`residues upper|lower`** (`_residues_line`, Z10) takes
+  `Int[x = -oo .. oo] f` to ±2πi Σ res over the poles on that side.
+- **The decay certificate:**
+  - `_exp_split` writes f[x := z] as exp(u)·g by exp's laws, which is
+    trusted and structural;
+  - u is checked affine by `ring`;
+  - g == P/Q, with P/Q proposed by `roots.rational`, is checked by
+    `field`;
+  - then the degree gap is compared: 2 for (R), 1 for Jordan's (J),
+    which owes re α == 0 and the sign of a = im α.
+- **The poles** are Q's, factored as in E204. Each owes im r # 0, and the
+  side is owed. The residues are E207's on exp(u)·P/Q.
+- **`int_even`** checks f(−x) == f(x) by `field` and halves the line.

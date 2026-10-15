@@ -56,7 +56,8 @@ ARG_TYPES = {"at": str, "F": str, "value": str, "inst": dict, "facts": list,
              # section 30's ODE rules (E149)
              "law": str, "kin": str, "regs": list, "using": list,
              "range": str,
-             "region": str}  # residues' (p1_expected E201)
+             "region": str,  # residues' (p1_expected E201)
+             "half": str}  # residues upper|lower (E213)
 # The args that are GRAMMAR.md strings for terms, parsed with the file's sig.
 TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f", "u", "v", "scale")
 

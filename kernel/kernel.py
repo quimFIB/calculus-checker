@@ -146,7 +146,7 @@ VERDICT = "Proved modulo {n} admissions"
 MOVES = ("rewrite", "fact", "ftc", "close", "int_subst", "int_flip",
          "int_parts", "int_improper", "taylor_lagrange", "bound", "verify",
          "quad_t", "sep_autonomous", "energy_integral", "cint_param",
-         "residues")
+         "residues", "int_even")
 # E96: the moves an order goal takes; `bound` takes nothing else. The ODE
 # rules (E149) mint a handle and leave any goal as it is.
 ORDER_MOVES = ("rewrite", "fact", "taylor_lagrange", "bound", "quad_t",
@@ -634,7 +634,8 @@ _ARGS = {"rewrite": ("entry", "inst", "at"), "fact": ("entry", "inst", "bind"),
          "energy_integral": ("bind", "law", "kin", "regs", "lo", "hi", "var",
                              "f", "F", "range", "using", "check", "facts"),
          "cint_param": (),  # E191
-         "residues": ()}  # E200
+         "residues": (),  # E200
+         "int_even": ()}  # E217
 _TERM_ARGS = ("at", "F", "value", "sub", "lo", "hi", "f", "u", "v", "scale")
 
 
@@ -686,8 +687,8 @@ def _check_args(move, args, goal):
     need = set(_ARGS[move])
     optional = ({"occurrence"} if move in ("rewrite", "int_flip", "ftc",
                                            "int_parts", "int_improper",
-                                           "cint_param")
-                else {"occurrence", "region"} if move == "residues"  # E201
+                                           "cint_param", "int_even")
+                else {"occurrence", "region", "half"} if move == "residues"
                 else {"scale"} if move == "bound" else set())
     if move == "int_subst":  # INT_SUBST_RULE step 1 (E36, E45, E48)
         optional = {"mode", "occurrence"}
@@ -707,12 +708,15 @@ def _check_args(move, args, goal):
               and type(facts) in (list, tuple)
               and not (args["check"] == "ring" and facts))
     if ok and move in ("int_flip", "ftc", "int_improper",
-                       "cint_param", "residues"):  # E51, E73, E191, E200
+                       "cint_param", "residues", "int_even"):  # E51, E73, E191, E200
         ok = args.get("occurrence", 0) >= 0
     if ok and move == "residues":  # E201: a list of conditions
         region = args.get("region", ())
         ok = type(region) in (list, tuple) and all(
             type(j) in (Rel, NonZero) and j.dom == () for j in region)
+        # E213: upper or lower reads a line Int, and takes no region
+        ok = ok and ("half" not in args or (args["half"] in ("upper", "lower")
+                                            and "region" not in args))
         try:
             for j in region if ok else ():
                 check_sorts(j)
@@ -2863,6 +2867,15 @@ class _Poles:
         return _times(self.zpow(k - mu), Num(1) if d == Num(1) else Pow(d, t.n))
 
 
+RESIDUE_NODES_MAX = 15000  # E221: D^(m-1) phi's size, checked per step
+
+
+def _pow01(t):
+    if type(t) is Pow and t.n in (0, 1):
+        return Num(1) if t.n == 0 else t.base
+    return t
+
+
 def _residue(f, z, a, fac, buf, P, anc, gd):
     """E207: (m, the residue term) at a, m == 0 for a removable point."""
     poles = _Poles(z, a, fac)
@@ -2874,8 +2887,12 @@ def _residue(f, z, a, fac, buf, P, anc, gd):
         for p, _ in _owed(s):
             if type(p) is NonZero:
                 _owe(buf, NonZero(subst(p.e, {z: a})), S_RES_POLE, P, anc, gd)
-    for _ in range(m - 1):
-        phi = DV.deriv(phi, z, ()).output
+    for _ in range(m - 1):  # E221: u^0 is 1 and u^1 is u between steps
+        phi = discharge._rebuild(DV.deriv(phi, z, ()).output, _pow01)
+        if sum(1 for _ in DV._nodes(phi)) > RESIDUE_NODES_MAX:
+            raise Refused("residues-too-large", f"the derivatives at "
+                          f"{show(a)}, a pole of order up to {m}, grow past "
+                          f"{RESIDUE_NODES_MAX} nodes (E221)")
     R = subst(phi, {z: a})
     if m > 2:
         R = Div(R, Num(math.factorial(m - 1)))
@@ -2885,6 +2902,8 @@ def _residue(f, z, a, fac, buf, P, anc, gd):
 def _residues(state, args, minted, buf):
     """E200-E208: the selected CInt[z on g] f replaced by 2*pi*i times the
     sum of wind(g, a)*res(f, a) over S, with every hypothesis owed."""
+    if "half" in args:  # E213: Z10, on a line Int
+        return _residues_line(state, args, minted, buf)
     g = state.goal[0]
     side, path, ci, P, anc = _cint_select(g, args.get("occurrence"))
     z, gd = ci.var, g.dom
@@ -2965,6 +2984,227 @@ def _residues(state, args, minted, buf):
     goal = (replace(g, lhs=sides[0], rhs=sides[1] if len(sides) > 1 else g.rhs),)
     check_goal(goal)
     return goal, None, {"trace": tuple(trace)}
+
+
+# ---------------------------------------------------------------- Z10
+#
+# p1_expected E212-E217: a line integral closed in a half-plane (Z10), and
+# int_even. The decay certificate's split is structural and trusted
+# (E214); P/Q and the roots are proposed (roots.py) and checked.
+
+S_LINE_CERT, S_LINE_POLE = "residues_line_certificate", "residues_line_pole"
+S_EVEN = "int_even_check"
+
+
+def _exp_split(t, z):
+    """E214: (u, g) with t == exp(u)*g by exp's laws, u None for no exp;
+    an exp under a sum, or in a head that is not exp, refuses."""
+    if z not in fv(t):
+        return None, t
+    k = type(t)
+    if k is App and t.fn == "exp":
+        if any(type(n) is App and n.fn == "exp" and z in fv(n)
+               for n in DV._nodes(t.arg)):  # E221: a z-free one is a constant
+            raise Refused("decay-not-certified", f"{_brief(t)}: an exp "
+                          "inside an exp (E214)")
+        return t.arg, Num(1)
+    add = lambda a, b: b if a is None else a if b is None else Add(a, b)
+    neg = lambda a: None if a is None else Neg(a)
+    if k is Mul or k is Div:
+        (ua, ga), (ub, gb) = _exp_split(t.a, z), _exp_split(t.b, z)
+        if k is Mul:
+            return add(ua, ub), _times(ga, gb)
+        return add(ua, neg(ub)), ga if gb == Num(1) else Div(ga, gb)
+    if k is Neg:
+        u, g = _exp_split(t.a, z)
+        return u, Neg(g)
+    if k is Pow:
+        u, g = _exp_split(t.base, z)
+        return (None if u is None else _times(Num(t.n) if t.n >= 0 else
+                                              Neg(Num(-t.n)), u)), Pow(g, t.n)
+    if any(type(n) is App and n.fn == "exp" and z in fv(n)
+           for n in DV._nodes(t)):
+        raise Refused("decay-not-certified", f"{_brief(t)}: an exp under a "
+                      "sum or another head; Z10 reads exp(i*a*z)*g with g "
+                      "rational (E214)")
+    return None, t
+
+
+def _line_select(g, k):
+    """The Int nodes of the non-?A side(s), pre-order; the k-th, or the
+    only one, which must run over the whole line (E216)."""
+    found = [(i, p, s, d, a) for i, side in enumerate(_sides(g))
+             for p, s, d, a in _positions(side, g.dom)
+             if isinstance(s, Integral)]
+    if not found:
+        raise Refused("residues-no-integral", "the goal holds no integral")
+    if k is not None:
+        if k >= len(found):
+            raise Refused("residues-no-integral", f"no integral at "
+                          f"occurrence {k}")
+        hit = found[k]
+    elif len(found) > 1:
+        raise Refused("residues-ambiguous", f"{len(found)} integrals in the "
+                      "goal; give an occurrence")
+    else:
+        hit = found[0]
+    it = hit[2]
+    if not (isinstance(it.lo, NegInf) and isinstance(it.hi, PosInf)):
+        raise Refused("residues-line-not-whole", f"{_brief(it)} is not over "
+                      "the whole line, -oo .. oo (E216)")
+    return hit
+
+
+def _residues_line(state, args, minted, buf):
+    """E213-E216: Int[x = -oo .. oo] f as 2*pi*i times the residues in the
+    upper (or lower) half-plane, under a decay certificate."""
+    g = state.goal[0]
+    up = args["half"] == "upper"
+    side, path, it, P, anc = _line_select(g, args.get("occurrence"))
+    z, gd = it.var, g.dom
+    zc = CVar(z)
+    f = subst(it.body, {z: zc})
+    u, gr = _exp_split(f, z)
+    proposal = roots.rational(gr, z)
+    if proposal is None:
+        raise Refused("decay-not-certified", f"{_brief(gr)} is not rational "
+                      f"in {z} over Q(i) (E214)")
+    pp, qq = proposal
+    Pt, Qt = roots.poly_term(pp, z), roots.poly_term(qq, z)
+    held = _ring_holds_field(gr, Pt if Qt == Num(1) else Div(Pt, Qt))
+    if held is None:  # E221: a resource limit, not a wrong identity
+        raise Refused("residues-too-large", f"{_brief(gr)} == P/Q is too "
+                      "large for field to check (E221)")
+    if not held:
+        raise Refused("decay-not-certified", f"{_brief(gr)} == P/Q does not "
+                      "check (E214)")
+    gap = (len(qq) - 1) - (len(pp) - 1 if pp else -1)
+    alpha = None
+    if u is not None:
+        alpha = _sub(subst(u, {z: Num(1)}), subst(u, {z: Num(0)}))
+        beta = subst(u, {z: Num(0)})
+        if not _ring_holds(Rel("==", u, _plus(_times(alpha, zc), beta))):
+            raise Refused("decay-not-certified", f"exp's argument "
+                          f"{_brief(u)} is not affine in {z} (E214)")
+        if _ring_holds(Rel("==", alpha, Num(0))):
+            alpha = None
+    if alpha is None:  # (R)
+        if gap < 2:
+            raise Refused("decay-not-certified", f"deg Q - deg P = {gap} < 2:"
+                          " no C/|z|^2 bound (E214)")
+    else:  # (J)
+        if gap < 1:
+            raise Refused("decay-not-certified", f"deg Q - deg P = {gap} < 1:"
+                          " Jordan's lemma needs |g| <= C/|z| (E214)")
+        _owe(buf, Rel("==", App("re", alpha), Num(0)), S_LINE_CERT, P, anc, gd)
+        _owe(buf, Rel(">" if up else "<", App("im", alpha), Num(0)),
+             S_LINE_CERT, P, anc, gd)
+    # E215: the poles, off the line, and S by side
+    fac = {Qt: _factor_divisor(Qt, z, buf, P, anc, gd)}
+    S = []
+    for r, _ in fac[Qt][2]:
+        off = NonZero(App("im", r))
+        if _verdict(off, P) is False:
+            raise Refused("residue-pole-on-line", f"{show(r)} is a pole on "
+                          "the line (E215)")
+        _owe(buf, off, S_LINE_POLE, P, anc, gd)
+        inside = Rel(">" if up else "<", App("im", r), Num(0))
+        outside = Rel("<" if up else ">", App("im", r), Num(0))
+        if _verdict(inside, P) is True:
+            _owe(buf, inside, S_LINE_POLE, P, anc, gd)
+            S.append(r)
+        elif _verdict(outside, P) is True:
+            _owe(buf, outside, S_LINE_POLE, P, anc, gd)
+        else:  # undecided: owed as inside
+            _owe(buf, inside, S_LINE_POLE, P, anc, gd)
+            S.append(r)
+    for i, a in enumerate(S):
+        for b in S[i + 1:]:
+            _owe(buf, NonZero(_sub(a, b)), S_LINE_POLE, P, anc, gd)
+    body = Pt if Qt == Num(1) else Div(Pt, Qt)
+    if u is not None:
+        body = _times(App("exp", u), body)
+    total, trace = None, []
+    for a in S:
+        m, R = _residue(body, z, a, fac, buf, P, anc, gd)
+        trace.append((a, m, 1))
+        if R is not None:
+            total = R if total is None else Add(total, R)
+    new = Num(0) if total is None else Mul(
+        Mul(Mul(Num(2), Const("pi")), Const("i")), total)
+    if not up and total is not None:
+        new = Neg(new)
+    sides = list(_sides(g))
+    sides[side] = _put(sides[side], path, new)
+    _charge_formers(buf, new, P, gd, anc=anc)
+    goal = (replace(g, lhs=sides[0], rhs=sides[1] if len(sides) > 1 else g.rhs),)
+    check_goal(goal)
+    return goal, None, {"trace": tuple(trace)}
+
+
+def _ring_holds_field(a, b):
+    """a == b by field on split parts (no facts); its divisors are not
+    emitted, since the identity is only read where both sides are
+    defined."""
+    try:
+        if complexes.has_complex(Add(a, b)):
+            (p, q), (r, s) = complexes.split(a), complexes.split(b)
+            R = complexes._real
+            FD.field(R(p), R(r))
+            FD.field(R(q), R(s))
+        else:
+            FD.field(a, b)
+        return True
+    except FD.NotEqual:
+        return False
+    except Refused as r:  # a power past field's bound is a size, as below
+        return None if r.code == FD.POWER_CODE else False
+    except RecursionError:
+        return None
+
+
+def _even_select(g, k):
+    found = [(i, p, s, d, a) for i, side in enumerate(_sides(g))
+             for p, s, d, a in _positions(side, g.dom)
+             if isinstance(s, Integral) and s.lo == Num(0)
+             and isinstance(s.hi, PosInf)]
+    if not found or (k is not None and k >= len(found)):
+        raise Refused("int-even-no-integral", "the goal holds no Int[x = 0 "
+                      ".. oo] (E217)")
+    if k is None and len(found) > 1:
+        raise Refused("int-even-ambiguous", f"{len(found)} such integrals; "
+                      "give an occurrence")
+    return found[k or 0]
+
+
+def _int_even(state, args, minted, buf):
+    """E217: Int[x = 0 .. oo] f as (1/2)*Int[x = -oo .. oo] f for an even
+    f, checked by field on split parts, its divisors owed on the line."""
+    g = state.goal[0]
+    side, path, it, P, anc = _even_select(g, args.get("occurrence"))
+    x, f = it.var, it.body
+    flipped = subst(f, {x: Neg(Var(x))})
+    line = Interval(x, NEG_INF, False, POS_INF, False)
+    try:
+        if complexes.has_complex(f):
+            (a, b), (c, d) = complexes.split(f), complexes.split(flipped)
+            R = complexes._real
+            done = [FD.field(R(a), R(c)), FD.field(R(b), R(d))]
+        else:
+            done = [FD.field(f, flipped)]
+    except (FD.NotEqual, Refused, RecursionError):
+        raise Refused("int-not-even", f"{_brief(f)} is not even in {x}: "
+                      f"f(-{x}) == f({x}) fails (E217)") from None
+    for ok in done:
+        for dv in ok.divisors:
+            _emit_at(buf, NonZero(dv), P + (line,), anc, S_EVEN, g.dom)
+    new = Mul(Div(Num(1), Num(2)), Integral(x, NEG_INF, POS_INF, f))
+    sides = list(_sides(g))
+    sides[side] = _put(sides[side], path, new)
+    _charge_formers(buf, new, P, g.dom, anc=anc)
+    goal = (replace(g, lhs=sides[0], rhs=sides[1] if len(sides) > 1 else g.rhs),)
+    check_goal(goal)
+    return goal, None, {}
 
 
 # ---------------------------------------------------------------- int_parts
@@ -3636,4 +3876,4 @@ _MOVE = {"rewrite": _rewrite, "fact": _fact, "ftc": _ftc, "close": _close,
          "taylor_lagrange": _taylor, "bound": _bound, "verify": _verify,
          "quad_t": _quad_t, "sep_autonomous": _sep_autonomous,
          "energy_integral": _energy_integral, "cint_param": _cint_param,
-         "residues": _residues}
+         "residues": _residues, "int_even": _int_even}

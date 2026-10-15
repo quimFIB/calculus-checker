@@ -15,7 +15,7 @@ from schema import rpow_int_exponent
 import field as FD
 from assist import factor as FA
 from assist import probe
-from terms import (App, CInt, Deriv, Integral, MVar, Neg, NegInf, PosInf, Rel, Term,
+from terms import (App, CInt, Deriv, Integral, MVar, Neg, NegInf, Num, PosInf, Rel, Term,
                    Var, fv, show, subst)
 from dataclasses import fields
 
@@ -154,6 +154,15 @@ def moves(goal):
                     "why": "a contour integral: unfold its parametrisation"})
         out.append({"move": "residues", "sentence": "residues.",  # E200
                     "why": "a closed contour: the residue theorem"})
+    if any(isinstance(i.lo, NegInf) and isinstance(i.hi, PosInf)
+           for i in ints):  # E213
+        out += [{"move": "residues", "sentence": "residues upper.",
+                 "why": "the whole line: close in the upper half-plane"},
+                {"move": "residues", "sentence": "residues lower.",
+                 "why": "the whole line: close in the lower half-plane"}]
+    if any(i.lo == Num(0) and isinstance(i.hi, PosInf) for i in ints):
+        out.append({"move": "int_even", "sentence": "int_even.",  # E217
+                    "why": "an even integrand on [0, oo): half the line"})
     if finite:
         x = finite[0].var
         out += [

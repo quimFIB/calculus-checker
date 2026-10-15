@@ -833,6 +833,20 @@ is holomorphic off the poles, and no pole lies on the path. A function
 with a cut needs a region that avoids the cut, given as open half-planes
 and disks: `residues in re w > 0.` for `Log w` on `circle(2, 1)`.
 
+An integral over the whole real line closes in a half-plane:
+`residues upper` (or `lower`) replaces it with 2πi times the residues
+there. That needs the integrand to decay, and the kernel checks it: a
+rational function needs the denominator's degree at least two above the
+numerator's, and with a factor `exp(i*a*x)` (Jordan's lemma) one above,
+with `a > 0` for upper. `int_even` turns an even integrand on `[0, oo)` into
+half of the whole line:
+
+```dx
+goal Int[x = 0 .. oo] 1/(x^2 + 4)^2 == ?A.
+int_even.
+residues upper.
+```
+
 ## The moves
 
 | Move | Does | Lesson |

@@ -242,6 +242,81 @@ class Residues(unittest.TestCase):
         self.assertIn("residues", [m["move"] for m in palette.moves(g)])
 
 
+class LineIntegrals(unittest.TestCase):
+    """K4c-i (E212-E220): Z10, a line integral closed in a half-plane,
+    and int_even, through the app."""
+
+    def test_integrals(self):
+        import p1_expected as X
+        from proof_of_life import _k1_eval
+        for goal, sentences, value in X.K4C_CASES["integrals"]:
+            with self.subTest(goal=goal, sentences=sentences):
+                r = run(f"goal {goal}.", sentences)
+                self.assertEqual((r["report"], r["admissions"]),
+                                 ("Proved.", 0), r)
+                v = r["auto"][-1].split("close ", 1)[1].rsplit(" by ", 1)[0]
+                self.assertAlmostEqual(
+                    complex(_k1_eval(parse_term(v), {})),
+                    complex(_k1_eval(parse_term(value), {})), places=9)
+
+    def test_symbolic(self):
+        import p1_expected as X
+        for header, sentences in X.K4C_CASES["symbolic"]:
+            with self.subTest(header=header):
+                r = run(header, sentences)
+                self.assertEqual((r["report"], r["admissions"]),
+                                 ("Proved.", 0), r)
+
+    def test_move_refusals(self):
+        import p1_expected as X
+        for goal, sentence, code in X.K4C_CASES["move_refusals"]:
+            with self.subTest(goal=goal, sentence=sentence):
+                r = run(f"goal {goal}.", [f"{sentence}."])
+                self.assertEqual(r["refusal"]["code"], code, r)
+
+    def test_never_proved(self):
+        import p1_expected as X
+        for goal, sentence in X.K4C_CASES["never_proved"]:
+            with self.subTest(goal=goal):
+                r = run(f"goal {goal}.", [f"{sentence}."])
+                self.assertNotEqual(r.get("report"), "Proved.", r)
+
+    def test_review_rows(self):  # E221
+        import p1_expected as X
+        from proof_of_life import _k1_eval
+        for header, sentence, want in X.K4C_CASES["review"]:
+            with self.subTest(header=header):
+                r = run(header, [f"{sentence}."])
+                if "refusal" in r:
+                    self.assertEqual(r["refusal"]["code"], want, r)
+                    continue
+                self.assertEqual((r["report"], r["admissions"]),
+                                 ("Proved.", 0), r)
+                v = r["auto"][-1].split("close ", 1)[1].rsplit(" by ", 1)[0]
+                self.assertNotIn("0/", v)  # fully evaluated (E221 (3))
+                self.assertAlmostEqual(
+                    complex(_k1_eval(parse_term(v), {})),
+                    complex(_k1_eval(parse_term(want), {})), places=9)
+
+    def test_sentences_round_trip(self):
+        import script
+        for text in ("residues upper.", "residues lower occurrence 1.",
+                     "int_even.", "int_even occurrence 2."):
+            with self.subTest(text=text):
+                move, args = script.parse(text)
+                self.assertEqual(script.show(move, args), text)
+
+    def test_palette_offers_the_closings(self):
+        from assist import palette
+        from terms import parse_goal
+        names = [m["sentence"] for m in palette.moves(parse_goal(
+            "Int[x = 0 .. oo] 1/(x^2 + 1) == ?A"))]
+        self.assertIn("int_even.", names)
+        names = [m["sentence"] for m in palette.moves(parse_goal(
+            "Int[x = -oo .. oo] 1/(x^2 + 1) == ?A"))]
+        self.assertIn("residues upper.", names)
+
+
 class TeX(unittest.TestCase):
     def test_round_trips(self):
         sig = {"z": "complex"}

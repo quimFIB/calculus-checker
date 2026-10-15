@@ -320,7 +320,7 @@ class Lsp(unittest.TestCase):
             "position": {"line": 3, "character": 0}})["items"]
         want = api.templates({})["templates"]
         self.assertEqual(len(items), len(want))
-        self.assertEqual(len(items), 17)  # + verify (E112), ODE (E149), simpl (E161), cint_param (E191), residues (E200)
+        self.assertEqual(len(items), 18)  # + verify (E112), ODE (E149), simpl (E161), cint_param (E191), residues (E200), int_even (E217)
         sub = next(i for i in items if i["label"] == "int_subst")
         self.assertEqual(sub["insertTextFormat"], 2)
         self.assertEqual(sub["insertText"], "int_subst x := ${1:_} as t "

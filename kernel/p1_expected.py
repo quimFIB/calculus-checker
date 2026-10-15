@@ -18123,3 +18123,61 @@ K4C_CASES = {
         ("Int[x = -oo .. oo] exp(i*a*x)/(x^2 + 1) == ?A", "residues upper"),
     ],
 }
+
+INT_EVEN_MOVE = "int_even"
+E57_PRINCIPLE[INT_EVEN_MOVE] = (
+    "erases nothing: Int[x = 0 .. oo] f and (1/2)*Int[x = -oo .. oo] f "
+    "exist together and are equal for an even f, checked by field "
+    "(E217); the new Int's formers are charged")
+DECISIONS_COMPLEX_K4C["E220"] = (
+    "Correcting K4C_CASES after 'Spec for closing a line integral' "
+    "(742ec01), with nothing weakened. (1) The Bromwich row closed with "
+    "2*pi*exp(-t), which E27 refuses (exp_neg still applies), and field "
+    "cannot see exp(-t)*exp(t) == 1. The route is now residues upper, "
+    "rewrite parts, rewrite exp_neg, and close 2*pi/exp(t). (2) 1/(x^2 - "
+    "1) is refused at install: the Int's own former owes x^2 - 1 # 0 on "
+    "the line, and E33 decides it false at x = 1, before residues runs, "
+    "which is the earlier and stronger refusal. Its row now expects "
+    "obligation-decided-false. A new row, 1/(x^2 - 2), whose former is "
+    "admitted at install, shows residue-pole-on-line.")
+K4C_CASES["symbolic"] = [
+    ("goal Int[y = -oo .. oo] exp(i*t*y)/(i*y + 1) == ?A @ t > 0.",
+     ["residues upper.", "rewrite parts at 2*pi*i*(exp(i*t*i)*(1/i)).",
+      "rewrite exp_neg with u := t at exp(-t).",
+      "close 2*pi/exp(t) by field."]),
+]
+K4C_CASES["move_refusals"][2] = ("Int[x = -oo .. oo] 1/(x^2 - 1) == ?A",
+                                 "residues upper", "obligation-decided-false")
+K4C_CASES["move_refusals"].insert(3, ("Int[x = -oo .. oo] 1/(x^2 - 2) == ?A",
+                                      "residues upper",
+                                      "residue-pole-on-line"))
+DECISIONS_COMPLEX_K4C["E221"] = (
+    "The skeptic's review of K4c-i (2026-10-15): about 170 attacks, each "
+    "value checked against mpmath, with no false theorem and no crash. "
+    "Folded in. (1) A pole of order 5 or more refused deriv-no-rule, "
+    "because deriv's output held u^0, which no rule differentiates. E207's "
+    "repeated derivative now rewrites u^0 to 1 and u^1 to u between "
+    "steps, which is structural and sound. Its time grows about tenfold "
+    "per order (31 s at 7), so residues refuses residues-too-large when "
+    "a derivative passes 15000 nodes: 1/(x^2 + 1)^5 closes, ^6 is "
+    "refused, and 1/w^100, whose phi is 1, still closes to 0. (2) field running out of room "
+    "(1/(x^2 + 1)^30) was read as a wrong identity and refused "
+    "decay-not-certified; it is now residues-too-large. (3) A residual "
+    "with a zero numerator printed as 0/den, so auto-simpl closed "
+    "-2*pi*sin 1/e + (0/e)*i; residual_term now gives 0. (4) An exp "
+    "inside exp's argument was refused even without z; a z-free exp is "
+    "a constant, so exp(i*exp(1)*x) closes. Left as incompleteness: "
+    "int_even does not see cos(-x) == cos x or abs(-x) == abs x, since "
+    "field reads both as atoms.")
+K4C_CASES["review"] = [  # E221: (header, sentence, refusal code or value)
+    ("goal Int[x = -oo .. oo] 1/(x^2 + 1)^5 == ?A.", "residues upper",
+     "35*pi/128"),
+    ("goal Int[x = -oo .. oo] 1/(x^2 + 1)^7 == ?A.", "residues upper",
+     "residues-too-large"),
+    ("goal Int[x = -oo .. oo] 1/(x^2 + 1)^30 == ?A.", "residues upper",
+     "residues-too-large"),
+    ("goal Int[x = -oo .. oo] exp(i*x)/(x^2 - 2*i*x - 2) == ?A.",
+     "residues upper", "-2*pi*sin(1)/exp(1)"),
+    ("goal Int[x = -oo .. oo] exp(i*exp(1)*x)/(x^2 + 1) == ?A.",
+     "residues upper", "pi/exp(exp(1))"),
+]

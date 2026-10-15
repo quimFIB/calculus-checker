@@ -411,3 +411,66 @@ def root_term(root):
 def surds(root):
     """The s of a surd root, or None."""
     return root[2] if root[2] != 1 else None
+
+
+# ------------------------------------------------------------ rational
+# K4c-i (p1_expected E214): a proposed P/Q for a rational term, which the
+# kernel checks by field; and a polynomial written back as a term.
+
+def _pneg(p):
+    return [_cneg(c) for c in p]
+
+
+def rational(t, z):
+    """(P, Q) polynomials over Q(i) with t == P/Q, or None."""
+    p = poly(t, z)
+    if p is not None:
+        return p, [ONE]
+    k = type(t)
+    if k is Neg:
+        r = rational(t.a, z)
+        return None if r is None else (_pneg(r[0]), r[1])
+    if k in (Add, Mul, Div):
+        a, b = rational(t.a, z), rational(t.b, z)
+        if a is None or b is None:
+            return None
+        (p1, q1), (p2, q2) = a, b
+        if k is Add:
+            return _padd(_pmul(p1, q2), _pmul(p2, q1)), _pmul(q1, q2)
+        if k is Mul:
+            return _pmul(p1, p2), _pmul(q1, q2)
+        if not p2:
+            return None
+        return _pmul(p1, q2), _pmul(q1, p2)
+    if k is Pow:
+        r = rational(t.base, z)
+        if r is None or (t.n < 0 and not r[0]):
+            return None
+        p, q = r if t.n >= 0 else (r[1], r[0])
+        out_p, out_q = [ONE], [ONE]
+        for _ in range(abs(t.n)):
+            out_p, out_q = _pmul(out_p, p), _pmul(out_q, q)
+        return out_p, out_q
+    return None
+
+
+def poly_term(p, z):
+    """sum of c_k*z^k, highest degree first, as a term."""
+    zc = CVar(z)
+    parts = []
+    for k in range(len(p) - 1, -1, -1):
+        c = p[k]
+        if c == ZERO:
+            continue
+        mono = None if k == 0 else zc if k == 1 else Pow(zc, k)
+        ct = root_term((c, ZERO, 1))
+        neg = isinstance(ct, Neg)
+        core = ct.a if neg else ct
+        if mono is None:
+            term = core
+        elif core == Num(1):
+            term = mono
+        else:
+            term = Mul(core if not isinstance(core, Add) else core, mono)
+        parts.append((neg, term))
+    return _sum(parts) if parts else Num(0)

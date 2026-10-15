@@ -345,7 +345,15 @@ or with one real surd), the winding numbers from half-open ray crossings
 per segment and arc, and each residue from (z − a)^m f differentiated.
 Every hypothesis is owed. Unit 20 P4's ∮ χ round |ω − 8| = 1 (−5πi/√1599)
 and readiness P5's semicircle at R = 2 (π/√2) prove with no admission.
-The estimation lemma, limits in R and the contour tactics are K4c, next.
+**K4c-i, closing a line integral, is built** (E212–E220): `residues
+upper|lower` takes Int[x = -oo .. oo] f to 2πi times the residues in a
+half-plane, under a decay certificate the kernel checks (degrees, or
+Jordan's exp(i·a·x) with a's sign owed). `int_even` halves the line, so
+readiness P5's ∫₀^∞ dx/(1 + x⁴) = π/(2√2) proves by residues, and
+Bromwich's inversion is the same rule in s = σ + iy. There is no limit term
+in the goal language, so Z10 states the composed theorem once instead of
+building it from the estimation lemma (E212). The keyhole, sector,
+indentation and the argument principle are K4c-ii, next.
 
 **Next,** per §17: stage 1's lists are done (2026-09-25). The gate
 (`app/GATE.md`): work its seventeen problems in order on the page, then

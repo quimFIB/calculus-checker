@@ -26,7 +26,8 @@ FORMS = {
                    "using"}, {"as", "from", "to"}),
     "int_flip": ({"occurrence"}, set()),
     "cint_param": ({"occurrence"}, set()),  # E191
-    "residues": ({"in", "occurrence"}, set()),  # E200, E201
+    "residues": ({"in", "occurrence"}, set()),  # E200, E201, E213
+    "int_even": ({"occurrence"}, set()),  # E217
     "int_parts": ({"in", "with", "occurrence", "by", "using"},
                   {"in", "with"}),
     "taylor_lagrange": ({"in", "from", "to", "at", "derivs", *SENSES,
@@ -59,7 +60,8 @@ USAGE = {
                  "[occurrence N] [by ring|field] [using h, ...]",
     "int_flip": "int_flip [occurrence N]",
     "cint_param": "cint_param [occurrence N]",
-    "residues": "residues [in C, ...] [occurrence N]",
+    "residues": "residues [upper|lower] [in C, ...] [occurrence N]",
+    "int_even": "int_even [occurrence N]",
     "int_parts": "int_parts in x with u := T; v := T [occurrence N] "
                  "[by ring|field] [using h, ...]",
     "taylor_lagrange": "taylor_lagrange h := lower|upper of T in u from T "
@@ -90,6 +92,7 @@ TEMPLATES = {
     "int_flip": "int_flip.",
     "cint_param": "cint_param.",
     "residues": "residues.",
+    "int_even": "int_even.",
     "int_parts": "int_parts in x with u := _; v := _ by ring.",
     "taylor_lagrange": "taylor_lagrange h := lower of _ in u from _ to _ at _ "
                        "derivs _; _ increasing by field.",
@@ -273,13 +276,17 @@ def _build(move, head, cl):
             args = {"mode": "reverse", **args,
                     "f": _term(cl["reverse"], "reverse")}
         return _checked({**args, **occ}, cl)
-    if move in ("int_flip", "cint_param"):
+    if move in ("int_flip", "cint_param", "int_even"):
         if head:
             raise TacticError(f"unexpected {head!r}")
         return occ
     if move == "residues":  # E201: the region, as a domain writes it
+        if head in ("upper", "lower"):  # E213: a line Int, closed
+            if "in" in cl:
+                raise TacticError("upper and lower take no region")
+            return {"half": head, **occ}
         if head:
-            raise TacticError(f"unexpected {head!r}")
+            raise TacticError(f"unexpected {head!r}: upper or lower")
         if "in" in cl and not cl["in"].strip():
             raise TacticError("in: give the region's conditions")
         return {**({"region": cl["in"].strip()} if "in" in cl else {}),
@@ -387,10 +394,11 @@ def show(move, args):
         rev = f" reverse {args['f']}" if args.get("mode") == "reverse" else ""
         s = (f"int_subst {args['var']} := {args['sub']} as {args['new_var']}"
              f" from {args['lo']} to {args['hi']}{rev}{occ}{_tail(args)}")
-    elif move in ("int_flip", "cint_param"):
+    elif move in ("int_flip", "cint_param", "int_even"):
         s = f"{move}{occ}"
     elif move == "residues":
-        s = f"residues{' in ' + args['region'] if 'region' in args else ''}{occ}"
+        half = f" {args['half']}" if "half" in args else ""
+        s = f"residues{half}{' in ' + args['region'] if 'region' in args else ''}{occ}"
     elif move == "int_parts":
         s = (f"int_parts in {args['var']} with u := {args['u']}; "
              f"v := {args['v']}{occ}{_tail(args)}")

@@ -90,4 +90,6 @@ def residual_term(r):
             ft = ft if e == 1 else Pow(ft, e)
             den = ft if den is None else Mul(den, ft)
     t = poly_term(num, r.atoms)
+    if not num:  # E221: zero over anything is 0, not 0/den
+        return t
     return t if den is None else Div(t, den)

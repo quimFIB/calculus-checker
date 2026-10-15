@@ -6541,6 +6541,72 @@ def k4b_problems(part):
     return out
 
 
+def _line_numeric(body, x, n=20000):
+    """Int[x = -oo .. oo] body by x = tan(th), Simpson on (-pi/2, pi/2),
+    for K4c-i's rational rows."""
+    import math
+    lo, hi = -math.pi / 2 + 1e-9, math.pi / 2 - 1e-9
+    h, acc = (hi - lo) / n, 0
+    for j in range(n + 1):
+        th = lo + j * h
+        w = 1 if j in (0, n) else 4 if j % 2 else 2
+        acc += w * _k1_eval(body, {x: math.tan(th)}) / math.cos(th) ** 2
+    return acc * h / 3
+
+
+def k4c_problems(part):
+    """K4C_CASES (E212-E220) at the kernel."""
+    C, out = X.K4C_CASES, []
+
+    def args_of(sentence):
+        word = sentence.rstrip(".").split()
+        return word[0], ({"half": word[1]} if len(word) > 1 else {})
+
+    def stepped(goal_text, sentences):
+        st = K.install(T.parse_goal(goal_text, X.K4C_SIG))
+        if isinstance(st, K.Refusal):
+            return st, st
+        r = st
+        for sentence in sentences:
+            move, args = args_of(sentence)
+            r = K.step(r, move, args)
+            if isinstance(r, K.Refusal):
+                break
+        return st, r
+
+    if part == "integrals":
+        for goal_text, sentences, value in C["integrals"]:
+            st, r = stepped(goal_text, sentences)
+            if isinstance(r, K.Refusal):
+                out.append(f"{goal_text}: {r.code}")
+                continue
+            if any(ob.status == K.ADMITTED for ob in r.obligations()):
+                out.append(f"{goal_text}: admissions")
+            got = complex(_k1_eval(r.goal[0].lhs, {}))
+            want = complex(_k1_eval(T.parse_term(value), {}))
+            if abs(got - want) > 1e-9:
+                out.append(f"{goal_text}: {got}, want {value}")
+            it = st.goal[0].lhs
+            if "exp" not in T.show(it.body):
+                num = _line_numeric(it.body, it.var) * (
+                    0.5 if it.lo == T.Num(0) else 1)
+                if abs(num - want) > 1e-6:
+                    out.append(f"{goal_text}: quadrature {num}, want {want}")
+    elif part == "move_refusals":
+        for goal_text, sentence, code in C["move_refusals"]:
+            _, r = stepped(goal_text, [sentence])
+            got = r.code if isinstance(r, K.Refusal) else K.report(r)
+            if got != code:
+                out.append(f"{goal_text} / {sentence}: {got}, want {code}")
+    elif part == "never_proved":
+        for goal_text, sentence in C["never_proved"]:
+            _, r = stepped(goal_text, [sentence])
+            if not isinstance(r, K.Refusal) and not any(
+                    ob.status == K.ADMITTED for ob in r.obligations()):
+                out.append(f"{goal_text}: owes nothing admitted")
+    return out
+
+
 def k1_checks(suite):
     suite.check("Z", f"K1 round trips ({len(X.K1_CASES['round_trips'])}), "
                 "GRAMMAR.md §11", lambda: k1_problems("round_trips"))
@@ -6586,6 +6652,16 @@ def k1_checks(suite):
                 "negative radii, every join owed, path[s]'s phi owed, "
                 "bounded surds, exact arc ends, repeated factors (E211)",
                 lambda: k4b_problems("review"))
+    suite.check("Z", f"K4c-i integrals ({len(X.K4C_CASES['integrals'])}):"
+                " Z10 upper and lower, (R) and (J), int_even, each value "
+                "numerically, the rational ones by quadrature (E212-E217)",
+                lambda: k4c_problems("integrals"))
+    suite.check("Z", f"K4c-i refusals ({len(X.K4C_CASES['move_refusals'])}"
+                "): decay, poles on the line, the side, the Int (E214-E217)",
+                lambda: k4c_problems("move_refusals"))
+    suite.check("Z", f"K4c-i never proved ({len(X.K4C_CASES['never_proved'])}"
+                "): Jordan with a's sign unknown", lambda: k4c_problems(
+                    "never_proved"))
     suite.check("Z", f"E206 surds ({len(X.K4B_CASES['surds'])}): decided "
                 "exactly in Q(sqrt s), two surds left undecided",
                 lambda: k4b_problems("surds"))
@@ -6817,7 +6893,8 @@ def consolidation_checks(suite):
                  X.TAYLOR_MOVE, X.BOUND_MOVE,  # section 25
                  X.VERIFY_MOVE,  # section 26
                  *X.ODE_MOVES,  # section 30
-                 X.CINT_MOVE, X.RESIDUE_MOVE)  # K4a, E191; K4b, E200
+                 X.CINT_MOVE, X.RESIDUE_MOVE,  # K4a, E191; K4b, E200
+                 X.INT_EVEN_MOVE)  # K4c-i, E217
                 else [f"MOVES is {K.MOVES}"])
     print("\nint_flip (E51): accepted moves")
     for c in FLIP_ACCEPTS:

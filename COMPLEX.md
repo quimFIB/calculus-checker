@@ -2,9 +2,13 @@
 
 **Status:** the design, being built. **K1 (arithmetic), K2 (a real
 variable), K3 (a complex variable), K4a (paths and contour integrals) and
-K4b (the residue theorem, Z8)** are built (2026-10-14 and 2026-10-15,
-p1_expected E165–E210, GRAMMAR.md §11, ARCHITECTURE.md §16); K4c is not
-(E190). It answers DESIGN.md §18 Q8 ("complex numbers as a
+K4b (the residue theorem, Z8)** and K4c-i (Z10, a line integral closed in
+a half-plane, E212) are built (2026-10-14 and 2026-10-15, p1_expected
+E165–E220, GRAMMAR.md §11, ARCHITECTURE.md §16); K4c-ii is not. E212
+records one change to §5.3 and §5.5: with no limit term in the goal
+language, Z10 states the closing theorem once, with general hypotheses
+and partial decay certificates, instead of composing it from the
+estimation lemma and `lim[R -> oo]`. It answers DESIGN.md §18 Q8 ("complex numbers as a
 sort"), which revision 10 deferred until the course reached unit 06.
 
 **Revision 2** follows the owner's brief on revision 1: *implement it
