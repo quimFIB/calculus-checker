@@ -18536,3 +18536,110 @@ DECISIONS_COMPLEX_K4D["E241"] = (
     "(rpow(x, 1/4)) passes E27. (3) A closed key holding pi that is false "
     "is admitted, not refuted, since norm_num and E206 do not read pi; ring "
     "refuses the wrong close, so this is incompleteness.")
+
+
+# -------------------------------------------------- 20 P9 and the sector, Z12 (E242-E248)
+
+DECISIONS_SECTOR = {
+    "E242": "Z10 and Z11 split a z-free factor off the integrand by "
+            "structure, through products and quotients, before the rational "
+            "certificate, and put it back in the residues. A parameter in a "
+            "numerator, such as u_0, no longer stops them. This is an "
+            "identity, so sound. roots.factor's gcd is monic, so a constant "
+            "gcd leaves p as its own square-free part. Before, the rescaled "
+            "polynomial lost its rational roots to the float search. 20 P9's "
+            "Bromwich integral needed both.",
+    "E243": "Z12, the sector, for the quadratic phase. For a > 0, "
+            "Int[x = 0 .. oo] exp(i*a*x^2) converges and equals "
+            "exp(i*pi/4)*sqrt(pi)/(2*sqrt(a)). Proof: Cauchy on the sector "
+            "0 <= arg z <= pi/4, |z| <= R, where exp(i*a*z^2) is entire. The "
+            "arc's integral is at most pi/(4*a*R), by Jordan's inequality "
+            "sin(2*phi) >= 4*phi/pi. The ray gives exp(i*pi/4) times "
+            "Int[r = 0 .. R] exp(-a*r^2). Int[r = 0 .. oo] exp(-a*r^2) = "
+            "sqrt(pi)/(2*sqrt(a)) is the Gaussian integral, which the rule "
+            "states as a theorem (Z1 (7)), since the kernel cannot derive it. "
+            "The conjugate gives exp(-i*a*x^2) with exp(-i*pi/4). cos(a*x^2) "
+            "and sin(a*x^2) are the parts, and both are sqrt(pi)/(2*sqrt(2*a)). "
+            "They exist because the complex integral does. exp(-a*x^2) is "
+            "the Gaussian itself. Only the quadratic phase is covered, since "
+            "x^n for n > 2 needs Gamma(1/n), which the term language lacks.",
+    "E244": "The move is residues sector [occurrence N] on an Int[x = 0 .. "
+            "oo]. The integrand is split as c*h, with c z-free (E242). h is "
+            "exp(u), cos(u) or sin(u), with u == k*x^2 for a z-free k, "
+            "checked by ring on split parts, k = u at x := 1. For exp: if re k "
+            "is ring-zero, then a = im k, the sign is the one the finder "
+            "names, and a > 0 or a < 0 is owed. Otherwise im k == 0 and re k "
+            "< 0 are owed, the Gaussian. For cos and sin, k is real and k > "
+            "0 is owed. Anything else refuses sector-not-certified, and any "
+            "other range sector-not-half-line. The Int becomes c times the "
+            "value, with its formers charged.",
+    "E245": "int_even goes both ways. Int[x = -oo .. oo] f becomes 2*Int[x "
+            "= 0 .. oo] f under the same check, f(-x) == f(x), as an "
+            "equivalence (E217). So the whole-line Gaussian and Fresnel "
+            "integrals reach Z12.",
+    "E246": "20 P9 is the Bromwich integral of Theta(s) = u_0/(s*(s^2 + "
+            "gamma*s + omega_0^2)) on re s = 1, written in y (s = 1 + i*y) "
+            "and closed upper for t > 0 (Jordan with a = t), and lower for t "
+            "< 0, which gives 0. The inversion's value is checked by a close "
+            "by hand. The first maximum's time and size are numerical, "
+            "outside the kernel. The Int's own former, that Q is nonzero on "
+            "the line, is quartic in y and admitted at install, before "
+            "residues proves Q's roots are off the line. E8 keeps an "
+            "admitted key admitted, so P9 reads 'Proved modulo 1 "
+            "admissions'.",
+    "E247": "What this does not reach. Phases x^n with n > 2 (Gamma). A "
+            "complex k with re k < 0 and im k # 0. Products such as "
+            "x*cos(x^2), whose integral is elementary and needs no sector. "
+            "20 P6's convergence argument, which is prose.",
+    "E248": "The cases (SECTOR_CASES).",
+}
+
+P9_GOAL = ("Int[y = -oo .. oo] exp((1 + i*y)*t)*u/((1 + i*y)*((1 + i*y)^2 + "
+           "2/5*(1 + i*y) + 64)) == ?A")
+SECTOR_CASES = {
+    # through the app, auto-simpl closing: (goal, sentences, value), the
+    # value compared numerically, Proved. with 0 admissions
+    "integrals": [
+        ("Int[x = 0 .. oo] cos(x^2) == ?A", ["residues sector."],
+         "sqrt(pi/8)"),
+        ("Int[x = 0 .. oo] sin(x^2) == ?A", ["residues sector."],
+         "sqrt(pi/8)"),
+        ("Int[x = 0 .. oo] exp(i*x^2) == ?A", ["residues sector."],
+         "exp(i*pi/4)*sqrt(pi)/2"),
+        ("Int[x = 0 .. oo] exp(-(3*i*x^2)) == ?A", ["residues sector."],
+         "exp(-(i*pi/4))*sqrt(pi)/(2*sqrt(3))"),
+        ("Int[x = 0 .. oo] exp(-x^2) == ?A", ["residues sector."],
+         "sqrt(pi)/2"),
+        ("Int[x = -oo .. oo] exp(-x^2) == ?A",
+         ["int_even.", "residues sector."], "sqrt(pi)"),
+        ("Int[x = -oo .. oo] cos(x^2) == ?A",
+         ["int_even.", "residues sector."], "sqrt(pi/2)"),
+    ],
+    # (header, sentences, report)
+    "symbolic": [
+        # 20 P9, t > 0: the inversion, by hand
+        (f"goal {P9_GOAL} @ t > 0.",
+         ["residues upper.",
+          "fact h1 := cos_even with u := sqrt(1599)*t/5.",
+          "fact h2 := sin_odd with u := sqrt(1599)*t/5.",
+          "fact h3 := sqrt_sq_val with a := 1599.", "fact h4 := exp_zero.",
+          "close (pi*u/32)*(1 - exp(-t/5)*(cos(sqrt(1599)*t/5) + "
+          "sin(sqrt(1599)*t/5)/sqrt(1599))) by field using h1, h2, h3, h4."],
+         "Proved modulo 1 admissions"),
+        # t < 0: closed below, nothing there
+        (f"goal {P9_GOAL} @ t < 0.", ["residues lower."],
+         "Proved modulo 1 admissions"),
+    ],
+    # (goal, sentence, code)
+    "move_refusals": [
+        ("Int[x = 0 .. oo] cos(x^3) == ?A", "residues sector",
+         "sector-not-certified"),
+        ("Int[x = 0 .. oo] x*cos(x^2) == ?A", "residues sector",
+         "sector-not-certified"),
+        ("Int[x = 0 .. oo] exp(x^2) == ?A", "residues sector",
+         "obligation-refuted"),
+        ("Int[x = 0 .. 1] cos(x^2) == ?A", "residues sector",
+         "sector-not-half-line"),
+        ("Int[x = -oo .. oo] x*exp(-x^2) == ?A", "int_even", "int-not-even"),
+    ],
+}
