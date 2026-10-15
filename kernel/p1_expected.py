@@ -18711,3 +18711,41 @@ UPGRADE_CASES = {
          "Proved modulo 1 admissions"),
     ],
 }
+
+
+# -------------------------------------------------- a strict sine bound (E253-E255)
+
+DECISIONS_SINE = {
+    "E253": "Two sign entries for the cite method (§5.3 method 6), read like "
+            "sin_nonneg_on. sin_pos_on is sin u > 0 @ u > 0, u < pi. "
+            "sin_pos_pi is sin(pi*u) > 0 @ u > 0, u < 1. Both are true, "
+            "since sine is positive on (0, pi). sin_pos_pi states the case "
+            "whose hypotheses the linear methods can read: pi*u < pi is a "
+            "product of two atoms, which Fourier-Motzkin does not take, and "
+            "u < 1 is linear. The cite's conclusion sin(..) > 0 implies sin(..) "
+            "# 0 (TAG_RULES), so a quotient by sin(pi*a) on 0 < a < 1 owes "
+            "nothing admitted.",
+    "E254": "Pinned after K4c-ii's four, ENTRIES 51 -> 53. Neither is an "
+            "exact value or a rewrite (they are orderings). The cite matches "
+            "by tree, so sin(a*pi) is not sin(pi*a) to it. A goal writes pi "
+            "first.",
+    "E255": "The cases. The symbolic 20 P8 row (K4D_CASES' symbolic, "
+            "UPGRADE_CASES' third) reads Proved., having read 'Proved modulo "
+            "1 admissions' (E240 (3)). Unit 20 P8 is then proved in full: "
+            "Int[x = 0+ .. oo] x^(a - 1)/(1 + x) == pi/sin(pi*a) for 0 < a < "
+            "1.",
+}
+SINE_ENTRIES = {
+    "sin_pos_on": ("sin u > 0 @ u > 0, u < pi", ("u",)),
+    "sin_pos_pi": ("sin(pi*u) > 0 @ u > 0, u < 1", ("u",)),
+}
+SINE_ENTRIES_APPEND = tuple(SINE_ENTRIES)
+SINE_CASES = {
+    # (key, cited entry or None): discharge's search and checker
+    "cites": [
+        ("sin(pi*a) # 0 @ a > 0, a < 1", "sin_pos_pi"),
+        ("sin(pi*a) > 0 @ a > 0, a < 1", "sin_pos_pi"),
+        ("sin(a*pi) # 0 @ a > 0, a < 1", None),
+        ("sin(pi*a) # 0 @ a > 0, a < 2", None),
+    ],
+}
