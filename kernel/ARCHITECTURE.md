@@ -1564,3 +1564,23 @@ against complex evaluation at 200 random points per term.
   checked equal by `field`.
 - **`_open_end`** refuses a marked end in `ftc`, `int_subst`, `int_flip`,
   `int_parts`, `int_even` and `residues`.
+
+**Stage K4c-ii (E232–E240)**, the keyhole:
+
+- **`residues keyhole`** (`_residues_keyhole`, Z11) applies on [0, ∞) or
+  (0, ∞).
+- **The split:** `_power_split` writes the integrand as x^α·g by the law
+  of exponents, which is trusted on (0, ∞). g == P/Q is checked by
+  `field`.
+- **Integer α, the log form:** −Σ res(log[2π] z · R).
+- **Other α, the power form:** 2πi/(1 − e^{2πiα}) Σ res(e^{α log[2π] z}·R).
+  It owes `_not_integer`'s bracket and both decay keys. A residue's
+  log[2π] at a closed pole is written exactly (`_log_closed`).
+- **Exact values (E239):**
+  - `entries.cos_sin_table` is the one trig table, as the
+    `sin_table`/`cos_table` families.
+  - Four entries: `atan_one`, `atan_sqrt3`, `arg_left_up` and
+    `arg_left_down`.
+  - `discharge.exact_values` also evaluates the table angles, the
+    standard atan values and the principal Arg at closed points.
+  - E206 runs on every closed key in `_discharge`.

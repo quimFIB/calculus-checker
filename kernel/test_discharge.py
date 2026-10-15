@@ -820,12 +820,13 @@ def entries_problems():
             *X.TAYLOR_ENTRIES_APPEND,  # E103: 32
             *X.UNIT00_ENTRIES_APPEND,  # E117: 39
             *X.G8_ENTRIES_APPEND,  # E133: 42
-            *X.K1_ENTRIES_APPEND]  # E172: 47
+            *X.K1_ENTRIES_APPEND,  # E172: 47
+            *X.K4D_ENTRIES_APPEND]  # E239: 51
     if names[-len(tail):] != tail:
         out.append(f"cos_zero, sqrt_nonneg and CONSOLIDATION_ENTRIES are not "
                    f"last, in that order: {names}")
-    if len(names) != 47:
-        out.append(f"ENTRIES has {len(names)} entries, expected 47")
+    if len(names) != 51:
+        out.append(f"ENTRIES has {len(names)} entries, expected 51")
     for name, e in {**X.SQRT_NONNEG_ENTRY, **X.CONSOLIDATION_ENTRIES,
                     **X.UNIT00_ENTRIES, **X.G8_ENTRIES}.items():
         got = ENTRIES.get(name)
@@ -837,7 +838,7 @@ def entries_problems():
     want = set(X.EXACT_VALUE_ENTRIES) | set(
         X.IMPROPER_E27_CHANGES["EXACT_VALUE_ENTRIES_add"]) | set(
         X.TRIG_NORM_SWITCH["EXACT_VALUE_ENTRIES_add"]) | set(
-        X.UNIT00_EXACT_VALUES_ADD)  # E117
+        X.UNIT00_EXACT_VALUES_ADD) | set(X.K4D_EXACT_VALUES_ADD)  # E117, E239
     if exact != want:
         out.append(f"exact values {sorted(exact)}, expected "
                    f"{sorted(want)}")

@@ -61,7 +61,7 @@ n: where u > 0, u^n as a real power, exp(n*ln u), is the n-fold product
 from dataclasses import dataclass
 from types import MappingProxyType
 
-from terms import (Neg, Num, NonZero, Refused, Rel, Term, fv,
+from terms import (App, Div, Neg, Num, NonZero, Refused, Rel, Term, fv,
                    parse_judgement, show, sort_of, trees)
 
 STATEMENTS = {
@@ -123,6 +123,14 @@ STATEMENTS = {
     "arg_i_pos": ("Arg(i*u) == pi/2 @ u > 0", ("u",)),
     "arg_i_neg": ("Arg(i*u) == -pi/2 @ u < 0", ("u",)),
     "arg_right": ("Arg(u + i*v) == atan(v/u) @ u > 0", ("u", "v")),
+    # K4c-ii's (p1_expected E239): two exact atan values and the left
+    # half-plane's argument
+    "atan_one": ("atan 1 == pi/4", ()),
+    "atan_sqrt3": ("atan(sqrt 3) == pi/3", ()),
+    "arg_left_up": ("Arg(u + i*v) == atan(v/u) + pi @ u < 0, v >= 0",
+                    ("u", "v")),
+    "arg_left_down": ("Arg(u + i*v) == atan(v/u) - pi @ u < 0, v < 0",
+                      ("u", "v")),
 }
 
 
@@ -174,7 +182,36 @@ FAMILIES = MappingProxyType({
                    "{theta} - 2*pi < Arg w + 2*pi*{k}, "
                    "Arg w + 2*pi*{k} <= {theta}", ("w",),
                    {"theta": "angle", "k": "int"}),
+    # E239: sin and cos at a multiple of pi/6 or pi/4, from the table
+    "sin_table": ("sin({q}*pi) == {v}", (), {"q": "table"}),
+    "cos_table": ("cos({q}*pi) == {v}", (), {"q": "table"}),
 })
+
+
+_HALF = Div(Num(1), Num(2))
+_COS_SIN_DEG = {  # the first quadrant's exact values (E211, E239)
+    0: (Num(1), Num(0)), 30: (Div(App("sqrt", Num(3)), Num(2)), _HALF),
+    45: (Div(App("sqrt", Num(2)), Num(2)), Div(App("sqrt", Num(2)), Num(2))),
+    60: (_HALF, Div(App("sqrt", Num(3)), Num(2))), 90: (Num(0), Num(1))}
+
+
+def cos_sin_table(q):
+    """(cos, sin) of q*pi exactly, q a Fraction, when q*pi is a multiple of
+    pi/6 or pi/4, by reflecting the first quadrant; else None. The one
+    trigonometric table the kernel holds (E211, E239)."""
+    deg = q * 180
+    if deg.denominator != 1 or int(deg) % 15:
+        return None
+    d = int(deg) % 360
+    neg = lambda t: t if t == Num(0) else Neg(t)
+    for lo, sc, ss, base in ((0, 1, 1, lambda d: d),
+                             (90, -1, 1, lambda d: 180 - d),
+                             (180, -1, -1, lambda d: d - 180),
+                             (270, 1, -1, lambda d: 360 - d)):
+        if lo <= d <= lo + 90 and base(d) in _COS_SIN_DEG:
+            c, s = _COS_SIN_DEG[base(d)]
+            return (c if sc > 0 else neg(c)), (s if ss > 0 else neg(s))
+    return None
 
 
 def resolve(name, inst):
@@ -206,6 +243,16 @@ def resolve(name, inst):
                               "large")
             fill[param] = str(k)
             fill["p"] = str(k) if k >= 0 else f"({k})"
+        elif kind == "table":  # E239: a rational q in the table
+            from field import rational_value
+            q = rational_value(v) if isinstance(v, Term) else None
+            cs = None if q is None else cos_sin_table(q)
+            if cs is None:
+                raise Refused("bad-args", f"{name} takes {param} := a "
+                              "rational q with q*pi a multiple of pi/6 or "
+                              "pi/4")
+            fill[param] = f"({show(v)})"
+            fill["v"] = f"({show(cs[0] if name == 'cos_table' else cs[1])})"
         else:  # "angle": a closed real constant, as a branch's (D19)
             if not isinstance(v, Term) or fv(v) or sort_of(v) != "R" or \
                     next(trees(v), None) is not None:

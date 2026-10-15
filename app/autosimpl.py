@@ -74,8 +74,10 @@ def _insts(e, s):
         return [{"u": _nf(Neg(s.arg))}]
     p = SC.arg_parts(s)  # E172: the parts of a principal Arg's argument
     if p is not None and e.name.startswith("arg_"):
-        a, b = (lit(x) for x in p)
-        return [{"u": a, "v": b} if e.name == "arg_right" else
+        re, im = CX.split(s.arg)  # E239: the parts as terms, surds kept
+        a, b = (Num(0) if x is None else _nf(CX._real(x)) for x in (re, im))
+        two = e.name in ("arg_right", "arg_left_up", "arg_left_down")
+        return [{"u": a, "v": b} if two else
                 {"u": b if e.name.startswith("arg_i") else a}]
     bound = {}
     if SC._tree_match(e.statement.lhs, s, frozenset(e.schema), bound):
@@ -105,6 +107,14 @@ def redexes(side):
                 "u": Num(0) if c == 0 else Const("pi") if c == 1
                 else Mul(lit(c), Const("pi")),
                 "k": Num(k) if k >= 0 else Neg(Num(-k))}]
+        q = SC.table_q(s)  # E239: sin, cos at pi/6 and pi/4 steps
+        if q is not None:
+            yield f"{s.fn}_table", s, [{"q": lit(q)}]
+        bk = SC.branch_k(s)  # E239: a closed non-principal arg
+        if bk is not None:
+            th, k = bk
+            yield "arg_branch", s, [{"theta": th, "w": s.arg,
+                                     "k": Num(k) if k >= 0 else Neg(Num(-k))}]
         n = SC.rpow_int_exponent(s)
         if n is not None:
             yield "rpow_int", s, [{"u": s.base, "n": Num(n) if n >= 0
@@ -121,11 +131,40 @@ def _value(lhs, pairs):
     if not pairs:
         return v, den
     w, _ = fill._args_computed(lhs)
+    if CX.has_complex(w):  # E239: each part reduced, then rejoined
+        parts = []
+        for part in CX.split(w):
+            if part is None:
+                parts.append(None)
+                continue
+            r = _reduced(CX._real(part), pairs)
+            parts.append(None if r == Num(0) else r)
+        return CX.join(tuple(parts)), den
+    return _reduced(w, pairs), den
+
+
+def _reduced(w, pairs):
     try:
         FD.field(w, Num(0), pairs)
-        return Num(0), den
+        return Num(0)
     except FD.NotEqual as ne:
-        return RD.residual_term(_rationalised(ne.residual, pairs)), den
+        return RD.residual_term(_rationalised(ne.residual, pairs))
+
+
+def _reduce_poly(p, sq):
+    """p with each atom^k of a fact's atom (atom^2 == q) written
+    q^(k//2)*atom^(k%2)."""
+    out = {}
+    for mono, c in p.items():
+        new = []
+        for i, k in mono:
+            if i in sq:
+                c = c * sq[i] ** (k // 2)
+                k = k % 2
+            if k:
+                new.append((i, k))
+        out = P.add(out, {tuple(new): c})
+    return out
 
 
 def _rationalised(res, pairs):
@@ -151,8 +190,12 @@ def _rationalised(res, pairs):
             scale *= sq[idx] ** (e // 2)
             if e % 2:
                 den.append((p, 1))
+            continue
+        r = _reduce_poly(p, sq)  # E239: a factor holding atom^2 inside a sum
+        if P.is_const(r):
+            scale *= P.const_value(r) ** e
         else:
-            den.append((p, e))
+            den.append((r, e))
     return SimpleNamespace(num=P.scale(res.num, 1 / scale), den=tuple(den),
                            atoms=res.atoms)
 

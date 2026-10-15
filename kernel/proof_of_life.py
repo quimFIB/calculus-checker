@@ -4590,7 +4590,7 @@ def discharge_checks(suite):
         return
     suite.check("D", "DISCHARGE_NEW_ENTRIES pinned (sqrt_zero immediately before "
                 "sqrt_sq, cos_zero after exp_one, sqrt_nonneg after it, "
-                "CONSOLIDATION_ENTRIES, atan_zero, trig_norm's seven, exp_pos, unit 00's seven, G8's three, then K1's five: 47), and EXACT_VALUE_ENTRIES is "
+                "CONSOLIDATION_ENTRIES, atan_zero, trig_norm's seven, exp_pos, unit 00's seven, G8's three, K1's five, then K4c-ii's four: 51), and EXACT_VALUE_ENTRIES is "
                 "ENTRIES' exact values", TD.entries_problems)
     for row in TD.expected_certificates():
         where, _, tag, spec = row
@@ -6670,6 +6670,30 @@ def open_end_problems(part):
     return out
 
 
+def k4d_problems(part):
+    """K4D_CASES (E232-E240) at the kernel: residues keyhole."""
+    C, out = X.K4D_CASES, []
+    for row in C[part]:
+        goal_text = row[0]
+        st = K.install(T.parse_goal(goal_text, X.K4D_SIG))
+        r = st if isinstance(st, K.Refusal) else K.step(
+            st, "residues", {"half": X.RESIDUE_KEYHOLE})
+        if part == "move_refusals":
+            got = r.code if isinstance(r, K.Refusal) else K.report(r)
+            if got != row[2]:
+                out.append(f"{goal_text}: {got}, want {row[2]}")
+            continue
+        if isinstance(r, K.Refusal):
+            out.append(f"{goal_text}: {r.code}")
+            continue
+        if any(ob.status == K.ADMITTED for ob in r.obligations()):
+            out.append(f"{goal_text}: admissions")
+        got = complex(_k1_eval(r.goal[0].lhs, {}))
+        if abs(got - complex(_k1_eval(T.parse_term(row[2]), {}))) > 1e-9:
+            out.append(f"{goal_text}: {got}, want {row[2]}")
+    return out
+
+
 def k1_checks(suite):
     suite.check("Z", f"K1 round trips ({len(X.K1_CASES['round_trips'])}), "
                 "GRAMMAR.md §11", lambda: k1_problems("round_trips"))
@@ -6738,6 +6762,13 @@ def k1_checks(suite):
         suite.check("Z", f"open ends, {part} "
                     f"({len(X.OPEN_END_CASES[part])}): {what}",
                     lambda part=part: open_end_problems(part))
+    suite.check("Z", f"K4c-ii keyhole ({len(X.K4D_CASES['integrals'])}): "
+                "the log form and the power form, rpow and sqrt, each value "
+                "numerically, no admission (E232-E240)",
+                lambda: k4d_problems("integrals"))
+    suite.check("Z", f"K4c-ii refusals ({len(X.K4D_CASES['move_refusals'])}"
+                "): decay, a pole on the cut, the range, an exp (E234-E235)",
+                lambda: k4d_problems("move_refusals"))
     suite.check("Z", f"E206 surds ({len(X.K4B_CASES['surds'])}): decided "
                 "exactly in Q(sqrt s), two surds left undecided",
                 lambda: k4b_problems("surds"))
@@ -6941,7 +6972,8 @@ def consolidation_entries_problems():
         X.TAYLOR_ENTRIES_APPEND) + list(  # and exp_pos (E103)
         X.UNIT00_ENTRIES_APPEND) + list(  # and unit 00's seven (E117)
         X.G8_ENTRIES_APPEND) + list(  # and G8's three (E133)
-        X.K1_ENTRIES_APPEND)  # and K1's five (E172)
+        X.K1_ENTRIES_APPEND) + list(  # and K1's five (E172)
+        X.K4D_ENTRIES_APPEND)  # and K4c-ii's four (E239)
     if "sqrt_nonneg" not in names or \
             names[names.index("sqrt_nonneg") + 1:] != want:
         out.append(f"not appended after sqrt_nonneg in order: {names}")

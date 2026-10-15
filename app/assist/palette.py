@@ -160,6 +160,10 @@ def moves(goal):
                  "why": "the whole line: close in the upper half-plane"},
                 {"move": "residues", "sentence": "residues lower.",
                  "why": "the whole line: close in the lower half-plane"}]
+    if any((i.lo == Num(0) or (type(i.lo) is Open and i.lo.e == Num(0)))
+           and isinstance(i.hi, PosInf) for i in ints):  # E232
+        out.append({"move": "residues", "sentence": "residues keyhole.",
+                    "why": "[0, oo): the keyhole round the positive axis"})
     if any(i.lo == Num(0) and isinstance(i.hi, PosInf) for i in ints):
         out.append({"move": "int_even", "sentence": "int_even.",  # E217
                     "why": "an even integrand on [0, oo): half the line"})

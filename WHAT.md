@@ -353,8 +353,16 @@ Jordan's exp(i·a·x) with a's sign owed). `int_even` halves the line, so
 readiness P5's ∫₀^∞ dx/(1 + x⁴) = π/(2√2) proves by residues, and
 Bromwich's inversion is the same rule in s = σ + iy. There is no limit term
 in the goal language, so Z10 states the composed theorem once instead of
-building it from the estimation lemma (E212). The keyhole, sector,
-indentation and the argument principle are K4c-ii, next.
+building it from the estimation lemma (E212). **Improper integrals at a
+finite end are built** (E222–E231): an end marked `0+` or `1-` is a limit,
+evaluated by `int_improper`. **K4c-ii, the keyhole, is built** (E232–E240):
+`residues keyhole` on [0, oo) takes a rational integrand by log z, or
+x^α·R with α any real term, so unit 20 P8's ∫₀^∞ x^(a−1)/(1 + x) proves at
+a = 1/3 (2π/√3), and for symbolic a by hand, modulo the answer's own
+sin(πa) ≠ 0. Sin and cos at multiples of π/6 and π/4, standard atan
+values and arguments at closed points now evaluate exactly (E239). The
+sector (it needs the Gaussian integral) and indentation (it needs a
+principal value) are not built.
 
 **Next,** per §17: stage 1's lists are done (2026-09-25). The gate
 (`app/GATE.md`): work its seventeen problems in order on the page, then

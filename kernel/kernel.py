@@ -715,8 +715,8 @@ def _check_args(move, args, goal):
         ok = type(region) in (list, tuple) and all(
             type(j) in (Rel, NonZero) and j.dom == () for j in region)
         # E213: upper or lower reads a line Int, and takes no region
-        ok = ok and ("half" not in args or (args["half"] in ("upper", "lower")
-                                            and "region" not in args))
+        ok = ok and ("half" not in args or (args["half"] in (
+            "upper", "lower", "keyhole") and "region" not in args))
         try:
             for j in region if ok else ():
                 check_sorts(j)
@@ -1151,8 +1151,11 @@ def _discharge(key, sources, gamma):
     except (Refused, RecursionError):
         new, used = key, ()
     said = FD.norm_num(new) if new != key else None
+    tag = "norm_num"
+    if said is None and new != key:  # E239: E206 for every closed key
+        said, tag = FD.surd_decide(new), "norm_num_surd"
     if said:
-        return Obligation(key, sources, DISCHARGED, ("norm_num", used))
+        return Obligation(key, sources, DISCHARGED, (tag, used))
     if said is False:
         found = refute.exact_false(key)  # F1's message; the verdict is norm_num's
         raise Refused(DECIDED_FALSE, found.message if found else
@@ -2349,29 +2352,10 @@ def _end_info(g, last):
     return ("pt", e if last else s)
 
 
-_HALF = Div(Num(1), Num(2))
-_COS_SIN_DEG = {  # the first quadrant's exact values (E211)
-    0: (Num(1), Num(0)), 30: (Div(App("sqrt", Num(3)), Num(2)), _HALF),
-    45: (Div(App("sqrt", Num(2)), Num(2)), Div(App("sqrt", Num(2)), Num(2))),
-    60: (_HALF, Div(App("sqrt", Num(3)), Num(2))), 90: (Num(0), Num(1))}
-
-
 def _cos_sin(q):
     """(cos, sin) of q*pi exactly when q*pi is a multiple of pi/6 or pi/4,
-    else None (E211)."""
-    deg = q * 180
-    if deg.denominator != 1 or int(deg) % 15:
-        return None
-    d = int(deg) % 360
-    neg = lambda t: t if t == Num(0) else Neg(t)
-    for lo, sc, ss, base in ((0, 1, 1, lambda d: d),
-                             (90, -1, 1, lambda d: 180 - d),
-                             (180, -1, -1, lambda d: d - 180),
-                             (270, 1, -1, lambda d: 360 - d)):
-        if lo <= d <= lo + 90 and base(d) in _COS_SIN_DEG:
-            c, s = _COS_SIN_DEG[base(d)]
-            return (c if sc > 0 else neg(c)), (s if ss > 0 else neg(s))
-    return None
+    else None (E211); entries.cos_sin_table since E239."""
+    return entries.cos_sin_table(q)
 
 
 def _point(info):
@@ -2965,6 +2949,8 @@ def _residue(f, z, a, fac, buf, P, anc, gd):
 def _residues(state, args, minted, buf):
     """E200-E208: the selected CInt[z on g] f replaced by 2*pi*i times the
     sum of wind(g, a)*res(f, a) over S, with every hypothesis owed."""
+    if args.get("half") == "keyhole":  # E232: Z11
+        return _residues_keyhole(state, args, minted, buf)
     if "half" in args:  # E213: Z10, on a line Int
         return _residues_line(state, args, minted, buf)
     g = state.goal[0]
@@ -3270,6 +3256,218 @@ def _int_even(state, args, minted, buf):
     goal = (replace(g, lhs=sides[0], rhs=sides[1] if len(sides) > 1 else g.rhs),)
     check_goal(goal)
     return goal, None, {}
+
+
+# ---------------------------------------------------------------- Z11
+#
+# p1_expected E232-E237: the keyhole, residues keyhole on an Int from 0
+# (or 0+) to oo. The power split is structural and trusted (E234); P/Q
+# and the roots are proposed and checked, as in Z10.
+
+S_KEY_CERT, S_KEY_POLE = "residues_keyhole_certificate", "residues_keyhole_pole"
+_TWO_PI = Mul(Num(2), Const("pi"))
+
+
+def _power_split(t, x):
+    """E234: (alpha, g) with t == x^alpha*g on (0, oo), alpha None for no
+    power: sqrt(x) adds 1/2, rpow(x, e) adds e; products add, quotients
+    subtract, integer powers scale."""
+    if x not in fv(t):
+        return None, t
+    k = type(t)
+    if k is App and t.fn == "sqrt" and t.arg == Var(x):
+        return Div(Num(1), Num(2)), Num(1)
+    if k is RPow and t.base == Var(x) and x not in fv(t.exp):
+        return t.exp, Num(1)
+    add = lambda a, b: b if a is None else a if b is None else Add(a, b)
+    neg = lambda a: None if a is None else Neg(a)
+    if k is Mul or k is Div:
+        (ua, ga), (ub, gb) = _power_split(t.a, x), _power_split(t.b, x)
+        if k is Mul:
+            return add(ua, ub), _times(ga, gb)
+        return add(ua, neg(ub)), ga if gb == Num(1) else Div(ga, gb)
+    if k is Neg:
+        u, g = _power_split(t.a, x)
+        return u, Neg(g)
+    if k is Pow:
+        u, g = _power_split(t.base, x)
+        return (None if u is None else _times(Num(t.n) if t.n >= 0 else
+                                              Neg(Num(-t.n)), u)), Pow(g, t.n)
+    return None, t
+
+
+def _integer_value(t):
+    """t's value when ring makes it an integer literal, else None."""
+    try:
+        (p,), _ = FD.ring_polys([t])
+    except Refused:
+        return None
+    if not p:
+        return 0
+    if len(p) != 1:
+        return None
+    (mono, q), = p.items()
+    return int(q) if mono == () and Fraction(q).denominator == 1 else None
+
+
+def _log_closed(t):
+    """E240: log[2*pi](w) at a closed point w with parts in Q(sqrt s) and
+    |w|^2 rational, as ln(|w|^2)/2 + i*theta exactly (theta in (0, 2*pi],
+    from discharge's principal Arg shifted up by 2*pi when it is not
+    positive); anything else unchanged. Exact: log[theta] w is ln|w| +
+    i*arg[theta] w by definition (Z6)."""
+    if type(t) is not Branch or t.fn != "log" or t.theta != _TWO_PI or \
+            fv(t.arg):
+        return t
+    try:
+        re, im = complexes.split(t.arg)
+    except Refused:
+        return t
+    rt = complexes._real(re) if re is not None else Num(0)
+    it_ = complexes._real(im) if im is not None else Num(0)
+    principal = discharge._arg_value(Branch("arg", Const("pi"), t.arg))
+    if principal is None:
+        return t
+    v = discharge._surd_of(Add(Pow(rt, 2), Pow(it_, 2)))
+    if v is None or v[1] != 0 or v[0] <= 0:
+        return t
+    sgn_im = FD._surd_sign(*discharge._surd_of(it_)) if im is not None else 0
+    sgn_re = FD._surd_sign(*discharge._surd_of(rt)) if re is not None else 0
+    up = sgn_im > 0 or (sgn_im == 0 and sgn_re < 0)
+    theta = principal if up else Add(principal, _TWO_PI)
+    ln = Num(0) if v[0] == 1 else Div(App("ln", roots._frac(v[0])), Num(2))
+    imag = Mul(Const("i"), theta)
+    return imag if ln == Num(0) else Add(ln, imag)
+
+
+def _not_integer(alpha, P):
+    """E240: keys that make alpha no integer: n < alpha and alpha < n + 1
+    for the n in [-8, 8] whose keys settle at P (the finder, untrusted;
+    the kernel owes them); else sin(pi*alpha) # 0."""
+    for n in range(-8, 9):
+        lo = Rel("<", Num(n) if n >= 0 else Neg(Num(-n)), alpha)
+        hi = Rel("<", alpha, Num(n + 1) if n + 1 >= 0 else Neg(Num(-n - 1)))
+        if _verdict(lo, P) is True and _verdict(hi, P) is True:
+            return (lo, hi)
+    return NonZero(App("sin", Mul(Const("pi"), alpha)))
+
+
+def _residues_keyhole(state, args, minted, buf):
+    """E232-E236: Int[x = 0 (or 0+) .. oo] x^alpha*R(x) by the keyhole
+    about the cut of log[2*pi]."""
+    g = state.goal[0]
+    found = [(i, p, s, d, a) for i, side in enumerate(_sides(g))
+             for p, s, d, a in _positions(side, g.dom)
+             if isinstance(s, Integral)]
+    if not found:
+        raise Refused("residues-no-integral", "the goal holds no integral")
+    k = args.get("occurrence")
+    if k is not None and k >= len(found):
+        raise Refused("residues-no-integral", f"no integral at occurrence {k}")
+    if k is None and len(found) > 1:
+        raise Refused("residues-ambiguous", f"{len(found)} integrals in the "
+                      "goal; give an occurrence")
+    side, path, it, P, anc = found[k or 0]
+    if not (_bare(it.lo) == Num(0) and (it.lo == Num(0) or it.lo.side == "+")
+            and isinstance(it.hi, PosInf)):
+        raise Refused("keyhole-not-half-line", f"{_brief(it)} is not over "
+                      "[0, oo) or (0, oo) (E235)")
+    x, gd = it.var, g.dom
+    z, zc = x, CVar(x)
+    if any(type(n) is App and n.fn == "exp" for n in DV._nodes(it.body)):
+        raise Refused("keyhole-not-certified", f"{_brief(it.body)}: an exp; "
+                      "Z11 reads x^alpha times a rational function (E234)")
+    alpha, gr = _power_split(it.body, x)
+    gz = subst(gr, {x: zc})
+    proposal = roots.rational(gz, z)
+    if proposal is None:
+        raise Refused("keyhole-not-certified", f"{_brief(gr)} is not rational "
+                      f"in {x} over Q(i) (E234)")
+    pp, qq = proposal
+    n = None if alpha is None else _integer_value(alpha)
+    if alpha is None:
+        n = 0
+    if n is not None:  # the log form: x^n folded in
+        mono = [roots.ZERO] * abs(n) + [roots.ONE]
+        if n > 0:
+            pp = roots._pmul(pp, mono)
+        elif n < 0:
+            qq = roots._pmul(qq, mono)
+    Pt, Qt = roots.poly_term(pp, z), roots.poly_term(qq, z)
+    rat = Pt if Qt == Num(1) else Div(Pt, Qt)
+    held = _ring_holds_field(gz if n is None or n == 0 else
+                             _times(Pow(zc, n) if n else Num(1), gz), rat)
+    if held is None:
+        raise Refused("residues-too-large", f"{_brief(gr)} == P/Q is too "
+                      "large for field to check (E221)")
+    if not held:
+        raise Refused("keyhole-not-certified", f"{_brief(gr)} == P/Q does "
+                      "not check (E234)")
+    degp = len(pp) - 1 if pp else -1
+    gap = (len(qq) - 1) - degp
+    log = Branch("log", _TWO_PI, zc)
+    if n is not None:  # log form (E233)
+        if gap < 2:
+            raise Refused("decay-not-certified", f"deg Q - deg P = {gap} < 2 "
+                          "(E233)")
+        body = Mul(log, rat)
+    else:  # power form: alpha not an integer, both ends' decay (E233)
+        m0 = next((j for j, c in enumerate(pp) if c != roots.ZERO), 0)
+        a1 = Add(alpha, Num(1))
+        bracket = _not_integer(alpha, P)
+        bracket = bracket if isinstance(bracket, tuple) else (bracket,)
+        settled = all(_verdict(k, P) is True for k in bracket)
+        for key in bracket + (
+                Rel(">", a1 if m0 == 0 else Add(a1, Num(m0)), Num(0)),
+                Rel("<", a1, Num(gap) if gap >= 0 else Neg(Num(-gap)))):
+            _owe(buf, key, S_KEY_CERT, P, anc, gd)
+        # E240: alpha not an integer makes 1 - exp(2*pi*i*alpha) # 0, the
+        # result's divisor; its realified keys are discharged by that, but
+        # only when it settled (E241), never on an admission
+        two_pi_i = Mul(_TWO_PI, Const("i"))
+        for k in _real_keys(NonZero(Add(Num(1), Neg(App("exp", Mul(
+                two_pi_i, alpha))))), P) if settled else ():
+            if k not in buf:
+                _emit(buf, k, S_KEY_CERT, gd, divisor=False,
+                      discharged_by=("keyhole_alpha", ()))
+        body = Mul(App("exp", Mul(alpha, log)), rat)
+    fac = {Qt: _factor_divisor(Qt, z, buf, P, anc, gd)}
+    S = []
+    for r, _ in fac[Qt][2]:  # E234: off [0, oo)
+        branches = [[NonZero(App("im", r))],
+                    [Rel("<", App("re", r), Num(0))]]
+        said = [_verdict(c[0], P) for c in branches]
+        if all(v is False for v in said):
+            raise Refused("residue-pole-on-cut", f"{show(r)} is a pole on "
+                          "the cut [0, oo) (E234)")
+        pick = next((b for v, b in zip(said, branches) if v), branches[0])
+        _owe(buf, pick[0], S_KEY_POLE, P, anc, gd)
+        S.append(r)
+    for i, a in enumerate(S):
+        for b in S[i + 1:]:
+            _owe(buf, NonZero(_sub(a, b)), S_KEY_POLE, P, anc, gd)
+    total, trace = None, []
+    for a in S:
+        m, R = _residue(body, z, a, fac, buf, P, anc, gd)
+        trace.append((a, m, 1))
+        if R is not None:
+            R = discharge._rebuild(R, _log_closed)  # E240
+            total = R if total is None else Add(total, R)
+    if total is None:
+        new = Num(0)
+    elif n is not None:
+        new = Neg(total)
+    else:
+        two_pi_i = Mul(_TWO_PI, Const("i"))
+        new = Mul(Div(two_pi_i, Add(Num(1), Neg(App("exp", Mul(two_pi_i,
+                                                                alpha))))),
+                  total)
+    sides = list(_sides(g))
+    sides[side] = _put(sides[side], path, new)
+    _charge_formers(buf, new, P, gd, anc=anc)
+    goal = (replace(g, lhs=sides[0], rhs=sides[1] if len(sides) > 1 else g.rhs),)
+    check_goal(goal)
+    return goal, None, {"trace": tuple(trace)}
 
 
 # ---------------------------------------------------------------- int_parts

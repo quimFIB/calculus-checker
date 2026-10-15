@@ -966,6 +966,107 @@ def _rebuild(x, fn):
     return done[0]
 
 
+def _table_value(x):
+    """sin or cos of q*pi from entries.cos_sin_table, or None (E239)."""
+    if type(x) is not App or x.fn not in ("sin", "cos"):
+        return None
+    try:
+        (p,), atoms = FD.ring_polys([x.arg])
+    except Refused:
+        return None
+    if not p:
+        q = Fraction(0)
+    elif len(p) == 1:
+        (mono, q), = p.items()
+        if len(mono) != 1 or mono[0][1] != 1 or atoms[mono[0][0]] != \
+                Const("pi"):
+            return None
+    else:
+        return None
+    import entries
+    cs = entries.cos_sin_table(Fraction(q))
+    return None if cs is None else cs[0] if x.fn == "cos" else cs[1]
+
+
+def _surd_of(t):
+    """t as (a, b, s), a + b*sqrt(s) exactly (E206), or None."""
+    box = [None]
+    try:
+        a, b = FD._surd(t, box)
+    except (FD._Mixed, ZeroDivisionError, RecursionError, Refused):
+        return None
+    return a, b, box[0] or 0
+
+
+_PI = Const("pi")
+
+
+def _pi_times(q):
+    """q*pi as a term, q a Fraction."""
+    if q == 0:
+        return Num(0)
+    a = abs(q)
+    c = _PI if a == 1 else Mul(Num(a.numerator), _PI) if a.denominator == 1 \
+        else Div(_PI, Num(a.denominator)) if a.numerator == 1 else \
+        Div(Mul(Num(a.numerator), _PI), Num(a.denominator))
+    return Neg(c) if q < 0 else c
+
+
+def _atan_value(x):
+    """atan(v) for v in {0, +-1/sqrt 3, +-1, +-sqrt 3}, exactly, as q*pi;
+    else None (E239)."""
+    if type(x) is not App or x.fn != "atan":
+        return None
+    v = _surd_of(x.arg)
+    if v is None:
+        return None
+    a, b, sq = v
+    table = {(0, 0, 0): 0, (1, 0, 0): Fraction(1, 4),
+             (0, Fraction(1, 3), 3): Fraction(1, 6), (0, 1, 3): Fraction(1, 3)}
+    sign = -1 if (a < 0 or (a == 0 and b < 0)) else 1
+    key = (abs(a), abs(b), sq if b else 0)
+    if key not in table:
+        return None
+    return _pi_times(sign * Fraction(table[key]))
+
+
+def _arg_value(x):
+    """The principal Arg of a closed point whose parts are in Q(sqrt s), by
+    the signs of the parts (E172's entries, their conditions decided
+    exactly) and _atan_value; else None (E239)."""
+    import complexes
+    if type(x) is not Branch or x.fn != "arg" or x.theta != _PI or \
+            next(iter(fv(x.arg)), None) is not None:
+        return None
+    try:
+        re, im = complexes.split(x.arg)
+    except Refused:
+        return None
+    parts = []
+    for p in (re, im):
+        if p is None:
+            parts.append((Fraction(0), Fraction(0), 0, Num(0)))
+            continue
+        t = complexes._real(p)
+        v = _surd_of(t)
+        if v is None:
+            return None
+        parts.append(v + (t,))
+    sg = [FD._surd_sign(a, b, sq) for a, b, sq, _ in parts]
+    if sg == [0, 0]:
+        return None
+    if sg[1] == 0:
+        return Num(0) if sg[0] > 0 else _PI
+    if sg[0] == 0:
+        return _pi_times(Fraction(sg[1], 2))
+    base = _atan_value(App("atan", Div(parts[1][3], parts[0][3])))
+    if base is None:
+        return None
+    if sg[0] > 0:
+        return base
+    return Add(base, _PI) if sg[1] > 0 else Add(base, Neg(_PI))
+
+
 def exact_values(key):
     """E31: (key', entries used) where key' is `key` (proposition and
     domain) with every exact value rewritten, children before parents, to a
@@ -984,6 +1085,18 @@ def exact_values(key):
             if _matches(st.lhs, x):
                 used.append(name)
                 return st.rhs
+        v = _table_value(x)  # E239: sin and cos at pi/6 and pi/4 steps
+        if v is not None:
+            used.append(f"{x.fn}_table")
+            return v
+        v = _atan_value(x)  # E239: atan at 0, +-1/sqrt 3, +-1, +-sqrt 3
+        if v is not None:
+            used.append("atan_table")
+            return v
+        v = _arg_value(x)  # E239: Arg at a closed point, by its parts
+        if v is not None:
+            used.append("arg_value")
+            return v
         return x
 
     while True:

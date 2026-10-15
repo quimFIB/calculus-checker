@@ -2,9 +2,11 @@
 
 **Status:** the design, being built. **K1 (arithmetic), K2 (a real
 variable), K3 (a complex variable), K4a (paths and contour integrals) and
-K4b (the residue theorem, Z8)** and K4c-i (Z10, a line integral closed in
-a half-plane, E212) are built (2026-10-14 and 2026-10-15, p1_expected
-E165–E220, GRAMMAR.md §11, ARCHITECTURE.md §16); K4c-ii is not. E212
+K4b (the residue theorem, Z8)**, K4c-i (Z10, a line integral closed in
+a half-plane, E212) and K4c-ii (Z11, the keyhole, E232) are built
+(2026-10-14 and 2026-10-15, p1_expected E165–E240, GRAMMAR.md §11,
+ARCHITECTURE.md §16). The sector and indentation are not, and need an
+entry and a grammar term respectively (E232). E212
 records one change to §5.3 and §5.5: with no limit term in the goal
 language, Z10 states the closing theorem once, with general hypotheses
 and partial decay certificates, instead of composing it from the

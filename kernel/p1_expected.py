@@ -3554,7 +3554,8 @@ EVALUATED_ACCEPTS = [
      "value": "2*pi/(3*sqrt 3)"},
     {"id": "e27_reciprocal", "kind": "accept", "value": "1/sqrt 3"},
     {"id": "e27_atan_positive", "kind": "accept", "value": "atan 2"},
-    {"id": "e27_atan_odd_result", "kind": "accept", "value": "-atan 1"},
+    # E241: -atan 2, since atan 1 is an exact value from E239 (atan_one)
+    {"id": "e27_atan_odd_result", "kind": "accept", "value": "-atan 2"},
     {"id": "e27_negated_quotient", "kind": "accept", "value": "-(pi/6)"},
     # Review fix: the contrast for b2's monomial count, whose summands
     # share the atom exp(x) but no monomial.
@@ -15209,12 +15210,16 @@ TRIG_NORM_PROOFS = {
     # own field_div; no method proves cos x > 0 there yet (E90)
     "TRIG_TAN": {
         "goal": "Int[x = 0 .. pi/4] tan x == ?A",
+        # E241: cos(pi/4) is evaluated now (cos_table, E239)
         "steps": [_TRIG_F("-ln(cos x)"), _TRIG_R("cos_zero", "cos 0"),
-                  _TRIG_R("ln_one", "ln 1"), _TRIG_C("-ln(cos(pi/4))")],
-        "report": "Proved modulo 8 admissions",
+                  _TRIG_R("ln_one", "ln 1"),
+                  ("rewrite", {"entry": "cos_table", "inst": {"q": "1/4"},
+                               "at": "cos(pi/4)"}),
+                  _TRIG_C("-ln(sqrt 2 / 2)")],
+        "report": "Proved modulo 7 admissions",
         "trig": ("tan_def", "pyth_cos"),
         "trig_obligation": "cos x # 0 @ (0, pi/4)",
-        "theorem": "Int[x = 0 .. pi/4] tan x == -ln(cos(pi/4))"},
+        "theorem": "Int[x = 0 .. pi/4] tan x == -ln(sqrt 2 / 2)"},
 }
 
 TRIG_NORM_BAD_MOVES = [
@@ -18452,3 +18457,82 @@ K4D_CASES = {
          "keyhole-not-certified"),
     ],
 }
+
+K4D_ENTRIES = {  # E239's, pinned, appended after K1's five: ENTRIES 47 -> 51
+    "atan_one": ("atan 1 == pi/4", ()),
+    "atan_sqrt3": ("atan(sqrt 3) == pi/3", ()),
+    "arg_left_up": ("Arg(u + i*v) == atan(v/u) + pi @ u < 0, v >= 0",
+                    ("u", "v")),
+    "arg_left_down": ("Arg(u + i*v) == atan(v/u) - pi @ u < 0, v < 0",
+                      ("u", "v")),
+}
+K4D_ENTRIES_APPEND = tuple(K4D_ENTRIES)
+RESIDUE_KEYHOLE = "keyhole"
+DECISIONS_COMPLEX_K4D["E239"] = (
+    "Building K4c-ii: closed answers fully evaluated. The keyhole's "
+    "residues hold sin and cos at multiples of pi/6 and pi/4, arg[2*pi] at "
+    "closed points, and atan at the standard values, none of which the "
+    "kernel evaluated, so each value closed unevaluated (E27 did not count "
+    "them) and the closed keys were admitted. (1) entries.cos_sin_table is "
+    "the one trigonometric table, the first quadrant at 0, 30, 45, 60 and "
+    "90 degrees, reflected (E211's, moved). The families sin_table and "
+    "cos_table state its values for rewrite. (2) Four entries: atan_one, "
+    "atan_sqrt3, and arg_left_up and arg_left_down, the principal argument "
+    "in the left half-plane. (3) E31's exact values (discharge.exact_values) "
+    "also rewrite sin and cos at table angles, atan at 0, +-1/sqrt 3, +-1 "
+    "and +-sqrt 3, and Arg at a closed point by the exact signs of its parts. "
+    "Each is a computation the trusted base now holds, beside its "
+    "entries. (4) E206 runs on every closed key after the exact values, in "
+    "_discharge, not only in residues' own keys. (5) E27 counts sin and cos "
+    "at table angles, and arg[theta] w for theta # pi and closed w (as "
+    "arg_branch, k read numerically and owed), and reads a principal Arg's "
+    "parts by their exact signs, surds included. Auto-simpl applies them, "
+    "reduces a fact's atom inside a denominator sum, and splits a complex "
+    "value into parts before its fact phase. Untrusted: the close is "
+    "checked as before.")
+DECISIONS_COMPLEX_K4D["E240"] = (
+    "Building K4c-ii, the power form. (1) A residue's log[2*pi](a) at a "
+    "closed pole a, with parts in Q(sqrt s) and |a|^2 rational, is written "
+    "exactly as ln(|a|^2)/2 + i*theta, theta the principal Arg shifted into "
+    "(0, 2*pi]. This is the definition (Z6) computed, so 20 P8's residue "
+    "reads exp((a - 1)*(i*pi)). (2) 'alpha is not an integer' is owed as "
+    "n < alpha < n + 1 for an n the finder takes from [-8, 8] whose keys "
+    "settle, else as sin(pi*alpha) # 0. Either implies 1 - exp(2*pi*i*alpha) "
+    "# 0, so the result's divisor is discharged by it (tag keyhole_alpha). "
+    "(3) Spec corrections, nothing weakened: the symbolic 20 P8 row closes "
+    "by hand with the sin_add, cos_add, cos_pi, sin_pi and pyth_cos facts, "
+    "and reads Proved modulo 1 admissions. The admission is sin(pi*a) # 0 on "
+    "0 < a < 1, the answer's own definedness, which discharge has no strict "
+    "sine bound for. trig_norm does not relate sin(pi*a) to sin(pi*(a - "
+    "1)), since it groups angles by rational multiples and not by shifts of "
+    "pi.")
+K4D_CASES["symbolic"] = [
+    ("goal Int[x = 0+ .. oo] rpow(x, a - 1)/(1 + x) == ?A @ a > 0, a < 1.",
+     ["residues keyhole.",
+      "fact f1 := sin_add with u := (a - 1)*pi; v := (a - 1)*pi.",
+      "fact f2 := cos_add with u := (a - 1)*pi; v := (a - 1)*pi.",
+      "fact f3 := sin_add with u := (a - 1)*pi; v := pi.",
+      "fact f4 := cos_pi.", "fact f5 := sin_pi.",
+      "fact f6 := pyth_cos with u := (a - 1)*pi.",
+      "close pi/sin(pi*a) by field using f1, f2, f3, f4, f5, f6."],
+     "Proved modulo 1 admissions"),
+]
+K4D_EXACT_VALUES_ADD = ("atan_one", "atan_sqrt3")  # E239: exact values
+DECISIONS_COMPLEX_K4D["E241"] = (
+    "After K4c-ii's build and its review (2026-10-15). The review found no "
+    "false theorem and no crash in about 110 keyhole integrals against "
+    "mpmath. Folded in: the result's divisor 1 - exp(2*pi*i*alpha) # 0 is "
+    "discharged by E240's bracket only when the bracket settled, never on "
+    "an admitted key. Before, an integer alpha that ring cannot see "
+    "(rpow(x, sqrt 4)) admitted sin(pi*alpha) # 0 and marked the zero "
+    "divisor discharged. Earlier rows moved by E239, nothing weakened: "
+    "E27's e27_atan_odd_result accepts -atan 2, since atan 1 is now an "
+    "exact value. TRIG_TAN closes -ln(sqrt 2 / 2) after cos_table at "
+    "cos(pi/4), with 7 admissions, not 8, because the table decides one "
+    "closed key. Entries 47 -> 51. Left, recorded: (1) a linear key false on "
+    "its whole two-sided domain (a + 1 > 0 @ a > -2, a < -1) is admitted, "
+    "since the refuter's sampling misses it. (2) An imaginary part that is "
+    "identically 0 but written in cos and sin of table-free angles "
+    "(rpow(x, 1/4)) passes E27. (3) A closed key holding pi that is false "
+    "is admitted, not refuted, since norm_num and E206 do not read pi; ring "
+    "refuses the wrong close, so this is incompleteness.")

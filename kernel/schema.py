@@ -114,6 +114,10 @@ def evaluated_offence(value):
             return "a", s, "rpow_int"
         if period_shift(s) is not None:  # E181
             return "a", s, f"{s.fn}_period"
+        if table_q(s) is not None:  # E239
+            return "a", s, f"{s.fn}_table"
+        if branch_k(s) is not None:  # E239: a closed non-principal arg
+            return "a", s, "arg_branch"
     for s, _ in nodes:
         if not fv(s) and not complexes.real_form(s) and not _rect(s):
             return "c", s, "parts"
@@ -222,6 +226,74 @@ def rpow_int_exponent(s):
     return int(q) if q.denominator == 1 else None
 
 
+def table_q(s):
+    """E239: q when s is sin or cos of q*pi, q in (-1, 1], with q*pi in
+    entries.cos_sin_table and no exact entry for it; else None."""
+    if type(s) is not App or s.fn not in ("sin", "cos"):
+        return None
+    try:
+        (p,), atoms = _ring(s.arg)
+    except Refused:
+        return None
+    if len(p) != 1:
+        return None
+    (mono, q), = p.items()
+    if len(mono) != 1 or mono[0][1] != 1 or atoms[mono[0][0]] != Const("pi"):
+        return None
+    q = Fraction(q)
+    if not -1 < q <= 1 or q in (Fraction(1, 2), Fraction(1)) or \
+            entries.cos_sin_table(q) is None:
+        return None
+    return q
+
+
+def branch_k(s):
+    """E239: (theta, k) for arg[theta](w) with theta not pi and w closed and
+    off its cut, k the integer with theta - 2*pi < Arg w + 2*pi*k <=
+    theta, read numerically (untrusted: arg_branch owes it); else None."""
+    import cmath
+    if type(s) is not Branch or s.fn != "arg" or s.theta == Const("pi") \
+            or fv(s.arg):
+        return None
+    try:
+        w = complex(_numeric(s.arg))
+        w = complex(w.real + 0.0, w.imag + 0.0)  # no -0.0: phase(-2-0j) is -pi
+        th = float(_numeric(s.theta).real)
+    except (TypeError, ValueError, ZeroDivisionError, OverflowError):
+        return None
+    if w == 0:
+        return None
+    a = cmath.phase(w)
+    k = 0
+    while a + 2 * cmath.pi * k > th + 1e-12:
+        k -= 1
+    while a + 2 * cmath.pi * k <= th - 2 * cmath.pi + 1e-12:
+        k += 1
+    return s.theta, k
+
+
+def _numeric(t):
+    """A closed term's value as a Python complex, for branch_k's guess."""
+    import cmath
+    k = type(t)
+    if k is Num:
+        return complex(t.n)
+    if k is Const:
+        return {"pi": cmath.pi, "e_const": cmath.e, "i": 1j}[t.name]
+    if k is Neg:
+        return -_numeric(t.a)
+    if k in (Add, Mul, Div):
+        a, b = _numeric(t.a), _numeric(t.b)
+        return a + b if k is Add else a * b if k is Mul else a / b
+    if k is Pow:
+        return _numeric(t.base) ** t.n
+    if k is App and t.fn in ("sqrt", "exp", "sin", "cos", "atan"):
+        f = {"sqrt": cmath.sqrt, "exp": cmath.exp, "sin": cmath.sin,
+             "cos": cmath.cos, "atan": cmath.atan}[t.fn]
+        return f(_numeric(t.arg))
+    raise TypeError(t)
+
+
 def period_shift(s):
     """E181: (q, k) when s is sin or cos of q*pi, q rational outside
     (-1, 1], and k the integer that brings q - 2k into (-1, 1]; else
@@ -318,17 +390,30 @@ def _never(s):
 # cos_even count as atan_odd does.
 def arg_parts(s):
     """(re, im) of a principal Arg's closed argument as Fractions, or
-    None: E172's entries count by where the argument lies (E173)."""
+    None: E172's entries count by where the argument lies (E173). A part
+    in Q(sqrt q) (E206) is read by its sign, as -1, 0 or 1 (E239)."""
     if type(s) is not Branch or s.fn != "arg" or s.theta != Const("pi") \
             or fv(s.arg):
         return None
     try:
         re, im = complexes.split(s.arg)
-        vals = [Fraction(0) if x is None else FD.rational_value(x)
+        vals = [Fraction(0) if x is None else _signed(complexes._real(x))
                 for x in (re, im)]
     except Refused:
         return None
     return None if None in vals else tuple(vals)
+
+
+def _signed(x):
+    v = FD.rational_value(x)
+    if v is not None:
+        return v
+    s = [None]
+    try:
+        a, b = FD._surd(x, s)
+    except (FD._Mixed, ZeroDivisionError, RecursionError):
+        return None
+    return Fraction(FD._surd_sign(a, b, s[0] or 0))
 
 
 def _arg_reading(test):
@@ -343,6 +428,8 @@ _READINGS = {"arg_pos": _arg_reading(lambda a, b: b == 0 and a > 0),
              "arg_i_pos": _arg_reading(lambda a, b: a == 0 and b > 0),
              "arg_i_neg": _arg_reading(lambda a, b: a == 0 and b < 0),
              "arg_right": _arg_reading(lambda a, b: a > 0 and b != 0),
+             "arg_left_up": _arg_reading(lambda a, b: a < 0 and b > 0),
+             "arg_left_down": _arg_reading(lambda a, b: a < 0 and b < 0),
              "sqrt_sq": _sqrt_sq, "atan_odd": _atan_odd,
              "sqrt_sq_val": _sqrt_sq_val, "pyth_cos": _never,
              "sin_add": _never, "cos_add": _never, "tan_def": _never,

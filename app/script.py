@@ -60,7 +60,7 @@ USAGE = {
                  "[occurrence N] [by ring|field] [using h, ...]",
     "int_flip": "int_flip [occurrence N]",
     "cint_param": "cint_param [occurrence N]",
-    "residues": "residues [upper|lower] [in C, ...] [occurrence N]",
+    "residues": "residues [upper|lower|keyhole] [in C, ...] [occurrence N]",
     "int_even": "int_even [occurrence N]",
     "int_parts": "int_parts in x with u := T; v := T [occurrence N] "
                  "[by ring|field] [using h, ...]",
@@ -281,12 +281,13 @@ def _build(move, head, cl):
             raise TacticError(f"unexpected {head!r}")
         return occ
     if move == "residues":  # E201: the region, as a domain writes it
-        if head in ("upper", "lower"):  # E213: a line Int, closed
+        if head in ("upper", "lower", "keyhole"):  # E213, E232
             if "in" in cl:
                 raise TacticError("upper and lower take no region")
             return {"half": head, **occ}
         if head:
-            raise TacticError(f"unexpected {head!r}: upper or lower")
+            raise TacticError(f"unexpected {head!r}: upper, lower or "
+                              "keyhole")
         if "in" in cl and not cl["in"].strip():
             raise TacticError("in: give the region's conditions")
         return {**({"region": cl["in"].strip()} if "in" in cl else {}),

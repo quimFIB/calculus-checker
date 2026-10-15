@@ -847,6 +847,16 @@ int_even.
 residues upper.
 ```
 
+An integral over `[0, oo)` that is not even closes round a keyhole about
+the positive axis. `residues keyhole` takes a rational integrand (the log
+form) or one times a power `x^a`, written `sqrt x` or `rpow(x, a)` (the
+power form). An integrand singular at 0 needs its end marked, `0+`:
+
+```dx
+goal Int[x = 0+ .. oo] rpow(x, -1/2)/(x + 4) == ?A.
+residues keyhole.
+```
+
 ## The moves
 
 | Move | Does | Lesson |
@@ -904,6 +914,8 @@ same way. Any other left side, such as the power `(cos u)^2`, must match
 | `exp_one` | `exp 1 == e_const` |
 | `atan_zero` | `atan 0 == 0` |
 | `atan_one_sqrt3` | `atan(1/sqrt 3) == pi/6` |
+| `atan_one` | `atan 1 == pi/4` |
+| `atan_sqrt3` | `atan(sqrt 3) == pi/3` |
 | `sinh_zero` | `sinh 0 == 0` |
 | `cosh_zero` | `cosh 0 == 1` |
 | `tanh_zero` | `tanh 0 == 0` |
@@ -914,7 +926,8 @@ same way. Any other left side, such as the power `(cos u)^2`, must match
 u := 2; n := 1 at rpow(2, 1)`. It turns a real power with a whole
 exponent into plain multiplication, and owes `u > 0`.
 
-**The argument**, `Arg` of a value on an axis or to the right of 0:
+**The argument**, `Arg` of a value on an axis, to the right of 0, or to
+its left:
 
 | Entry | States |
 |---|---|
@@ -923,10 +936,16 @@ exponent into plain multiplication, and owes `u > 0`.
 | `arg_i_pos` | `Arg(i*u) == pi/2 @ u > 0` |
 | `arg_i_neg` | `Arg(i*u) == -pi/2 @ u < 0` |
 | `arg_right` | `Arg(u + i*v) == atan(v/u) @ u > 0` |
+| `arg_left_up` | `Arg(u + i*v) == atan(v/u) + pi @ u < 0, v >= 0` |
+| `arg_left_down` | `Arg(u + i*v) == atan(v/u) - pi @ u < 0, v < 0` |
 
 **Periodicity**, `sin_period` and `cos_period`: `sin(u + 2*pi*k) == sin u`
 and the same for cos, k a whole number, written `with u := 0; k := 2`.
 They bring sin and cos of any multiple of π back to the values above.
+
+**The table families**, `sin_table` and `cos_table`: sin and cos of q·π
+for q a multiple of 1/6 or 1/4, written `with q := 2/3`. For example
+`sin_table` with `q := 1/3` states `sin((1/3)*pi) == sqrt 3 / 2`.
 
 **One more family**, `arg_branch`, moves between cuts:
 `arg[θ] w == Arg w + 2*pi*k` when the right side lies in (θ − 2π, θ],
