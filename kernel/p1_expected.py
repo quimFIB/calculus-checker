@@ -18992,3 +18992,75 @@ PV_CASES["review"] = [  # E272: (goal, sentences, refusal code)
      "obligation-decided-false"),
     ("PV[x = 0 .. i] 1/x == ?A", [], "complex-calculus-not-built"),
 ]
+
+
+# -------------------------------------------------- symbolic coefficients in a divisor (E273-E278)
+
+DECISIONS_SYMBOLIC = {
+    "E273": "E204's factorisation reads a divisor factor by factor when "
+            "it is not one polynomial over Q(i). A divisor's multiplicative "
+            "factors, through products, powers, negation and quotients "
+            "(complexes._factors), are each factored alone, and their roots "
+            "and multiplicities are joined. A z-free factor is a constant, "
+            "owed # 0. A factor over Q(i) is factored as before. A factor of "
+            "degree at most 2 with z-free coefficients, parameters included, "
+            "is read by E274. Anything else refuses residue-roots-not-found. "
+            "So D(w) = (w0^2 - w^2)^2 + gamma^2*w^2 is reached when written as "
+            "the course writes it, (w0^2 - w^2 - i*gamma*w)*(w0^2 - w^2 + "
+            "i*gamma*w), and not as one expanded quartic (E277).",
+    "E274": "A symbolic quadratic factor. Its coefficients are c0 = f(0), "
+            "c1 = (f(1) - f(-1))/2 and c2 = (f(1) + f(-1))/2 - c0, and f == "
+            "c2*z^2 + c1*z + c0 is checked by ring on split parts. If c2 is "
+            "ring-zero, it is linear, with root -c0/c1 and c1 # 0 owed. "
+            "Otherwise D = c1^2 - 4*c2*c0 must be Real. Its sign is settled "
+            "at the goal's domain and owed: D > 0 gives (-c1 +- sqrt D)/(2*c2), "
+            "D < 0 gives (-c1 +- i*sqrt(-D))/(2*c2), and a ring-zero D gives "
+            "one root of multiplicity 2. An undecided sign, or a D with "
+            "complex structure, refuses residue-roots-not-found. The whole "
+            "factorisation is checked by field on split parts with the facts "
+            "sqrt(E)^2 == E for each such E (sqrt_sq_val, owing E >= 0), "
+            "c2 # 0 owed. Where each root lies, distinctness and the residues "
+            "then follow E204-E207 and E215, the keys in the parameters "
+            "settled at the goal's domain.",
+    "E275": "Sound, since every root is checked by the factorisation it "
+            "enters, under the owed signs. The finder's choice of sign case "
+            "is untrusted, and the case's condition is owed.",
+    "E276": "20 P5. The two integrals over the line, with D written as "
+            "the product above, under gamma > 0, w0 > 0 and gamma < 2*w0 "
+            "(underdamped, so 4*w0^2 - gamma^2 > 0). They close by hand: "
+            "residues upper, then close pi/(gamma*w0^2) (and pi/gamma) by "
+            "field with sqrt_sq_val at 4*w0^2 - gamma^2.",
+    "E277": "What this does not reach. A symbolic factor of degree > 2, "
+            "such as the expanded quartic D. A discriminant with complex "
+            "structure. Symbolic roots in the keyhole's and the sector's "
+            "rules, which take Q(i) coefficients only.",
+    "E278": "The cases (SYMBOLIC_CASES).",
+}
+
+SYMBOLIC_CASES = {
+    # (header, sentences, report)
+    "reports": [
+        ("goal Int[x = -oo .. oo] 1/(x^2 + a^2) == ?A @ a > 0.",
+         ["residues upper.", "fact h := sqrt_sq_val with a := 4*a^2.",
+          "close pi/a by field using h."], "Proved."),
+        # 20 P5, the first integral
+        ("goal Int[w = -oo .. oo] 1/((o^2 - w^2 - i*g*w)*(o^2 - w^2 + "
+         "i*g*w)) == ?A @ g > 0, o > 0, g < 2*o.",
+         ["residues upper.", "fact h := sqrt_sq_val with a := 4*o^2 - g^2.",
+          "close pi/(g*o^2) by field using h."], "Proved."),
+        # 20 P5, the second
+        ("goal Int[w = -oo .. oo] w^2/((o^2 - w^2 - i*g*w)*(o^2 - w^2 + "
+         "i*g*w)) == ?A @ g > 0, o > 0, g < 2*o.",
+         ["residues upper.", "fact h := sqrt_sq_val with a := 4*o^2 - g^2.",
+          "close pi/g by field using h."], "Proved."),
+    ],
+    # (goal, sentence, code)
+    "move_refusals": [
+        # the expanded quartic: a symbolic factor of degree 4
+        ("Int[w = -oo .. oo] 1/((o^2 - w^2)^2 + g^2*w^2) == ?A @ g > 0, o > 0, "
+         "g < 2*o", "residues upper", "residue-roots-not-found"),
+        # the discriminant's sign is not decided
+        ("Int[x = -oo .. oo] 1/(x^2 + b*x + 1) == ?A", "residues upper",
+         "residue-roots-not-found"),
+    ],
+}
